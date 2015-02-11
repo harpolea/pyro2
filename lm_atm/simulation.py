@@ -137,6 +137,7 @@ class Simulation:
         # we also need storage for the 1-d base state -- we'll store this
         # in the main class directly.
         self.base["D0"] = np.zeros((myg.qy), dtype=np.float64)
+        self.base["Dh0"] = np.zeros((myg.qy), dtype=np.float64)
         self.base["p0"] = np.zeros((myg.qy), dtype=np.float64)
 
         # now set the initial conditions for the problem
@@ -239,7 +240,7 @@ class Simulation:
         myg = self.cc_data.grid
 
         D = self.cc_data.get_var("density")
-        #h = self.cc_data.get_var("enthalpy")
+        #Dh = self.cc_data.get_var("enthalpy")
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
 
@@ -342,7 +343,7 @@ class Simulation:
         """
 
         D = self.cc_data.get_var("density")
-        h = self.cc_data.get_var("enthalpy")
+        Dh = self.cc_data.get_var("enthalpy")
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
 
@@ -355,6 +356,7 @@ class Simulation:
         zeta_edges = self.base["zeta-edges"]
 
         D0 = self.base["D0"]
+        Dh0 = self.base["Dh0"]
 
         phi = self.cc_data.get_var("phi")
 
@@ -408,6 +410,8 @@ class Simulation:
         print("  making MAC velocities")
 
         # create the coefficient to the grad (pi/zeta) term
+        #####!!!!!!! Check this coefficient
+        ##### - think it may actually be zeta/Dh u^0
         coeff = self.aux_data.get_var("coeff")
         coeff[:,:] = 1.0/D[:,:]
         coeff[:,:] = coeff*zeta[np.newaxis,:]
@@ -514,7 +518,7 @@ class Simulation:
         #---------------------------------------------------------------------
         # predict D to the edges and do its conservative update
         #
-        # !!!!! Need to add in christoffel terms !!!!
+        # Add source terms at start/end
         #---------------------------------------------------------------------
         D_xint, D_yint = lm_interface_f.D_states(myg.qx, myg.qy, myg.ng,
                                                        myg.dx, myg.dy, dt,
@@ -536,6 +540,34 @@ class Simulation:
              v_MAC[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/myg.dy )
 
         self.cc_data.fill_BC("density")
+
+
+
+        #---------------------------------------------------------------------
+        # predict Dh to the edges and do its conservative update
+        #
+        # Exactly the same as for density
+        #---------------------------------------------------------------------
+        Dh_xint, Dh_yint = lm_interface_f.Dh_states(myg.qx, myg.qy, myg.ng,
+                                                       myg.dx, myg.dy, dt,
+                                                       Dh, u_MAC, v_MAC,
+                                                       ldelta_rx, ldelta_ry)
+
+        Dh_old = Dh.copy()
+
+        Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt*(
+            #  (Dh u)_x
+            (Dh_xint[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1]*
+             u_MAC[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
+             Dh_xint[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]*
+             u_MAC[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/myg.dx +
+            #  (Dh v)_y
+            (Dh_yint[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2]*
+             v_MAC[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] -
+             Dh_yint[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]*
+             v_MAC[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/myg.dy )
+
+        self.cc_data.fill_BC("enthalpy")
 
         #---------------------------------------------------------------------
         # recompute the interface states, using the advective velocity
