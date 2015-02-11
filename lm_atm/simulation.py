@@ -84,6 +84,7 @@ class Simulation:
         my_data = patch.CellCenterData2d(myg)
 
         my_data.register_var("density", bc_dens)
+        my_data.register_var("enthalpy", bc_dens)
         my_data.register_var("x-velocity", bc_xodd)
         my_data.register_var("y-velocity", bc_yodd)
 
@@ -142,6 +143,10 @@ class Simulation:
         exec(self.problem_name + '.init_data(self.cc_data, self.base, self.rp)')
 
         # Construct zeta_0
+        #
+        #######!!!!!! This assumes normal equation of state and that D0 is
+        ####### constant in r, which it is not.
+
         gamma = self.rp.get_param("eos.gamma")
         self.base["zeta"] = self.base["p0"]**(1.0/gamma)
 
@@ -153,6 +158,22 @@ class Simulation:
                  self.base["zeta"][myg.jlo+1:myg.jhi+1])
         self.base["zeta-edges"][myg.jlo] = self.base["zeta"][myg.jlo]
         self.base["zeta-edges"][myg.jhi+1] = self.base["zeta"][myg.jhi]
+
+
+    def findZeta(self):
+
+        #find variables
+        D0 = self.base["D0"]
+        p0 = self.base["p0"]
+
+        # going to cheat with EoS and just say that p = (gamma-1)rho, so
+        # 1/Gamma1*p = 1/rho*gamma = u^0/D*gamma
+        # and
+        # 1/Gamma1*p * dp/dr = d ln rho / dr = d ln (D/u^0) / dr
+        #
+        #
+
+
 
 
     def make_prime(self, a, a0):
@@ -187,6 +208,8 @@ class Simulation:
 
         # We need an alternate timestep that accounts for buoyancy, to
         # handle the case where the velocity is initially zero.
+
+        ########!!!!!!!!!!! Need to do this relativistically!!!!!!!!!!!!
         D = self.cc_data.get_var("density")
         D0 = self.base["D0"]
         Dprime = self.make_prime(D, D0)
@@ -216,6 +239,7 @@ class Simulation:
         myg = self.cc_data.grid
 
         D = self.cc_data.get_var("density")
+        #h = self.cc_data.get_var("enthalpy")
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
 
@@ -259,7 +283,7 @@ class Simulation:
 
         # solve D (zeta_0^2/D) G (phi/zeta_0) = D( zeta_0 U )
 
-        # set the RHS to divU and solve
+        # set the RHS to div_zeta_U and solve
         mg.init_RHS(div_zeta_U)
         mg.solve(rtol=1.e-10)
 
@@ -318,6 +342,7 @@ class Simulation:
         """
 
         D = self.cc_data.get_var("density")
+        h = self.cc_data.get_var("enthalpy")
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
 
