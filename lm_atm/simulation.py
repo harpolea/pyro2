@@ -34,6 +34,7 @@ class Simulation:
         self.cc_data = None
         self.aux_data = None
         self.base = {}
+        self.metric = None
 
         self.problem_name = problem_name
 
@@ -136,24 +137,64 @@ class Simulation:
 
         # we also need storage for the 1-d base state -- we'll store this
         # in the main class directly.
-        self.base["D0"] = np.zeros((myg.qy), dtype=np.float64)
+        self.base["D0"] = np.zeros((mygli.qy), dtype=np.float64)
         self.base["Dh0"] = np.zeros((myg.qy), dtype=np.float64)
         self.base["p0"] = np.zeros((myg.qy), dtype=np.float64)
 
         # now set the initial conditions for the problem
         exec(self.problem_name + '.init_data(self.cc_data, self.base, self.rp)')
 
-        # Construct zeta_0
-        #
-        #######!!!!!! This assumes normal equation of state and that D0 is
-        ####### constant in r, which it is not.
 
-        gamma = self.rp.get_param("eos.gamma")
-        self.base["zeta"] = self.base["p0"]**(1.0/gamma)
+        # add metric
+        alpha = 1.
+        beta = [0., 0., 0.]
+        gamma = np.ones(3)
+        self.metric = metric.Metric(self.cc_data, alpha, beta, gamma)
+
+        # Construct zeta_0
+
+        #gamma = self.rp.get_param("eos.gamma")
+        #self.base["zeta"] = self.base["p0"]**(1.0/gamma)
+
+        self.base["zeta"] = np.zeros((mygli.qy), dtype=np.float64)
 
         # we'll also need zeta_0 on vertical edges -- on the domain edges,
         # just do piecewise constant
         self.base["zeta-edges"] = np.zeros((myg.qy), dtype=np.float64)
+
+        self.updateZeta(myg)
+
+
+
+
+    def updateZeta(self, myg):
+        """
+        TODO: write this
+
+        Parameters
+        ----------
+        myg : Grid2d object
+            grid on which zeta lives
+        """
+
+        #find variables
+        D0 = self.base["D0"]
+        u0 = self.metric.calcu0
+
+        # going to cheat with EoS and just say that p = (gamma-1)rho, so
+        # 1/Gamma1*p = 1/rho*gamma = u^0/D*gamma
+        # and
+        # 1/Gamma1*p * dp/dr = d ln rho / dr = d ln (D/u^0) / dr
+        #
+        # So, if we integrate over this wrt r we get D/u^0, so zeta =
+        # exp(D/u^0).
+
+        zeta = np.exp(D0 / u0)
+
+        self.base["zeta"] = zeta
+
+        # we'll also need zeta_0 on vertical edges -- on the domain edges,
+        # just do piecewise constant
         self.base["zeta-edges"][myg.jlo+1:myg.jhi+1] = \
             0.5*(self.base["zeta"][myg.jlo  :myg.jhi] +
                  self.base["zeta"][myg.jlo+1:myg.jhi+1])
@@ -161,18 +202,6 @@ class Simulation:
         self.base["zeta-edges"][myg.jhi+1] = self.base["zeta"][myg.jhi]
 
 
-    def findZeta(self):
-
-        #find variables
-        D0 = self.base["D0"]
-        p0 = self.base["p0"]
-
-        # going to cheat with EoS and just say that p = (gamma-1)rho, so
-        # 1/Gamma1*p = 1/rho*gamma = u^0/D*gamma
-        # and
-        # 1/Gamma1*p * dp/dr = d ln rho / dr = d ln (D/u^0) / dr
-        #
-        #
 
 
 
@@ -210,7 +239,7 @@ class Simulation:
         # We need an alternate timestep that accounts for buoyancy, to
         # handle the case where the velocity is initially zero.
 
-        ########!!!!!!!!!!! Need to do this relativistically!!!!!!!!!!!!
+        # FIXME: Need to do this relativistically!!!!!!!!!!!!
         D = self.cc_data.get_var("density")
         D0 = self.base["D0"]
         Dprime = self.make_prime(D, D0)
@@ -340,6 +369,9 @@ class Simulation:
     def evolve(self, dt):
         """
         Evolve the low Mach system through one timestep.
+
+        FIXME: The base states are never evolved. This should definitely be
+        rectified.
         """
 
         D = self.cc_data.get_var("density")
@@ -352,6 +384,8 @@ class Simulation:
 
 
         # note: the base state quantities do not have valid ghost cells
+        # need to update zeta as D0, u0 etc change every time step
+        self.updateZeta(self.cc_data.grid)
         zeta = self.base["zeta"]
         zeta_edges = self.base["zeta-edges"]
 
@@ -410,8 +444,7 @@ class Simulation:
         print("  making MAC velocities")
 
         # create the coefficient to the grad (pi/zeta) term
-        #####!!!!!!! Check this coefficient
-        ##### - think it may actually be zeta/Dh u^0
+        # FIXME: Check this coefficient - think it may actually be zeta/Dh u^0
         coeff = self.aux_data.get_var("coeff")
         coeff[:,:] = 1.0/D[:,:]
         coeff[:,:] = coeff*zeta[np.newaxis,:]
@@ -423,7 +456,7 @@ class Simulation:
         g = self.rp.get_param("lm-atmosphere.grav")
         Dprime = self.make_prime(D, D0)
 
-        ####!!!!!!!!! Need to correct this to make relativistic !!!!!!!!!!!!####
+        # FIXME: Need to correct this to make relativistic
         source[:,:] = Dprime*g/D
         self.aux_data.fill_BC("source_y")
 
@@ -577,6 +610,9 @@ class Simulation:
 
         coeff = self.aux_data.get_var("coeff")
         coeff[:,:] = 2.0/(D[:,:] + D_old[:,:])
+
+        # FIXME: check if need to recalculate zeta as D0 may have changed
+
         coeff[:,:] = coeff*zeta[np.newaxis,:]
         self.aux_data.fill_BC("coeff")
 
@@ -637,7 +673,7 @@ class Simulation:
 
         # add the gravitational source
 
-        #####!!!!!!!! Make relativistic !!!!!!!!!!
+        # FIXME: Make relativistic !!!!!!!!!!
         D_half = 0.5*(D + D_old)
         Dprime = self.make_prime(D_half, D0)
         source = Dprime*g/D_half
@@ -660,6 +696,7 @@ class Simulation:
         print("  final projection")
 
         # create the coefficient array: zeta**2/D
+        # FIXME: probably need to recalculate zeta
         coeff = 1.0/D[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]
         coeff = coeff*zeta[np.newaxis,myg.jlo-1:myg.jhi+2]**2
 

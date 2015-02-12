@@ -32,7 +32,7 @@ class Metric:
         self.cc_data = cellData
         self.alpha = alpha
         self.beta = beta
-        self.W = 1.; #Lorentz factor.
+        self.W = 1. #Lorentz factor.
         self.gamma = gamma
 
     def dets(self):
@@ -41,7 +41,36 @@ class Metric:
         returns them.
         """
 
-        #do stuff
+        sg = self.cc_data.grid.scratch_array()
+        sgamma = self.cc_data.grid.scratch_array()
+
+        # FIXME: implement this
+
+        return sg, sgamma
+
+    def calcW(self):
+        """
+        Calculates the Lorentz factor and returns it.
+        """
+
+        W = self.cc_data.grid.scratch_array()
+
+        # FIXME: work out how to calculate this
+
+        return W
+
+    def calcu0(self):
+        """
+        Calculates the timelike coordinate of the 4-velocity using the Lorentz
+        factor and alpha, so W = alpha * u0
+        """
+
+        W = self.calcW
+        alpha = self.alpha
+
+        return W / alpha
+
+
 
     def g(self, x):
         """
@@ -52,11 +81,13 @@ class Metric:
         Parameters
         ----------
         x : float array
-            4-coordinate
+            4-coordinate of point where g is to be calculated
         """
 
-        met = diag([-1., 1., 1., 1.])
-        g[0,0] = -self.alpha**2 + np.dot(self.beta, self.beta)
-        g[0,1:] = self.beta'
-        g[1:,0] = self.beta
-        g[1:,1:] = self.gamma
+        met = np.diag([-1., 1., 1., 1.])
+        met[0,0] = -self.alpha**2 + np.dot(self.beta, self.beta)
+        met[0,1:] = np.self.beta.T
+        met[1:,0] = self.beta
+        met[1:,1:] = self.gamma
+
+        return met
