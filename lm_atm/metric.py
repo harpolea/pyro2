@@ -1,7 +1,6 @@
 from __future__ import print_function
 
 import numpy as np
-import matplotlib.pyplot as plt
 
 from lm_atm.problems import *
 import lm_atm.LM_atm_interface_f as lm_interface_f
@@ -14,7 +13,7 @@ class Metric:
 
     def __init__(self, cellData, alpha, beta, gamma):
         """
-        Initialize the Metric object.
+        Initialize the Metric object. This is a standard 3+1 metric.
 
         Parameters
         ----------
@@ -74,20 +73,50 @@ class Metric:
 
     def g(self, x):
         """
-        Calculates the 4-metric at the coordinate x.
+        Calculates the 2+1-metric at the coordinate x.
         Currently alpha, beta and gamma have no x-dependence so this is kind of
         redundant.
 
         Parameters
         ----------
         x : float array
-            4-coordinate of point where g is to be calculated
+            2+1-coordinate of point where g is to be calculated
         """
 
-        met = np.diag([-1., 1., 1., 1.])
+        met = np.diag([-1., 1., 1.])
         met[0,0] = -self.alpha**2 + np.dot(self.beta, self.beta)
         met[0,1:] = np.self.beta.T
         met[1:,0] = self.beta
         met[1:,1:] = self.gamma
 
         return met
+
+
+
+    def christoffels(self, x):
+        """
+        Calculates the Christoffel symbols of the metric at the given point.
+
+        Parameters
+        ----------
+        x : float array
+            2+1 coordinate of point where christoffels are to be calculated.
+        """
+
+        christls = np.zeros((3,3,3))
+
+        #K = np.zeros((2,2)) #placeholder
+
+        r = x[2] * self.cc_data.grid.dy
+        g = (self.alpha**2 - 1.) / (2. * r)
+
+        #For simple time-lagged metric, only have 3 non-zero christoffels.
+        christls[0,0,2] = g/self.alpha**2
+        christls[0,2,0] = g/self.alpha**2
+        christls[2,0,0] = g
+
+
+        # For non-simple, we have to do more icky stuff including time and space
+        # derivatives of stuff, so I shall not do this for now.
+
+        return christls

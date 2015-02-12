@@ -8,7 +8,12 @@ import lm_atm.LM_atm_interface_f as lm_interface_f
 import mesh.reconstruction_f as reconstruction_f
 import mesh.patch as patch
 import multigrid.variable_coeff_MG as vcMG
+import metric
 from util import profile
+
+"""
+TODO: Need to add the other source term to the elliptic equation parts.
+"""
 
 class Simulation:
 
@@ -148,7 +153,7 @@ class Simulation:
         # add metric
         alpha = 1.
         beta = [0., 0., 0.]
-        gamma = np.ones(3)
+        gamma = np.ones((3,3))
         self.metric = metric.Metric(self.cc_data, alpha, beta, gamma)
 
         # Construct zeta
@@ -281,9 +286,11 @@ class Simulation:
         # 1. do the initial projection.  This makes sure that our original
         # velocity field satisties div U = 0
 
-        # the coefficent for the elliptic equation is zeta^2/D
+        # the coefficent for the elliptic equation is zeta^2/Dhu0
         # haven't evolved anything yet do
-        coeff = 1.0/D[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]
+        u0 = self.metric.calcu0
+        coeff = 1.0/(Dh[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] * \
+            u0[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2])
         zeta = self.base["zeta"]
         coeff = coeff*zeta[np.newaxis,myg.jlo-1:myg.jhi+2]**2
 
@@ -300,7 +307,7 @@ class Simulation:
                                  coeffs_bc=self.cc_data.BCs["density"],
                                  verbose=0)
 
-        # first compute div{zeta_0 U}
+        # first compute div{zeta U}
         div_zeta_U = mg.soln_grid.scratch_array()
 
         # u/v are cell-centered, divU is cell-centered
@@ -313,7 +320,7 @@ class Simulation:
                  zeta[np.newaxis,myg.jlo-1:myg.jhi  ]*
                  v[myg.ilo:myg.ihi+1,myg.jlo-1:myg.jhi  ])/myg.dy
 
-        # solve D (zeta_0^2/D) G (phi/zeta_0) = D( zeta_0 U )
+        # solve D (zeta^2/D) G (phi/zeta) = D( zeta U )
 
         # set the RHS to div_zeta_U and solve
         mg.init_RHS(div_zeta_U)
@@ -374,6 +381,9 @@ class Simulation:
 
         FIXME: The base states are never evolved. This should definitely be
         rectified.
+        Also there is no pressure stuff - as base state doesn't evolve, never
+        have to worry about hydrostatic equilibrium not being enforced. Find out
+        where to put this.
         """
 
         D = self.cc_data.get_var("density")
@@ -429,8 +439,10 @@ class Simulation:
         g = self.rp.get_param("lm-atmosphere.grav")
 
 
+        D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * D * v * g / \
+            (2. * (1.+ 2. * g * np.linspace(0., myg.dx * myg.hi, 1./myg.dx)))
         Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * Dh * v * g / \
-            2. * (1.+ 2. * g * np.linspace(0., myg.dx * myg.hi, 1./myg.dx))
+            (2. * (1.+ 2. * g * np.linspace(0., myg.dx * myg.hi, 1./myg.dx)))
 
 
 
@@ -464,20 +476,30 @@ class Simulation:
         print("  making MAC velocities")
 
         # create the coefficient to the grad (pi/zeta) term
-        # FIXME: Check this coefficient - think it may actually be zeta/Dh u^0
+        u0 = self.metric.calcu0
         coeff = self.aux_data.get_var("coeff")
-        coeff[:,:] = 1.0/D[:,:]
+        coeff[:,:] = 1.0/(Dh[:,:] * u0[:,:])
         coeff[:,:] = coeff*zeta[np.newaxis,:]
         self.aux_data.fill_BC("coeff")
 
         # create the source term
         source = self.aux_data.get_var("source_y")
-
+        """
         #g = self.rp.get_param("lm-atmosphere.grav")
         Dprime = self.make_prime(D, D0)
 
-        # FIXME: Need to correct this to make relativistic
         source[:,:] = Dprime*g/D
+        """
+
+        """
+        Have attempted to do this relativistically.
+
+        Source here is given by -U_j Dlnu0/Dt + Gamma_{rho nu j} U^nu U^rho.
+        The second term in our simple time-lagged metric is just -g.
+        The first term presents some difficulty so shall try to ignore it for
+        now.
+        """
+        source[:,:] = -g * np.ones((myg.qx, myg.qy))
         self.aux_data.fill_BC("source_y")
 
         u_MAC, v_MAC = lm_interface_f.mac_vels(myg.qx, myg.qy, myg.ng,
@@ -494,15 +516,20 @@ class Simulation:
         # free
         #---------------------------------------------------------------------
 
-        # we will solve D (zeta_0^2/D) G phi = D (zeta_0 U^MAC), where
+        # we will solve D (zeta^2/D) G phi = D (zeta U^MAC), where
         # phi is cell centered, and U^MAC is the MAC-type staggered
         # grid of the advective velocities.
 
         print("  MAC projection")
 
-        # create the coefficient array: zeta**2/D
-        coeff = 1.0/D[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]
+        # create the coefficient array: zeta**2/Dhu0
+        u0 = self.metric.calcu0
+        coeff = 1.0/(Dh[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] * \
+            u0[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2])
+        self.updateZeta(self.cc_data.grid)
+        zeta = self.base["zeta"]
         coeff = coeff*zeta[np.newaxis,myg.jlo-1:myg.jhi+2]**2
+
 
         # create the multigrid object
         mg = vcMG.VarCoeffCCMG2d(myg.nx, myg.ny,
@@ -516,10 +543,10 @@ class Simulation:
                                  coeffs_bc=self.cc_data.BCs["density"],
                                  verbose=0)
 
-        # first compute div{zeta_0 U}
+        # first compute div{zeta U}
         div_zeta_U = mg.soln_grid.scratch_array()
 
-        # MAC velocities are edge-centered.  div{zeta_0 U} is cell-centered.
+        # MAC velocities are edge-centered.  div{zeta U} is cell-centered.
         div_zeta_U[mg.ilo:mg.ihi+1,mg.jlo:mg.jhi+1] = \
             zeta[np.newaxis,myg.jlo:myg.jhi+1]*(
                 u_MAC[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
@@ -536,7 +563,7 @@ class Simulation:
 
         # update the normal velocities with the pressure gradient -- these
         # constitute our advective velocities.  Note that what we actually
-        # solved for here is phi/zeta_0
+        # solved for here is phi/zeta
         phi_MAC = self.cc_data.get_var("phi-MAC")
         phi_MAC[:,:] = mg.get_solution(grid=myg)
 
@@ -556,7 +583,7 @@ class Simulation:
                      coeff[myg.ilo:myg.ihi+1,myg.jlo-3:myg.jhi+2])
 
         # we need the MAC velocities on all edges of the computational domain
-        # here we do U = U - (zeta_0/D) grad (phi/zeta_0)
+        # here we do U = U - (zeta/D) grad (phi/zeta)
         u_MAC[myg.ilo:myg.ihi+2,myg.jlo:myg.jhi+1] -= \
                 coeff_x[myg.ilo  :myg.ihi+2,myg.jlo:myg.jhi+1]* \
                 (phi_MAC[myg.ilo  :myg.ihi+2,myg.jlo:myg.jhi+1] -
@@ -696,10 +723,11 @@ class Simulation:
 
         # add the gravitational source
 
-        # FIXME: Make relativistic !!!!!!!!!!
-        D_half = 0.5*(D + D_old)
-        Dprime = self.make_prime(D_half, D0)
-        source = Dprime*g/D_half
+        # Made relativisticish?
+        #D_half = 0.5*(D + D_old)
+        #Dprime = self.make_prime(D_half, D0)
+        #source = Dprime*g/D_half
+        source[:,:] = -g * np.ones((myg.qx, myg.qy))
 
         v[:,:] += dt*source
 
@@ -717,9 +745,10 @@ class Simulation:
         #
         # This runs ReactState.
         #---------------------------------------------------------------------
-
+        D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * D * v * g / \
+            (2. * (1.+ 2. * g * np.linspace(0., myg.dx * myg.hi, 1./myg.dx)))
         Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * Dh * v * g / \
-            2. * (1.+ 2. * g * np.linspace(0., myg.dx * myg.hi, 1./myg.dx))
+            (2. * (1.+ 2. * g * np.linspace(0., myg.dx * myg.hi, 1./myg.dx)))
 
 
 
@@ -730,10 +759,14 @@ class Simulation:
         # now we solve L phi = D (U* /dt)
         print("  final projection")
 
-        # create the coefficient array: zeta**2/D
-        # FIXME: probably need to recalculate zeta
-        coeff = 1.0/D[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]
+        # create the coefficient array: zeta**2/Dhu0
+        u0 = self.metric.calcu0
+        coeff = 1.0/(Dh[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] * \
+            u0[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2])
+        self.updateZeta(self.cc_data.grid)
+        zeta = self.base["zeta"]
         coeff = coeff*zeta[np.newaxis,myg.jlo-1:myg.jhi+2]**2
+
 
         # create the multigrid object
         mg = vcMG.VarCoeffCCMG2d(myg.nx, myg.ny,
@@ -747,7 +780,7 @@ class Simulation:
                                  coeffs_bc=self.cc_data.BCs["density"],
                                  verbose=0)
 
-        # first compute div{zeta_0 U}
+        # first compute div{zeta U}
 
         # u/v are cell-centered, divU is cell-centered
         div_zeta_U[mg.ilo:mg.ihi+1,mg.jlo:mg.jhi+1] = \
@@ -780,8 +813,9 @@ class Simulation:
         gradphi_x, gradphi_y = mg.get_solution_gradient(grid=myg)
 
 
-        # U = U - (zeta_0/D) grad (phi/zeta_0)
-        coeff = 1.0/D[:,:]
+        # U = U - (zeta/Dhuo) grad (phi/zeta)
+        u0 = self.metric.calcu0
+        coeff = 1.0/(Dh[:,:] * u0[:,:])
         coeff = coeff*zeta[np.newaxis,:]
 
         u[:,:] -= dt*coeff*gradphi_x
