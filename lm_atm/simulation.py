@@ -151,14 +151,14 @@ class Simulation:
         gamma = np.ones(3)
         self.metric = metric.Metric(self.cc_data, alpha, beta, gamma)
 
-        # Construct zeta_0
+        # Construct zeta
 
         #gamma = self.rp.get_param("eos.gamma")
         #self.base["zeta"] = self.base["p0"]**(1.0/gamma)
 
         self.base["zeta"] = np.zeros((mygli.qy), dtype=np.float64)
 
-        # we'll also need zeta_0 on vertical edges -- on the domain edges,
+        # we'll also need zeta on vertical edges -- on the domain edges,
         # just do piecewise constant
         self.base["zeta-edges"] = np.zeros((myg.qy), dtype=np.float64)
 
@@ -169,7 +169,8 @@ class Simulation:
 
     def updateZeta(self, myg):
         """
-        TODO: write this
+        Update zeta in the interior and on the edges. Assumes all other
+        variables are up to date.
 
         Parameters
         ----------
@@ -280,7 +281,8 @@ class Simulation:
         # 1. do the initial projection.  This makes sure that our original
         # velocity field satisties div U = 0
 
-        # the coefficent for the elliptic equation is zeta_0^2/D
+        # the coefficent for the elliptic equation is zeta^2/D
+        # haven't evolved anything yet do
         coeff = 1.0/D[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]
         zeta = self.base["zeta"]
         coeff = coeff*zeta[np.newaxis,myg.jlo-1:myg.jhi+2]**2
@@ -398,7 +400,7 @@ class Simulation:
 
 
         #---------------------------------------------------------------------
-        # create the limited slopes of D, u and v (in both directions)
+        # create the limited slopes of D, Dh, u and v (in both directions)
         #---------------------------------------------------------------------
         limiter = self.rp.get_param("lm-atmosphere.limiter")
         if limiter == 0: limitFunc = reconstruction_f.nolimit
@@ -407,12 +409,30 @@ class Simulation:
 
 
         ldelta_rx = limitFunc(1, D, myg.qx, myg.qy, myg.ng)
+        ldelta_ex = limitFunc(1, Dh, myg.qx, myg.qy, myg.ng)
         ldelta_ux = limitFunc(1, u, myg.qx, myg.qy, myg.ng)
         ldelta_vx = limitFunc(1, v, myg.qx, myg.qy, myg.ng)
 
         ldelta_ry = limitFunc(2, D, myg.qx, myg.qy, myg.ng)
+        ldelta_ey = limitFunc(2, Dh, myg.qx, myg.qy, myg.ng)
         ldelta_uy = limitFunc(2, u, myg.qx, myg.qy, myg.ng)
         ldelta_vy = limitFunc(2, v, myg.qx, myg.qy, myg.ng)
+
+
+        #---------------------------------------------------------------------
+        # React full step through first half timestep
+        # Assume for simplicity here that only non-zero Christoffel of
+        # Gamma^mu_{mu nu} form is Gamma^t_{t r} = g/(1+2gr)
+        #
+        # This runs ReactState.
+        #---------------------------------------------------------------------
+        g = self.rp.get_param("lm-atmosphere.grav")
+
+
+        Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * Dh * v * g / \
+            2. * (1.+ 2. * g * np.linspace(0., myg.dx * myg.hi, 1./myg.dx))
+
+
 
         #---------------------------------------------------------------------
         # get the advective velocities
@@ -453,7 +473,7 @@ class Simulation:
         # create the source term
         source = self.aux_data.get_var("source_y")
 
-        g = self.rp.get_param("lm-atmosphere.grav")
+        #g = self.rp.get_param("lm-atmosphere.grav")
         Dprime = self.make_prime(D, D0)
 
         # FIXME: Need to correct this to make relativistic
@@ -548,10 +568,13 @@ class Simulation:
                  phi_MAC[myg.ilo:myg.ihi+1,myg.jlo-1:myg.jhi+1])/myg.dy
 
 
+
+
+
         #---------------------------------------------------------------------
         # predict D to the edges and do its conservative update
         #
-        # Add source terms at start/end
+        # FIXME: Add source terms at start/end, also need to advect the base
         #---------------------------------------------------------------------
         D_xint, D_yint = lm_interface_f.D_states(myg.qx, myg.qy, myg.ng,
                                                        myg.dx, myg.dy, dt,
@@ -584,7 +607,7 @@ class Simulation:
         Dh_xint, Dh_yint = lm_interface_f.Dh_states(myg.qx, myg.qy, myg.ng,
                                                        myg.dx, myg.dy, dt,
                                                        Dh, u_MAC, v_MAC,
-                                                       ldelta_rx, ldelta_ry)
+                                                       ldelta_ex, ldelta_ey)
 
         Dh_old = Dh.copy()
 
@@ -687,6 +710,18 @@ class Simulation:
         print("min/max u   = {}, {}".format(np.min(u), np.max(u)))
         print("min/max v   = {}, {}".format(np.min(v), np.max(v)))
 
+        #---------------------------------------------------------------------
+        # React full state through second half timestep
+        # Assume for simplicity here that only non-zero Christoffel of
+        # Gamma^mu_{mu nu} form is Gamma^t_{t r} = g/(1+2gr)
+        #
+        # This runs ReactState.
+        #---------------------------------------------------------------------
+
+        Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * Dh * v * g / \
+            2. * (1.+ 2. * g * np.linspace(0., myg.dx * myg.hi, 1./myg.dx))
+
+
 
         #---------------------------------------------------------------------
         # project the final velocity
@@ -767,6 +802,8 @@ class Simulation:
 
         self.cc_data.fill_BC("gradp_x")
         self.cc_data.fill_BC("gradp_y")
+
+
 
 
     def dovis(self):
