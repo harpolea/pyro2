@@ -3,11 +3,12 @@ from __future__ import print_function
 import numpy as np
 
 from lm_atm.problems import *
-import lm_atm.LM_atm_interface_f as lm_interface_f
-import mesh.reconstruction_f as reconstruction_f
-import mesh.patch as patch
-import multigrid.variable_coeff_MG as vcMG
-from util import profile
+#import lm_atm.LM_atm_interface_f as lm_interface_f
+#import mesh.reconstruction_f as reconstruction_f
+#import mesh.patch as patch
+#import multigrid.variable_coeff_MG as vcMG
+#from util import profile
+
 
 class Metric:
 
@@ -43,7 +44,7 @@ class Metric:
         sg = self.cc_data.grid.scratch_array()
         sgamma = self.cc_data.grid.scratch_array()
 
-        # FIXME: implement this
+        # TODO: implement this
 
         return sg, sgamma
 
@@ -54,7 +55,7 @@ class Metric:
 
         W = self.cc_data.grid.scratch_array()
 
-        # FIXME: work out how to calculate this
+        # TODO: work out how to calculate this
 
         return W
 

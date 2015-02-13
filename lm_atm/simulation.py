@@ -13,6 +13,12 @@ from util import profile
 
 """
 TODO: Base state evolution
+TODO: Compare to MATLAB code to see if I did anything else
+
+FIXME: Check array indexing throughout - base states in particular switch
+between 2d and 1d where they should not.
+
+FIXME: Base state sourcing - need to make sure source terms are added somewhere.
 """
 
 class Simulation:
@@ -187,7 +193,7 @@ class Simulation:
         D0 = self.base["D0"]
         u0 = self.metric.calcu0
 
-        # FIXME : don't cheat the EoS
+        # FIXME: don't cheat the EoS
         # going to cheat with EoS and just say that p = (gamma-1)rho, so
         # 1/Gamma1*p = 1/rho*gamma = u^0/D*gamma
         # and
@@ -230,9 +236,9 @@ class Simulation:
         S = g * v / self.metric.alpha**2
         p0 = self.base["p0"]
         dp0dt = S * 0. #placeholder for now
-        dp0dt /= gamma * p0
+        dp0dt /= gamma * p0[np.newaxis,:]
 
-        return zeta * (S - dp0dt)
+        return zeta[np.newaxis,:] * (S - dp0dt)
 
 
 
@@ -632,8 +638,6 @@ class Simulation:
 
         #---------------------------------------------------------------------
         # predict D to the edges and do its conservative update
-        #
-        # FIXME: need to advect the base
         #---------------------------------------------------------------------
         D_xint, D_yint = lm_interface_f.D_states(myg.qx, myg.qy, myg.ng,
                                                        myg.dx, myg.dy, dt,
@@ -646,8 +650,8 @@ class Simulation:
                                                        v_MAC,
                                                        ldelta_r0x, ldelta_r0y)
 
-        D_old = D.copy()
-        D0_old = D0.copy()
+        #D_old = D.copy()
+        #D0_old = D0.copy()
 
         D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt*(
             #  (D u)_x
@@ -663,7 +667,7 @@ class Simulation:
 
         self.cc_data.fill_BC("density")
 
-        #FIXME : check the array indexing - might need to collapse it again.
+        #FIXME: check the array indexing - might need to collapse it again.
 
         D0[np.newaxis,myg.jlo:myg.jhi+1] -= dt*(
             #  (D u)_x
@@ -697,7 +701,7 @@ class Simulation:
                                                        ldelta_e0x, ldelta_e0y)
 
         Dh_old = Dh.copy()
-        Dh0_old = Dh0.copy()
+        #Dh0_old = Dh0.copy()
 
         Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt*(
             #  (Dh u)_x
@@ -726,13 +730,26 @@ class Simulation:
         self.cc_data.fill_BC("enthalpy")
 
         #---------------------------------------------------------------------
+        # Enforce relativistic hydrostatic equilibrium on base pressure
+        #
+        # This is based on EnforceHSE.
+        #---------------------------------------------------------------------
+
+        u0 = self.metric.calcu0
+        p0 = self.base["p0"]
+        p0[myg.jlo:myg.jhi+1] -= myg.dy * \
+            (Dh0[myg.jlo+1:myg.jhi+2]*g /  (u0[myg.jlo+1:myg.jhi+2] * \
+             self.metric.alpha**2) + \
+             Dh0[myg.jlo+1:myg.jhi+2]*g / (u0[myg.jlo:myg.jhi+1] * \
+             self.metric.alpha**2)) / 2.
+
+        #---------------------------------------------------------------------
         # recompute the interface states, using the advective velocity
         # from above
         #---------------------------------------------------------------------
         print("  making u, v edge states")
 
         coeff = self.aux_data.get_var("coeff")
-        u0 = self.metric.calcu0
         coeff[:,:] = 2.0/((Dh[:,:] + Dh_old[:,:]) * u0[:,:])
 
         # Might not need to recalculate zeta but shall just in case
