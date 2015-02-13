@@ -12,7 +12,7 @@ import metric
 from util import profile
 
 """
-TODO: Need to add the other source term to the elliptic equation parts.
+TODO: Base state evolution
 """
 
 class Simulation:
@@ -153,7 +153,7 @@ class Simulation:
         # add metric
         alpha = 1.
         beta = [0., 0., 0.]
-        gamma = np.ones((3,3))
+        gamma = np.eye((3,3))
         self.metric = metric.Metric(self.cc_data, alpha, beta, gamma)
 
         # Construct zeta
@@ -187,6 +187,7 @@ class Simulation:
         D0 = self.base["D0"]
         u0 = self.metric.calcu0
 
+        # FIXME : don't cheat the EoS
         # going to cheat with EoS and just say that p = (gamma-1)rho, so
         # 1/Gamma1*p = 1/rho*gamma = u^0/D*gamma
         # and
@@ -209,6 +210,29 @@ class Simulation:
 
 
 
+    def calcConstraint(self, zeta):
+        """
+        Calculates and returns the source terms in the constraint:
+        zeta (S - dpdt / Gamma1 p)
+
+        Parameters
+        ----------
+        zeta : float array
+            zeta
+        """
+
+        #S = -Gamma^mu_{mu nu}U^nu. In easy metric, this reduces to
+        #Gamma^t_tr U^r
+        g = self.rp.get_param("lm-atmosphere.grav")
+        #Gamma1 = gamma for our EoS.
+        gamma = self.rp.get_param("eos.gamma")
+        v = self.cc_data.get_var("y-velocity")
+        S = g * v / self.metric.alpha**2
+        p0 = self.base["p0"]
+        dp0dt = S * 0. #placeholder for now
+        dp0dt /= gamma * p0
+
+        return zeta * (S - dp0dt)
 
 
 
@@ -287,7 +311,7 @@ class Simulation:
         # velocity field satisties div U = 0
 
         # the coefficent for the elliptic equation is zeta^2/Dhu0
-        # haven't evolved anything yet do
+        # haven't evolved anything yet don't need to update zeta
         u0 = self.metric.calcu0
         coeff = 1.0/(Dh[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] * \
             u0[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2])
@@ -320,10 +344,12 @@ class Simulation:
                  zeta[np.newaxis,myg.jlo-1:myg.jhi  ]*
                  v[myg.ilo:myg.ihi+1,myg.jlo-1:myg.jhi  ])/myg.dy
 
-        # solve D (zeta^2/D) G (phi/zeta) = D( zeta U )
+        # solve
+        # D(zeta^2/Dhu0) G (phi/zeta) + zeta(S - dp/dt / Gamma1*p)= D( zeta U )
 
-        # set the RHS to div_zeta_U and solve
-        mg.init_RHS(div_zeta_U)
+        # set the RHS to div_zeta_U - zeta(S -...) and solve
+        constraint = self.calcConstraint(zeta)
+        mg.init_RHS(div_zeta_U - constraint)
         mg.solve(rtol=1.e-10)
 
         # store the solution in our self.cc_data object -- include a single
@@ -420,11 +446,15 @@ class Simulation:
 
         ldelta_rx = limitFunc(1, D, myg.qx, myg.qy, myg.ng)
         ldelta_ex = limitFunc(1, Dh, myg.qx, myg.qy, myg.ng)
+        ldelta_r0x = limitFunc(1, D0, myg.qx, myg.qy, myg.ng)
+        ldelta_e0x = limitFunc(1, Dh0, myg.qx, myg.qy, myg.ng)
         ldelta_ux = limitFunc(1, u, myg.qx, myg.qy, myg.ng)
         ldelta_vx = limitFunc(1, v, myg.qx, myg.qy, myg.ng)
 
         ldelta_ry = limitFunc(2, D, myg.qx, myg.qy, myg.ng)
         ldelta_ey = limitFunc(2, Dh, myg.qx, myg.qy, myg.ng)
+        ldelta_r0y = limitFunc(2, D0, myg.qx, myg.qy, myg.ng)
+        ldelta_e0y = limitFunc(2, Dh0, myg.qx, myg.qy, myg.ng)
         ldelta_uy = limitFunc(2, u, myg.qx, myg.qy, myg.ng)
         ldelta_vy = limitFunc(2, v, myg.qx, myg.qy, myg.ng)
 
@@ -557,7 +587,8 @@ class Simulation:
              v_MAC[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1])/myg.dy
 
         # solve the Poisson problem
-        mg.init_RHS(div_zeta_U)
+        constraint = self.calcConstraint(zeta)
+        mg.init_RHS(div_zeta_U - constraint)
         mg.solve(rtol=1.e-12)
 
 
@@ -568,7 +599,8 @@ class Simulation:
         phi_MAC[:,:] = mg.get_solution(grid=myg)
 
         coeff = self.aux_data.get_var("coeff")
-        coeff[:,:] = 1.0/D[:,:]
+        u0 = self.metric.calcu0
+        coeff[:,:] = 1.0/(Dh[:,:] * u0[:,:])
         coeff[:,:] = coeff*zeta[np.newaxis,:]
         self.aux_data.fill_BC("coeff")
 
@@ -601,14 +633,21 @@ class Simulation:
         #---------------------------------------------------------------------
         # predict D to the edges and do its conservative update
         #
-        # FIXME: Add source terms at start/end, also need to advect the base
+        # FIXME: need to advect the base
         #---------------------------------------------------------------------
         D_xint, D_yint = lm_interface_f.D_states(myg.qx, myg.qy, myg.ng,
                                                        myg.dx, myg.dy, dt,
                                                        D, u_MAC, v_MAC,
                                                        ldelta_rx, ldelta_ry)
 
+        D0_xint, D0_yint = lm_interface_f.D_states(myg.qx, myg.qy, myg.ng,
+                                                       myg.dx, myg.dy, dt,
+                                                       D0[np.newaxis,:], u_MAC,
+                                                       v_MAC,
+                                                       ldelta_r0x, ldelta_r0y)
+
         D_old = D.copy()
+        D0_old = D0.copy()
 
         D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt*(
             #  (D u)_x
@@ -624,6 +663,21 @@ class Simulation:
 
         self.cc_data.fill_BC("density")
 
+        #FIXME : check the array indexing - might need to collapse it again.
+
+        D0[np.newaxis,myg.jlo:myg.jhi+1] -= dt*(
+            #  (D u)_x
+            (D0_xint[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1]*
+             u_MAC[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
+             D0_xint[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]*
+             u_MAC[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/myg.dx +
+            #  (D v)_y
+            (D0_yint[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2]*
+             v_MAC[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] -
+             D0_yint[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]*
+             v_MAC[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/myg.dy )
+
+
 
 
         #---------------------------------------------------------------------
@@ -631,12 +685,19 @@ class Simulation:
         #
         # Exactly the same as for density
         #---------------------------------------------------------------------
-        Dh_xint, Dh_yint = lm_interface_f.Dh_states(myg.qx, myg.qy, myg.ng,
+        Dh_xint, Dh_yint = lm_interface_f.D_states(myg.qx, myg.qy, myg.ng,
                                                        myg.dx, myg.dy, dt,
                                                        Dh, u_MAC, v_MAC,
                                                        ldelta_ex, ldelta_ey)
 
+        Dh0_xint, Dh0_yint = lm_interface_f.D_states(myg.qx, myg.qy, myg.ng,
+                                                       myg.dx, myg.dy, dt,
+                                                       Dh0[np.newaxis,:], u_MAC,
+                                                       v_MAC,
+                                                       ldelta_e0x, ldelta_e0y)
+
         Dh_old = Dh.copy()
+        Dh0_old = Dh0.copy()
 
         Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt*(
             #  (Dh u)_x
@@ -650,6 +711,18 @@ class Simulation:
              Dh_yint[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]*
              v_MAC[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/myg.dy )
 
+        Dh0[np.newaxis,myg.jlo:myg.jhi+1] -= dt*(
+            #  (Dh u)_x
+            (Dh0_xint[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1]*
+             u_MAC[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
+             Dh0_xint[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]*
+             u_MAC[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/myg.dx +
+            #  (Dh v)_y
+            (D0h_yint[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2]*
+             v_MAC[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] -
+             Dh0_yint[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]*
+             v_MAC[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/myg.dy )
+
         self.cc_data.fill_BC("enthalpy")
 
         #---------------------------------------------------------------------
@@ -659,9 +732,12 @@ class Simulation:
         print("  making u, v edge states")
 
         coeff = self.aux_data.get_var("coeff")
-        coeff[:,:] = 2.0/(D[:,:] + D_old[:,:])
+        u0 = self.metric.calcu0
+        coeff[:,:] = 2.0/((Dh[:,:] + Dh_old[:,:]) * u0[:,:])
 
-        # FIXME: check if need to recalculate zeta as D0 may have changed
+        # Might not need to recalculate zeta but shall just in case
+        self.updateZeta(self.cc_data.grid)
+        zeta = self.base["zeta"]
 
         coeff[:,:] = coeff*zeta[np.newaxis,:]
         self.aux_data.fill_BC("coeff")
@@ -792,7 +868,9 @@ class Simulation:
                  zeta[np.newaxis,myg.jlo-1:myg.jhi  ]*
                  v[myg.ilo:myg.ihi+1,myg.jlo-1:myg.jhi  ])/myg.dy
 
-        mg.init_RHS(div_zeta_U/dt)
+        #mg.init_RHS(div_zeta_U/dt)
+        constraint = self.calcConstraint(zeta)
+        mg.init_RHS(div_zeta_U/dt - constraint/dt)
 
         # use the old phi as our initial guess
         phiGuess = mg.soln_grid.scratch_array()
