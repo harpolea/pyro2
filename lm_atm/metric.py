@@ -66,7 +66,7 @@ class Metric:
         """
 
         W = self.calcW
-        alpha = self.alpha
+        alpha = self.alpha[np.newaxis,:]
 
         return W / alpha
 
@@ -85,7 +85,7 @@ class Metric:
         """
 
         met = np.diag([-1., 1., 1.])
-        met[0,0] = -self.alpha**2 + np.dot(self.beta, self.beta)
+        met[0,0] = -self.alpha[x[2]]**2 + np.dot(self.beta, self.beta)
         met[0,1:] = np.self.beta.T
         met[1:,0] = self.beta
         met[1:,1:] = self.gamma
@@ -109,11 +109,11 @@ class Metric:
         #K = np.zeros((2,2)) #placeholder
 
         r = x[2] * self.cc_data.grid.dy
-        g = (self.alpha**2 - 1.) / (2. * r)
+        g = (self.alpha[x[2]]**2 - 1.) / (2. * r)
 
         #For simple time-lagged metric, only have 3 non-zero christoffels.
-        christls[0,0,2] = g/self.alpha**2
-        christls[0,2,0] = g/self.alpha**2
+        christls[0,0,2] = g/self.alpha[x[2]]**2
+        christls[0,2,0] = g/self.alpha[x[2]]**2
         christls[2,0,0] = g
 
 

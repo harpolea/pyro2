@@ -15,9 +15,6 @@ from util import profile
 TODO: Base state evolution
 TODO: Compare to MATLAB code to see if I did anything else
 
-FIXME: Check array indexing throughout - base states in particular switch
-between 2d and 1d where they should not.
-
 FIXME: Base state sourcing - need to make sure source terms are added somewhere.
 """
 
@@ -141,6 +138,7 @@ class Simulation:
 
         aux_data.register_var("coeff", bc_dens)
         aux_data.register_var("source_y", bc_yodd)
+        aux_data.register_var("S", bc_yodd)
 
         aux_data.create()
         self.aux_data = aux_data
@@ -148,7 +146,7 @@ class Simulation:
 
         # we also need storage for the 1-d base state -- we'll store this
         # in the main class directly.
-        self.base["D0"] = np.zeros((mygli.qy), dtype=np.float64)
+        self.base["D0"] = np.zeros((myg.qy), dtype=np.float64)
         self.base["Dh0"] = np.zeros((myg.qy), dtype=np.float64)
         self.base["p0"] = np.zeros((myg.qy), dtype=np.float64)
 
@@ -157,9 +155,11 @@ class Simulation:
 
 
         # add metric
-        alpha = 1.
-        beta = [0., 0., 0.]
-        gamma = np.eye((3,3))
+        g = self.rp.get_param("lm-atmosphere.grav")
+        r = np.linspace(0., myg.dx * myg.hi, 1./myg.dx)
+        alpha = np.sqrt(1. + 2. * g * r)
+        beta = [0., 0., 0.] #really flat
+        gamma = np.eye((3,3)) #extremely flat
         self.metric = metric.Metric(self.cc_data, alpha, beta, gamma)
 
         # Construct zeta
@@ -167,13 +167,26 @@ class Simulation:
         #gamma = self.rp.get_param("eos.gamma")
         #self.base["zeta"] = self.base["p0"]**(1.0/gamma)
 
-        self.base["zeta"] = np.zeros((mygli.qy), dtype=np.float64)
+        self.base["zeta"] = np.zeros((myg.qy), dtype=np.float64)
 
         # we'll also need zeta on vertical edges -- on the domain edges,
         # just do piecewise constant
         self.base["zeta-edges"] = np.zeros((myg.qy), dtype=np.float64)
 
         self.updateZeta(myg)
+
+    @staticmethod
+    def lateralAvg(a):
+        """
+        Calculates and returns the lateral average of a, assuming that stuff is
+        to be averaged in the x direction.
+
+        Parameters
+        ----------
+        a : float array
+            2d array to be laterally averaged
+        """
+        return np.mean(a, axis = 0)
 
 
 
@@ -201,10 +214,10 @@ class Simulation:
         #
         # So, if we integrate over this wrt r we get D/u^0, so zeta =
         # exp(D/u^0).
+        zeta = self.base["zeta"]
+        # do some u0 averaging?
+        zeta[:] = np.exp(D0[:] / self.lateralAvg(u0))
 
-        zeta = np.exp(D0 / u0)
-
-        self.base["zeta"] = zeta
 
         # we'll also need zeta_0 on vertical edges -- on the domain edges,
         # just do piecewise constant
@@ -233,16 +246,23 @@ class Simulation:
         #Gamma1 = gamma for our EoS.
         gamma = self.rp.get_param("eos.gamma")
         v = self.cc_data.get_var("y-velocity")
-        S = g * v / self.metric.alpha**2
+
+        S = self.aux_data.get_var("S")
+
+        S[:,:] = g * v[:,:] / self.metric.alpha[np.newaxis,:]**2
+        self.aux_data.fill_BC("S")
+
         p0 = self.base["p0"]
-        dp0dt = S * 0. #placeholder for now
-        dp0dt /= gamma * p0[np.newaxis,:]
 
-        return zeta[np.newaxis,:] * (S - dp0dt)
+        # laterally averaged the source as p0 is x-independent
+        dp0dt = self.lateralAvg(S[:,:]) * 0. #placeholder for now
+        dp0dt /= gamma * p0[:]
+
+        return zeta[np.newaxis,:] * (S[:,:] - dp0dt[np.newaxis,:])
 
 
-
-    def make_prime(self, a, a0):
+    @staticmethod
+    def make_prime(a, a0):
         return a - a0[np.newaxis,:]
 
 
@@ -270,7 +290,7 @@ class Simulation:
         if not np.max(np.abs(v)) == 0:
             ytmp = np.min(myg.dy/(np.abs(v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])))
 
-        dt = cfl*min(xtmp, ytmp)
+        dt = cfl * min(xtmp, ytmp)
 
         # We need an alternate timestep that accounts for buoyancy, to
         # handle the case where the velocity is initially zero.
@@ -304,8 +324,8 @@ class Simulation:
 
         myg = self.cc_data.grid
 
-        D = self.cc_data.get_var("density")
-        #Dh = self.cc_data.get_var("enthalpy")
+        #D = self.cc_data.get_var("density")
+        Dh = self.cc_data.get_var("enthalpy")
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
 
@@ -322,7 +342,7 @@ class Simulation:
         coeff = 1.0/(Dh[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] * \
             u0[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2])
         zeta = self.base["zeta"]
-        coeff = coeff*zeta[np.newaxis,myg.jlo-1:myg.jhi+2]**2
+        coeff *= zeta[np.newaxis,myg.jlo-1:myg.jhi+2]**2
 
         # next create the multigrid object.  We defined phi with
         # the right BCs previously
@@ -369,11 +389,11 @@ class Simulation:
         # cells -- not ghost cells
         gradp_x, gradp_y = mg.get_solution_gradient(grid=myg)
 
-        coeff = 1.0/D[:,:]
-        coeff = coeff*zeta[np.newaxis,:]
+        coeff = 1.0/(Dh[:,:] * u0[:,:])
+        coeff[:,:] *= zeta[np.newaxis,:]
 
-        u[:,:] -= coeff*gradp_x
-        v[:,:] -= coeff*gradp_y
+        u[:,:] -= coeff * gradp_x
+        v[:,:] -= coeff * gradp_y
 
         # fill the ghostcells
         self.cc_data.fill_BC("x-velocity")
@@ -449,18 +469,18 @@ class Simulation:
         elif limiter == 1: limitFunc = reconstruction_f.limit2
         else: limitFunc = reconstruction_f.limit4
 
-
+        # x slopes of r0, e0 surely just 0?
         ldelta_rx = limitFunc(1, D, myg.qx, myg.qy, myg.ng)
         ldelta_ex = limitFunc(1, Dh, myg.qx, myg.qy, myg.ng)
-        ldelta_r0x = limitFunc(1, D0, myg.qx, myg.qy, myg.ng)
-        ldelta_e0x = limitFunc(1, Dh0, myg.qx, myg.qy, myg.ng)
+        ldelta_r0x = limitFunc(1, D0[np.newaxis,:], myg.qx, myg.qy, myg.ng)
+        ldelta_e0x = limitFunc(1, Dh0[np.newaxis,:], myg.qx, myg.qy, myg.ng)
         ldelta_ux = limitFunc(1, u, myg.qx, myg.qy, myg.ng)
         ldelta_vx = limitFunc(1, v, myg.qx, myg.qy, myg.ng)
 
         ldelta_ry = limitFunc(2, D, myg.qx, myg.qy, myg.ng)
         ldelta_ey = limitFunc(2, Dh, myg.qx, myg.qy, myg.ng)
-        ldelta_r0y = limitFunc(2, D0, myg.qx, myg.qy, myg.ng)
-        ldelta_e0y = limitFunc(2, Dh0, myg.qx, myg.qy, myg.ng)
+        ldelta_r0y = limitFunc(2, D0[np.newaxis,:], myg.qx, myg.qy, myg.ng)
+        ldelta_e0y = limitFunc(2, Dh0[np.newaxis,:], myg.qx, myg.qy, myg.ng)
         ldelta_uy = limitFunc(2, u, myg.qx, myg.qy, myg.ng)
         ldelta_vy = limitFunc(2, v, myg.qx, myg.qy, myg.ng)
 
@@ -470,10 +490,9 @@ class Simulation:
         # Assume for simplicity here that only non-zero Christoffel of
         # Gamma^mu_{mu nu} form is Gamma^t_{t r} = g/(1+2gr)
         #
-        # This runs ReactState.
+        # This runs ReactState and basically calculates the sourcing.
         #---------------------------------------------------------------------
         g = self.rp.get_param("lm-atmosphere.grav")
-
 
         D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * D * v * g / \
             (2. * (1.+ 2. * g * np.linspace(0., myg.dx * myg.hi, 1./myg.dx)))
@@ -515,7 +534,7 @@ class Simulation:
         u0 = self.metric.calcu0
         coeff = self.aux_data.get_var("coeff")
         coeff[:,:] = 1.0/(Dh[:,:] * u0[:,:])
-        coeff[:,:] = coeff*zeta[np.newaxis,:]
+        coeff[:,:] *= zeta[np.newaxis,:]
         self.aux_data.fill_BC("coeff")
 
         # create the source term
@@ -564,7 +583,7 @@ class Simulation:
             u0[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2])
         self.updateZeta(self.cc_data.grid)
         zeta = self.base["zeta"]
-        coeff = coeff*zeta[np.newaxis,myg.jlo-1:myg.jhi+2]**2
+        coeff *= zeta[np.newaxis,myg.jlo-1:myg.jhi+2]**2
 
 
         # create the multigrid object
@@ -607,7 +626,7 @@ class Simulation:
         coeff = self.aux_data.get_var("coeff")
         u0 = self.metric.calcu0
         coeff[:,:] = 1.0/(Dh[:,:] * u0[:,:])
-        coeff[:,:] = coeff*zeta[np.newaxis,:]
+        coeff[:,:] *= zeta[np.newaxis,:]
         self.aux_data.fill_BC("coeff")
 
         coeff_x = myg.scratch_array()
@@ -667,9 +686,11 @@ class Simulation:
 
         self.cc_data.fill_BC("density")
 
-        #FIXME: check the array indexing - might need to collapse it again.
+        #need to do some averaging as D0 is only 1d
 
-        D0[np.newaxis,myg.jlo:myg.jhi+1] -= dt*(
+        D02d = myg.scratch_array()
+
+        D02d[np.newaxis,myg.jlo:myg.jhi+1] -= dt*(
             #  (D u)_x
             (D0_xint[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1]*
              u_MAC[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
@@ -680,6 +701,8 @@ class Simulation:
              v_MAC[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] -
              D0_yint[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]*
              v_MAC[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/myg.dy )
+
+        D0 = self.lateralAvg(D02d)
 
 
 
@@ -715,7 +738,11 @@ class Simulation:
              Dh_yint[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]*
              v_MAC[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/myg.dy )
 
-        Dh0[np.newaxis,myg.jlo:myg.jhi+1] -= dt*(
+        # average laterally as Dh0 is 1d
+
+        Dh02d = myg.scratch_array()
+
+        Dh02d[np.newaxis,myg.jlo:myg.jhi+1] -= dt*(
             #  (Dh u)_x
             (Dh0_xint[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1]*
              u_MAC[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
@@ -727,6 +754,8 @@ class Simulation:
              Dh0_yint[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]*
              v_MAC[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/myg.dy )
 
+        Dh0 = self.lateralAvg(Dh02d)
+
         self.cc_data.fill_BC("enthalpy")
 
         #---------------------------------------------------------------------
@@ -736,12 +765,14 @@ class Simulation:
         #---------------------------------------------------------------------
 
         u0 = self.metric.calcu0
+        # flatten u0 to make 1d for next equation.
+        u0flat = self.lateralAvg(u0[:,:])
         p0 = self.base["p0"]
         p0[myg.jlo:myg.jhi+1] -= myg.dy * \
-            (Dh0[myg.jlo+1:myg.jhi+2]*g /  (u0[myg.jlo+1:myg.jhi+2] * \
-             self.metric.alpha**2) + \
-             Dh0[myg.jlo+1:myg.jhi+2]*g / (u0[myg.jlo:myg.jhi+1] * \
-             self.metric.alpha**2)) / 2.
+            (Dh0[myg.jlo+1:myg.jhi+2]*g /  (u0flat[myg.jlo+1:myg.jhi+2] * \
+             self.metric.alpha[myg.jlo+1:myg.jhi+2]**2) + \
+             Dh0[myg.jlo:myg.jhi+1]*g / (u0flat[myg.jlo:myg.jhi+1] * \
+             self.metric.alpha[myg.jlo:myg.jhi+1]**2)) / 2.
 
         #---------------------------------------------------------------------
         # recompute the interface states, using the advective velocity
@@ -756,7 +787,7 @@ class Simulation:
         self.updateZeta(self.cc_data.grid)
         zeta = self.base["zeta"]
 
-        coeff[:,:] = coeff*zeta[np.newaxis,:]
+        coeff[:,:] *= zeta[np.newaxis,:]
         self.aux_data.fill_BC("coeff")
 
         u_xint, v_xint, u_yint, v_yint = \
@@ -822,7 +853,7 @@ class Simulation:
         #source = Dprime*g/D_half
         source[:,:] = -g * np.ones((myg.qx, myg.qy))
 
-        v[:,:] += dt*source
+        v[:,:] += dt * source
 
         self.cc_data.fill_BC("x-velocity")
         self.cc_data.fill_BC("y-velocity")
@@ -838,9 +869,13 @@ class Simulation:
         #
         # This runs ReactState.
         #---------------------------------------------------------------------
-        D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * D * v * g / \
+        D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * \
+            D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * g / \
             (2. * (1.+ 2. * g * np.linspace(0., myg.dx * myg.hi, 1./myg.dx)))
-        Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * Dh * v * g / \
+        Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * \
+            Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * g / \
             (2. * (1.+ 2. * g * np.linspace(0., myg.dx * myg.hi, 1./myg.dx)))
 
 
@@ -858,7 +893,7 @@ class Simulation:
             u0[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2])
         self.updateZeta(self.cc_data.grid)
         zeta = self.base["zeta"]
-        coeff = coeff*zeta[np.newaxis,myg.jlo-1:myg.jhi+2]**2
+        coeff *= zeta[np.newaxis,myg.jlo-1:myg.jhi+2]**2
 
 
         # create the multigrid object
@@ -911,10 +946,10 @@ class Simulation:
         # U = U - (zeta/Dhuo) grad (phi/zeta)
         u0 = self.metric.calcu0
         coeff = 1.0/(Dh[:,:] * u0[:,:])
-        coeff = coeff*zeta[np.newaxis,:]
+        coeff *= zeta[np.newaxis,:]
 
-        u[:,:] -= dt*coeff*gradphi_x
-        v[:,:] -= dt*coeff*gradphi_y
+        u[:,:] -= dt * coeff * gradphi_x
+        v[:,:] -= dt * coeff * gradphi_y
 
         # store gradp for the next step
 
