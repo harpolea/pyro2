@@ -54,6 +54,7 @@ class Metric:
         """
 
         W = self.cc_data.grid.scratch_array()
+        W = np.ones(np.shape(W))
 
         # TODO: work out how to calculate this
 
@@ -65,10 +66,10 @@ class Metric:
         factor and alpha, so W = alpha * u0
         """
 
-        W = self.calcW
-        alpha = self.alpha[np.newaxis,:]
+        W = self.calcW()
+        myg = self.cc_data.grid
 
-        return W / alpha
+        return W[:,:] / self.alpha[np.newaxis,:]
 
 
 

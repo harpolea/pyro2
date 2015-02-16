@@ -16,6 +16,8 @@ TODO: Base state evolution
 TODO: Compare to MATLAB code to see if I did anything else
 
 FIXME: Base state sourcing - need to make sure source terms are added somewhere.
+
+FIXME: velocities diverge a bit, so the timestep eventually nan's. Find out why
 """
 
 class Simulation:
@@ -156,10 +158,10 @@ class Simulation:
 
         # add metric
         g = self.rp.get_param("lm-atmosphere.grav")
-        r = np.linspace(0., myg.dx * myg.hi, 1./myg.dx)
-        alpha = np.sqrt(1. + 2. * g * r)
+        r = np.linspace(-myg.dy * myg.ng, myg.dy * (myg.qy-1-myg.ng), myg.qy)
+        alpha = np.sqrt(np.ones(myg.qy) + 2. * g * r[:])
         beta = [0., 0., 0.] #really flat
-        gamma = np.eye((3,3)) #extremely flat
+        gamma = np.eye(3) #extremely flat
         self.metric = metric.Metric(self.cc_data, alpha, beta, gamma)
 
         # Construct zeta
@@ -186,7 +188,8 @@ class Simulation:
         a : float array
             2d array to be laterally averaged
         """
-        return np.mean(a, axis = 0)
+        #print(a)
+        return np.mean(a, axis=0)
 
 
 
@@ -204,7 +207,7 @@ class Simulation:
 
         #find variables
         D0 = self.base["D0"]
-        u0 = self.metric.calcu0
+        u0 = self.metric.calcu0()
 
         # FIXME: don't cheat the EoS
         # going to cheat with EoS and just say that p = (gamma-1)rho, so
@@ -216,7 +219,7 @@ class Simulation:
         # exp(D/u^0).
         zeta = self.base["zeta"]
         # do some u0 averaging?
-        zeta[:] = np.exp(D0[:] / self.lateralAvg(u0))
+        zeta[myg.jlo:myg.jhi+1] = np.exp(D0[myg.jlo:myg.jhi+1] / self.lateralAvg(u0)[myg.jlo:myg.jhi+1])
 
 
         # we'll also need zeta_0 on vertical edges -- on the domain edges,
@@ -338,7 +341,10 @@ class Simulation:
 
         # the coefficent for the elliptic equation is zeta^2/Dhu0
         # haven't evolved anything yet don't need to update zeta
-        u0 = self.metric.calcu0
+        u0 = self.metric.calcu0()
+
+        #shall ones out Dh to stop divide by 0ness
+        Dh = np.ones(np.shape(Dh))
         coeff = 1.0/(Dh[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] * \
             u0[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2])
         zeta = self.base["zeta"]
@@ -359,6 +365,7 @@ class Simulation:
 
         # first compute div{zeta U}
         div_zeta_U = mg.soln_grid.scratch_array()
+        #print("shape of divZetaU", np.shape(div_zeta_U))
 
         # u/v are cell-centered, divU is cell-centered
         div_zeta_U[mg.ilo:mg.ihi+1,mg.jlo:mg.jhi+1] = \
@@ -375,7 +382,7 @@ class Simulation:
 
         # set the RHS to div_zeta_U - zeta(S -...) and solve
         constraint = self.calcConstraint(zeta)
-        mg.init_RHS(div_zeta_U - constraint)
+        mg.init_RHS(div_zeta_U - constraint[myg.ilo-1:myg.ihi+2, myg.jlo-1:myg.jhi+2])
         mg.solve(rtol=1.e-10)
 
         # store the solution in our self.cc_data object -- include a single
@@ -469,18 +476,22 @@ class Simulation:
         elif limiter == 1: limitFunc = reconstruction_f.limit2
         else: limitFunc = reconstruction_f.limit4
 
+        # resize so that Fortran is happy
+        D02d = np.array([D0,] * np.size(D0))
+        Dh02d = np.array([Dh0,] * np.size(Dh0))
+
         # x slopes of r0, e0 surely just 0?
         ldelta_rx = limitFunc(1, D, myg.qx, myg.qy, myg.ng)
         ldelta_ex = limitFunc(1, Dh, myg.qx, myg.qy, myg.ng)
-        ldelta_r0x = limitFunc(1, D0[np.newaxis,:], myg.qx, myg.qy, myg.ng)
-        ldelta_e0x = limitFunc(1, Dh0[np.newaxis,:], myg.qx, myg.qy, myg.ng)
+        ldelta_r0x = limitFunc(1, D02d, myg.qx, myg.qy, myg.ng)
+        ldelta_e0x = limitFunc(1, Dh02d, myg.qx, myg.qy, myg.ng)
         ldelta_ux = limitFunc(1, u, myg.qx, myg.qy, myg.ng)
         ldelta_vx = limitFunc(1, v, myg.qx, myg.qy, myg.ng)
 
         ldelta_ry = limitFunc(2, D, myg.qx, myg.qy, myg.ng)
         ldelta_ey = limitFunc(2, Dh, myg.qx, myg.qy, myg.ng)
-        ldelta_r0y = limitFunc(2, D0[np.newaxis,:], myg.qx, myg.qy, myg.ng)
-        ldelta_e0y = limitFunc(2, Dh0[np.newaxis,:], myg.qx, myg.qy, myg.ng)
+        ldelta_r0y = limitFunc(2, D02d, myg.qx, myg.qy, myg.ng)
+        ldelta_e0y = limitFunc(2, Dh02d, myg.qx, myg.qy, myg.ng)
         ldelta_uy = limitFunc(2, u, myg.qx, myg.qy, myg.ng)
         ldelta_vy = limitFunc(2, v, myg.qx, myg.qy, myg.ng)
 
@@ -493,13 +504,16 @@ class Simulation:
         # This runs ReactState and basically calculates the sourcing.
         #---------------------------------------------------------------------
         g = self.rp.get_param("lm-atmosphere.grav")
+        r = np.linspace(0., myg.dy * myg.jhi, 1./myg.dy)
 
-        D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * D * v * g / \
-            (2. * (1.+ 2. * g * np.linspace(0., myg.dx * myg.hi, 1./myg.dx)))
-        Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * Dh * v * g / \
-            (2. * (1.+ 2. * g * np.linspace(0., myg.dx * myg.hi, 1./myg.dx)))
-
-
+        D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * \
+            D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * g / \
+            (2. * (1.+ 2. * g * r[np.newaxis,:]))
+        Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * \
+            Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * g / \
+            (2. * (1.+ 2. * g * r[np.newaxis,:]))
 
         #---------------------------------------------------------------------
         # get the advective velocities
@@ -531,8 +545,12 @@ class Simulation:
         print("  making MAC velocities")
 
         # create the coefficient to the grad (pi/zeta) term
-        u0 = self.metric.calcu0
+        u0 = self.metric.calcu0()
         coeff = self.aux_data.get_var("coeff")
+
+        #initialise to ones for niceness
+        Dh = np.ones(np.shape(Dh))
+
         coeff[:,:] = 1.0/(Dh[:,:] * u0[:,:])
         coeff[:,:] *= zeta[np.newaxis,:]
         self.aux_data.fill_BC("coeff")
@@ -578,7 +596,7 @@ class Simulation:
         print("  MAC projection")
 
         # create the coefficient array: zeta**2/Dhu0
-        u0 = self.metric.calcu0
+        u0 = self.metric.calcu0()
         coeff = 1.0/(Dh[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] * \
             u0[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2])
         self.updateZeta(self.cc_data.grid)
@@ -613,7 +631,7 @@ class Simulation:
 
         # solve the Poisson problem
         constraint = self.calcConstraint(zeta)
-        mg.init_RHS(div_zeta_U - constraint)
+        mg.init_RHS(div_zeta_U - constraint[myg.ilo-1:myg.ihi+2, myg.jlo-1:myg.jhi+2])
         mg.solve(rtol=1.e-12)
 
 
@@ -624,7 +642,7 @@ class Simulation:
         phi_MAC[:,:] = mg.get_solution(grid=myg)
 
         coeff = self.aux_data.get_var("coeff")
-        u0 = self.metric.calcu0
+        u0 = self.metric.calcu0()
         coeff[:,:] = 1.0/(Dh[:,:] * u0[:,:])
         coeff[:,:] *= zeta[np.newaxis,:]
         self.aux_data.fill_BC("coeff")
@@ -658,16 +676,19 @@ class Simulation:
         #---------------------------------------------------------------------
         # predict D to the edges and do its conservative update
         #---------------------------------------------------------------------
-        D_xint, D_yint = lm_interface_f.D_states(myg.qx, myg.qy, myg.ng,
-                                                       myg.dx, myg.dy, dt,
-                                                       D, u_MAC, v_MAC,
-                                                       ldelta_rx, ldelta_ry)
+        #D_xint, D_yint = lm_interface_f.D_states(myg.qx, myg.qy, myg.ng, myg.dx, myg.dy, dt, D, u_MAC, v_MAC, ldelta_rx, ldelta_ry)
 
-        D0_xint, D0_yint = lm_interface_f.D_states(myg.qx, myg.qy, myg.ng,
-                                                       myg.dx, myg.dy, dt,
-                                                       D0[np.newaxis,:], u_MAC,
-                                                       v_MAC,
-                                                       ldelta_r0x, ldelta_r0y)
+        D_xint = D.copy()
+        D_yint = D.copy()
+
+        #D0_xint, D0_yint = lm_interface_f.D_states(myg.qx, myg.qy, myg.ng,
+        #                                               myg.dx, myg.dy, dt,
+        #                                               D0[np.newaxis,:], u_MAC,
+        #                                               v_MAC,
+        #                                               ldelta_r0x, ldelta_r0y)
+
+        D0_xint = np.array([D0,] * np.size(D0))
+        D0_yint = np.array([D0,] * np.size(D0))
 
         #D_old = D.copy()
         #D0_old = D0.copy()
@@ -690,7 +711,7 @@ class Simulation:
 
         D02d = myg.scratch_array()
 
-        D02d[np.newaxis,myg.jlo:myg.jhi+1] -= dt*(
+        D02d[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt*(
             #  (D u)_x
             (D0_xint[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1]*
              u_MAC[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
@@ -712,16 +733,21 @@ class Simulation:
         #
         # Exactly the same as for density
         #---------------------------------------------------------------------
-        Dh_xint, Dh_yint = lm_interface_f.D_states(myg.qx, myg.qy, myg.ng,
-                                                       myg.dx, myg.dy, dt,
-                                                       Dh, u_MAC, v_MAC,
-                                                       ldelta_ex, ldelta_ey)
+        #Dh_xint, Dh_yint = lm_interface_f.D_states(myg.qx, myg.qy, myg.ng,
+        #                                               myg.dx, myg.dy, dt,
+        #                                               Dh, u_MAC, v_MAC,
+        #                                               ldelta_ex, ldelta_ey)
 
-        Dh0_xint, Dh0_yint = lm_interface_f.D_states(myg.qx, myg.qy, myg.ng,
-                                                       myg.dx, myg.dy, dt,
-                                                       Dh0[np.newaxis,:], u_MAC,
-                                                       v_MAC,
-                                                       ldelta_e0x, ldelta_e0y)
+        #Dh0_xint, Dh0_yint = lm_interface_f.D_states(myg.qx, myg.qy, myg.ng,
+        #                                               myg.dx, myg.dy, dt,
+        #                                               Dh0[np.newaxis,:], u_MAC,
+    #                                                   v_MAC,
+    #                                                   ldelta_e0x, ldelta_e0y)
+
+        Dh_xint = D.copy()
+        Dh_yint = D.copy()
+        Dh0_xint = np.array([Dh0,] * np.size(Dh0))
+        Dh0_yint = np.array([Dh0,] * np.size(Dh0))
 
         Dh_old = Dh.copy()
         #Dh0_old = Dh0.copy()
@@ -742,14 +768,14 @@ class Simulation:
 
         Dh02d = myg.scratch_array()
 
-        Dh02d[np.newaxis,myg.jlo:myg.jhi+1] -= dt*(
+        Dh02d[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt*(
             #  (Dh u)_x
             (Dh0_xint[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1]*
              u_MAC[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
              Dh0_xint[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]*
              u_MAC[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/myg.dx +
             #  (Dh v)_y
-            (D0h_yint[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2]*
+            (Dh0_yint[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2]*
              v_MAC[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] -
              Dh0_yint[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]*
              v_MAC[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/myg.dy )
@@ -764,7 +790,7 @@ class Simulation:
         # This is based on EnforceHSE.
         #---------------------------------------------------------------------
 
-        u0 = self.metric.calcu0
+        u0 = self.metric.calcu0()
         # flatten u0 to make 1d for next equation.
         u0flat = self.lateralAvg(u0[:,:])
         p0 = self.base["p0"]
@@ -872,11 +898,11 @@ class Simulation:
         D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * \
             D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
             v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * g / \
-            (2. * (1.+ 2. * g * np.linspace(0., myg.dx * myg.hi, 1./myg.dx)))
+            (2. * (1.+ 2. * g * r[np.newaxis,:]))
         Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * \
             Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
             v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * g / \
-            (2. * (1.+ 2. * g * np.linspace(0., myg.dx * myg.hi, 1./myg.dx)))
+            (2. * (1.+ 2. * g * r[np.newaxis,:]))
 
 
 
@@ -888,7 +914,7 @@ class Simulation:
         print("  final projection")
 
         # create the coefficient array: zeta**2/Dhu0
-        u0 = self.metric.calcu0
+        u0 = self.metric.calcu0()
         coeff = 1.0/(Dh[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] * \
             u0[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2])
         self.updateZeta(self.cc_data.grid)
@@ -922,7 +948,7 @@ class Simulation:
 
         #mg.init_RHS(div_zeta_U/dt)
         constraint = self.calcConstraint(zeta)
-        mg.init_RHS(div_zeta_U/dt - constraint/dt)
+        mg.init_RHS(div_zeta_U/dt - constraint[myg.ilo-1:myg.ihi+2, myg.jlo-1:myg.jhi+2]/dt)
 
         # use the old phi as our initial guess
         phiGuess = mg.soln_grid.scratch_array()
@@ -944,7 +970,7 @@ class Simulation:
 
 
         # U = U - (zeta/Dhuo) grad (phi/zeta)
-        u0 = self.metric.calcu0
+        u0 = self.metric.calcu0()
         coeff = 1.0/(Dh[:,:] * u0[:,:])
         coeff *= zeta[np.newaxis,:]
 

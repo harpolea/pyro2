@@ -9,3 +9,5 @@ pert_amplitude_factor = 5.0
 
 dens_cutoff  = 0.01
 
+[vis]
+dovis = 0                  ; runtime visualization? (1=yes, 0=no)
