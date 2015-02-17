@@ -158,7 +158,7 @@ class Simulation:
 
         # add metric
         g = self.rp.get_param("lm-atmosphere.grav")
-        r = np.linspace(-myg.dy * myg.ng, myg.dy * (myg.qy-1-myg.ng), myg.qy)
+        r = np.linspace(-myg.dy * myg.ng + myg.ymin, myg.ymin + myg.dy * (myg.qy-1-myg.ng), myg.qy)
         alpha = np.sqrt(np.ones(myg.qy) + 2. * g * r[:])
         beta = [0., 0., 0.] #really flat
         gamma = np.eye(3) #extremely flat
@@ -733,19 +733,19 @@ class Simulation:
         #
         # Exactly the same as for density
         #---------------------------------------------------------------------
-        #Dh_xint, Dh_yint = lm_interface_f.D_states(myg.qx, myg.qy, myg.ng,
-        #                                               myg.dx, myg.dy, dt,
-        #                                               Dh, u_MAC, v_MAC,
-        #                                               ldelta_ex, ldelta_ey)
+        Dh_xint, Dh_yint = lm_interface_f.D_states(myg.qx, myg.qy, myg.ng,
+                                                       myg.dx, myg.dy, dt,
+                                                       Dh, u_MAC, v_MAC,
+                                                       ldelta_ex, ldelta_ey)
 
-        #Dh0_xint, Dh0_yint = lm_interface_f.D_states(myg.qx, myg.qy, myg.ng,
-        #                                               myg.dx, myg.dy, dt,
-        #                                               Dh0[np.newaxis,:], u_MAC,
-    #                                                   v_MAC,
-    #                                                   ldelta_e0x, ldelta_e0y)
+        Dh0_xint, Dh0_yint = lm_interface_f.D_states(myg.qx, myg.qy, myg.ng,
+                                                       myg.dx, myg.dy, dt,
+                                                       Dh0[np.newaxis,:], u_MAC,
+                                                       v_MAC,
+                                                       ldelta_e0x, ldelta_e0y)
 
-        Dh_xint = D.copy()
-        Dh_yint = D.copy()
+        #Dh_xint = D.copy()
+        #Dh_yint = D.copy()
         Dh0_xint = np.array([Dh0,] * np.size(Dh0))
         Dh0_yint = np.array([Dh0,] * np.size(Dh0))
 
@@ -1029,7 +1029,7 @@ class Simulation:
         plt.subplots_adjust(hspace=0.25)
 
         fields = [D, magvel]
-        field_names = [r"$\D$", r"|U|"] #, r"$\nabla \times U$", r"$\D$"]
+        field_names = [r"$D$", r"|U|"] #, r"$\nabla \times U$", r"$D$"]
 
         for n in range(len(fields)):
             ax = axes.flat[n]
@@ -1045,7 +1045,7 @@ class Simulation:
             ax.set_ylabel("y")
             ax.set_title(field_names[n])
 
-            #plt.colorbar(img, ax=ax)
+            plt.colorbar(img, ax=ax)
 
 
         plt.figtext(0.05,0.0125, "t = %10.5f" % self.cc_data.t)

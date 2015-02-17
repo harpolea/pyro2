@@ -18,6 +18,7 @@ def init_data(my_data, base, rp):
 
     # get the density and velocities
     dens = my_data.get_var("density")
+    enth = my_data.get_var("enthalpy")
     xvel = my_data.get_var("x-velocity")
     yvel = my_data.get_var("y-velocity")
     eint = my_data.get_var("eint")
@@ -40,6 +41,7 @@ def init_data(my_data, base, rp):
     xvel[:,:] = 0.0
     yvel[:,:] = 0.0
     dens[:,:] = dens_cutoff
+    enth[:,:] = dens_cutoff
 
     # set the density to be stratified in the y-direction
     myg = my_data.grid
@@ -54,7 +56,7 @@ def init_data(my_data, base, rp):
 
     # set the pressure (P = cs2*dens)
     pres = cs2*dens[:,:]
-    
+
     for i in range(myg.ilo, myg.ihi+1):
         for j in range(myg.jlo, myg.jhi+1):
 
@@ -67,15 +69,19 @@ def init_data(my_data, base, rp):
                 eint[i,j] = eint[i,j]*pert_amplitude_factor
 
                 dens[i,j] = pres[i,j]/(eint[i,j]*(gamma - 1.0))
-    
+                enth[i,j] = dens[i,j] + eint[i,j] + pres[i,j]
+
 
     # do the base state
-    base["rho0"] = numpy.mean(dens, axis=0)
+    base["D0"] = numpy.mean(dens, axis=0)
+    base["Dh0"] = numpy.mean(enth, axis=0)
     base["p0"] = numpy.mean(pres, axis=0)
 
     # redo the pressure via HSE
+    # FIXME: relativise me
     for j in range(myg.jlo+1, myg.jhi):
-        base["p0"][j] = base["p0"][j-1] + 0.5*myg.dy*(base["rho0"][j] + base["rho0"][j-1])*grav
+        base["p0"][j] = base["p0"][j-1] + 0.5*myg.dy*(base["D0"][j] + base["D0"][j-1])*grav
+
 
 
 def finalize():
