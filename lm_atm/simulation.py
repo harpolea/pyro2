@@ -1029,7 +1029,7 @@ class Simulation:
         plt.subplots_adjust(hspace=0.25)
 
         fields = [D, magvel]
-        field_names = [r"$\D$", r"|U|"] #, r"$\nabla \times U$", r"$\D$"]
+        field_names = [r"$D$", r"|U|"] #, r"$\nabla \times U$", r"$D$"]
 
         for n in range(len(fields)):
             ax = axes.flat[n]
@@ -1045,7 +1045,7 @@ class Simulation:
             ax.set_ylabel("y")
             ax.set_title(field_names[n])
 
-            #plt.colorbar(img, ax=ax)
+            plt.colorbar(img, ax=ax)
 
 
         plt.figtext(0.05,0.0125, "t = %10.5f" % self.cc_data.t)
