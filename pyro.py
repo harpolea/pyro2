@@ -179,6 +179,7 @@ basename = rp.get_param("io.basename")
 sim.cc_data.write(basename + "%4.4d" % (n))
 
 dovis = rp.get_param("vis.dovis")
+dovis = True
 if dovis:
     plt.figure(num=1, figsize=(8,6), dpi=100, facecolor='w')
     sim.dovis()

@@ -4,12 +4,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from lm_atm.problems import *
-import lm_atm.LM_atm_interface_f as lm_interface_f
+#import lm_atm.LM_atm_interface_f as lm_interface_f
 import mesh.reconstruction_f as reconstruction_f
 import mesh.patch as patch
 import multigrid.variable_coeff_MG as vcMG
 import metric
 from util import profile
+import lm_atm_interface as lm_int
 
 """
 TODO: Base state evolution
@@ -159,6 +160,7 @@ class Simulation:
         # add metric
         g = self.rp.get_param("lm-atmosphere.grav")
         r = np.linspace(-myg.dy * myg.ng + myg.ymin, myg.ymin + myg.dy * (myg.qy-1-myg.ng), myg.qy)
+        #print('rs: ', 2 * g * r)
         alpha = np.sqrt(np.ones(myg.qy) + 2. * g * r[:])
         beta = [0., 0., 0.] #really flat
         gamma = np.eye(3) #extremely flat
@@ -286,6 +288,7 @@ class Simulation:
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
 
+
         # the timestep is min(dx/|u|, dy|v|)
         xtmp = ytmp = 1.e33
         if not np.max(np.abs(u)) == 0:
@@ -305,8 +308,9 @@ class Simulation:
 
         g = self.rp.get_param("lm-atmosphere.grav")
 
-        F_buoy = np.max(np.abs(Dprime[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]*g)/
-                        D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])
+        #F_buoy = np.max(np.abs(Dprime[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]*g)/
+        #                D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])
+        F_buoy = np.abs(g)
 
         dt_buoy = np.sqrt(2.0*myg.dx/F_buoy)
 
@@ -575,10 +579,14 @@ class Simulation:
         source[:,:] = -g * np.ones((myg.qx, myg.qy))
         self.aux_data.fill_BC("source_y")
 
-        u_MAC, v_MAC = lm_interface_f.mac_vels(myg.qx, myg.qy, myg.ng,
-                                               myg.dx, myg.dy, dt,
-                                               u, v,
-                                               ldelta_ux, ldelta_vx,
+        #u_MAC, v_MAC = lm_interface_f.mac_vels(myg.qx, myg.qy, myg.ng,
+        #                                       myg.dx, myg.dy, dt,
+        #                                       u, v,
+        #                                       ldelta_ux, ldelta_vx,
+        #                                       ldelta_uy, ldelta_vy,
+        #                                       coeff*gradp_x, coeff*gradp_y,
+        #                                       source)
+        u_MAC, v_MAC = lm_int.mac_vels(myg, dt, u, v, ldelta_ux, ldelta_vx,
                                                ldelta_uy, ldelta_vy,
                                                coeff*gradp_x, coeff*gradp_y,
                                                source)
@@ -670,25 +678,32 @@ class Simulation:
                  phi_MAC[myg.ilo:myg.ihi+1,myg.jlo-1:myg.jhi+1])/myg.dy
 
 
-
+        # resize so that Fortran is happy
+        D02d = np.array([D0,] * np.size(D0))
+        Dh02d = np.array([Dh0,] * np.size(Dh0))
 
 
         #---------------------------------------------------------------------
         # predict D to the edges and do its conservative update
         #---------------------------------------------------------------------
+        dt = float(dt)
         #D_xint, D_yint = lm_interface_f.D_states(myg.qx, myg.qy, myg.ng, myg.dx, myg.dy, dt, D, u_MAC, v_MAC, ldelta_rx, ldelta_ry)
+        D_xint, D_yint = lm_int.D_states(myg, dt, D, u_MAC, v_MAC, ldelta_rx,
+                            ldelta_ry)
 
-        D_xint = D.copy()
-        D_yint = D.copy()
+        #D_xint = D.copy()
+        #D_yint = D.copy()
 
         #D0_xint, D0_yint = lm_interface_f.D_states(myg.qx, myg.qy, myg.ng,
         #                                               myg.dx, myg.dy, dt,
         #                                               D0[np.newaxis,:], u_MAC,
         #                                               v_MAC,
         #                                               ldelta_r0x, ldelta_r0y)
+        D0_xint, D0_yint = lm_int.D_states(myg, dt, D02d, u_MAC,
+                            v_MAC, ldelta_r0x, ldelta_r0y)
 
-        D0_xint = np.array([D0,] * np.size(D0))
-        D0_yint = np.array([D0,] * np.size(D0))
+        #D0_xint = np.array([D0,] * np.size(D0))
+        #D0_yint = np.array([D0,] * np.size(D0))
 
         #D_old = D.copy()
         #D0_old = D0.copy()
@@ -709,7 +724,7 @@ class Simulation:
 
         #need to do some averaging as D0 is only 1d
 
-        D02d = myg.scratch_array()
+        #D02d = myg.scratch_array()
 
         D02d[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt*(
             #  (D u)_x
@@ -733,21 +748,25 @@ class Simulation:
         #
         # Exactly the same as for density
         #---------------------------------------------------------------------
-        Dh_xint, Dh_yint = lm_interface_f.D_states(myg.qx, myg.qy, myg.ng,
-                                                       myg.dx, myg.dy, dt,
-                                                       Dh, u_MAC, v_MAC,
-                                                       ldelta_ex, ldelta_ey)
+        #Dh_xint, Dh_yint = lm_interface_f.D_states(myg.qx, myg.qy, myg.ng,
+        #                                               myg.dx, myg.dy, dt,
+        #                                               Dh, u_MAC, v_MAC,
+        #                                               ldelta_ex, ldelta_ey)
+        Dh_xint, Dh_yint = lm_int.D_states(myg, dt, D, u_MAC, v_MAC, ldelta_ex,
+                            ldelta_ey)
 
-        Dh0_xint, Dh0_yint = lm_interface_f.D_states(myg.qx, myg.qy, myg.ng,
-                                                       myg.dx, myg.dy, dt,
-                                                       Dh0[np.newaxis,:], u_MAC,
-                                                       v_MAC,
-                                                       ldelta_e0x, ldelta_e0y)
+        #Dh0_xint, Dh0_yint = lm_interface_f.D_states(myg.qx, myg.qy, myg.ng,
+        #                                               myg.dx, myg.dy, dt,
+        #                                              Dh0[np.newaxis,:], u_MAC,
+        #                                                   v_MAC,
+        #                                               ldelta_e0x, ldelta_e0y)
+        Dh0_xint, Dh0_yint = lm_int.D_states(myg, dt, Dh02d, u_MAC,
+                            v_MAC, ldelta_e0x, ldelta_e0y)
 
         #Dh_xint = D.copy()
         #Dh_yint = D.copy()
-        Dh0_xint = np.array([Dh0,] * np.size(Dh0))
-        Dh0_yint = np.array([Dh0,] * np.size(Dh0))
+        #Dh0_xint = np.array([Dh0,] * np.size(Dh0))
+        #Dh0_yint = np.array([Dh0,] * np.size(Dh0))
 
         Dh_old = Dh.copy()
         #Dh0_old = Dh0.copy()
@@ -766,7 +785,7 @@ class Simulation:
 
         # average laterally as Dh0 is 1d
 
-        Dh02d = myg.scratch_array()
+        #Dh02d = myg.scratch_array()
 
         Dh02d[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt*(
             #  (Dh u)_x
@@ -817,14 +836,19 @@ class Simulation:
         self.aux_data.fill_BC("coeff")
 
         u_xint, v_xint, u_yint, v_yint = \
-               lm_interface_f.states(myg.qx, myg.qy, myg.ng,
-                                     myg.dx, myg.dy, dt,
-                                     u, v,
-                                     ldelta_ux, ldelta_vx,
-                                     ldelta_uy, ldelta_vy,
-                                     coeff*gradp_x, coeff*gradp_y,
-                                     source,
-                                     u_MAC, v_MAC)
+            lm_int.states(myg, dt, u, v, ldelta_ux, ldelta_vx,
+                                 ldelta_uy, ldelta_vy,
+                                 coeff*gradp_x, coeff*gradp_y,
+                                 source,
+                                 u_MAC, v_MAC)
+               #lm_interface_f.states(myg.qx, myg.qy, myg.ng,
+                #                     myg.dx, myg.dy, dt,
+                #                     u, v,
+                #                     ldelta_ux, ldelta_vx,
+                #                     ldelta_uy, ldelta_vy,
+                #                     coeff*gradp_x, coeff*gradp_y,
+                #                     source,
+                #                     u_MAC, v_MAC)
 
 
         #---------------------------------------------------------------------
@@ -870,7 +894,6 @@ class Simulation:
             u[:,:] -= dt*advect_x[:,:]
             v[:,:] -= dt*advect_y[:,:]
 
-
         # add the gravitational source
 
         # Made relativisticish?
@@ -880,7 +903,6 @@ class Simulation:
         source[:,:] = -g * np.ones((myg.qx, myg.qy))
 
         v[:,:] += dt * source
-
         self.cc_data.fill_BC("x-velocity")
         self.cc_data.fill_BC("y-velocity")
 
