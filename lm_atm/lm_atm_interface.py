@@ -1,9 +1,9 @@
 from __future__ import print_function
 
-import sys
-import mesh.patch as patch
+#import sys
+#import mesh.patch as patch
 import numpy as np
-from util import msg
+#from util import msg
 
 def mac_vels(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy,
     ldelta_vy, gradp_x, gradp_y, source):

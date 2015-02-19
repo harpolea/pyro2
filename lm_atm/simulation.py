@@ -18,7 +18,7 @@ TODO: Compare to MATLAB code to see if I did anything else
 
 FIXME: Base state sourcing - need to make sure source terms are added somewhere.
 
-FIXME: velocities diverge a bit, so the timestep eventually nan's. Find out why
+FIXME: Do some dimensional analysis or similar to work out intial conditions
 """
 
 class Simulation:
@@ -159,9 +159,7 @@ class Simulation:
 
         # add metric
         g = self.rp.get_param("lm-atmosphere.grav")
-        r = np.linspace(-myg.dy * myg.ng + myg.ymin, myg.ymin + myg.dy * (myg.qy-1-myg.ng), myg.qy)
-        #print('rs: ', 2 * g * r)
-        alpha = np.sqrt(np.ones(myg.qy) + 2. * g * r[:])
+        alpha = np.sqrt(np.ones(myg.qy) + 2. * g / myg.y)
         beta = [0., 0., 0.] #really flat
         gamma = np.eye(3) #extremely flat
         self.metric = metric.Metric(self.cc_data, alpha, beta, gamma)
@@ -254,7 +252,7 @@ class Simulation:
 
         S = self.aux_data.get_var("S")
 
-        S[:,:] = g * v[:,:] / self.metric.alpha[np.newaxis,:]**2
+        S[:,:] = g * v[:,:] / (self.cc_data.grid.y[np.newaxis,:] * self.metric.alpha[np.newaxis,:])**2
         self.aux_data.fill_BC("S")
 
         p0 = self.base["p0"]
@@ -310,7 +308,7 @@ class Simulation:
 
         #F_buoy = np.max(np.abs(Dprime[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]*g)/
         #                D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])
-        F_buoy = np.abs(g)
+        F_buoy = np.max(np.abs(g/myg.y[:]**2))
 
         dt_buoy = np.sqrt(2.0*myg.dx/F_buoy)
 
@@ -501,23 +499,40 @@ class Simulation:
 
 
         #---------------------------------------------------------------------
-        # React full step through first half timestep
+        # React full state through first half timestep
         # Assume for simplicity here that only non-zero Christoffel of
-        # Gamma^mu_{mu nu} form is Gamma^t_{t r} = g/(1+2gr)
+        # Gamma^mu_{mu nu} form is Gamma^t_{t r} = - g/r^2(1+2g/r) =
+        # -g/r^2alpha^2
         #
         # This runs ReactState and basically calculates the sourcing.
+        # Shall also react the base state as this has sourcing too.
         #---------------------------------------------------------------------
         g = self.rp.get_param("lm-atmosphere.grav")
-        r = np.linspace(0., myg.dy * myg.jhi, 1./myg.dy)
+        r = np.array([myg.y,] * myg.qx)
+
+        christfl = -g / (r[:,:]**2 * (1.+ 2. * g / r[:,:]))
+
+        D0[myg.jlo:myg.jhi+1] -= dt * 0.5 * \
+            self.lateralAvg(D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] )
+
+        #FIXME : need to include pressure term
+
+        Dh0[myg.jlo:myg.jhi+1] -= dt * 0.5 * \
+            self.lateralAvg(Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] )
 
         D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * \
             D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * g / \
-            (2. * (1.+ 2. * g * r[np.newaxis,:]))
+            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * 0.5 * \
+            christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]
         Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * \
             Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * g / \
-            (2. * (1.+ 2. * g * r[np.newaxis,:]))
+            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * 0.5 * \
+            christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]
+
 
         #---------------------------------------------------------------------
         # get the advective velocities
@@ -572,11 +587,11 @@ class Simulation:
         Have attempted to do this relativistically.
 
         Source here is given by -U_j Dlnu0/Dt + Gamma_{rho nu j} U^nu U^rho.
-        The second term in our simple time-lagged metric is just -g.
+        The second term in our simple time-lagged metric is just g/r^2.
         The first term presents some difficulty so shall try to ignore it for
         now.
         """
-        source[:,:] = -g * np.ones((myg.qx, myg.qy))
+        source[:,:] = g  / r[:,:]**2
         self.aux_data.fill_BC("source_y")
 
         #u_MAC, v_MAC = lm_interface_f.mac_vels(myg.qx, myg.qy, myg.ng,
@@ -900,7 +915,7 @@ class Simulation:
         #D_half = 0.5*(D + D_old)
         #Dprime = self.make_prime(D_half, D0)
         #source = Dprime*g/D_half
-        source[:,:] = -g * np.ones((myg.qx, myg.qy))
+        source[:,:] = g / myg.y[np.newaxis,:]**2
 
         v[:,:] += dt * source
         self.cc_data.fill_BC("x-velocity")
@@ -911,20 +926,32 @@ class Simulation:
         print("min/max v   = {}, {}".format(np.min(v), np.max(v)))
 
         #---------------------------------------------------------------------
-        # React full state through second half timestep
+        # React full and base state through second half timestep
         # Assume for simplicity here that only non-zero Christoffel of
         # Gamma^mu_{mu nu} form is Gamma^t_{t r} = g/(1+2gr)
         #
         # This runs ReactState.
         #---------------------------------------------------------------------
+        D0[myg.jlo:myg.jhi+1] -= dt * 0.5 * \
+            self.lateralAvg(D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] )
+
+        #FIXME : need to include pressure term
+
+        Dh0[myg.jlo:myg.jhi+1] -= dt * 0.5 * \
+            self.lateralAvg(Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] )
+
         D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * \
             D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * g / \
-            (2. * (1.+ 2. * g * r[np.newaxis,:]))
+            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * 0.5 * \
+            christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]
         Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * \
             Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * g / \
-            (2. * (1.+ 2. * g * r[np.newaxis,:]))
+            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * 0.5 * \
+            christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]
 
 
 

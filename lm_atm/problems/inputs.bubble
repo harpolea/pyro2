@@ -2,7 +2,7 @@
 
 [driver]
 max_steps = 2000
-tmax = 1.0
+tmax = 100.0
 cfl = 0.8
 
 
@@ -18,8 +18,9 @@ n_out = 1
 nx = 128
 ny = 128
 xmax = 1.0
-ymin = 0.0
-ymax = 1.0
+ymin = 12.0
+ymax = 13.0
+
 
 xlboundary = periodic
 xrboundary = periodic
@@ -30,5 +31,5 @@ yrboundary = outflow
 
 [bubble]
 x_pert = 0.5
-y_pert = 1.5
+y_pert = 0.5
 r_pert = 0.05
