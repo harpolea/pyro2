@@ -2,11 +2,22 @@ from __future__ import print_function
 
 import sys
 import mesh.patch as patch
-import numpy
+import numpy as np
 from util import msg
 
-def init_data(my_data, base, rp):
-    """ initialize the bubble problem """
+def init_data(my_data, base_data, rp):
+    """
+    initialize the bubble problem
+
+    Parameters
+    ----------
+    my_data : CellCenterMG2d object
+        simulation data
+    base_data : CellCenterMG1d object
+        simulation base states
+    rp : RuntimeParameters object
+        The runtime parameters for the simulation
+    """
 
     msg.bold("initializing the bubble problem...")
 
@@ -14,6 +25,11 @@ def init_data(my_data, base, rp):
     if not isinstance(my_data, patch.CellCenterData2d):
         print("ERROR: patch invalid in bubble.py")
         print(my_data.__class__)
+        sys.exit()
+
+    if not isinstance(base_data, patch.CellCenterData1d):
+        print("ERROR: patch invalid in bubble.py")
+        print(base_data.__class__)
         sys.exit()
 
     # get the density and velocities
@@ -49,7 +65,7 @@ def init_data(my_data, base, rp):
 
     j = myg.jlo
     for j in range(myg.jlo, myg.jhi+1):
-        dens[:,j] = max(dens_base*numpy.exp(-myg.y[j]/scale_height),
+        dens[:,j] = max(dens_base*np.exp(-myg.y[j]/scale_height),
                         dens_cutoff)
 
     cs2 = scale_height*abs(grav)
@@ -60,7 +76,7 @@ def init_data(my_data, base, rp):
     for i in range(myg.ilo, myg.ihi+1):
         for j in range(myg.jlo, myg.jhi+1):
 
-            r = numpy.sqrt((myg.x[i] - x_pert)**2  + (myg.y[j] - (y_pert+myg.ymin))**2)
+            r = np.sqrt((myg.x[i] - x_pert)**2  + (myg.y[j] - (y_pert+myg.ymin))**2)
 
             if r <= r_pert:
                 # boost the specific internal energy, keeping the pressure
@@ -73,16 +89,35 @@ def init_data(my_data, base, rp):
 
 
     # do the base state
-    base["D0"] = numpy.mean(dens, axis=0)
-    base["Dh0"] = numpy.mean(enth, axis=0)
-    base["p0"] = numpy.mean(pres, axis=0)
+    D0 = base_data.get_var("D0")
+    Dh0 = base_data.get_var("Dh0")
+    p0 = base_data.get_var("p0")
+
 
     # redo the pressure via HSE
-    # FIXME: relativise me
-    for j in range(myg.jlo+1, myg.jhi):
-        base["p0"][j] = base["p0"][j-1] + 0.5*myg.dy*(base["D0"][j] + base["D0"][j-1])*grav/myg.y[j]**2
+    # FIXME: relativise me and calculate Dh0
+    D0[:] = np.mean(dens[:,:], axis=0)
+    Dh0[:] = np.mean(enth[:,:], axis=0)
+    p0[:] = (D0[:] + Dh0[:]) * (gamma - 1.) / (2. - gamma)
+    #print('p0 before TOV: ', p0)
+    p0[myg.jlo+1:myg.jhi+1] = p0[myg.jlo:myg.jhi] + 0.5 * myg.dy * \
+        (D0[myg.jlo+1:myg.jhi+1] + D0[myg.jlo:myg.jhi]) * \
+        grav/myg.y[myg.jlo+1:myg.jhi+1]**2
+
+    #for j in range(myg.jlo+1, myg.jhi):
+    #    p0[j] = p0[j-1] + 0.5*myg.dy*(D0[j] + D0[j-1])*grav/myg.y[j]**2
 
 
+    #fill ghost cells
+    my_data.fill_BC("x-velocity")
+    my_data.fill_BC("y-velocity")
+    my_data.fill_BC("density")
+    my_data.fill_BC("enthalpy")
+    my_data.fill_BC("eint")
+    base_data.fill_BC("D0")
+    base_data.fill_BC("Dh0")
+    base_data.fill_BC("p0")
+    #print('p0 after TOV and BCs: ', base_data.get_var("p0"))
 
 def finalize():
     """ print out any information to the user at the end of the run """

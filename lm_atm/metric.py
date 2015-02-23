@@ -12,7 +12,7 @@ from lm_atm.problems import *
 
 class Metric:
 
-    def __init__(self, cellData, alpha, beta, gamma):
+    def __init__(self, cellData, rp, alpha, beta, gamma):
         """
         Initialize the Metric object. This is a standard 3+1 metric.
 
@@ -20,7 +20,9 @@ class Metric:
         ----------
         cellData : CellCenterData2d object
             Simulation data object
-        alpha : float
+        rp : RuntimeParameters object
+            The runtime parameters for the simulation
+        alpha : float array
             lapse function
         beta : float array
             shift vector
@@ -30,6 +32,7 @@ class Metric:
 
 
         self.cc_data = cellData
+        self.rp = rp
         self.alpha = alpha
         self.beta = beta
         self.W = 1. #Lorentz factor.
@@ -43,8 +46,15 @@ class Metric:
 
         sg = self.cc_data.grid.scratch_array()
         sgamma = self.cc_data.grid.scratch_array()
+        g = np.zeros((3,3))
 
-        # TODO: implement this
+        for i in range(0, self.cc_data.grid.qx):
+            for j in range(0, self.cc_data.grid.qy):
+                #calculate metric at point
+                g[:,:] = self.g([i,j])
+                #calculate square roots of determinants
+                sg[i,j] = np.sqrt(np.linalg.det(g[:,:]))
+                sgamma[i,j] = np.sqrt(np.linalg.det(g[1:,1:]))
 
         return sg, sgamma
 
@@ -54,9 +64,14 @@ class Metric:
         """
 
         W = self.cc_data.grid.scratch_array()
-        W = np.ones(np.shape(W))
+        #W = np.ones(np.shape(W))
 
-        # TODO: work out how to calculate this
+        u = self.cc_data.get_var("x-velocity")
+        v = self.cc_data.get_var("y-velocity")
+        c = self.rp.get_param("lm-atmosphere.c")
+
+        W = 1 - (u[:,:]**2 + v[:,:]**2)/c**2
+        W[:,:] = 1/ np.sqrt(W[:,:])
 
         return W
 
@@ -109,13 +124,13 @@ class Metric:
 
         #K = np.zeros((2,2)) #placeholder
 
-        r = x[2] * self.cc_data.grid.dy
-        g = (self.alpha[x[2]]**2 - 1.) / (2. * r)
+        r = self.cc_data.grid.y[x[2]]
+        g = (self.alpha[x[2]]**2 - 1.) * r**2 * 0.5
 
         #For simple time-lagged metric, only have 3 non-zero christoffels.
-        christls[0,0,2] = g/self.alpha[x[2]]**2
-        christls[0,2,0] = g/self.alpha[x[2]]**2
-        christls[2,0,0] = g
+        christls[0,0,2] = -g/(self.alpha[x[2]]**2 * r**2)
+        christls[0,2,0] = -g/(self.alpha[x[2]]**2 * r**2)
+        christls[2,0,0] = -g/r**2
 
 
         # For non-simple, we have to do more icky stuff including time and space

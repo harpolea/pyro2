@@ -9,6 +9,31 @@ def mac_vels(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy,
     ldelta_vy, gradp_x, gradp_y, source):
     """
     Calculates the MAC velocities
+
+    Parameters
+    ----------
+    myg : Grid2d object
+        grid on which data lives
+    dt : float
+        timestep
+    u : float array
+        horizonal velocity
+    v : float array
+        vertical velocity
+    ldelta_ux : float array
+        x-limited u velocities
+    ldelta_vx : float array
+        x-limitied v velocities
+    ldelta_uy : float array
+        y-limitied u velocities
+    ldelta_vy : float array
+        y-limited v velocities
+    gradp_x : float array
+        gradient of the pressure(?) in x-direction
+    gradp_y : float array
+        gradient of the pressure(?) in y-direction
+    source : float array
+        source terms
     """
 
     # get the full u and v left and right states (including transverse terms) on
@@ -31,9 +56,38 @@ def mac_vels(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy,
 def states(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy, ldelta_vy,
                   gradp_x, gradp_y, source, u_MAC, v_MAC):
     """
-      ! this is similar to mac_vels, but it predicts the interface states
-      ! of both u and v on both interfaces, using the MAC velocities to
-      ! do the upwinding.
+    This is similar to mac_vels, but it predicts the interface states
+    of both u and v on both interfaces, using the MAC velocities to
+    do the upwinding.
+
+    Parameters
+    ----------
+    myg : Grid2d object
+        grid on which data lives
+    dt : float
+        timestep
+    u : float array
+        horizonal velocity
+    v : float array
+        vertical velocity
+    ldelta_ux : float array
+        x-limited u velocities
+    ldelta_vx : float array
+        x-limitied v velocities
+    ldelta_uy : float array
+        y-limitied u velocities
+    ldelta_vy : float array
+        y-limited v velocities
+    gradp_x : float array
+        gradient of the pressure(?) in x-direction
+    gradp_y : float array
+        gradient of the pressure(?) in y-direction
+    source : float array
+        source terms
+    u_MAC : float array
+        horizontal MAC velocities
+    v_MAC : float array
+        vertical MAC velcities
     """
 
     u_xl, u_xr, u_yl, u_yr, v_xl, v_xr, v_yl, v_yr = get_interface_states(myg,
@@ -55,11 +109,36 @@ def get_interface_states(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy,
                         ldelta_vy, gradp_x, gradp_y, source):
 
     """
-      ! Compute the unsplit predictions of u and v on both the x- and
-      ! y-interfaces.  This includes the transverse terms.
+    Compute the unsplit predictions of u and v on both the x- and
+    y-interfaces.  This includes the transverse terms.
 
-      ! note that the gradp_x, gradp_y should have any coefficients
-      ! already included (e.g. beta_0/D)
+    Note that the gradp_x, gradp_y should have any coefficients
+    already included (e.g. zeta/Dh)
+
+    Parameters
+    ----------
+    myg : Grid2d object
+        grid on which data lives
+    dt : float
+        timestep
+    u : float array
+        horizonal velocity
+    v : float array
+        vertical velocity
+    ldelta_ux : float array
+        x-limited u velocities
+    ldelta_vx : float array
+        x-limitied v velocities
+    ldelta_uy : float array
+        y-limitied u velocities
+    ldelta_vy : float array
+        y-limited v velocities
+    gradp_x : float array
+        gradient of the pressure(?) in x-direction
+    gradp_y : float array
+        gradient of the pressure(?) in y-direction
+    source : float array
+        source terms
     """
 
     #intialise some stuff
@@ -258,8 +337,25 @@ def get_interface_states(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy,
 
 def D_states(myg, dt, D, u_MAC, v_MAC, ldelta_rx, ldelta_ry):
     """
-    this predicts D to the interfaces.  We use the MAC velocities to do
-    the upwinding
+    This predicts D to the interfaces.  We use the MAC velocities to do
+    the upwinding.
+
+    Parameters
+    ----------
+    myg : Grid2d object
+        grid on which data lives
+    dt : float
+        timestep
+    D : float array
+        'density'
+    u_MAC : float array
+        horizontal MAC velocities
+    v_MAC : float array
+        vertical MAC velcities
+    ldelta_rx : float array
+        x-limited density
+    ldelta_ry : float array
+        y-limitied density
     """
 
     #intialise
@@ -375,9 +471,19 @@ def D_states(myg, dt, D, u_MAC, v_MAC, ldelta_rx, ldelta_ry):
 def upwind(myg, q_l, q_r, s):
 
     """
-      ! upwind the left and right states based on the specified input
-      ! velocity, s.  The resulting interface state is q_int
+    Upwind the left and right states based on the specified input
+    velocity, s.  The resulting interface state is q_int
 
+    Parameters
+    ----------
+    myg : Grid2d object
+        grid on which data lives
+    q_l : float array
+        left state
+    q_r : float array
+        right state
+    s : float array
+        specified input velocity
     """
 
     q_int = np.zeros((myg.qx,myg.qy), dtype=np.float64)
@@ -403,10 +509,19 @@ def upwind(myg, q_l, q_r, s):
 def riemann(myg, q_l, q_r):
 
     """
-    ! Solve the Burger's Riemann problem given the input left and right
-    ! states and return the state on the interface.
-    !
-    ! This uses the expressions from Almgren, Bell, and Szymczak 1996.
+    Solve the Burger's Riemann problem given the input left and right
+    states and return the state on the interface.
+
+    This uses the expressions from Almgren, Bell, and Szymczak 1996.
+
+    Parameters
+    ----------
+    myg : Grid2d object
+        grid on which data lives
+    q_l : float array
+        left state
+    q_r : float array
+        right state
     """
 
     s = np.zeros((myg.qx,myg.qy), dtype=np.float64)
@@ -435,6 +550,15 @@ def riemann_and_upwind(myg, q_l, q_r):
 
     This differs from upwind, above, in that we don't take in a
     velocity to upwind with).
+
+    Parameters
+    ----------
+    myg : Grid2d object
+        grid on which data lives
+    q_l : float array
+        left state
+    q_r : float array
+        right state
     """
 
     s = riemann(myg, q_l, q_r)
