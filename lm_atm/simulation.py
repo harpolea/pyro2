@@ -154,9 +154,7 @@ class Simulation:
         base_data.register_var("D0", bc_dens)
         base_data.register_var("Dh0", bc_dens)
         base_data.register_var("p0", bc_dens)
-        #self.base["D0"] = np.zeros(myg.qy, dtype=np.float64)
-        #self.base["Dh0"] = np.zeros(myg.qy, dtype=np.float64)
-        #self.base["p0"] = np.zeros(myg.qy, dtype=np.float64)
+
 
         # add metric
         g = self.rp.get_param("lm-atmosphere.grav")
@@ -168,15 +166,10 @@ class Simulation:
 
         # Construct zeta
 
-        #gamma = self.rp.get_param("eos.gamma")
-        #self.base["zeta"] = self.base["p0"]**(1.0/gamma)
-
-        #self.base["zeta"] = np.zeros(myg.qy, dtype=np.float64)
         base_data.register_var("zeta", bc_dens)
 
         # we'll also need zeta on vertical edges -- on the domain edges,
         # just do piecewise constant
-        #self.base["zeta-edges"] = np.zeros(myg.qy, dtype=np.float64)
         base_data.register_var("zeta-edges", bc_dens)
 
         base_data.create()
@@ -201,8 +194,8 @@ class Simulation:
         a : float array
             2d array to be laterally averaged
         """
-        #print(a)
         return np.mean(a, axis=0)
+
 
 
 
@@ -219,7 +212,6 @@ class Simulation:
         """
 
         #find variables
-        #D0 = self.base["D0"]
         D0 = self.base_data.get_var("D0")
         u0 = self.metric.calcu0()
 
@@ -231,7 +223,6 @@ class Simulation:
         #
         # So, if we integrate over this wrt r we get D/u^0, so zeta =
         # exp(D/u^0).
-        #zeta = self.base["zeta"]
         zeta = self.base_data.get_var("zeta")
         zeta_edges = self.base_data.get_var("zeta-edges")
         # do some u0 averaging?
@@ -242,11 +233,6 @@ class Simulation:
 
         # we'll also need zeta_0 on vertical edges -- on the domain edges,
         # just do piecewise constant
-        #self.base["zeta-edges"][myg.jlo+1:myg.jhi+1] = \
-        #    0.5*(self.base["zeta"][myg.jlo  :myg.jhi] +
-        #         self.base["zeta"][myg.jlo+1:myg.jhi+1])
-        #self.base["zeta-edges"][myg.jlo] = self.base["zeta"][myg.jlo]
-        #self.base["zeta-edges"][myg.jhi+1] = self.base["zeta"][myg.jhi]
         zeta_edges[myg.jlo+1:myg.jhi+1] = \
             0.5*(zeta[myg.jlo  :myg.jhi] +
                  zeta[myg.jlo+1:myg.jhi+1])
@@ -279,13 +265,11 @@ class Simulation:
         S[:,:] = g * v[:,:] / (self.cc_data.grid.y[np.newaxis,:] * self.metric.alpha[np.newaxis,:])**2
         self.aux_data.fill_BC("S")
 
-        #p0 = self.base["p0"]
         p0 = self.base_data.get_var("p0")
 
         # laterally averaged the source as p0 is x-independent
         dp0dt = self.lateralAvg(S[:,:]) * 0. #placeholder for now
-        #print('p0 for constraint:', p0)
-        dp0dt /= gamma * p0[:]
+        dp0dt[:] /= gamma * p0[:]
 
         return zeta[np.newaxis,:] * (S[:,:] - dp0dt[np.newaxis,:])
 
@@ -327,7 +311,6 @@ class Simulation:
 
         # FIXME: Need to do this relativistically!!!!!!!!!!!!
         D = self.cc_data.get_var("density")
-        #D0 = self.base["D0"]
         D0 = self.base_data.get_var("D0")
         Dprime = self.make_prime(D, D0)
 
@@ -374,12 +357,11 @@ class Simulation:
         u0 = self.metric.calcu0()
 
         #shall ones out Dh to stop divide by 0ness
-        Dh = np.ones(np.shape(Dh))
+        #Dh = np.ones(np.shape(Dh))
         coeff = 1.0/(Dh[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] * \
             u0[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2])
-        #zeta = self.base["zeta"]
         zeta = self.base_data.get_var("zeta")
-        coeff *= zeta[np.newaxis,myg.jlo-1:myg.jhi+2]**2
+        coeff[:,:] *= zeta[np.newaxis,myg.jlo-1:myg.jhi+2]**2
 
         # next create the multigrid object.  We defined phi with
         # the right BCs previously
@@ -396,7 +378,6 @@ class Simulation:
 
         # first compute div{zeta U}
         div_zeta_U = mg.soln_grid.scratch_array()
-        #print("shape of divZetaU", np.shape(div_zeta_U))
 
         # u/v are cell-centered, divU is cell-centered
         div_zeta_U[mg.ilo:mg.ihi+1,mg.jlo:mg.jhi+1] = \
@@ -414,7 +395,7 @@ class Simulation:
         # set the RHS to div_zeta_U - zeta(S -...) and solve
         p0 = self.base_data.get_var("p0")
         constraint = self.calcConstraint(zeta)
-        mg.init_RHS(div_zeta_U - constraint[myg.ilo-1:myg.ihi+2, myg.jlo-1:myg.jhi+2])
+        mg.init_RHS(div_zeta_U[:,:] - constraint[myg.ilo-1:myg.ihi+2, myg.jlo-1:myg.jhi+2])
         mg.solve(rtol=1.e-10)
 
         # store the solution in our self.cc_data object -- include a single
@@ -431,8 +412,8 @@ class Simulation:
         coeff = 1.0/(Dh[:,:] * u0[:,:])
         coeff[:,:] *= zeta[np.newaxis,:]
 
-        u[:,:] -= coeff * gradp_x
-        v[:,:] -= coeff * gradp_y
+        u[:,:] -= coeff[:,:] * gradp_x[:,:]
+        v[:,:] -= coeff[:,:] * gradp_y[:,:]
 
         # fill the ghostcells
         self.cc_data.fill_BC("x-velocity")
@@ -497,13 +478,9 @@ class Simulation:
         # note: the base state quantities do not have valid ghost cells
         # need to update zeta as D0, u0 etc change every time step
         self.updateZeta(self.cc_data.grid)
-        #zeta = self.base["zeta"]
         zeta = self.base_data.get_var("zeta")
-        #zeta_edges = self.base["zeta-edges"]
         zeta_edges = self.base_data.get_var("zeta-edges")
 
-        #D0 = self.base["D0"]
-        #Dh0 = self.base["Dh0"]
         D0 = self.base_data.get_var("D0")
         Dh0 = self.base_data.get_var("Dh0")
 
@@ -575,6 +552,7 @@ class Simulation:
             v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * 0.5 * \
             christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]
 
+
         #fill ghostcells
         self.cc_data.fill_BC("enthalpy")
         self.cc_data.fill_BC("density")
@@ -615,8 +593,8 @@ class Simulation:
         u0 = self.metric.calcu0()
         coeff = self.aux_data.get_var("coeff")
 
-        #initialise to ones for niceness
-        Dh = np.ones(np.shape(Dh))
+        #FIXME: everything breaks unless set Dh to ones
+        #Dh = np.ones(np.shape(Dh))
 
         coeff[:,:] = 1.0/(Dh[:,:] * u0[:,:])
         coeff[:,:] *= zeta[np.newaxis,:]
@@ -642,13 +620,6 @@ class Simulation:
         source[:,:] = g  / r[:,:]**2
         self.aux_data.fill_BC("source_y")
 
-        #u_MAC, v_MAC = lm_interface_f.mac_vels(myg.qx, myg.qy, myg.ng,
-        #                                       myg.dx, myg.dy, dt,
-        #                                       u, v,
-        #                                       ldelta_ux, ldelta_vx,
-        #                                       ldelta_uy, ldelta_vy,
-        #                                       coeff*gradp_x, coeff*gradp_y,
-        #                                       source)
         u_MAC, v_MAC = lm_int.mac_vels(myg, dt, u, v, ldelta_ux, ldelta_vx,
                                                ldelta_uy, ldelta_vy,
                                                coeff*gradp_x, coeff*gradp_y,
@@ -671,9 +642,8 @@ class Simulation:
         coeff = 1.0/(Dh[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] * \
             u0[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2])
         self.updateZeta(self.cc_data.grid)
-        #zeta = self.base["zeta"]
         zeta = self.base_data.get_var("zeta")
-        coeff *= zeta[np.newaxis,myg.jlo-1:myg.jhi+2]**2
+        coeff[:,:] *= zeta[np.newaxis,myg.jlo-1:myg.jhi+2]**2
 
 
         # create the multigrid object
@@ -703,8 +673,9 @@ class Simulation:
 
         # solve the Poisson problem
         constraint = self.calcConstraint(zeta)
-        mg.init_RHS(div_zeta_U - constraint[myg.ilo-1:myg.ihi+2, myg.jlo-1:myg.jhi+2])
-        mg.solve(rtol=1.e-12)
+        mg.init_RHS(div_zeta_U[:,:] - constraint[myg.ilo-1:myg.ihi+2, myg.jlo-1:myg.jhi+2])
+        #mg.solve(rtol=1.e-12)
+        mg.solve(1.e-9)
 
 
         # update the normal velocities with the pressure gradient -- these
@@ -751,26 +722,12 @@ class Simulation:
         # predict D to the edges and do its conservative update
         #---------------------------------------------------------------------
         dt = float(dt)
-        #D_xint, D_yint = lm_interface_f.D_states(myg.qx, myg.qy, myg.ng, myg.dx, myg.dy, dt, D, u_MAC, v_MAC, ldelta_rx, ldelta_ry)
+
         D_xint, D_yint = lm_int.D_states(myg, dt, D, u_MAC, v_MAC, ldelta_rx,
                             ldelta_ry)
 
-        #D_xint = D.copy()
-        #D_yint = D.copy()
-
-        #D0_xint, D0_yint = lm_interface_f.D_states(myg.qx, myg.qy, myg.ng,
-        #                                               myg.dx, myg.dy, dt,
-        #                                               D0[np.newaxis,:], u_MAC,
-        #                                               v_MAC,
-        #                                               ldelta_r0x, ldelta_r0y)
         D0_xint, D0_yint = lm_int.D_states(myg, dt, D02d, u_MAC,
                             v_MAC, ldelta_r0x, ldelta_r0y)
-
-        #D0_xint = np.array([D0,] * np.size(D0))
-        #D0_yint = np.array([D0,] * np.size(D0))
-
-        #D_old = D.copy()
-        #D0_old = D0.copy()
 
         D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt*(
             #  (D u)_x
@@ -784,11 +741,8 @@ class Simulation:
              D_yint[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]*
              v_MAC[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/myg.dy )
 
-        self.cc_data.fill_BC("density")
 
         #need to do some averaging as D0 is only 1d
-
-        #D02d = myg.scratch_array()
 
         D02d[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt*(
             #  (D u)_x
@@ -812,28 +766,13 @@ class Simulation:
         #
         # Exactly the same as for density
         #---------------------------------------------------------------------
-        #Dh_xint, Dh_yint = lm_interface_f.D_states(myg.qx, myg.qy, myg.ng,
-        #                                               myg.dx, myg.dy, dt,
-        #                                               Dh, u_MAC, v_MAC,
-        #                                               ldelta_ex, ldelta_ey)
         Dh_xint, Dh_yint = lm_int.D_states(myg, dt, D, u_MAC, v_MAC, ldelta_ex,
                             ldelta_ey)
 
-        #Dh0_xint, Dh0_yint = lm_interface_f.D_states(myg.qx, myg.qy, myg.ng,
-        #                                               myg.dx, myg.dy, dt,
-        #                                              Dh0[np.newaxis,:], u_MAC,
-        #                                                   v_MAC,
-        #                                               ldelta_e0x, ldelta_e0y)
         Dh0_xint, Dh0_yint = lm_int.D_states(myg, dt, Dh02d, u_MAC,
                             v_MAC, ldelta_e0x, ldelta_e0y)
 
-        #Dh_xint = D.copy()
-        #Dh_yint = D.copy()
-        #Dh0_xint = np.array([Dh0,] * np.size(Dh0))
-        #Dh0_yint = np.array([Dh0,] * np.size(Dh0))
-
         Dh_old = Dh.copy()
-        #Dh0_old = Dh0.copy()
 
         Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt*(
             #  (Dh u)_x
@@ -849,8 +788,6 @@ class Simulation:
 
         # average laterally as Dh0 is 1d
 
-        #Dh02d = myg.scratch_array()
-
         Dh02d[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt*(
             #  (Dh u)_x
             (Dh0_xint[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1]*
@@ -865,6 +802,7 @@ class Simulation:
 
         Dh0 = self.lateralAvg(Dh02d)
 
+        self.cc_data.fill_BC("density")
         self.cc_data.fill_BC("enthalpy")
         self.base_data.fill_BC("Dh0")
 
@@ -875,17 +813,15 @@ class Simulation:
         #---------------------------------------------------------------------
 
         u0 = self.metric.calcu0()
+
         # flatten u0 to make 1d for next equation.
         u0flat = self.lateralAvg(u0[:,:])
         p0 = self.base_data.get_var("p0")
-        #p0 = self.base["p0"]
         p0[myg.jlo:myg.jhi+1] -= myg.dy * \
             (Dh0[myg.jlo+1:myg.jhi+2]*g /  (u0flat[myg.jlo+1:myg.jhi+2] * \
              self.metric.alpha[myg.jlo+1:myg.jhi+2]**2) + \
              Dh0[myg.jlo:myg.jhi+1]*g / (u0flat[myg.jlo:myg.jhi+1] * \
              self.metric.alpha[myg.jlo:myg.jhi+1]**2)) / 2.
-
-        #print('p0 has been TOVd:', p0)
 
         self.base_data.fill_BC("p0")
 
@@ -893,14 +829,12 @@ class Simulation:
         # recompute the interface states, using the advective velocity
         # from above
         #---------------------------------------------------------------------
-        #print("  making u, v edge states")
 
         coeff = self.aux_data.get_var("coeff")
         coeff[:,:] = 2.0/((Dh[:,:] + Dh_old[:,:]) * u0[:,:])
 
         # Might not need to recalculate zeta but shall just in case
         self.updateZeta(self.cc_data.grid)
-        #zeta = self.base["zeta"]
         zeta = self.base_data.get_var("zeta")
 
         coeff[:,:] *= zeta[np.newaxis,:]
@@ -912,14 +846,6 @@ class Simulation:
                                  coeff*gradp_x, coeff*gradp_y,
                                  source,
                                  u_MAC, v_MAC)
-               #lm_interface_f.states(myg.qx, myg.qy, myg.ng,
-                #                     myg.dx, myg.dy, dt,
-                #                     u, v,
-                #                     ldelta_ux, ldelta_vx,
-                #                     ldelta_uy, ldelta_vy,
-                #                     coeff*gradp_x, coeff*gradp_y,
-                #                     source,
-                #                     u_MAC, v_MAC)
 
 
         #---------------------------------------------------------------------
@@ -973,11 +899,15 @@ class Simulation:
         #source = Dprime*g/D_half
         source[:,:] = g / myg.y[np.newaxis,:]**2
 
-        v[:,:] += dt * source
+        v[:,:] += dt * source[:,:]
         self.cc_data.fill_BC("x-velocity")
         self.cc_data.fill_BC("y-velocity")
 
+        #print('D: ', D[-10:,-10:])
+        #print('Dh: ', Dh[-10:,-10:])
+
         print("min/max D = {}, {}".format(np.min(D), np.max(D)))
+        print("min/max Dh = {}, {}".format(np.min(Dh), np.max(Dh)))
         print("min/max u   = {}, {}".format(np.min(u), np.max(u)))
         print("min/max v   = {}, {}".format(np.min(v), np.max(v)))
 
@@ -1002,6 +932,7 @@ class Simulation:
         #
         # This runs ReactState.
         #---------------------------------------------------------------------
+
         D0[myg.jlo:myg.jhi+1] -= dt * 0.5 * \
             self.lateralAvg(D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
             christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
@@ -1042,9 +973,8 @@ class Simulation:
         coeff = 1.0/(Dh[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] * \
             u0[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2])
         self.updateZeta(self.cc_data.grid)
-        #zeta = self.base["zeta"]
         zeta = self.base_data.get_var("zeta")
-        coeff *= zeta[np.newaxis,myg.jlo-1:myg.jhi+2]**2
+        coeff[:,:] *= zeta[np.newaxis,myg.jlo-1:myg.jhi+2]**2
 
 
         # create the multigrid object
@@ -1057,7 +987,7 @@ class Simulation:
                                  ymin=myg.ymin, ymax=myg.ymax,
                                  coeffs=coeff,
                                  coeffs_bc=self.cc_data.BCs["density"],
-                                 verbose=0)
+                                 verbose=1)
 
         # first compute div{zeta U}
 
@@ -1071,19 +1001,19 @@ class Simulation:
                  zeta[np.newaxis,myg.jlo-1:myg.jhi  ]*
                  v[myg.ilo:myg.ihi+1,myg.jlo-1:myg.jhi  ])/myg.dy
 
-        #mg.init_RHS(div_zeta_U/dt)
         constraint = self.calcConstraint(zeta)
-        mg.init_RHS(div_zeta_U/dt - constraint[myg.ilo-1:myg.ihi+2, myg.jlo-1:myg.jhi+2]/dt)
+        mg.init_RHS(div_zeta_U[:,:]/dt - constraint[myg.ilo-1:myg.ihi+2, myg.jlo-1:myg.jhi+2]/dt)
 
         # use the old phi as our initial guess
         phiGuess = mg.soln_grid.scratch_array()
         phiGuess[mg.ilo-1:mg.ihi+2,mg.jlo-1:mg.jhi+2] = \
            phi[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]
-        mg.init_solution(phiGuess)
+        #mg.init_solution(phiGuess)
 
         # solve
-        mg.solve(rtol=1.e-12)
-
+        #mg.solve(rtol=1.e-12)
+        # FIXME: the error in this diverges after a few timesteps
+        mg.solve(rtol=1.e-9)
 
         # store the solution in our self.cc_data object -- include a single
         # ghostcell
@@ -1094,13 +1024,13 @@ class Simulation:
         gradphi_x, gradphi_y = mg.get_solution_gradient(grid=myg)
 
 
-        # U = U - (zeta/Dhuo) grad (phi/zeta)
+        # U = U - (zeta/Dhu0) grad (phi/zeta)
         u0 = self.metric.calcu0()
         coeff = 1.0/(Dh[:,:] * u0[:,:])
-        coeff *= zeta[np.newaxis,:]
+        coeff[:,:] *= zeta[np.newaxis,:]
 
-        u[:,:] -= dt * coeff * gradphi_x
-        v[:,:] -= dt * coeff * gradphi_y
+        u[:,:] -= dt * coeff[:,:] * gradphi_x[:,:]
+        v[:,:] -= dt * coeff[:,:] * gradphi_y[:,:]
 
         # store gradp for the next step
 

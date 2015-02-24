@@ -50,8 +50,8 @@ if __name__== "__main__":
 
     outfile = "plot.png"
 
-    W = 8.0
-    H = 4.5
+    W = 16.0
+    H = 9.0
 
     for o, a in opts:
         if o == "-h": usage()
@@ -61,14 +61,10 @@ if __name__== "__main__":
 
     try: solver = next[0]
     except: usage()
-        
+
     try: file = next[1]
     except: usage()
 
     myg, myd = patch.read(file)
 
     makeplot(myd, solver, outfile, W, H)
-
-
-
-

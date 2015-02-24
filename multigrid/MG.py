@@ -71,6 +71,8 @@ def _error(myg, r):
 
     # L2 norm of elements in r, multiplied by dx*dy to
     # normalize
+#    print('error^2: ', myg.dx*myg.dy*
+#                      np.sum((r[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]**2).flat))
     return np.sqrt(myg.dx*myg.dy*
                       np.sum((r[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]**2).flat))
 
@@ -817,3 +819,6 @@ class CellCenterMG2d:
                       (cycle, relative_error, residual_error))
 
             cycle += 1
+
+        if not converged:
+            print('not converged, residual error = ', residual_error)

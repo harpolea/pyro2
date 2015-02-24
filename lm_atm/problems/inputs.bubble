@@ -15,8 +15,8 @@ n_out = 1
 
 
 [mesh]
-nx = 128
-ny = 128
+nx = 256
+ny = 256
 xmax = 1.0
 ymin = 12.0
 ymax = 13.0

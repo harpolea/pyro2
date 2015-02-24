@@ -34,6 +34,13 @@ def mac_vels(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy,
         gradient of the pressure(?) in y-direction
     source : float array
         source terms
+
+    Returns
+    -------
+    u_MAC : float array
+        u MAC velocity
+    v_MAC : float array
+        v MAC velocity
     """
 
     # get the full u and v left and right states (including transverse terms) on
@@ -44,7 +51,7 @@ def mac_vels(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy,
                             source)
 
     u_MAC = riemann_and_upwind(myg, u_xl, u_xr)
-    v_MAC = riemann_and_upwind(myg, v_xl, v_xr)
+    v_MAC = riemann_and_upwind(myg, v_yl, v_yr)
 
     return u_MAC, v_MAC
 
@@ -88,6 +95,11 @@ def states(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy, ldelta_vy,
         horizontal MAC velocities
     v_MAC : float array
         vertical MAC velcities
+
+    Returns
+    -------
+    u_xint, v_xint, u_yint, v_yint : float array
+        u- and v-velocities at the interfaces
     """
 
     u_xl, u_xr, u_yl, u_yr, v_xl, v_xr, v_yl, v_yr = get_interface_states(myg,
@@ -139,6 +151,11 @@ def get_interface_states(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy,
         gradient of the pressure(?) in y-direction
     source : float array
         source terms
+
+    Returns
+    -------
+    u_xl, u_xr, u_yl, u_yr, v_xl, v_xr, v_yl, v_yr : float array
+        predicts u- and v-velocities to interfaces
     """
 
     #intialise some stuff
@@ -158,26 +175,7 @@ def get_interface_states(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy,
 
     dtdx = dt/myg.dx
     dtdy = dt/myg.dy
-    """
-    for j in range(myg.jlo-2, myg.jhi+2):
-        for i in range(myg.ilo-2, myg.ihi+2):
 
-            # u on x-edges
-            u_xl[i+1,j] = u[i,j] + 0.5*(1. - dtdx*u[i,j])*ldelta_ux[i,j]
-            u_xr[i  ,j] = u[i,j] - 0.5*(1. + dtdx*u[i,j])*ldelta_ux[i,j]
-
-            # v on x-edges
-            v_xl[i+1,j] = v[i,j] + 0.5*(1. - dtdx*u[i,j])*ldelta_vx[i,j]
-            v_xr[i  ,j] = v[i,j] - 0.5*(1. + dtdx*u[i,j])*ldelta_vx[i,j]
-
-            # u on y-edges
-            u_yl[i,j+1] = u[i,j] + 0.5*(1. - dtdy*v[i,j])*ldelta_uy[i,j]
-            u_yr[i,j] = u[i,j] - 0.5*(1. + dtdy*v[i,j])*ldelta_uy[i,j]
-
-            # v on y-edges
-            v_yl[i,j+1] = v[i,j] + 0.5*(1. - dtdy*v[i,j])*ldelta_vy[i,j]
-            v_yr[i,j] = v[i,j] - 0.5*(1. + dtdy*v[i,j])*ldelta_vy[i,j]
-    """
     # u on x-edges
     u_xl[myg.ilo-1:myg.ihi+4, myg.jlo-2:myg.jhi+3] = \
         u[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] + \
@@ -205,7 +203,7 @@ def get_interface_states(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy,
         ldelta_vx[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]
 
     # u on y-edges
-    u_yl[myg.ilo-1:myg.ihi+4, myg.jlo-2:myg.jhi+3] = \
+    u_yl[myg.ilo-2:myg.ihi+3, myg.jlo-1:myg.jhi+4] = \
         u[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] + \
         0.5*(1. - dtdy * \
         v[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]) * \
@@ -218,7 +216,7 @@ def get_interface_states(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy,
         ldelta_uy[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]
 
     # v on y-edges
-    v_yl[myg.ilo-1:myg.ihi+4, myg.jlo-2:myg.jhi+3] = \
+    v_yl[myg.ilo-2:myg.ihi+3, myg.jlo-1:myg.jhi+4] = \
         v[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] + \
         0.5*(1. - dtdy * \
         v[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]) * \
@@ -272,59 +270,31 @@ def get_interface_states(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy,
             v_yint[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3])
 
     v_xl[myg.ilo-1:myg.ihi+4,myg.jlo-2:myg.jhi+3] -= 0.5 * dtdy * \
-        vv_y[:,:] - 0.5 * dt * gradp_y[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]
+        vv_y[:,:] - 0.5 * dt * gradp_y[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]\
+        + 0.5 * dt * source[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]
     v_xr[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] -= 0.5 * dtdy * \
-        vv_y[:,:] - 0.5 * dt * gradp_y[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]
-    # u du/dx is the transverse term for the v states on y-interfaces
-    uv_x = ubar[:,:]*(v_xint[myg.ilo-2:myg.ihi+3,myg.jlo-1:myg.jhi+4] - \
+        vv_y[:,:] - 0.5 * dt * gradp_y[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]\
+        + 0.5 * dt * source[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]
+
+    # u dv/dx is the transverse term for the v states on y-interfaces
+    uv_x = ubar[:,:]*(v_xint[myg.ilo-1:myg.ihi+4,myg.jlo-2:myg.jhi+3] - \
             v_xint[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3])
 
-    v_yl[myg.ilo-1:myg.ihi+4,myg.jlo-2:myg.jhi+3] -= 0.5 * dtdx * \
-        uv_x[:,:] - 0.5 * dt * gradp_y[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]
+    v_yl[myg.ilo-2:myg.ihi+3,myg.jlo-1:myg.jhi+4] -= 0.5 * dtdx * \
+        uv_x[:,:] - 0.5 * dt * gradp_y[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]\
+        + 0.5 * dt * source[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]
     v_yr[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] -= 0.5 * dtdx * \
-        uv_x[:,:] - 0.5 * dt * gradp_y[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]
+        uv_x[:,:] - 0.5 * dt * gradp_y[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]\
+        + 0.5 * dt * source[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]
 
-    # u du/dx is the transverse term for the u states on x-interfaces
-    uu_x = ubar[:,:]*(u_xint[myg.ilo-2:myg.ihi+3,myg.jlo-1:myg.jhi+4] - \
+    # u du/dx is the transverse term for the u states on y-interfaces
+    uu_x = ubar[:,:]*(u_xint[myg.ilo-1:myg.ihi+4,myg.jlo-2:myg.jhi+3] - \
             u_xint[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3])
 
-    u_yl[myg.ilo-1:myg.ihi+4,myg.jlo-2:myg.jhi+3] -= 0.5 * dtdx * \
+    u_yl[myg.ilo-2:myg.ihi+3,myg.jlo-1:myg.jhi+4] -= 0.5 * dtdx * \
         uu_x[:,:] - 0.5 * dt * gradp_x[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]
     u_yr[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] -= 0.5 * dtdx * \
         uu_x[:,:] - 0.5 * dt * gradp_x[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]
-
-    """
-    # add the transverse flux differences to the preliminary interface states
-    for j in range(myg.jlo-2, myg.jhi+2):
-        for i in range(myg.ilo-2, myg.ihi+2):
-
-            ubar = 0.5*(uhat_adv[i,j] + uhat_adv(i+1,j))
-            vbar = 0.5*(vhat_adv[i,j] + vhat_adv(i,j+1))
-
-            # v du/dy is the transverse term for the u states on x-interfaces
-            vu_y = vbar*(u_yint[i,j+1] - u_yint[i,j])
-
-            u_xl[i+1,j] = u_xl[i+1,j] - 0.5*dtdy*vu_y - 0.5*dt*gradp_x[i,j]
-            u_xr[i,j] = u_xr[i,j] - 0.5*dtdy*vu_y - 0.5*dt*gradp_x[i,j]
-
-            # v dv/dy is the transverse term for the v states on x-interfaces
-            vv_y = vbar*(v_yint[i,j+1] - v_yint[i,j])
-
-            v_xl[i+1,j] = v_xl[i+1,j] - 0.5*dtdy*vv_y - 0.5*dt*gradp_y[i,j] + 0.5*dt*source[i,j]
-            v_xr[i,j] = v_xr[i,j] - 0.5*dtdy*vv_y - 0.5*dt*gradp_y[i,j] + 0.5*dt*source[i,j]
-
-            # u dv/dx is the transverse term for the v states on y-interfaces
-            uv_x = ubar*(v_xint[i,j+1] - v_xint[i,j])
-
-            v_yl[i,j+1] = v_yl[i,j+1] - 0.5*dtdx*uv_x - 0.5*dt*gradp_y[i,j] + 0.5*dt*source[i,j]
-            v_yr[i,j] = v_yr[i,j] - 0.5*dtdx*uv_x - 0.5*dt*gradp_y[i,j] + 0.5*dt*source[i,j]
-
-            # u du/dx is the transverse term for the u states on y-interfaces
-            uu_x = ubar*(u_xint[i+1,j] - u_xint[i,j])
-
-            u_yl[i,j+1] = u_yl[i,j+1] - 0.5*dtdx*uu_x - 0.5*dt*gradp_x[i,j]
-            u_yr[i,j] = u_yr[i,j] - 0.5*dtdx*uu_x - 0.5*dt*gradp_x[i,j]
-    """
 
     return u_xl, u_xr, u_yl, u_yr, v_xl, v_xr, v_yl, v_yr
 
@@ -356,6 +326,11 @@ def D_states(myg, dt, D, u_MAC, v_MAC, ldelta_rx, ldelta_ry):
         x-limited density
     ldelta_ry : float array
         y-limitied density
+
+    Returns
+    -------
+    D_xint, D_yint : float array
+        D predicted to x- and y-interfaces
     """
 
     #intialise
@@ -366,18 +341,7 @@ def D_states(myg, dt, D, u_MAC, v_MAC, ldelta_rx, ldelta_ry):
 
     dtdx = dt/myg.dx
     dtdy = dt/myg.dy
-    """
-    for j in range(myg.jlo-2, myg.jhi+2):
-        for i in range(myg.ilo-2, myg.ihi+2):
 
-            # D on x-edges
-            D_xl[i+1,j] = D[i,j] + 0.5*(1. - dtdx*u_MAC[i+1,j])*ldelta_rx[i,j]
-            D_xr[i  ,j] = D[i,j] - 0.5*(1. + dtdx*u_MAC[i,j])*ldelta_rx[i,j]
-
-            # D on y-edges
-            D_yl[i,j+1] = D[i,j] + 0.5*(1. - dtdy*v_MAC[i,j+1])*ldelta_ry[i,j]
-            D_yr[i,j] = D[i,j] - 0.5*(1. + dtdy*v_MAC[i,j])*ldelta_ry[i,j]
-    """
     # D on x-edges
     D_xl[myg.ilo-1:myg.ihi+4,myg.jlo-2:myg.jhi+3] = \
         D[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] + 0.5 * (1. - dtdx * \
@@ -437,34 +401,14 @@ def D_states(myg, dt, D, u_MAC, v_MAC, ldelta_rx, ldelta_ry):
     D_yr[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] -= 0.5 * dt * \
         (Du_x[:,:] + D[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] * v_y[:,:])
 
-    """
-    for j in range(myg.jlo-2, myg.jhi+2):
-        for i in range(myg.ilo-2, myg.ihi+2):
-
-            u_x = (u_MAC[i+1,j] - u_MAC[i,j])/myg.dx
-            v_y = (v_MAC[i,j+1] - v_MAC[i,j])/myg.dy
-
-            #    (D v)_y is the transverse term for the x-interfaces
-            # D u_x is the non-advective piece for the x-interfaces
-            Dv_y = (D_yint[i,j+1]*v_MAC[i,j+1] - D_yint[i,j]*v_MAC[i,j])/myg.dy
-
-            D_xl[i+1,j] = D_xl[i+1,j] - 0.5*dt*(Dv_y + D[i,j]*u_x)
-            D_xr[i,j] = D_xr[i,j] - 0.5*dt*(Dv_y + D[i,j]*u_x)
-
-            # (D u)_x is the transverse term for the y-interfaces
-            # D v_y is the non-advective piece for the y-interfaces
-            Du_x = (D_xint[i+1,j]*u_MAC[i+1,j] - D_xint[i,j]*u_MAC[i,j])/myg.dx
-
-            D_yl[i,j+1] = D_yl[i,j+1] - 0.5*dt*(Du_x + D[i,j]*v_y)
-            D_yr[i,j] = D_yr[i,j] - 0.5*dt*(Du_x + D[i,j]*v_y)
-
-    """
-
     # finally upwind the full states
     D_xint = upwind(myg, D_xl, D_xr, u_MAC)
     D_yint = upwind(myg, D_yl, D_yr, v_MAC)
 
     return D_xint, D_yint
+
+
+
 
 
 
@@ -484,6 +428,11 @@ def upwind(myg, q_l, q_r, s):
         right state
     s : float array
         specified input velocity
+
+    Returns
+    -------
+    q_int : float array
+        State predicted to interface
     """
 
     q_int = np.zeros((myg.qx,myg.qy), dtype=np.float64)
@@ -507,7 +456,6 @@ def upwind(myg, q_l, q_r, s):
 
 
 def riemann(myg, q_l, q_r):
-
     """
     Solve the Burger's Riemann problem given the input left and right
     states and return the state on the interface.
@@ -522,6 +470,11 @@ def riemann(myg, q_l, q_r):
         left state
     q_r : float array
         right state
+
+    Returns
+    -------
+    s : float array
+        state found at interface by solving Riemann problem
     """
 
     s = np.zeros((myg.qx,myg.qy), dtype=np.float64)
@@ -549,7 +502,7 @@ def riemann_and_upwind(myg, q_l, q_r):
     determine the state (q_l, q_r, or a mix) on the interface).
 
     This differs from upwind, above, in that we don't take in a
-    velocity to upwind with).
+    velocity to upwind with.
 
     Parameters
     ----------
@@ -559,6 +512,11 @@ def riemann_and_upwind(myg, q_l, q_r):
         left state
     q_r : float array
         right state
+
+    Returns
+    -------
+    q_int : float array
+        state predicted to interface
     """
 
     s = riemann(myg, q_l, q_r)
