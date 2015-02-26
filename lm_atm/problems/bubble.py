@@ -57,7 +57,6 @@ def init_data(my_data, base_data, rp):
     xvel[:,:] = 0.0
     yvel[:,:] = 0.0
     dens[:,:] = dens_cutoff
-    enth[:,:] = dens_cutoff
 
     # set the density to be stratified in the y-direction
     myg = my_data.grid
@@ -72,6 +71,15 @@ def init_data(my_data, base_data, rp):
 
     # set the pressure (P = cs2*dens)
     pres = cs2*dens[:,:]
+    eint[:,:] = pres[:,:]/((gamma - 1.0) * dens[:,:])
+    enth[:,:] = dens[:,:] + eint[:,:] + pres[:,:]
+
+    # do the base state
+    D0 = base_data.get_var("D0")
+    Dh0 = base_data.get_var("Dh0")
+
+    D0[:] = np.mean(dens[:,:], axis=0)
+    Dh0[:] = np.mean(enth[:,:], axis=0)
 
     for i in range(myg.ilo, myg.ihi+1):
         for j in range(myg.jlo, myg.jhi+1):
@@ -80,32 +88,26 @@ def init_data(my_data, base_data, rp):
 
             if r <= r_pert:
                 # boost the specific internal energy, keeping the pressure
-                # constant, by dropping the density
-                eint[i,j] = pres[i,j]/(gamma - 1.0)/dens[i,j]
-                eint[i,j] = eint[i,j]*pert_amplitude_factor
+                # constant by dropping the density
+                #eint[i,j] *= (1. + (pert_amplitude_factor-1.)*(r_pert-r)/r_pert)
+                eint[i,j] *= pert_amplitude_factor
 
                 dens[i,j] = pres[i,j]/(eint[i,j]*(gamma - 1.0))
+                pres[i,j] = cs2 * dens[i,j]
                 enth[i,j] = dens[i,j] + eint[i,j] + pres[i,j]
 
 
-    # do the base state
-    D0 = base_data.get_var("D0")
-    Dh0 = base_data.get_var("Dh0")
     p0 = base_data.get_var("p0")
-
 
     # redo the pressure via HSE
     # FIXME: relativise me and calculate Dh0
-    D0[:] = np.mean(dens[:,:], axis=0)
-    Dh0[:] = np.mean(enth[:,:], axis=0)
-    p0[:] = (D0[:] + Dh0[:]) * (gamma - 1.) / (2. - gamma)
-    #print('p0 before TOV: ', p0)
-    p0[myg.jlo+1:myg.jhi+1] = p0[myg.jlo:myg.jhi] + 0.5 * myg.dy * \
-        (D0[myg.jlo+1:myg.jhi+1] + D0[myg.jlo:myg.jhi]) * \
-        grav/myg.y[myg.jlo+1:myg.jhi+1]**2
 
-    #for j in range(myg.jlo+1, myg.jhi):
-    #    p0[j] = p0[j-1] + 0.5*myg.dy*(D0[j] + D0[j-1])*grav/myg.y[j]**2
+    p0[:] = (D0[:] + Dh0[:]) * (gamma - 1.) / (2. - gamma)
+    p0[1:] = p0[:-1] + 0.5 * myg.dy * (D0[1:] + D0[:-1]) * grav/myg.y[1:]**2
+
+    #p0[myg.jlo+1:myg.jhi+1] = p0[myg.jlo:myg.jhi] + 0.5 * myg.dy * \
+    #    (D0[myg.jlo+1:myg.jhi+1] + D0[myg.jlo:myg.jhi]) * \
+    #    grav/myg.y[myg.jlo+1:myg.jhi+1]**2
 
 
     #fill ghost cells
@@ -117,7 +119,7 @@ def init_data(my_data, base_data, rp):
     base_data.fill_BC("D0")
     base_data.fill_BC("Dh0")
     base_data.fill_BC("p0")
-    #print('p0 after TOV and BCs: ', base_data.get_var("p0"))
+
 
 def finalize():
     """ print out any information to the user at the end of the run """

@@ -2,7 +2,7 @@
 
 [driver]
 max_steps = 100
-tmax = 100000.0
+tmax = 1000000000.0
 cfl = 0.8
 
 
@@ -15,8 +15,8 @@ n_out = 1
 
 
 [mesh]
-nx = 256
-ny = 256
+nx = 64
+ny = 64
 xmax = 1.0
 ymin = 12.0
 ymax = 13.0

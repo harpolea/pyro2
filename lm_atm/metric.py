@@ -3,11 +3,6 @@ from __future__ import print_function
 import numpy as np
 
 from lm_atm.problems import *
-#import lm_atm.LM_atm_interface_f as lm_interface_f
-#import mesh.reconstruction_f as reconstruction_f
-#import mesh.patch as patch
-#import multigrid.variable_coeff_MG as vcMG
-#from util import profile
 
 
 class Metric:
@@ -38,10 +33,19 @@ class Metric:
         self.W = 1. #Lorentz factor.
         self.gamma = gamma
 
+
+
+
+
     def dets(self):
         """
         Calculates the square roots of the 3- and 4-metric determinants and
         returns them.
+
+        Returns
+        -------
+        sg, sgamma : float array
+            square roots of the 3- and 4-metric determinants on grid
         """
 
         sg = self.cc_data.grid.scratch_array()
@@ -58,9 +62,17 @@ class Metric:
 
         return sg, sgamma
 
+
+
+
     def calcW(self):
         """
         Calculates the Lorentz factor and returns it.
+
+        Returns
+        -------
+        W : float array
+            Lorentz factor on grid
         """
 
         W = self.cc_data.grid.scratch_array()
@@ -70,21 +82,29 @@ class Metric:
         v = self.cc_data.get_var("y-velocity")
         c = self.rp.get_param("lm-atmosphere.c")
 
-        W = 1 - (u[:,:]**2 + v[:,:]**2)/c**2
-        W[:,:] = 1/ np.sqrt(W[:,:])
+        W[:,:] = 1. - (u[:,:]**2 + v[:,:]**2)/c**2
+        W[:,:] = 1./ np.sqrt(W[:,:])
 
         return W
+
+
+
 
     def calcu0(self):
         """
         Calculates the timelike coordinate of the 4-velocity using the Lorentz
         factor and alpha, so W = alpha * u0
+
+        Returns
+        -------
+        u0 : float array
+            u0 on grid
         """
 
         W = self.calcW()
-        myg = self.cc_data.grid
 
         return W[:,:] / self.alpha[np.newaxis,:]
+
 
 
 
@@ -98,6 +118,11 @@ class Metric:
         ----------
         x : float array
             2+1-coordinate of point where g is to be calculated
+
+        Returns
+        -------
+        met : float array
+            (d+1)*(d+1) array containing metric
         """
 
         met = np.diag([-1., 1., 1.])
@@ -110,6 +135,7 @@ class Metric:
 
 
 
+
     def christoffels(self, x):
         """
         Calculates the Christoffel symbols of the metric at the given point.
@@ -118,6 +144,11 @@ class Metric:
         ----------
         x : float array
             2+1 coordinate of point where christoffels are to be calculated.
+
+        Returns
+        -------
+        christls : float array
+            (d+1)^3 array containing christoffel symbols at x
         """
 
         christls = np.zeros((3,3,3))

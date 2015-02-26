@@ -16,9 +16,19 @@ import lm_atm_interface as lm_int
 """
 TODO: Compare to MATLAB code to see if I did anything else
 
-FIXME: Do some dimensional analysis or similar to work out intial conditions
+TODO: Do some dimensional analysis or similar to work out intial conditions
 
 FIXME: Make sure ghost cells in both full state and base state are updated.
+
+FIXME: After ~15 timesteps, the elliptic equation solver diverges.
+       Need to work out why this happens and how to stop it.
+       Coincides with density/enthalpy becoming negative which is definitely
+       not good.
+
+FIXME: Need to work out how to calculate dp0/dt in the energy equation.
+       In MAESTRO, this is done using the equation for HSE, however in the
+       relativisitic case this becomes incredibly non-trivial - is there another
+       way?
 """
 
 class Simulation:
@@ -130,6 +140,7 @@ class Simulation:
         # same BCs as density
         my_data.register_var("gradp_x", bc_dens)
         my_data.register_var("gradp_y", bc_dens)
+        my_data.register_var("tracer", bc_dens)
 
         my_data.create()
 
@@ -165,7 +176,6 @@ class Simulation:
         self.metric = metric.Metric(self.cc_data, self.rp, alpha, beta, gamma)
 
         # Construct zeta
-
         base_data.register_var("zeta", bc_dens)
 
         # we'll also need zeta on vertical edges -- on the domain edges,
@@ -193,6 +203,11 @@ class Simulation:
         ----------
         a : float array
             2d array to be laterally averaged
+
+        Returns
+        -------
+        lateralAvg : float array
+            lateral average of a
         """
         return np.mean(a, axis=0)
 
@@ -226,7 +241,8 @@ class Simulation:
         zeta = self.base_data.get_var("zeta")
         zeta_edges = self.base_data.get_var("zeta-edges")
         # do some u0 averaging?
-        zeta[myg.jlo:myg.jhi+1] = np.exp(D0[myg.jlo:myg.jhi+1] / self.lateralAvg(u0)[myg.jlo:myg.jhi+1])
+        zeta[myg.jlo:myg.jhi+1] = np.exp(D0[myg.jlo:myg.jhi+1] / \
+            self.lateralAvg(u0)[myg.jlo:myg.jhi+1])
 
         self.base_data.fill_BC("zeta")
 
@@ -251,6 +267,11 @@ class Simulation:
         ----------
         zeta : float array
             zeta
+
+        Returns
+        -------
+        calcConstraint : float array
+            zeta (S - dpdt / Gamma1 p)
         """
 
         #S = -Gamma^mu_{mu nu}U^nu. In easy metric, this reduces to
@@ -276,6 +297,10 @@ class Simulation:
 
     @staticmethod
     def make_prime(a, a0):
+        """
+        Subtracts the base part of a state, a0, away from the full state, a, to
+        give the perturbed state, a'.
+        """
         return a - a0[np.newaxis,:]
 
 
@@ -287,6 +312,11 @@ class Simulation:
 
         We use the driver.cfl parameter to control what fraction of the CFL
         step we actually take.
+
+        Returns
+        -------
+        dt : float
+            timestep
         """
 
         myg = self.cc_data.grid
@@ -318,7 +348,7 @@ class Simulation:
 
         #F_buoy = np.max(np.abs(Dprime[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]*g)/
         #                D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])
-        F_buoy = np.max(np.abs(g/myg.y[:]**2))
+        F_buoy = np.min([np.max(np.abs(g/myg.y[:]**2)), 10.])
 
         dt_buoy = np.sqrt(2.0*myg.dy/F_buoy)
 
@@ -536,7 +566,7 @@ class Simulation:
             christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
             v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] )
 
-        #FIXME : need to include pressure term
+        #FIXME: need to include pressure term
 
         Dh0[myg.jlo:myg.jhi+1] -= dt * 0.5 * \
             self.lateralAvg(Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
@@ -592,9 +622,7 @@ class Simulation:
         # create the coefficient to the grad (pi/zeta) term
         u0 = self.metric.calcu0()
         coeff = self.aux_data.get_var("coeff")
-
-        #FIXME: everything breaks unless set Dh to ones
-        #Dh = np.ones(np.shape(Dh))
+        tracer = self.cc_data.get_var("tracer")
 
         coeff[:,:] = 1.0/(Dh[:,:] * u0[:,:])
         coeff[:,:] *= zeta[np.newaxis,:]
@@ -721,8 +749,6 @@ class Simulation:
         #---------------------------------------------------------------------
         # predict D to the edges and do its conservative update
         #---------------------------------------------------------------------
-        dt = float(dt)
-
         D_xint, D_yint = lm_int.D_states(myg, dt, D, u_MAC, v_MAC, ldelta_rx,
                             ldelta_ry)
 
@@ -756,9 +782,7 @@ class Simulation:
              D0_yint[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]*
              v_MAC[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/myg.dy )
 
-        D0 = self.lateralAvg(D02d)
-
-        self.base_data.fill_BC("D0")
+        D0[:] = self.lateralAvg(D02d)
 
 
         #---------------------------------------------------------------------
@@ -800,10 +824,11 @@ class Simulation:
              Dh0_yint[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]*
              v_MAC[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/myg.dy )
 
-        Dh0 = self.lateralAvg(Dh02d)
+        Dh0[:] = self.lateralAvg(Dh02d)
 
         self.cc_data.fill_BC("density")
         self.cc_data.fill_BC("enthalpy")
+        self.base_data.fill_BC("D0")
         self.base_data.fill_BC("Dh0")
 
         #---------------------------------------------------------------------
@@ -817,13 +842,16 @@ class Simulation:
         # flatten u0 to make 1d for next equation.
         u0flat = self.lateralAvg(u0[:,:])
         p0 = self.base_data.get_var("p0")
-        p0[myg.jlo:myg.jhi+1] -= myg.dy * \
-            (Dh0[myg.jlo+1:myg.jhi+2]*g /  (u0flat[myg.jlo+1:myg.jhi+2] * \
-             self.metric.alpha[myg.jlo+1:myg.jhi+2]**2) + \
-             Dh0[myg.jlo:myg.jhi+1]*g / (u0flat[myg.jlo:myg.jhi+1] * \
-             self.metric.alpha[myg.jlo:myg.jhi+1]**2)) / 2.
+        p0[1:] -= myg.dy * g * (Dh0[1:]/(u0flat[1:] * self.metric.alpha[1:]) +\
+            Dh0[:-1]/(u0flat[:-1] * self.metric.alpha[:-1]))
 
-        self.base_data.fill_BC("p0")
+        #p0[myg.jlo:myg.jhi+1] -= myg.dy * \
+        #    (Dh0[myg.jlo+1:myg.jhi+2]*g /  (u0flat[myg.jlo+1:myg.jhi+2] * \
+        #     self.metric.alpha[myg.jlo+1:myg.jhi+2]**2) + \
+        #     Dh0[myg.jlo:myg.jhi+1]*g / (u0flat[myg.jlo:myg.jhi+1] * \
+        #     self.metric.alpha[myg.jlo:myg.jhi+1]**2)) / 2.
+
+        #self.base_data.fill_BC("p0")
 
         #---------------------------------------------------------------------
         # recompute the interface states, using the advective velocity
@@ -836,7 +864,6 @@ class Simulation:
         # Might not need to recalculate zeta but shall just in case
         self.updateZeta(self.cc_data.grid)
         zeta = self.base_data.get_var("zeta")
-
         coeff[:,:] *= zeta[np.newaxis,:]
         self.aux_data.fill_BC("coeff")
 
@@ -903,9 +930,6 @@ class Simulation:
         self.cc_data.fill_BC("x-velocity")
         self.cc_data.fill_BC("y-velocity")
 
-        #print('D: ', D[-10:,-10:])
-        #print('Dh: ', Dh[-10:,-10:])
-
         print("min/max D = {}, {}".format(np.min(D), np.max(D)))
         print("min/max Dh = {}, {}".format(np.min(Dh), np.max(Dh)))
         print("min/max u   = {}, {}".format(np.min(u), np.max(u)))
@@ -938,7 +962,7 @@ class Simulation:
             christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
             v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] )
 
-        #FIXME : need to include pressure term
+        #FIXME: need to include pressure term
 
         Dh0[myg.jlo:myg.jhi+1] -= dt * 0.5 * \
             self.lateralAvg(Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
@@ -987,7 +1011,7 @@ class Simulation:
                                  ymin=myg.ymin, ymax=myg.ymax,
                                  coeffs=coeff,
                                  coeffs_bc=self.cc_data.BCs["density"],
-                                 verbose=1)
+                                 verbose=0, nsmooth=20)
 
         # first compute div{zeta U}
 
@@ -1028,6 +1052,7 @@ class Simulation:
         u0 = self.metric.calcu0()
         coeff = 1.0/(Dh[:,:] * u0[:,:])
         coeff[:,:] *= zeta[np.newaxis,:]
+        #self.aux_data.fill_BC("coeff")
 
         u[:,:] -= dt * coeff[:,:] * gradphi_x[:,:]
         v[:,:] -= dt * coeff[:,:] * gradphi_y[:,:]
@@ -1048,6 +1073,10 @@ class Simulation:
         self.cc_data.fill_BC("gradp_x")
         self.cc_data.fill_BC("gradp_y")
 
+        zeta2d = np.array([zeta,] * np.size(zeta))
+
+        tracer[:,:] = Dh.copy()
+
 
 
 
@@ -1058,11 +1087,12 @@ class Simulation:
         plt.clf()
 
         #plt.rc("font", size=10)
-
         D = self.cc_data.get_var("density")
         Dh= self.cc_data.get_var("enthalpy")
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
+        tracer = self.cc_data.get_var("tracer")
+        #print('zeta size', np.shape(zeta))
 
         myg = self.cc_data.grid
 
@@ -1091,10 +1121,11 @@ class Simulation:
         fig, axes = plt.subplots(nrows=1, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.25)
 
+
         #fields = [D, magvel]
-        fields = [D, M]
-        #field_names = [r"$D$", r"|U|"] #, r"$\nabla \times U$", r"$D$"]
-        field_names = [r"$D$", r"$M$"]
+        fields = [D, tracer]
+        field_names = [r"$D$", r"tracer"] #, r"$\nabla \times U$", r"$D$"]
+        #field_names = [r"$D$", r"$Dh$"]
 
         for n in range(len(fields)):
             ax = axes.flat[n]

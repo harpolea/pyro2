@@ -797,10 +797,21 @@ class CellCenterData2d:
         # +y boundary
         if self.BCs[name].yrb == "outflow" or self.BCs[name].yrb == "neumann":
 
+            if self.grid.ng > 1:
+                for i in range(0, self.grid.qx):
+                    m, b = self.lineOfBestFit(range(self.grid.jhi-self.grid.ng+1, self.grid.jhi+1), self.data[n,i, self.grid.jhi-self.grid.ng+1:self.grid.jhi+1])
+                    j = self.grid.jhi+1
+                    while j < self.grid.ny+2*self.grid.ng:
+                        self.data[n,i,j] = m*j + b
+                        j += 1
+            else:
+                self.data[n,:,self.grid.jhi+1] = self.data[n,:,self.grid.jhi-1]
+            """
             j = self.grid.jhi+1
             while j < self.grid.ny+2*self.grid.ng:
-                self.data[n,:,j] = self.data[n,:,self.grid.jhi]
+                self.data[n,:,self.grid.jhi+1] = self.data[n,:,self.grid.jhi]
                 j += 1
+            """
 
         elif self.BCs[name].yrb == "reflect-even":
 
@@ -834,6 +845,38 @@ class CellCenterData2d:
             if self.BCs[name].yrb in extBCs.keys():
 
                 extBCs[self.BCs[name].yrb](self.BCs[name].yrb, "yrb", name, self)
+
+    @staticmethod
+    def lineOfBestFit(xs, ys):
+        """
+        Given a set of x values and y values, this calculates and returns the
+        gradient and y intercept of the line of best fit using the least squares
+        method.
+
+        Parameters
+        ----------
+        xs : float array
+            x coordinates
+        ys : float array
+            y coordinates
+
+        Returns
+        -------
+        m : float
+            gradient of line of best fit
+        b : float
+            y-intercept of line of best fit
+        """
+
+        #xmean
+        xbar = np.mean(xs)
+        ybar = np.mean(ys)
+
+        m = np.sum((xs[:]-xbar) * (ys[:]-ybar) / (xs[:]-xbar)**2)
+        b = ybar - m * xbar
+
+        return m, b
+
 
 
     def restrict(self, varname):

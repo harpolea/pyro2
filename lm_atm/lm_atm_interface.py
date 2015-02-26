@@ -1,9 +1,7 @@
 from __future__ import print_function
 
-#import sys
-#import mesh.patch as patch
 import numpy as np
-#from util import msg
+
 
 def mac_vels(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy,
     ldelta_vy, gradp_x, gradp_y, source):
@@ -171,7 +169,6 @@ def get_interface_states(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy,
 
     # first predict u and v to both interfaces, considering only the normal
     # part of the predictor.  These are the 'hat' states.
-
 
     dtdx = dt/myg.dx
     dtdy = dt/myg.dy
@@ -437,8 +434,8 @@ def upwind(myg, q_l, q_r, s):
 
     q_int = np.zeros((myg.qx,myg.qy), dtype=np.float64)
 
-    for j in range(myg.jlo-1, myg.jhi+1):
-        for i in range(myg.ilo-1, myg.ihi+1):
+    for j in range(myg.jlo-1, myg.jhi+2):
+        for i in range(myg.ilo-1, myg.ihi+2):
 
             if (s[i,j] > 0.0):
                 q_int[i,j] = q_l[i,j]
@@ -479,8 +476,8 @@ def riemann(myg, q_l, q_r):
 
     s = np.zeros((myg.qx,myg.qy), dtype=np.float64)
 
-    for j in range(myg.jlo-1, myg.jhi+1):
-        for i in range(myg.ilo-1, myg.ihi+1):
+    for j in range(myg.jlo-1, myg.jhi+2):
+        for i in range(myg.ilo-1, myg.ihi+2):
 
             if (q_l[i,j] > 0.0 and q_l[i,j] + q_r[i,j] > 0.0):
                 s[i,j] = q_l[i,j]
