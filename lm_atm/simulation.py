@@ -16,7 +16,7 @@ import lm_atm_interface as lm_int
 """
 TODO: Compare to MATLAB code to see if I did anything else
 
-TODO: Do some dimensional analysis or similar to work out intial conditions
+TODO: Do some dimensional analysis or similar to work out initial conditions?
 
 FIXME: Make sure ghost cells in both full state and base state are updated.
 
@@ -24,11 +24,6 @@ FIXME: After ~15 timesteps, the elliptic equation solver diverges.
        Need to work out why this happens and how to stop it.
        Coincides with density/enthalpy becoming negative which is definitely
        not good.
-
-FIXME: Need to work out how to calculate dp0/dt in the energy equation.
-       In MAESTRO, this is done using the equation for HSE, however in the
-       relativisitic case this becomes incredibly non-trivial - is there another
-       way?
 """
 
 class Simulation:
@@ -348,7 +343,7 @@ class Simulation:
 
         #F_buoy = np.max(np.abs(Dprime[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]*g)/
         #                D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])
-        F_buoy = np.min([np.max(np.abs(g/myg.y[:]**2)), 10.])
+        F_buoy = np.max([np.max(np.abs(g/myg.y[:]**2)), 1.e-20])
 
         dt_buoy = np.sqrt(2.0*myg.dy/F_buoy)
 
@@ -484,12 +479,6 @@ class Simulation:
         """
         Evolve the low Mach system through one timestep.
 
-        FIXME: The base states are never evolved. This should definitely be
-        rectified.
-        Also there is no pressure stuff - as base state doesn't evolve, never
-        have to worry about hydrostatic equilibrium not being enforced. Find out
-        where to put this.
-
         Parameters
         ----------
         dt : float
@@ -555,6 +544,8 @@ class Simulation:
         #
         # This runs ReactState and basically calculates the sourcing.
         # Shall also react the base state as this has sourcing too.
+        #
+        # CHANGED: have attempted to include pressure term in energy eq.
         #---------------------------------------------------------------------
         g = self.rp.get_param("lm-atmosphere.grav")
         r = np.array([myg.y,] * myg.qx)
@@ -566,12 +557,14 @@ class Simulation:
             christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
             v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] )
 
-        #FIXME: need to include pressure term
-
         Dh0[myg.jlo:myg.jhi+1] -= dt * 0.5 * \
             self.lateralAvg(Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
             christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] )
+            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]  + \
+            dt * v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * g / \
+            (r[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]**2 * \
+            self.metric.alpha[np.newaxis,myg.jlo:myg.jhi+1]**2) )
 
         D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * \
             D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
@@ -580,7 +573,11 @@ class Simulation:
         Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * \
             Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
             v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * 0.5 * \
-            christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]
+            christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] + \
+            dt * v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * g / \
+            (r[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]**2 * \
+            self.metric.alpha[np.newaxis,myg.jlo:myg.jhi+1]**2)
 
 
         #fill ghostcells
@@ -918,14 +915,14 @@ class Simulation:
             u[:,:] -= dt*advect_x[:,:]
             v[:,:] -= dt*advect_y[:,:]
 
-        # add the gravitational source
+        # add the gravitational source (and pressure source)
 
-        # Made relativisticish?
-        #D_half = 0.5*(D + D_old)
-        #Dprime = self.make_prime(D_half, D0)
-        #source = Dprime*g/D_half
-        source[:,:] = g / myg.y[np.newaxis,:]**2
+        # CHANGED: Have added pressure terms to this.
+        source[:,:] = g / myg.y[np.newaxis,:]**2 + v[:,:]**2 * g / \
+            (myg.y[np.newaxis,:] * self.metric.alpha[np.newaxis,:])**2
 
+        u[:,:] += dt * u[:,:] * v[:,:] * g / \
+            (myg.y[np.newaxis,:] * self.metric.alpha[np.newaxis,:])**2
         v[:,:] += dt * source[:,:]
         self.cc_data.fill_BC("x-velocity")
         self.cc_data.fill_BC("y-velocity")
@@ -962,12 +959,16 @@ class Simulation:
             christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
             v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] )
 
-        #FIXME: need to include pressure term
+        #CHANGED: included pressure terms
 
         Dh0[myg.jlo:myg.jhi+1] -= dt * 0.5 * \
             self.lateralAvg(Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
             christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] )
+            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] + \
+            dt * v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * g / \
+            (r[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]**2 * \
+            self.metric.alpha[np.newaxis,myg.jlo:myg.jhi+1]**2) )
 
         D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * \
             D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
@@ -976,7 +977,11 @@ class Simulation:
         Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * \
             Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
             v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * 0.5 * \
-            christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]
+            christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] + \
+            dt * v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * g / \
+            (r[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]**2 * \
+            self.metric.alpha[np.newaxis,myg.jlo:myg.jhi+1]**2)
 
         self.cc_data.fill_BC("density")
         self.cc_data.fill_BC("enthalpy")
@@ -1073,7 +1078,7 @@ class Simulation:
         self.cc_data.fill_BC("gradp_x")
         self.cc_data.fill_BC("gradp_y")
 
-        zeta2d = np.array([zeta,] * np.size(zeta))
+        #zeta2d = np.array([zeta,] * np.size(zeta))
 
         tracer[:,:] = Dh.copy()
 

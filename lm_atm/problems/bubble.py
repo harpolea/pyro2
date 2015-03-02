@@ -67,7 +67,7 @@ def init_data(my_data, base_data, rp):
         dens[:,j] = max(dens_base*np.exp(-myg.y[j]/scale_height),
                         dens_cutoff)
 
-    cs2 = scale_height*abs(grav)
+    cs2 = 0.001 #scale_height*abs(grav)
 
     # set the pressure (P = cs2*dens)
     pres = cs2*dens[:,:]
@@ -100,7 +100,6 @@ def init_data(my_data, base_data, rp):
     p0 = base_data.get_var("p0")
 
     # redo the pressure via HSE
-    # FIXME: relativise me and calculate Dh0
 
     p0[:] = (D0[:] + Dh0[:]) * (gamma - 1.) / (2. - gamma)
     p0[1:] = p0[:-1] + 0.5 * myg.dy * (D0[1:] + D0[:-1]) * grav/myg.y[1:]**2
