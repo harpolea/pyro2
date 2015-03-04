@@ -1,7 +1,7 @@
 # simple inputs files for the unsplit CTU hydro scheme
 
 [driver]
-max_steps = 100
+max_steps = 1000
 tmax = 1000000000.0
 cfl = 0.8
 
@@ -10,7 +10,7 @@ cfl = 0.8
 
 
 [io]
-basename = lm_bubble_128_
+basename = lm_bubble_64_
 n_out = 1
 
 

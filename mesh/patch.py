@@ -796,7 +796,7 @@ class CellCenterData2d:
 
         # +y boundary
         if self.BCs[name].yrb == "outflow" or self.BCs[name].yrb == "neumann":
-
+            """
             if self.grid.ng > 1:
                 for i in range(0, self.grid.qx):
                     m, b = self.lineOfBestFit(range(self.grid.jhi-self.grid.ng+1, self.grid.jhi+1), self.data[n,i, self.grid.jhi-self.grid.ng+1:self.grid.jhi+1])
@@ -808,10 +808,10 @@ class CellCenterData2d:
                 self.data[n,:,self.grid.jhi+1] = self.data[n,:,self.grid.jhi-1]
             """
             j = self.grid.jhi+1
-            while j < self.grid.ny+2*self.grid.ng:
-                self.data[n,:,self.grid.jhi+1] = self.data[n,:,self.grid.jhi]
+            while j < self.grid.qy: #j < self.grid.ny+2*self.grid.ng:
+                self.data[n,:,j] = self.data[n,:,self.grid.jhi]
                 j += 1
-            """
+
 
         elif self.BCs[name].yrb == "reflect-even":
 
