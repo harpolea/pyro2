@@ -67,7 +67,7 @@ def init_data(my_data, base_data, rp):
         dens[:,j] = max(dens_base*np.exp(-myg.y[j]/scale_height),
                         dens_cutoff)
 
-    cs2 = 0.001 #scale_height*abs(grav)
+    cs2 = scale_height*abs(grav)
 
     # set the pressure (P = cs2*dens)
     pres = cs2*dens[:,:]

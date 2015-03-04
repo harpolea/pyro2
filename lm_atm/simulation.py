@@ -1082,7 +1082,7 @@ class Simulation:
         #zeta2d = np.array([zeta,] * np.size(zeta))
 
         tracer[:,:] = v.copy()
-        print(Dh[50:52, myg.jhi:])
+        print(Dh[30, myg.jhi-3:])
 
 
 
@@ -1098,7 +1098,7 @@ class Simulation:
         Dh= self.cc_data.get_var("enthalpy")
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
-        tracer = self.cc_data.get_var("tracer")
+        #tracer = self.cc_data.get_var("tracer")
         #print('zeta size', np.shape(zeta))
 
         myg = self.cc_data.grid
@@ -1129,16 +1129,10 @@ class Simulation:
         plt.subplots_adjust(hspace=0.25)
 
 
-<<<<<<< HEAD
         #fields = [D, magvel]
-        fields = [D, vort]
-        field_names = [r"$D$", r"Vorticy"] #, r"$\nabla \times U$", r"$D$"]
-=======
         fields = [D, magvel, u, v]
         #fields = [D, tracer]
         field_names = [r"$D$", r"$|U|$", r"$u$", r"$v$"] #, r"$\nabla \times U$", r"$D$"]
->>>>>>> df1a5c7ba6c15e54d04ad393ccbee32670c0ac9f
-        #field_names = [r"$D$", r"$Dh$"]
 
         for n in range(len(fields)):
 
