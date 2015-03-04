@@ -348,6 +348,7 @@ class Simulation:
         dt_buoy = np.sqrt(2.0*myg.dy/F_buoy)
 
         dt = min(dt, dt_buoy)
+        #dt = min(dt, 0.25)
         print("timestep is {}".format(dt))
 
         return dt
@@ -1123,24 +1124,35 @@ class Simulation:
         # simulation to NaN.  Seems like a bug (in python?)
         #vort[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] = dv - du
 
-        fig, axes = plt.subplots(nrows=1, ncols=2, num=1)
+        fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.25)
 
 
-        #fields = [D, magvel]
-        fields = [D, tracer]
-        field_names = [r"$D$", r"tracer"] #, r"$\nabla \times U$", r"$D$"]
+        fields = [D, magvel, u, v]
+        #fields = [D, tracer]
+        field_names = [r"$D$", r"$|U|$", r"$u$", r"$v$"] #, r"$\nabla \times U$", r"$D$"]
         #field_names = [r"$D$", r"$Dh$"]
 
         for n in range(len(fields)):
+
             ax = axes.flat[n]
 
             f = fields[n]
 
+            if n < 2:
+                cmap = plt.cm.jet
+                vmin = np.min(f[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])
+                vmax = np.max(f[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])
+            else:
+                cmap = plt.cm.seismic
+                vmin = -np.max(np.abs(f[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]))
+                vmax = +np.max(np.abs(f[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]))
+
             img = ax.imshow(np.transpose(f[myg.ilo:myg.ihi+1,
                                            myg.jlo:myg.jhi+1]),
                             interpolation="nearest", origin="lower",
-                            extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax])
+                            extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax],
+                            cmap = cmap, vmin = vmin, vmax = vmax)
 
             ax.set_xlabel("x")
             ax.set_ylabel("y")
@@ -1150,6 +1162,7 @@ class Simulation:
 
 
         plt.figtext(0.05,0.0125, "t = %10.5f" % self.cc_data.t)
+        #plt.tight_layout()
 
         plt.draw()
 
