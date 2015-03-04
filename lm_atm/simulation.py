@@ -1080,7 +1080,8 @@ class Simulation:
 
         #zeta2d = np.array([zeta,] * np.size(zeta))
 
-        tracer[:,:] = Dh.copy()
+        tracer[:,:] = v.copy()
+        print(Dh[50:52, myg.jhi:])
 
 
 
@@ -1121,15 +1122,15 @@ class Simulation:
 
         # for some reason, setting vort here causes the density in the
         # simulation to NaN.  Seems like a bug (in python?)
-        #vort[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] = dv - du
+        vort[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] = dv - du
 
         fig, axes = plt.subplots(nrows=1, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.25)
 
 
         #fields = [D, magvel]
-        fields = [D, tracer]
-        field_names = [r"$D$", r"tracer"] #, r"$\nabla \times U$", r"$D$"]
+        fields = [D, vort]
+        field_names = [r"$D$", r"Vorticy"] #, r"$\nabla \times U$", r"$D$"]
         #field_names = [r"$D$", r"$Dh$"]
 
         for n in range(len(fields)):
