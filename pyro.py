@@ -216,7 +216,7 @@ while sim.cc_data.t < tmax and n < max_steps:
     # increment the time
     sim.cc_data.t += dt
     n += 1
-    print("%5d %10.5f %10.5f" % (n, sim.cc_data.t, dt))
+    print("n: %5d,  t: %10.5f,  dt: %10.5f" % (n, sim.cc_data.t, dt))
 
 
     # output

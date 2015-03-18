@@ -8,14 +8,12 @@ from lm_atm.problems import *
 #import lm_atm.LM_atm_interface_f as lm_interface_f
 import mesh.reconstruction_f as reconstruction_f
 import mesh.patch as patch
-import multigrid.variable_coeff_MG as vcMG
+import multigrid.variable_coeff_MGRectangle as vcMG
 import metric
 from util import profile
 import lm_atm_interface as lm_int
 
 """
-TODO: Compare to MATLAB code to see if I did anything else
-
 TODO: Do some dimensional analysis or similar to work out initial conditions?
 
 FIXME: Make sure ghost cells in both full state and base state are updated.
@@ -391,7 +389,7 @@ class Simulation:
 
         # next create the multigrid object.  We defined phi with
         # the right BCs previously
-        mg = vcMG.VarCoeffCCMG2d(myg.nx, myg.ny,
+        mg = vcMG.VarCoeffCCMG2dRect(myg.nx, myg.ny,
                                  xl_BC_type=self.cc_data.BCs["phi"].xlb,
                                  xr_BC_type=self.cc_data.BCs["phi"].xrb,
                                  yl_BC_type=self.cc_data.BCs["phi"].ylb,
@@ -561,8 +559,8 @@ class Simulation:
         Dh0[myg.jlo:myg.jhi+1] -= dt * 0.5 * \
             self.lateralAvg(Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
             christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]  + \
-            dt * v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]  - \
+            dt * 0.5 * v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
             Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * g / \
             (r[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]**2 * \
             self.metric.alpha[np.newaxis,myg.jlo:myg.jhi+1]**2) )
@@ -574,8 +572,8 @@ class Simulation:
         Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * \
             Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
             v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * 0.5 * \
-            christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] + \
-            dt * v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] - \
+            dt * 0.5 * v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
             Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * g / \
             (r[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]**2 * \
             self.metric.alpha[np.newaxis,myg.jlo:myg.jhi+1]**2)
@@ -673,7 +671,7 @@ class Simulation:
 
 
         # create the multigrid object
-        mg = vcMG.VarCoeffCCMG2d(myg.nx, myg.ny,
+        mg = vcMG.VarCoeffCCMG2dRect(myg.nx, myg.ny,
                                  xl_BC_type=self.cc_data.BCs["phi-MAC"].xlb,
                                  xr_BC_type=self.cc_data.BCs["phi-MAC"].xrb,
                                  yl_BC_type=self.cc_data.BCs["phi-MAC"].ylb,
@@ -965,8 +963,8 @@ class Simulation:
         Dh0[myg.jlo:myg.jhi+1] -= dt * 0.5 * \
             self.lateralAvg(Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
             christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] + \
-            dt * v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] - \
+            dt * 0.5 * v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
             Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * g / \
             (r[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]**2 * \
             self.metric.alpha[np.newaxis,myg.jlo:myg.jhi+1]**2) )
@@ -978,8 +976,8 @@ class Simulation:
         Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * \
             Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
             v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * 0.5 * \
-            christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] + \
-            dt * v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] - \
+            dt * 0.5 * v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
             Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * g / \
             (r[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]**2 * \
             self.metric.alpha[np.newaxis,myg.jlo:myg.jhi+1]**2)
@@ -996,7 +994,7 @@ class Simulation:
         #---------------------------------------------------------------------
 
         # now we solve L phi = D (U* /dt)
-        print("  final projection")
+        #print("  final projection")
 
         # create the coefficient array: zeta**2/Dhu0
         u0 = self.metric.calcu0()
@@ -1008,7 +1006,7 @@ class Simulation:
 
 
         # create the multigrid object
-        mg = vcMG.VarCoeffCCMG2d(myg.nx, myg.ny,
+        mg = vcMG.VarCoeffCCMG2dRect(myg.nx, myg.ny,
                                  xl_BC_type=self.cc_data.BCs["phi"].xlb,
                                  xr_BC_type=self.cc_data.BCs["phi"].xrb,
                                  yl_BC_type=self.cc_data.BCs["phi"].ylb,
@@ -1082,7 +1080,7 @@ class Simulation:
         #zeta2d = np.array([zeta,] * np.size(zeta))
 
         tracer[:,:] = v.copy()
-        print(Dh[30, myg.jhi-3:])
+        print('Dh: ', Dh[30, myg.jhi-3:])
 
 
 
