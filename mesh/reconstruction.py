@@ -1,10 +1,7 @@
 """
 this library implements the limiting functions used in the
-! reconstruction.  We use F90 for both speed and clarity, since
-! the numpy array notations can sometimes be confusing.
+reconstruction.
 """
-
-import math
 
 import numpy as np
 
@@ -12,24 +9,36 @@ import numpy as np
 # nolimit
 #-----------------------------------------------------------------------------
 def nolimit(idir, a, myg):
+    """
+    just to a centered difference -- no limiting
 
-    # just to a centered difference -- no limiting
+    Parameters
+    ----------
+    idir : int
+        direction (1 = x-direction, else = y-direction)
+    a : float array
+        array to be limited
+    myg : Grid2d object
+        grid on which data lives
+
+    Returns
+    -------
+    lda : float array
+        limited array
+    """
 
     #initialise some stuff
     lda = np.zeros((myg.qx,myg.qy), dtype=np.float64)
 
-
-    # call this as: lda = reconstruction_f.nolimit(1,a,qx,qy,ng)
-
     if idir==1:
         lda[myg.ilo-2: myg.ihi+3, myg.jlo-2: myg.jhi+3] = 0.5 * \
-            (a[myg.ilo-1:myg.ihi+4, myg.jlo-2:myg.jlo+3] - \
-            a[myg.ilo-3:myg.ihi+2, myg.jlo-2:myg.jlo+3])
+            (a[myg.ilo-1:myg.ihi+4, myg.jlo-2:myg.jhi+3] - \
+            a[myg.ilo-3:myg.ihi+2, myg.jlo-2:myg.jhi+3])
 
     else:
         lda[myg.ilo-2: myg.ihi+3, myg.jlo-2: myg.jhi+3] = 0.5 * \
-            (a[myg.ilo-2:myg.ihi+3, myg.jlo-1:myg.jlo+4] - \
-            a[myg.ilo-2:myg.ihi+3, myg.jlo-3:myg.jlo+2])
+            (a[myg.ilo-2:myg.ihi+3, myg.jlo-1:myg.jhi+4] - \
+            a[myg.ilo-2:myg.ihi+3, myg.jlo-3:myg.jhi+2])
 
     return lda[:,:]
 
@@ -41,13 +50,27 @@ def nolimit(idir, a, myg):
 #-----------------------------------------------------------------------------
 def limit2(idir, a, myg):
 
-    # 2nd order limited centered difference
+    """
+    2nd order limited centered difference
+
+    Parameters
+    ----------
+    idir : int
+        direction (1 = x-direction, else = y-direction)
+    a : float array
+        array to be limited
+    myg : Grid2d object
+        grid on which data lives
+
+    Returns
+    -------
+    lda : float array
+        limited array
+    """
 
     #initialise some stuff
     lda = np.zeros((myg.qx,myg.qy), dtype=np.float64)
     test = np.zeros((myg.qx,myg.qy), dtype=np.float64)
-
-
 
     if idir==1:
 
@@ -62,11 +85,11 @@ def limit2(idir, a, myg):
         for j in range(myg.jlo-3, myg.jhi+4):
             for i in range(myg.ilo-3, myg.ihi+4):
 
-                if (test > 0.0):
+                if (test[i,j] > 0.0):
                     lda[i,j] = min(0.5*abs(a[i+1,j] - a[i-1,j]), \
                         min(2.0*abs(a[i+1,j] - a[i,j]), \
                         2.0*abs(a[i,j] - a[i-1,j]))) * \
-                        np.sign(1.0,a[i+1,j] - a[i-1,j])
+                        np.sign(a[i+1,j] - a[i-1,j])
 
 
 
@@ -82,11 +105,11 @@ def limit2(idir, a, myg):
         for j in range(myg.jlo-3, myg.jhi+4):
             for i in range(myg.ilo-3, myg.ihi+4):
 
-                if (test > 0.):
+                if (test[i,j] > 0.):
                     lda[i,j] = min(0.5*abs(a[i,j+1] - a[i,j-1]), \
                         min(2.0*abs(a[i,j+1] - a[i,j]), \
                         2.0*abs(a[i,j] - a[i,j-1]))) * \
-                        np.sign(1.0,a[i,j+1] - a[i,j-1])
+                        np.sign(a[i,j+1] - a[i,j-1])
 
     return lda[:,:]
 
@@ -102,6 +125,20 @@ def limit4(idir, a, myg):
 
     See Colella (1985) Eq. 2.5 and 2.6, Colella (1990) page 191 (with
     the delta a terms all equal) or Saltzman 1994, page 156
+
+    Parameters
+    ----------
+    idir : int
+        direction (1 = x-direction, else = y-direction)
+    a : float array
+        array to be limited
+    myg : Grid2d object
+        grid on which data lives
+
+    Returns
+    -------
+    lda : float array
+        limited array
     """
 
     #initialise some stuff
@@ -115,7 +152,7 @@ def limit4(idir, a, myg):
     if idir ==1:
         # test whether we are at an extremum
         test[myg.ilo-2:myg.ihi+3, myg.jlo-2:myg.jhi+3] = \
-            (a[myg.ilo-3:myg.ihi+4, myg.jlo-2:myg.jhi+3] - \
+            (a[myg.ilo-1:myg.ihi+4, myg.jlo-2:myg.jhi+3] - \
             a[myg.ilo-2:myg.ihi+3, myg.jlo-2:myg.jhi+3]) * \
             (a[myg.ilo-2:myg.ihi+3, myg.jlo-2:myg.jhi+3] - \
             a[myg.ilo-3:myg.ihi+2, myg.jlo-2:myg.jhi+3])
@@ -124,13 +161,13 @@ def limit4(idir, a, myg):
         for j in range(myg.jlo-2, myg.jhi+3):
             for i in range(myg.ilo-2, myg.ihi+3):
 
-                if (test > 0.0):
+                if (test[i,j] > 0.0):
                     lda[i,j] = \
                         min( (2./3.)*abs(a[i+1,j] - a[i-1,j] - \
                         0.25*(temp[i+1,j] + temp[i-1,j])), \
                         min(2.0*abs(a[i+1,j] - a[i  ,j]), \
                         2.0*abs(a[i  ,j] - a[i-1,j])) ) * \
-                        np.sign(1.,a[i+1,j] - a[i-1,j])
+                        np.sign(a[i+1,j] - a[i-1,j])
 
 
     else:
@@ -145,13 +182,13 @@ def limit4(idir, a, myg):
         for j in range(myg.jlo-2, myg.jhi+3):
             for i in range(myg.ilo-2, myg.ihi+3):
 
-                if (test > 0.):
+                if (test[i,j] > 0.):
                     lda[i,j] = \
                         min( (2./3.)*abs(a[i,j+1] - a[i,j-1] - \
                         0.25*(temp[i,j+1] + temp[i,j-1])), \
                         min(2.*abs(a[i,j+1] - a[i,j  ]), \
                         2.*abs(a[i,j  ] - a[i,j-1])) ) * \
-                        np.sign(1.,a[i,j+1] - a[i,j-1])
+                        np.sign(a[i,j+1] - a[i,j-1])
 
     return lda[:,:]
 
@@ -163,12 +200,36 @@ def limit4(idir, a, myg):
 def flatten(idir, p, u, myg, smallp, delta, z0, z1):
 
     """
-    ! 1-d flattening near shocks
-    !
-    ! flattening kicks in behind strong shocks and reduces the
-    ! reconstruction to using piecewise constant slopes, making things
-    ! first-order.  See Saltzman (1994) page 159 for this
-    ! implementation.
+    1-d flattening near shocks
+
+    flattening kicks in behind strong shocks and reduces the
+    reconstruction to using piecewise constant slopes, making things
+    first-order.  See Saltzman (1994) page 159 for this
+    implementation.
+
+    Parameters
+    ----------
+    idir : int
+        direction (1 = x-direction, else = y-direction)
+    p : float array
+        pressure
+    u : float array
+        velocities in chosen direction
+    myg : Grid2d object
+        grid on which data lives
+    smallp : float
+        pressure cutoff
+    delta : float
+        some quantity
+    z0 : float
+        unknown
+    z1 : float
+        again, unknown
+
+    Returns
+    -------
+    xi : float array
+        flattened array
     """
 
     #initialise some stuff
@@ -208,8 +269,8 @@ def flatten(idir, p, u, myg, smallp, delta, z0, z1):
         for j in range(myg.jlo-2, myg.jhi+3):
             for i in range(myg.ilo-2, myg.ihi+3):
 
-                if (test1 > 0. and test2 > delta):
-                    xi[i,j] = min(1., max(0., 1. - (z - z0)/(z1 - z0)))
+                if (test1[i,j] > 0. and test2[i,j] > delta):
+                    xi[i,j] = min(1., max(0., 1. - (z[i,j] - z0)/(z1 - z0)))
 
 
 
@@ -239,8 +300,8 @@ def flatten(idir, p, u, myg, smallp, delta, z0, z1):
         for j in range(myg.jlo-2, myg.jhi+3):
             for i in range(myg.ilo-2, myg.ihi+3):
 
-                if (test1 > 0. and test2 > delta):
-                    xi[i,j] = min(1., max(0., 1. - (z - z0)/(z1 - z0)))
+                if (test1[i,j] > 0. and test2[i,j] > delta):
+                    xi[i,j] = min(1., max(0., 1. - (z[i,j] - z0)/(z1 - z0)))
 
 
     return xi[:,:]
@@ -251,7 +312,25 @@ def flatten(idir, p, u, myg, smallp, delta, z0, z1):
 #-----------------------------------------------------------------------------
 def flatten_multid(xi_x, xi_y, p, myg):
 
-    # multi-dimensional flattening
+    """
+    multi-dimensional flattening
+
+    Parameters
+    ----------
+    xi_x : float array
+        array flattened in the x-direction
+    xi_y : float array
+        array flattened in the y-direction
+    p : float array
+        pressure
+    myg : Grid2d object
+        grid on which data lives
+
+    Returns
+    -------
+    xi : float array
+        flattened array
+    """
 
     #initialise some stuff
     xi = np.ones((myg.qx,myg.qy), dtype=np.float64)
@@ -260,8 +339,8 @@ def flatten_multid(xi_x, xi_y, p, myg):
     for j in range(myg.jlo-2, myg.jhi+3):
         for i in range(myg.ilo-2, myg.ihi+3):
 
-            sx = int(np.sign(1., p[i+1,j] - p[i-1,j]))
-            sy = int(np.sign(1., p[i,j+1] - p[i,j-1]))
+            sx = int(np.sign([1., p[i+1,j] - p[i-1,j]]))
+            sy = int(np.sign([1., p[i,j+1] - p[i,j-1]]))
 
             xi[i,j] = min(min(xi_x[i,j], xi_x[i-sx,j]),\
             min(xi_y[i,j], xi_y[i,j-sy]))

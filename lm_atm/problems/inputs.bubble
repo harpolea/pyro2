@@ -19,7 +19,7 @@ nx = 64
 ny = 128
 xmax = 1.0
 ymin = 12.0
-ymax = 13.0
+ymax = 14.0
 
 
 xlboundary = periodic

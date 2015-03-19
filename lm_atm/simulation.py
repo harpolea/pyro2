@@ -5,13 +5,12 @@ import matplotlib.pyplot as plt
 #import lm_atm.problems.bubble as bubble
 
 from lm_atm.problems import *
-#import lm_atm.LM_atm_interface_f as lm_interface_f
-import mesh.reconstruction_f as reconstruction_f
 import mesh.patch as patch
 import multigrid.variable_coeff_MGRectangle as vcMG
 import metric
 from util import profile
 import lm_atm_interface as lm_int
+import mesh.reconstruction as reconstruction_f
 
 """
 TODO: Do some dimensional analysis or similar to work out initial conditions?
@@ -520,19 +519,19 @@ class Simulation:
         Dh02d = np.array([Dh0,] * np.size(Dh0))
 
         # x slopes of r0, e0 surely just 0?
-        ldelta_rx = limitFunc(1, D, myg.qx, myg.qy, myg.ng)
-        ldelta_ex = limitFunc(1, Dh, myg.qx, myg.qy, myg.ng)
-        ldelta_r0x = limitFunc(1, D02d, myg.qx, myg.qy, myg.ng)
-        ldelta_e0x = limitFunc(1, Dh02d, myg.qx, myg.qy, myg.ng)
-        ldelta_ux = limitFunc(1, u, myg.qx, myg.qy, myg.ng)
-        ldelta_vx = limitFunc(1, v, myg.qx, myg.qy, myg.ng)
+        ldelta_rx = limitFunc(1, D, myg)
+        ldelta_ex = limitFunc(1, Dh, myg)
+        ldelta_r0x = limitFunc(1, D02d, myg)
+        ldelta_e0x = limitFunc(1, Dh02d, myg)
+        ldelta_ux = limitFunc(1, u, myg)
+        ldelta_vx = limitFunc(1, v, myg)
 
-        ldelta_ry = limitFunc(2, D, myg.qx, myg.qy, myg.ng)
-        ldelta_ey = limitFunc(2, Dh, myg.qx, myg.qy, myg.ng)
-        ldelta_r0y = limitFunc(2, D02d, myg.qx, myg.qy, myg.ng)
-        ldelta_e0y = limitFunc(2, Dh02d, myg.qx, myg.qy, myg.ng)
-        ldelta_uy = limitFunc(2, u, myg.qx, myg.qy, myg.ng)
-        ldelta_vy = limitFunc(2, v, myg.qx, myg.qy, myg.ng)
+        ldelta_ry = limitFunc(2, D, myg)
+        ldelta_ey = limitFunc(2, Dh, myg)
+        ldelta_r0y = limitFunc(2, D02d, myg)
+        ldelta_e0y = limitFunc(2, Dh02d, myg)
+        ldelta_uy = limitFunc(2, u, myg)
+        ldelta_vy = limitFunc(2, v, myg)
 
 
         #---------------------------------------------------------------------
