@@ -16,10 +16,10 @@ n_out = 1
 
 [mesh]
 nx = 64
-ny = 128
+ny = 64
 xmax = 1.0
 ymin = 12.0
-ymax = 14.0
+ymax = 13.0
 
 
 xlboundary = periodic

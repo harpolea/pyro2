@@ -1,7 +1,8 @@
 from __future__ import print_function
 
 import numpy as np
-
+import sys
+from util import msg
 from lm_atm.problems import *
 
 
@@ -32,6 +33,7 @@ class Metric:
         self.beta = beta
         self.W = 1. #Lorentz factor.
         self.gamma = gamma
+        np.seterr(invalid='raise') #raise numpy warnings as errors
 
 
 
@@ -50,15 +52,15 @@ class Metric:
 
         sg = self.cc_data.grid.scratch_array()
         sgamma = self.cc_data.grid.scratch_array()
-        g = np.zeros((3,3))
 
-        for i in range(0, self.cc_data.grid.qx):
-            for j in range(0, self.cc_data.grid.qy):
-                #calculate metric at point
-                g[:,:] = self.g([i,j])
-                #calculate square roots of determinants
-                sg[i,j] = np.sqrt(np.linalg.det(g[:,:]))
-                sgamma[i,j] = np.sqrt(np.linalg.det(g[1:,1:]))
+        #calculate metric at point then take square roots of determinants.
+        sg[:,:] = [[np.sqrt(-1.*np.linalg.det(self.g([0,i,j]))) \
+            for j in range(0, self.cc_data.grid.qy)] \
+            for i in range(0, self.cc_data.grid.qx)]
+
+        sgamma[:,:] = [[np.sqrt(np.linalg.det((self.g([0,i,j]))[1:,1:])) \
+            for j in range(0, self.cc_data.grid.qy)] \
+            for i in range(0, self.cc_data.grid.qx)]
 
         return sg, sgamma
 
@@ -83,7 +85,13 @@ class Metric:
         c = self.rp.get_param("lm-atmosphere.c")
 
         W[:,:] = 1. - (u[:,:]**2 + v[:,:]**2)/c**2
-        W[:,:] = 1./ np.sqrt(W[:,:])
+
+        try:
+            W[:,:] = 1./ np.sqrt(W[:,:])
+        except FloatingPointError:
+            msg.bold('\nError!')
+            print('Tried to take the square root of a negative Lorentz factor! \nTry checking your velocities?\n')
+            sys.exit()
 
         return W
 
@@ -111,8 +119,7 @@ class Metric:
     def g(self, x):
         """
         Calculates the 2+1-metric at the coordinate x.
-        Currently alpha, beta and gamma have no x-dependence so this is kind of
-        redundant.
+        Currently only alpha has any x-dependence (in radial direction only)
 
         Parameters
         ----------
@@ -125,9 +132,9 @@ class Metric:
             (d+1)*(d+1) array containing metric
         """
 
-        met = np.diag([-1., 1., 1.])
+        met = np.diag([-1., 1., 1.]) #flat default
         met[0,0] = -self.alpha[x[2]]**2 + np.dot(self.beta, self.beta)
-        met[0,1:] = np.self.beta.T
+        met[0,1:] = np.transpose(self.beta)
         met[1:,0] = self.beta
         met[1:,1:] = self.gamma
 
@@ -152,8 +159,6 @@ class Metric:
         """
 
         christls = np.zeros((3,3,3))
-
-        #K = np.zeros((2,2)) #placeholder
 
         r = self.cc_data.grid.y[x[2]]
         g = (self.alpha[x[2]]**2 - 1.) * r**2 * 0.5

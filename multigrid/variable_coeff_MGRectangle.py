@@ -183,6 +183,8 @@ class VarCoeffCCMG2dRect(MG.CellCenterMG2dRect):
         eta_x = self.edge_coeffs[level].x
         eta_y = self.edge_coeffs[level].y
 
+        #print('eta_x :', eta_x )
+
         # print( "min/max c: {}, {}".format(np.min(c), np.max(c)))
         # print( "min/max eta_x: {}, {}".format(np.min(eta_x), np.max(eta_x)))
         # print( "min/max eta_y: {}, {}".format(np.min(eta_y), np.max(eta_y)))
@@ -223,6 +225,8 @@ class VarCoeffCCMG2dRect(MG.CellCenterMG2dRect):
                     #
                     eta_y[myg.ilo+ix  :myg.ihi+1:2,
                           myg.jlo+iy  :myg.jhi+1:2])
+
+                #print('denom: ', denom)
 
                 v[myg.ilo+ix:myg.ihi+1:2,myg.jlo+iy:myg.jhi+1:2] = (
                     -f[myg.ilo+ix:myg.ihi+1:2,myg.jlo+iy:myg.jhi+1:2] +

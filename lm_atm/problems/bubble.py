@@ -84,7 +84,8 @@ def init_data(my_data, base_data, rp):
     for i in range(myg.ilo, myg.ihi+1):
         for j in range(myg.jlo, myg.jhi+1):
 
-            r = np.sqrt((myg.x[i] - x_pert)**2  + (myg.y[j] - (y_pert+myg.ymin))**2)
+            r = np.sqrt((myg.x[i] - x_pert)**2  \
+                + (myg.y[j] - (y_pert+myg.ymin))**2)
 
             if r <= r_pert:
                 # boost the specific internal energy, keeping the pressure
@@ -100,6 +101,7 @@ def init_data(my_data, base_data, rp):
     p0 = base_data.get_var("p0")
 
     # redo the pressure via HSE
+    #FIXME: need to divide by u0 here???
 
     p0[:] = (D0[:] + Dh0[:]) * (gamma - 1.) / (2. - gamma)
     p0[1:] = p0[:-1] + 0.5 * myg.dy * (D0[1:] + D0[:-1]) * grav/myg.y[1:]**2

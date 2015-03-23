@@ -157,14 +157,14 @@ def get_interface_states(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy,
     """
 
     #intialise some stuff
-    u_xl = np.zeros((myg.qx,myg.qy), dtype=np.float64)
-    u_xr = np.zeros((myg.qx,myg.qy), dtype=np.float64)
-    u_yl = np.zeros((myg.qx,myg.qy), dtype=np.float64)
-    u_yr = np.zeros((myg.qx,myg.qy), dtype=np.float64)
-    v_xl = np.zeros((myg.qx,myg.qy), dtype=np.float64)
-    v_xr = np.zeros((myg.qx,myg.qy), dtype=np.float64)
-    v_yl = np.zeros((myg.qx,myg.qy), dtype=np.float64)
-    v_yr = np.zeros((myg.qx,myg.qy), dtype=np.float64)
+    u_xl = myg.scratch_array()
+    u_xr = myg.scratch_array()
+    u_yl = myg.scratch_array()
+    u_yr = myg.scratch_array()
+    v_xl = myg.scratch_array()
+    v_xr = myg.scratch_array()
+    v_yl = myg.scratch_array()
+    v_yr = myg.scratch_array()
 
 
     # first predict u and v to both interfaces, considering only the normal
@@ -331,10 +331,10 @@ def D_states(myg, dt, D, u_MAC, v_MAC, ldelta_rx, ldelta_ry):
     """
 
     #intialise
-    D_xl = np.zeros((myg.qx,myg.qy), dtype=np.float64)
-    D_xr = np.zeros((myg.qx,myg.qy), dtype=np.float64)
-    D_yl = np.zeros((myg.qx,myg.qy), dtype=np.float64)
-    D_yr = np.zeros((myg.qx,myg.qy), dtype=np.float64)
+    D_xl = myg.scratch_array()
+    D_xr = myg.scratch_array()
+    D_yl = myg.scratch_array()
+    D_yr = myg.scratch_array()
 
     dtdx = dt/myg.dx
     dtdy = dt/myg.dy
@@ -432,7 +432,7 @@ def upwind(myg, q_l, q_r, s):
         State predicted to interface
     """
 
-    q_int = np.zeros((myg.qx,myg.qy), dtype=np.float64)
+    q_int = myg.scratch_array()
 
     for j in range(myg.jlo-1, myg.jhi+2):
         for i in range(myg.ilo-1, myg.ihi+2):
@@ -474,7 +474,7 @@ def riemann(myg, q_l, q_r):
         state found at interface by solving Riemann problem
     """
 
-    s = np.zeros((myg.qx,myg.qy), dtype=np.float64)
+    s = myg.scratch_array()
 
     for j in range(myg.jlo-1, myg.jhi+2):
         for i in range(myg.ilo-1, myg.ihi+2):

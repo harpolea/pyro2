@@ -28,7 +28,7 @@ def nolimit(idir, a, myg):
     """
 
     #initialise some stuff
-    lda = np.zeros((myg.qx,myg.qy), dtype=np.float64)
+    lda = myg.scratch_array()
 
     if idir==1:
         lda[myg.ilo-2: myg.ihi+3, myg.jlo-2: myg.jhi+3] = 0.5 * \
@@ -69,8 +69,8 @@ def limit2(idir, a, myg):
     """
 
     #initialise some stuff
-    lda = np.zeros((myg.qx,myg.qy), dtype=np.float64)
-    test = np.zeros((myg.qx,myg.qy), dtype=np.float64)
+    lda = myg.scratch_array()
+    test = myg.scratch_array()
 
     if idir==1:
 
@@ -81,7 +81,6 @@ def limit2(idir, a, myg):
             (a[myg.ilo-3:myg.ihi+4, myg.jlo-3:myg.jhi+4] - \
             a[myg.ilo-4:myg.ihi+3, myg.jlo-3:myg.jhi+4])
 
-
         for j in range(myg.jlo-3, myg.jhi+4):
             for i in range(myg.ilo-3, myg.ihi+4):
 
@@ -90,8 +89,6 @@ def limit2(idir, a, myg):
                         min(2.0*abs(a[i+1,j] - a[i,j]), \
                         2.0*abs(a[i,j] - a[i-1,j]))) * \
                         np.sign(a[i+1,j] - a[i-1,j])
-
-
 
     else:
 
@@ -142,9 +139,9 @@ def limit4(idir, a, myg):
     """
 
     #initialise some stuff
-    lda = np.zeros((myg.qx,myg.qy), dtype=np.float64)
-    test = np.zeros((myg.qx,myg.qy), dtype=np.float64)
-    temp = np.zeros((myg.qx,myg.qy), dtype=np.float64)
+    lda = myg.scratch_array()
+    test = myg.scratch_array()
+    temp = myg.scratch_array()
 
     # first get the 2nd order estimate
     temp[:,:] = limit2(idir, a, myg)
@@ -233,13 +230,13 @@ def flatten(idir, p, u, myg, smallp, delta, z0, z1):
     """
 
     #initialise some stuff
-    xi = np.ones((myg.qx,myg.qy), dtype=np.float64)
-    test1 = np.zeros((myg.qx,myg.qy), dtype=np.float64)
-    test2 = np.zeros((myg.qx,myg.qy), dtype=np.float64)
-    dp = np.zeros((myg.qx,myg.qy), dtype=np.float64)
-    dp2 = np.zeros((myg.qx,myg.qy), dtype=np.float64)
-    z = np.zeros((myg.qx,myg.qy), dtype=np.float64)
-    oness = np.ones((myg.qx,myg.qy), dtype=np.float64)
+    xi = myg.scratch_array() + 1.
+    test1 = myg.scratch_array()
+    test2 = myg.scratch_array()
+    dp = myg.scratch_array()
+    dp2 = myg.scratch_array()
+    z = myg.scratch_array()
+    oness = myg.scratch_array() + 1.
 
 
     if idir==1:
@@ -333,7 +330,7 @@ def flatten_multid(xi_x, xi_y, p, myg):
     """
 
     #initialise some stuff
-    xi = np.ones((myg.qx,myg.qy), dtype=np.float64)
+    xi = myg.scratch_array() + 1.
 
 
     for j in range(myg.jlo-2, myg.jhi+3):

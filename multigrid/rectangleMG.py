@@ -72,8 +72,6 @@ def _error(myg, r):
     L2 norm of elements in r, multiplied by dx*dy to
     normalize
     """
-    # print('error^2: ', myg.dx*myg.dy*
-    #                  np.sum((r[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]**2).flat))
     return np.sqrt(myg.dx*myg.dy*
                       np.sum((r[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]**2).flat))
 
@@ -186,7 +184,7 @@ class CellCenterMG2dRect:
         # keep track of whether we've initialized the RHS
         self.initialized_RHS = 0
 
-        # assume self.nx, self.ny are both equal to 2^n, such that
+        # assume self.nx, self.ny are equal to 2^p, 2^q, such that
         # min(self.nx, self.ny) = 2^(nlevels-1).
         # This defines nlevels such that we end exactly on a 2xm grid
         self.nlevels = int(math.log(min(self.nx, self.ny))/math.log(2.0))
@@ -201,6 +199,8 @@ class CellCenterMG2dRect:
         # we store the solution, v, the rhs, f.
         i = 0
         #nx_t = ny_t = 2
+        # the smaller of nx, ny will have n_t starting at 2, the other shall be
+        # 2 * some integer
         nx_t = self.nx / (2**(self.nlevels-1))
         ny_t = self.ny / (2**(self.nlevels-1))
         #print('nx: ', self.nx, 'ny: ', self.ny, 'nlevels:', self.nlevels, 'nx_t: ', nx_t, 'ny_t: ', ny_t)
@@ -236,6 +236,7 @@ class CellCenterMG2dRect:
             if self.verbose:
                 print(self.grids[i])
 
+            # increase grid size and counter
             nx_t = nx_t*2
             ny_t = ny_t*2
 
