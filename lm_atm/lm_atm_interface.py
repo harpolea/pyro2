@@ -48,6 +48,9 @@ def mac_vels(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy,
         dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy, ldelta_vy, gradp_x, gradp_y,
                             source)
 
+    # Riemann problem -- this follows Burger's equation.  We don't use
+    # any input velocity for the upwinding.  Also, we only care about
+    # the normal states here (u on x and v on y)
     u_MAC = riemann_and_upwind(myg, u_xl, u_xr)
     v_MAC = riemann_and_upwind(myg, v_yl, v_yr)
 
@@ -247,6 +250,8 @@ def get_interface_states(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy,
     # at this point, these states are the `hat' states -- they only
     # considered the normal to the interface portion of the predictor.
 
+    # CHANGED: Fixed a load of sign errors in transverse terms
+
     # add the transverse flux differences to the preliminary interface states
     ubar = 0.5*(uhat_adv[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] + \
             uhat_adv[myg.ilo:myg.ihi+3,myg.jlo-1:myg.jhi+2])
@@ -257,19 +262,19 @@ def get_interface_states(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy,
     vu_y = vbar[:,:]*(u_yint[myg.ilo-1:myg.ihi+2,myg.jlo:myg.jhi+3] - \
             u_yint[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2])
 
-    u_xl[myg.ilo:myg.ihi+3,myg.jlo-1:myg.jhi+2] -= 0.5 * dtdy * \
+    u_xl[myg.ilo:myg.ihi+3,myg.jlo-1:myg.jhi+2] += -0.5 * dtdy * \
         vu_y[:,:] - 0.5 * dt * gradp_x[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]
-    u_xr[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] -= 0.5 * dtdy * \
+    u_xr[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] += -0.5 * dtdy * \
         vu_y[:,:] - 0.5 * dt * gradp_x[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]
 
     # v dv/dy is the transverse term for the v states on x-interfaces
     vv_y = vbar[:,:]*(v_yint[myg.ilo-1:myg.ihi+2,myg.jlo:myg.jhi+3] - \
             v_yint[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2])
 
-    v_xl[myg.ilo:myg.ihi+3,myg.jlo-1:myg.jhi+2] -= 0.5 * dtdy * \
+    v_xl[myg.ilo:myg.ihi+3,myg.jlo-1:myg.jhi+2] += -0.5 * dtdy * \
         vv_y[:,:] - 0.5 * dt * gradp_y[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]\
         + 0.5 * dt * source[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]
-    v_xr[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] -= 0.5 * dtdy * \
+    v_xr[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] += -0.5 * dtdy * \
         vv_y[:,:] - 0.5 * dt * gradp_y[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]\
         + 0.5 * dt * source[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]
 
@@ -277,10 +282,10 @@ def get_interface_states(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy,
     uv_x = ubar[:,:]*(v_xint[myg.ilo:myg.ihi+3,myg.jlo-1:myg.jhi+2] - \
             v_xint[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2])
 
-    v_yl[myg.ilo-1:myg.ihi+2,myg.jlo:myg.jhi+3] -= 0.5 * dtdx * \
+    v_yl[myg.ilo-1:myg.ihi+2,myg.jlo:myg.jhi+3] += -0.5 * dtdx * \
         uv_x[:,:] - 0.5 * dt * gradp_y[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]\
         + 0.5 * dt * source[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]
-    v_yr[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] -= 0.5 * dtdx * \
+    v_yr[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] += -0.5 * dtdx * \
         uv_x[:,:] - 0.5 * dt * gradp_y[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]\
         + 0.5 * dt * source[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]
 
@@ -288,9 +293,9 @@ def get_interface_states(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy,
     uu_x = ubar[:,:]*(u_xint[myg.ilo:myg.ihi+3,myg.jlo-1:myg.jhi+2] - \
             u_xint[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2])
 
-    u_yl[myg.ilo-1:myg.ihi+2,myg.jlo:myg.jhi+3] -= 0.5 * dtdx * \
+    u_yl[myg.ilo-1:myg.ihi+2,myg.jlo:myg.jhi+3] += -0.5 * dtdx * \
         uu_x[:,:] - 0.5 * dt * gradp_x[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]
-    u_yr[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] -= 0.5 * dtdx * \
+    u_yr[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] += -0.5 * dtdx * \
         uu_x[:,:] - 0.5 * dt * gradp_x[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]
 
     return u_xl, u_xr, u_yl, u_yr, v_xl, v_xr, v_yl, v_yr
