@@ -59,7 +59,7 @@ a.dx and a.dy are the grid spacings
 from __future__ import print_function
 
 import math
-
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
@@ -72,8 +72,9 @@ def _error(myg, r):
     L2 norm of elements in r, multiplied by dx*dy to
     normalize
     """
-    return np.sqrt(myg.dx*myg.dy*
-                      np.sum((r[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]**2).flat))
+
+    return np.sqrt(myg.dx * myg.dy * \
+        np.sum((r[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]**2).flat))
 
 
 class CellCenterMG2dRect:

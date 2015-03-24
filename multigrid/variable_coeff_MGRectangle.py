@@ -13,6 +13,8 @@ from __future__ import print_function
 
 import multigrid.rectangleMG as MG
 import numpy as np
+import sys
+from util import msg
 import matplotlib.pyplot as plt
 
 np.set_printoptions(precision=3, linewidth=128)
@@ -226,7 +228,12 @@ class VarCoeffCCMG2dRect(MG.CellCenterMG2dRect):
                     eta_y[myg.ilo+ix  :myg.ihi+1:2,
                           myg.jlo+iy  :myg.jhi+1:2])
 
-                #print('denom: ', denom)
+                #print('denom: ', np.min(denom))
+
+                if np.min(denom) < 0.:
+                    msg.bold('\nError!')
+                    print('Negative denominator: this is probably wrong!\n')
+                    sys.exit()
 
                 v[myg.ilo+ix:myg.ihi+1:2,myg.jlo+iy:myg.jhi+1:2] = (
                     -f[myg.ilo+ix:myg.ihi+1:2,myg.jlo+iy:myg.jhi+1:2] +

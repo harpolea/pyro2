@@ -5,7 +5,7 @@ import mesh.patch as patch
 import numpy as np
 from util import msg
 
-def init_data(my_data, base_data, rp):
+def init_data(my_data, base_data, rp, metric):
     """
     initialize the bubble problem
 
@@ -17,6 +17,8 @@ def init_data(my_data, base_data, rp):
         simulation base states
     rp : RuntimeParameters object
         The runtime parameters for the simulation
+    metric: Metric object
+        metric for simulation
     """
 
     msg.bold("initializing the bubble problem...")
@@ -57,24 +59,25 @@ def init_data(my_data, base_data, rp):
     xvel[:,:] = 0.0
     yvel[:,:] = 0.0
     dens[:,:] = dens_cutoff
+    u0 = metric.calcu0()
+    u0flat = np.mean(u0[:,:], axis=0)
 
     # set the density to be stratified in the y-direction
     myg = my_data.grid
     pres = myg.scratch_array()
 
-    j = myg.jlo
-    for j in range(myg.jlo, myg.jhi+1):
-        dens[:,j] = max(dens_base*np.exp(-myg.y[j]/scale_height),
-                        dens_cutoff)
+    dens[:, myg.jlo:myg.jhi+1] = np.maximum(dens_base * \
+        np.exp(-myg.y[myg.jlo:myg.jhi+1] / scale_height), dens_cutoff)
+
 
     cs2 = scale_height*abs(grav)
 
     # set the pressure (P = cs2*dens)
-    pres = cs2*dens[:,:]
-    eint[:,:] = pres[:,:]/((gamma - 1.0) * dens[:,:])
+    pres = dens[:,:]**gamma
+    eint[:,:] = pres[:,:] /((gamma - 1.0) * dens[:,:])
     enth[:,:] = dens[:,:] + eint[:,:] + pres[:,:]
 
-    # do the base state
+    # do the base state by laterally averaging
     D0 = base_data.get_var("D0")
     Dh0 = base_data.get_var("Dh0")
 
@@ -84,7 +87,7 @@ def init_data(my_data, base_data, rp):
     for i in range(myg.ilo, myg.ihi+1):
         for j in range(myg.jlo, myg.jhi+1):
 
-            r = np.sqrt((myg.x[i] - x_pert)**2  \
+            r = np.sqrt((myg.x[i] - (x_pert+myg.xmin))**2  \
                 + (myg.y[j] - (y_pert+myg.ymin))**2)
 
             if r <= r_pert:
@@ -92,9 +95,7 @@ def init_data(my_data, base_data, rp):
                 # constant by dropping the density
                 #eint[i,j] *= (1. + (pert_amplitude_factor-1.)*(r_pert-r)/r_pert)
                 eint[i,j] *= pert_amplitude_factor
-
                 dens[i,j] = pres[i,j]/(eint[i,j]*(gamma - 1.0))
-                pres[i,j] = cs2 * dens[i,j]
                 enth[i,j] = dens[i,j] + eint[i,j] + pres[i,j]
 
 
@@ -103,8 +104,10 @@ def init_data(my_data, base_data, rp):
     # redo the pressure via HSE
     #FIXME: need to divide by u0 here???
 
-    p0[:] = (D0[:] + Dh0[:]) * (gamma - 1.) / (2. - gamma)
-    p0[1:] = p0[:-1] + 0.5 * myg.dy * (D0[1:] + D0[:-1]) * grav/myg.y[1:]**2
+
+    p0[:] = (D0[:] + Dh0[:]) * (gamma - 1.) / (u0flat[:] * (2. - gamma))
+    p0[1:] = p0[:-1] + 0.5 * myg.dy * (D0[1:] + D0[:-1]) * grav/ \
+        (u0flat[1:] * myg.y[1:]**2)
 
     #p0[myg.jlo+1:myg.jhi+1] = p0[myg.jlo:myg.jhi] + 0.5 * myg.dy * \
     #    (D0[myg.jlo+1:myg.jhi+1] + D0[myg.jlo:myg.jhi]) * \

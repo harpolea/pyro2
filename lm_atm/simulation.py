@@ -191,7 +191,7 @@ class Simulation:
 
 
         # now set the initial conditions for the problem
-        exec(self.problem_name + '.init_data(self.cc_data, self.base_data, self.rp)')
+        exec(self.problem_name + '.init_data(self.cc_data, self.base_data, self.rp, self.metric)')
 
         self.updateXi(myg)
         self.updateZeta(myg)
@@ -400,6 +400,84 @@ class Simulation:
         return dt
 
 
+    def ReactState(self, dt):
+        """
+        React full and base states through half timestep
+        Assume for simplicity here that only non-zero Christoffel of
+        Gamma^mu_{mu nu} form is Gamma^t_{t r} = - g/r^2(1+2g/r) =
+        -g/r^2alpha^2
+
+        This runs ReactState and basically calculates the sourcing.
+        Shall also react the base state as this has sourcing too.
+
+        CHANGED: have attempted to include pressure term in energy eq.
+        """
+        g = self.rp.get_param("lm-atmosphere.grav")
+        myg = self.cc_data.grid
+        r = np.array([myg.y,] * myg.qx)
+        D = self.cc_data.get_var("density")
+        Dh = self.cc_data.get_var("enthalpy")
+        #u = self.cc_data.get_var("x-velocity")
+        v = self.cc_data.get_var("y-velocity")
+        D0 = self.base_data.get_var("D0")
+        Dh0 = self.base_data.get_var("Dh0")
+
+
+        christfl = -g / (r[:,:]**2 * (1.+ 2. * g / r[:,:]))
+
+        D0[myg.jlo:myg.jhi+1] -= dt * 0.5 * \
+            self.lateralAvg(D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] )
+
+        Dh0[myg.jlo:myg.jhi+1] -= dt * 0.5 * \
+            self.lateralAvg(Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]  - \
+            dt * 0.5 * v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            Dh0[np.newaxis,myg.jlo:myg.jhi+1] * g / \
+            (r[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]**2 * \
+            self.metric.alpha[np.newaxis,myg.jlo:myg.jhi+1]**2) )
+
+        D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * \
+            D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * 0.5 * \
+            christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]
+        Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * \
+            Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * 0.5 * \
+            christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] - \
+            dt * 0.5 * v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            Dh0[np.newaxis,myg.jlo:myg.jhi+1] * g / \
+            (r[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]**2 * \
+            self.metric.alpha[np.newaxis,myg.jlo:myg.jhi+1]**2)
+
+
+        #fill ghostcells
+        self.cc_data.fill_BC("enthalpy")
+        self.cc_data.fill_BC("density")
+        self.base_data.fill_BC("D0")
+        self.base_data.fill_BC("Dh0")
+
+
+    def EnforceHSE(self):
+        """
+        Enforce relativistic hydrostatic equilibrium on base pressure.
+        """
+
+        u0 = self.metric.calcu0()
+        myg = self.cc_data.grid
+        Dh0 = self.base_data.get_var("Dh0")
+        g = self.rp.get_param("lm-atmosphere.grav")
+
+        # flatten u0 to make 1d for next equation.
+        u0flat = self.lateralAvg(u0[:,:])
+        p0 = self.base_data.get_var("p0")
+        p0[1:] = p0[:-1] - myg.dy * g * Dh0[1:]/(u0flat[1:] * \
+            (myg.y[1:] * self.metric.alpha[1:])**2)
+
+
+
     def preevolve(self):
         """
         preevolve is called before we being the timestepping loop.  For
@@ -592,57 +670,14 @@ class Simulation:
         ldelta_vy = limitFunc(2, v, myg)
 
 
-        #---------------------------------------------------------------------
-        # React full state through first half timestep
-        # Assume for simplicity here that only non-zero Christoffel of
-        # Gamma^mu_{mu nu} form is Gamma^t_{t r} = - g/r^2(1+2g/r) =
-        # -g/r^2alpha^2
-        #
-        # This runs ReactState and basically calculates the sourcing.
-        # Shall also react the base state as this has sourcing too.
-        #
-        # CHANGED: have attempted to include pressure term in energy eq.
-        #---------------------------------------------------------------------
         g = self.rp.get_param("lm-atmosphere.grav")
         r = np.array([myg.y,] * myg.qx)
 
-        christfl = -g / (r[:,:]**2 * (1.+ 2. * g / r[:,:]))
+        #---------------------------------------------------------------------
+        # React full and base states through first half timestep
+        #---------------------------------------------------------------------
 
-        D0[myg.jlo:myg.jhi+1] -= dt * 0.5 * \
-            self.lateralAvg(D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] )
-
-        Dh0[myg.jlo:myg.jhi+1] -= dt * 0.5 * \
-            self.lateralAvg(Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]  - \
-            dt * 0.5 * v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * g / \
-            (r[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]**2 * \
-            self.metric.alpha[np.newaxis,myg.jlo:myg.jhi+1]**2) )
-
-        D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * \
-            D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * 0.5 * \
-            christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]
-        Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * \
-            Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * 0.5 * \
-            christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] - \
-            dt * 0.5 * v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * g / \
-            (r[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]**2 * \
-            self.metric.alpha[np.newaxis,myg.jlo:myg.jhi+1]**2)
-
-
-        #fill ghostcells
-        self.cc_data.fill_BC("enthalpy")
-        self.cc_data.fill_BC("density")
-        self.base_data.fill_BC("D0")
-        self.base_data.fill_BC("Dh0")
-
-
+        self.ReactState(dt)
 
         #---------------------------------------------------------------------
         # get the advective velocities
@@ -891,18 +926,9 @@ class Simulation:
 
         #---------------------------------------------------------------------
         # Enforce relativistic hydrostatic equilibrium on base pressure
-        #
-        # This is based on EnforceHSE.
         #---------------------------------------------------------------------
 
-        u0 = self.metric.calcu0()
-
-        # flatten u0 to make 1d for next equation.
-        u0flat = self.lateralAvg(u0[:,:])
-        p0 = self.base_data.get_var("p0")
-        p0[:] -= myg.dy * g * Dh0[:]/(u0flat[:] * \
-            (myg.y[:] * self.metric.alpha[:])**2)
-
+        self.EnforceHSE()
 
 
         #---------------------------------------------------------------------
@@ -988,6 +1014,7 @@ class Simulation:
         # CHANGED: Have added pressure terms to this.
         u0 = self.metric.calcu0()
         gamma = self.rp.get_param("eos.gamma")
+        p0 = self.base_data.get_var("p0")
         self.updateXi(self.cc_data.grid)
         xi = self.base_data.get_var("xi")
         pi = self.make_prime((D[:,:] / u0[:,:])**gamma, p0[:])
@@ -1019,25 +1046,24 @@ class Simulation:
 
         #dx pi
         xpressureSource[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] = \
-            (pi[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] - \
-            pi[myg.ilo-1:myg.ihi,myg.jlo:myg.jhi+1])/(2. * myg.dx)
+            (pi[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] - \
+            pi[myg.ilo-1:myg.ihi,myg.jlo:myg.jhi+1])/myg.dx
 
-        print(( drp0[15,10:15]), (Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * g / \
-        (u0[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-        (myg.y[np.newaxis, myg.jlo:myg.jhi+1] * \
-        self.metric.alpha[np.newaxis,myg.jlo:myg.jhi+1])**2))[15,10:15])
+        print(( drp0[15,10:15]), (-Dh0[np.newaxis,myg.jlo:myg.jhi+1] * \
+            g / (u0[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            (myg.y[np.newaxis, myg.jlo:myg.jhi+1] * \
+            self.metric.alpha[np.newaxis,myg.jlo:myg.jhi+1])**2))[15,10:15])
 
 
-
-        u[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * \
+        u[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] += -dt * \
             xpressureSource[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] / \
             (Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
             u0[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])
 
-        v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * (\
-            pressureSource[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] / \
+        v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] += dt * \
+            (-pressureSource[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] / \
             (Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            u0[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]) - \
+            u0[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]) + \
             g / myg.y[np.newaxis, myg.jlo:myg.jhi+1]**2)
 
         print('calculated u and v')
@@ -1066,48 +1092,10 @@ class Simulation:
         print("min/max M   = {}, {}".format(np.min(M), np.max(M)))
 
         #---------------------------------------------------------------------
-        # React full and base state through second half timestep
-        # Assume for simplicity here that only non-zero Christoffel of
-        # Gamma^mu_{mu nu} form is Gamma^t_{t r} = g/(1+2gr)
-        #
-        # This runs ReactState.
+        # React full and base states through second half timestep
         #---------------------------------------------------------------------
 
-        D0[myg.jlo:myg.jhi+1] -= dt * 0.5 * \
-            self.lateralAvg(D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] )
-
-        #CHANGED: included pressure terms
-
-        Dh0[myg.jlo:myg.jhi+1] -= dt * 0.5 * \
-            self.lateralAvg(Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] - \
-            dt * 0.5 * v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * g / \
-            (r[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]**2 * \
-            self.metric.alpha[np.newaxis,myg.jlo:myg.jhi+1]**2) )
-
-        D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * \
-            D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * 0.5 * \
-            christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]
-        Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * \
-            Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * 0.5 * \
-            christfl[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] - \
-            dt * 0.5 * v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * g / \
-            (r[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]**2 * \
-            self.metric.alpha[np.newaxis,myg.jlo:myg.jhi+1]**2)
-
-        self.cc_data.fill_BC("density")
-        self.cc_data.fill_BC("enthalpy")
-        self.base_data.fill_BC("D0")
-        self.base_data.fill_BC("Dh0")
-
-
+        self.ReactState(dt)
 
         #---------------------------------------------------------------------
         # project the final velocity
@@ -1161,7 +1149,6 @@ class Simulation:
 
         # solve
         #mg.solve(rtol=1.e-12)
-        # FIXME: the error in this diverges after a few timesteps
         mg.solve(rtol=1.e-9)
 
         # store the solution in our self.cc_data object -- include a single
@@ -1261,10 +1248,8 @@ class Simulation:
         plt.subplots_adjust(hspace=0.25)
 
 
-        #fields = [D, magvel]
         fields = [D, magvel, u, v]
-        #fields = [D, tracer]
-        field_names = [r"$D$", r"$|U|$", r"$u$", r"$v$"] #, r"$\nabla \times U$", r"$D$"]
+        field_names = [r"$D$", r"$|U|$", r"$u$", r"$v$"]
 
 
         for n in range(len(fields)):
