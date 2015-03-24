@@ -47,6 +47,7 @@ class Simulation:
         """
 
         self.rp = rp
+        print(rp)
 
         self.cc_data = None
         self.aux_data = None
@@ -63,7 +64,7 @@ class Simulation:
         try: self.verbose = rp.get_param("driver.verbose")
         except:
             self.verbose = 1
-        
+
 
     def initialize(self):
         """
@@ -391,12 +392,10 @@ class Simulation:
         dt_buoy = np.sqrt(2.0*myg.dy/F_buoy)
 
         dt = min(dt, dt_buoy)
-<<<<<<< HEAD
+
         #dt = min(dt, 0.25)
         print("timestep is {}".format(dt))
-=======
-        if self.verbose > 0: print("timestep is {}".format(dt))
->>>>>>> upstream/master
+
 
         return dt
 
@@ -417,7 +416,7 @@ class Simulation:
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
 
-        self.cc_data.fill_BC("density")        
+        self.cc_data.fill_BC("density")
         self.cc_data.fill_BC("x-velocity")
         self.cc_data.fill_BC("y-velocity")
         self.cc_data.fill_BC("enthalpy")
@@ -547,7 +546,7 @@ class Simulation:
 
         gradp_x = self.cc_data.get_var("gradp_x")
         gradp_y = self.cc_data.get_var("gradp_y")
-        
+
         # note: the base state quantities do not have valid ghost cells
         # need to update xi and zeta as D0, u0 etc change every time step
         self.updateXi(self.cc_data.grid)
@@ -644,7 +643,7 @@ class Simulation:
         self.base_data.fill_BC("Dh0")
 
 
-        
+
         #---------------------------------------------------------------------
         # get the advective velocities
         #---------------------------------------------------------------------
@@ -672,11 +671,8 @@ class Simulation:
 
         # this returns u on x-interfaces and v on y-interfaces.  These
         # constitute the MAC grid
-<<<<<<< HEAD
-        #print("  making MAC velocities")
-=======
         if self.verbose > 0: print("  making MAC velocities")
->>>>>>> upstream/master
+
 
         # create the coefficient to the grad (pi/xi) term
         u0 = self.metric.calcu0()
@@ -722,9 +718,6 @@ class Simulation:
         # phi is cell centered, and U^MAC is the MAC-type staggered
         # grid of the advective velocities.
 
-<<<<<<< HEAD
-        #print("  MAC projection")
-
         # create the coefficient array: xi**2/Dhu0
         u0 = self.metric.calcu0()
         coeff = 1.0/(Dh[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] * \
@@ -733,9 +726,9 @@ class Simulation:
         zeta = self.base_data.get_var("zeta")
         zeta_edges = self.base_data.get_var("zeta-edges")
         coeff[:,:] *= zeta[np.newaxis,myg.jlo-1:myg.jhi+2]**2
-=======
+
         if self.verbose > 0: print("  MAC projection")
->>>>>>> upstream/master
+
 
 
         # create the multigrid object
@@ -911,15 +904,14 @@ class Simulation:
             (myg.y[:] * self.metric.alpha[:])**2)
 
 
-        
+
         #---------------------------------------------------------------------
         # recompute the interface states, using the advective velocity
         # from above
         #---------------------------------------------------------------------
-<<<<<<< HEAD
-=======
+
         if self.verbose > 0: print("  making u, v edge states")
->>>>>>> upstream/master
+
 
         coeff = self.aux_data.get_var("coeff")
         coeff[:,:] = 2./((Dh[:,:] + Dh_old[:,:]) * u0[:,:])
@@ -941,11 +933,9 @@ class Simulation:
         #---------------------------------------------------------------------
         # update U to get the provisional velocity field
         #---------------------------------------------------------------------
-<<<<<<< HEAD
-        #print("  doing provisional update of u, v")
-=======
+
         if self.verbose > 0: print("  doing provisional update of u, v")
->>>>>>> upstream/master
+
 
         # compute (U.grad)U
 
@@ -1038,7 +1028,7 @@ class Simulation:
         self.metric.alpha[np.newaxis,myg.jlo:myg.jhi+1])**2))[15,10:15])
 
 
-<<<<<<< HEAD
+
         u[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * \
             xpressureSource[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] / \
             (Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
@@ -1051,30 +1041,15 @@ class Simulation:
             g / myg.y[np.newaxis, myg.jlo:myg.jhi+1]**2)
 
         print('calculated u and v')
-=======
-        # add the gravitational source
-        rho_half = 0.5*(rho + rho_old)
-        rhoprime = self.make_prime(rho_half, rho0)
-        source = rhoprime*g/rho_half
-        self.aux_data.fill_BC("source_y")
-        
-        v[:,:] += dt*source
->>>>>>> upstream/master
 
         self.cc_data.fill_BC("x-velocity")
         self.cc_data.fill_BC("y-velocity")
 
-<<<<<<< HEAD
         print("min/max D = {}, {}".format(np.min(D), np.max(D)))
         print("min/max Dh = {}, {}".format(np.min(Dh), np.max(Dh)))
         print("min/max u   = {}, {}".format(np.min(u), np.max(u)))
         print("min/max v   = {}, {}".format(np.min(v), np.max(v)))
-=======
-        if self.verbose > 0:
-            print("min/max rho = {}, {}".format(self.cc_data.min("density"), self.cc_data.max("density")))
-            print("min/max u   = {}, {}".format(self.cc_data.min("x-velocity"), self.cc_data.max("x-velocity")))
-            print("min/max v   = {}, {}".format(self.cc_data.min("y-velocity"), self.cc_data.max("y-velocity")))
->>>>>>> upstream/master
+
 
         #calculate the sound speed
         cs = myg.scratch_array()
@@ -1139,8 +1114,6 @@ class Simulation:
         #---------------------------------------------------------------------
 
         # now we solve L phi = D (U* /dt)
-<<<<<<< HEAD
-        #print("  final projection")
 
         # create the coefficient array: zeta**2/Dhu0
         u0 = self.metric.calcu0()
@@ -1149,10 +1122,8 @@ class Simulation:
         self.updateZeta(self.cc_data.grid)
         zeta = self.base_data.get_var("zeta")
         coeff[:,:] *= zeta[np.newaxis,myg.jlo-1:myg.jhi+2]**2
-=======
-        if self.verbose > 0: print("  final projection")
->>>>>>> upstream/master
 
+        if self.verbose > 0: print("  final projection")
 
         # create the multigrid object
         mg = vcMG.VarCoeffCCMG2dRect(myg.nx, myg.ny,
@@ -1252,16 +1223,10 @@ class Simulation:
         plt.clf()
 
         #plt.rc("font", size=10)
-<<<<<<< HEAD
+
         D = self.cc_data.get_var("density")
         Dh= self.cc_data.get_var("enthalpy")
-=======
 
-        rho = self.cc_data.get_var("density")
-        rho0 = self.base["rho0"]
-        rhoprime = self.make_prime(rho, rho0)
-        
->>>>>>> upstream/master
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
         #tracer = self.cc_data.get_var("tracer")
@@ -1287,7 +1252,7 @@ class Simulation:
         du = 0.5*(u[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] -
                   u[myg.ilo:myg.ihi+1,myg.jlo-1:myg.jhi  ])/myg.dy
 
-        
+
         # for some reason, setting vort here causes the density in the
         # simulation to NaN.  Seems like a bug (in python?)
         vort[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] = dv - du
@@ -1295,16 +1260,12 @@ class Simulation:
         fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.25)
 
-<<<<<<< HEAD
 
         #fields = [D, magvel]
         fields = [D, magvel, u, v]
         #fields = [D, tracer]
         field_names = [r"$D$", r"$|U|$", r"$u$", r"$v$"] #, r"$\nabla \times U$", r"$D$"]
-=======
-        fields = [rho, magvel, vort, rhoprime]
-        field_names = [r"$\rho$", r"|U|", r"$\nabla \times U$", r"$rho'$"]
->>>>>>> upstream/master
+
 
         for n in range(len(fields)):
 

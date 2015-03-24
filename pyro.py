@@ -139,7 +139,7 @@ def doit(solver_name, problem_name, param_file,
         dt_out = rp.get_param("io.dt_out")
         n_out = rp.get_param("io.n_out")
         do_io = rp.get_param("io.do_io")
-        
+
         if (sim.cc_data.t >= (nout + 1)*dt_out or n%n_out == 0) and do_io == 1:
 
             tm_io = tc.timer("output")
@@ -167,15 +167,14 @@ def doit(solver_name, problem_name, param_file,
 
             tm_vis.end()
 
-<<<<<<< HEAD
-dovis = rp.get_param("vis.dovis")
-dovis = 1
-if dovis:
-    plt.figure(num=1, figsize=(8,6), dpi=100, facecolor='w')
-    sim.dovis()
-=======
-    tm_main.end()
->>>>>>> upstream/master
+
+            dovis = rp.get_param("vis.dovis")
+            dovis = 1
+            if dovis:
+                plt.figure(num=1, figsize=(8,6), dpi=100, facecolor='w')
+                sim.dovis()
+                tm_main.end()
+
 
 
     #-------------------------------------------------------------------------
@@ -189,7 +188,7 @@ if dovis:
         except:
             msg.warning("ERROR openning compare file")
             return "ERROR openning compare file"
-        
+
 
         result = compare.compare(sim.cc_data.grid, sim.cc_data, bench_grid, bench_data)
 
@@ -205,18 +204,16 @@ if dovis:
             try: os.mkdir(solver_name + "/tests/")
             except:
                 msg.fail("ERROR: unable to create the solver's tests/ directory")
-            
+
         bench_file = solver_name + "/tests/" + basename + "%4.4d" % (n)
         msg.warning("storing new benchmark: %s\n " % (bench_file) )
         sim.cc_data.write(bench_file)
 
-<<<<<<< HEAD
     # increment the time
     sim.cc_data.t += dt
     n += 1
     print("n: %5d,  t: %10.5f,  dt: %10.5f" % (n, sim.cc_data.t, dt))
-=======
->>>>>>> upstream/master
+
 
     #-------------------------------------------------------------------------
     # final reports
@@ -230,7 +227,7 @@ if dovis:
         return result
     else:
         return None
-    
+
 
 if __name__ == "__main__":
 
@@ -260,4 +257,3 @@ if __name__ == "__main__":
          other_commands=args.other,
          comp_bench=args.compare_benchmark,
          make_bench=args.make_benchmark)
-
