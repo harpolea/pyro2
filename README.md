@@ -54,6 +54,9 @@ http://bender.astro.sunysb.edu/hydro_by_example/
       * Set the `PYTHONPATH` environment variable to point to the `pyro2/`
         directory.
 
+      * Define the environment variable `PYRO_HOME` to point to the
+        `pyro2/` directory (only needed to regression testing)
+	  
       * Build the Fortran source. In `pyro2/` type 
 
           `./mk.sh` 
@@ -167,6 +170,13 @@ with their data.
 
   https://github.com/zingale/numerical_exercises
 
+
+## Regression testing
+
+  The `test.py` script will run several of the problems (as well as some
+  stand-alone multigrid tests) and compare the solution to stored
+  benchmarks (in each solver's `tests/` subdirectory).
+  
 
 ## Getting Help
 

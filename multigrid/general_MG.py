@@ -257,7 +257,7 @@ class GeneralMG2d(MG.CellCenterMG2d):
         alpha = self.grids[level].get_var("alpha")
         gamma_x = 0.5*self.grids[level].get_var("gamma_x")/dx
         gamma_y = 0.5*self.grids[level].get_var("gamma_y")/dy
-
+        
         # these already have a 1/dx**2 scaling in them
         beta_x = self.beta_edge[level].x
         beta_y = self.beta_edge[level].y
@@ -279,7 +279,7 @@ class GeneralMG2d(MG.CellCenterMG2d):
              v[myg.ilo-1:myg.ihi  ,myg.jlo:myg.jhi+1]) + \
             # beta_{i,j+1/2} (phi_{i,j+1} - phi_{i,j})
             beta_y[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2]* \
-            (v[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] -
+            (v[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] -  
              v[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1]) - \
             # beta_{i,j-1/2} (phi_{i,j} - phi_{i,j-1})
             beta_y[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1]* \
@@ -292,7 +292,7 @@ class GeneralMG2d(MG.CellCenterMG2d):
             # gamma^x_{i,j} (phi_{i+1,j} - phi_{i-1,j})
             gamma_y[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]* \
             (v[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] -
-             v[myg.ilo:myg.ihi+1,myg.jlo-1:myg.jhi  ])
+             v[myg.ilo:myg.ihi+1,myg.jlo-1:myg.jhi  ]) 
           )
 
         r[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] = \
