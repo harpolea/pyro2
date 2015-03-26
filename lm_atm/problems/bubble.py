@@ -105,9 +105,13 @@ def init_data(my_data, base_data, rp, metric):
     #FIXME: need to divide by u0 here???
 
 
-    p0[:] = (D0[:] + Dh0[:]) * (gamma - 1.) / (u0flat[:] * (2. - gamma))
-    p0[1:] = p0[:-1] + 0.5 * myg.dy * (Dh0[1:] + Dh0[:-1]) * grav/ \
-        (u0flat[1:] * c**2 * metric.alpha[1:]**2 * R)
+    p0[:] = (D0[:]/u0flat[:])**gamma #(D0[:] + Dh0[:]) * (gamma - 1.) / (u0flat[:] * (2. - gamma))
+
+    base_data.fill_BC("p0")
+
+    for i in range(myg.jlo,myg.jhi+1):
+        p0[i] = p0[i-1] - myg.dy * grav * Dh0[i]/(u0flat[i] * \
+            c**2 * metric.alpha[i]**2 * R)
 
 
     #fill ghost cells
@@ -119,6 +123,9 @@ def init_data(my_data, base_data, rp, metric):
     base_data.fill_BC("D0")
     base_data.fill_BC("Dh0")
     base_data.fill_BC("p0")
+
+    print(p0[-20:])
+    print(p0[:20])
 
 
 def checkXSymmetry(grid, nx):

@@ -96,9 +96,13 @@ def doit(solver_name, problem_name, param_file,
     sim.cc_data.write(basename + "%4.4d" % (n))
 
     dovis = rp.get_param("vis.dovis")
-    if dovis:
+    plt.ion()
+
+    if dovis == 1:
         plt.figure(num=1, figsize=(8,6), dpi=100, facecolor='w')
         sim.dovis()
+
+        plt.show(block=False)
 
     nout = 0
 
@@ -155,11 +159,13 @@ def doit(solver_name, problem_name, param_file,
 
 
         # visualization
-        if dovis:
+        if dovis == 1:
             tm_vis = tc.timer("vis")
             tm_vis.begin()
 
             sim.dovis()
+
+            plt.show(block=False)
             store = rp.get_param("vis.store_images")
 
             if store == 1:
@@ -168,15 +174,7 @@ def doit(solver_name, problem_name, param_file,
 
             tm_vis.end()
 
-
-            dovis = rp.get_param("vis.dovis")
-            dovis = 1
-            if dovis:
-                plt.figure(num=1, figsize=(8,6), dpi=100, facecolor='w')
-                sim.dovis()
-                tm_main.end()
-
-
+    tm_main.end()
 
     #-------------------------------------------------------------------------
     # benchmarks (for regression testing)

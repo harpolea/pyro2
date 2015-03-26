@@ -238,12 +238,12 @@ class Simulation:
             whether or not the grid is symmetric
         """
 
-        halfGrid = np.abs(grid[-np.floor(nx/2):, :]) - \
-            np.abs(grid[np.floor(nx/2)-1::-1, :])
+        halfGrid = np.abs(grid[-np.floor(nx/2.):, :]) - \
+            np.abs(grid[np.floor(nx/2.)-1::-1, :])
         sym = True
 
         if np.max(np.abs(halfGrid)) > 1.e-15:
-            print('\nOh no! An asymmetry has occured!\n')
+            print('Oh no! An asymmetry has occured!')
             print('Asymmetry has amplitude: ', np.max(np.abs(halfGrid)))
             sym = False
 
@@ -271,11 +271,14 @@ class Simulation:
         #sg, sgamma = self.metric.dets()
         #sgflat = self.lateralAvg(sg)
 
-        # xi = exp(ln p0 / 2*sqrt[-g]*kappa*Gamma1)
+        # xi = exp(ln p0 / Gamma1)
         xi = self.base_data.get_var("xi")
         xi_edges = self.base_data.get_var("xi-edges")
-        xi[myg.jlo:myg.jhi+1] = np.exp(np.log(p0[myg.jlo:myg.jhi+1]) / \
-            gamma)
+        try:
+            xi[myg.jlo:myg.jhi+1] = np.exp(np.log(p0[myg.jlo:myg.jhi+1]) / \
+                gamma)
+        except FloatingPointError:
+            print(np.min(p0[:]))
 
         self.base_data.fill_BC("xi")
 
@@ -360,7 +363,7 @@ class Simulation:
 
         S = self.aux_data.get_var("S")
 
-        S[:,:] = g * v[:,:] / (c**2 * R * \
+        S[:,:] = -g * v[:,:] / (c**2 * R * \
                  self.metric.alpha[np.newaxis,:]**2)
         self.aux_data.fill_BC("S")
 
@@ -406,7 +409,7 @@ class Simulation:
 
 
         # the timestep is min(dx/|u|, dy|v|)
-        xtmp = ytmp = 1.e-2
+        xtmp = ytmp = 1.e-1
         if not np.max(np.abs(u)) < 1.e-30:
             xtmp = \
                 np.min(myg.dx/(np.abs(u[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])))
@@ -527,8 +530,11 @@ class Simulation:
         # flatten u0 to make 1d for next equation.
         u0flat = self.lateralAvg(u0[:,:])
         p0 = self.base_data.get_var("p0")
-        p0[1:] = p0[:-1] + myg.dy * g * Dh0[1:]/(u0flat[1:] * \
-            c**2 * self.metric.alpha[1:]**2 * R)
+        self.base_data.fill_BC("p0")
+        for i in range(myg.jlo,myg.jhi+1):
+            p0[i] = p0[i-1] - myg.dy * g * Dh0[i]/(u0flat[i] * \
+                c**2 * self.metric.alpha[i]**2 * R)
+        self.base_data.fill_BC("p0")
         print('p0: ', p0[10:20])
 
 
@@ -544,7 +550,7 @@ class Simulation:
 
         myg = self.cc_data.grid
 
-        D = self.cc_data.get_var("density")
+        #D = self.cc_data.get_var("density")
         Dh = self.cc_data.get_var("enthalpy")
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
@@ -557,7 +563,6 @@ class Simulation:
         #check symmetries
         self.checkXSymmetry(u, myg.qx)
 
-
         # 1. do the initial projection.  This makes sure that our original
         # velocity field satisties div U = 0
 
@@ -565,7 +570,7 @@ class Simulation:
         # haven't evolved anything yet don't need to update zeta
         u0 = self.metric.calcu0()
 
-        #shall ones out Dh to stop divide by 0ness
+
         #Dh = np.ones(np.shape(Dh))
         coeff = 1.0/(Dh[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] * \
             u0[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2])
@@ -826,7 +831,7 @@ class Simulation:
         # phi is cell centered, and U^MAC is the MAC-type staggered
         # grid of the advective velocities.
 
-        # create the coefficient array: xi**2/Dhu0
+        # create the coefficient array: zeta**2/Dhu0
         u0 = self.metric.calcu0()
         coeff = 1.0/(Dh[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] * \
             u0[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2])
@@ -854,7 +859,7 @@ class Simulation:
         # first compute div{zeta U}
         div_zeta_U = mg.soln_grid.scratch_array()
 
-        # MAC velocities are edge-centered.  div{zeta U} is cell-centered.
+        # MAC velocities are edge-centered.  div{zeta U} is cell-centred.
         div_zeta_U[mg.ilo:mg.ihi+1,mg.jlo:mg.jhi+1] = \
             zeta[np.newaxis,myg.jlo:myg.jhi+1]*(
                 u_MAC[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
@@ -881,7 +886,7 @@ class Simulation:
 
         # update the normal velocities with the pressure gradient -- these
         # constitute our advective velocities.  Note that what we actually
-        # solved for here is phi/xi
+        # solved for here is phi/zeta
         phi_MAC = self.cc_data.get_var("phi-MAC")
         phi_MAC[:,:] = mg.get_solution(grid=myg)
 
@@ -892,14 +897,12 @@ class Simulation:
         self.aux_data.fill_BC("coeff")
 
         coeff_x = myg.scratch_array()
-        coeff_x[myg.ilo-3:myg.ihi+4,myg.jlo:myg.jhi+1] = \
-                0.5*(coeff[myg.ilo-2:myg.ihi+5,myg.jlo:myg.jhi+1] +
-                     coeff[myg.ilo-4:myg.ihi+3,myg.jlo:myg.jhi+1])
-        self.checkXSymmetry(coeff_x[myg.ilo-3:myg.ihi+4,myg.jlo:myg.jhi+1], myg.nx+6)
-        print('coeffX symmetry')
-        self.checkXSymmetry(phi_MAC, myg.qx)
-        print('phiMAC symmetry')
+        #coeff_x is edge-based, coeff is cell-centred.
+        coeff_x[myg.ilo-3:myg.ihi+2,myg.jlo:myg.jhi+1] = \
+                0.5*(coeff[myg.ilo-2:myg.ihi+3,myg.jlo:myg.jhi+1] +
+                     coeff[myg.ilo-3:myg.ihi+2,myg.jlo:myg.jhi+1])
 
+        #coeff_y is edge-based, coeff is cell-centred.
         coeff_y = myg.scratch_array()
         coeff_y[myg.ilo:myg.ihi+1,myg.jlo-3:myg.jhi+2] = \
                 0.5*(coeff[myg.ilo:myg.ihi+1,myg.jlo-2:myg.jhi+3] +
@@ -933,9 +936,8 @@ class Simulation:
                             v_MAC, ldelta_r0x, ldelta_r0y)
         self.checkXSymmetry(D, myg.qx)
         print('D symmetry')
-        self.checkXSymmetry(u_MAC, myg.qx)
-        print('uMAC symmetry')
 
+        #D_xint, D_yint are on edges, D cell-centred.
         D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt*(
             #  (D u)_x
             (D_xint[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1]*
@@ -955,12 +957,12 @@ class Simulation:
         #need to do some averaging as D0 is only 1d
 
         D02d[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt*(
-            #  (D u)_x
-            (D0_xint[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1]*
-             u_MAC[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
-             D0_xint[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]*
-             u_MAC[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/myg.dx +
-            #  (D v)_y
+            #  (D0 u)_x
+            #(D0_xint[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1]*
+            # u_MAC[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
+             #D0_xint[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]*
+             #u_MAC[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/myg.dx +
+            #  (D0 v)_y
             (D0_yint[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2]*
              v_MAC[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] -
              D0_yint[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]*
@@ -998,10 +1000,10 @@ class Simulation:
 
         Dh02d[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt*(
             #  (Dh u)_x
-            (Dh0_xint[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1]*
-             u_MAC[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
-             Dh0_xint[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]*
-             u_MAC[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/myg.dx +
+            #(Dh0_xint[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1]*
+             #u_MAC[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
+             #Dh0_xint[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]*
+             #u_MAC[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/myg.dx +
             #  (Dh v)_y
             (Dh0_yint[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2]*
              v_MAC[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] -
@@ -1035,7 +1037,7 @@ class Simulation:
 
         # Might not need to recalculate xi but shall just in case
         self.updateZeta(self.cc_data.grid)
-        zeta = self.base_data.get_var("xi")
+        zeta = self.base_data.get_var("zeta")
         coeff[:,:] *= zeta[np.newaxis,:]
         self.aux_data.fill_BC("coeff")
 
@@ -1122,17 +1124,19 @@ class Simulation:
         drp0 = myg.scratch_array()
 
         # drp0 + xi*dr(pi/xi)
+        # cell-centred
         drp0[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] = \
-            (p0[np.newaxis, myg.jlo+1:myg.jhi+2] - \
-            p0[np.newaxis, myg.jlo:myg.jhi+1]) / myg.dy
+            0.5 * (p0[np.newaxis, myg.jlo+1:myg.jhi+2] - \
+            p0[np.newaxis, myg.jlo-1:myg.jhi]) / myg.dy
 
+        # cell-centred
         pressureSource[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] = \
             drp0[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] + \
-            xi[np.newaxis, myg.jlo:myg.jhi+1] * \
+            0.5 * xi[np.newaxis, myg.jlo:myg.jhi+1] * \
             (pi[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] / \
             xi[np.newaxis,myg.jlo+1:myg.jhi+2] - \
-            pi[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] / \
-            xi[np.newaxis,myg.jlo:myg.jhi+1])/myg.dy
+            pi[myg.ilo:myg.ihi+1,myg.jlo-1:myg.jhi] / \
+            xi[np.newaxis,myg.jlo-1:myg.jhi])/myg.dy
             #-Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * g / \
             #(u0[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
             #(myg.y[np.newaxis, myg.jlo:myg.jhi+1] * \
@@ -1143,9 +1147,10 @@ class Simulation:
         print("min/max v   = {}, {}".format(np.min(v), np.max(v)))
         print("min/max u0   = {}, {}".format(np.min(u0), np.max(u0)))
 
-        #dx pi
+        # dx pi
+        # cell-centred
         xpressureSource[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] = \
-            (pi[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] - \
+            0.5 * (pi[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] - \
             pi[myg.ilo-1:myg.ihi,myg.jlo:myg.jhi+1])/myg.dx
 
         print(( drp0[15,10:15]), (-Dh0[np.newaxis,myg.jlo:myg.jhi+1] * \
@@ -1154,15 +1159,15 @@ class Simulation:
             self.metric.alpha[np.newaxis,myg.jlo:myg.jhi+1])**2 * R))[15,10:15])
 
 
-        u[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] += -dt * \
-            xpressureSource[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] / \
+        u[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] += dt * \
+            -xpressureSource[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] / \
             (Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
             u0[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])
 
         v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] += dt * \
             (-pressureSource[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] / \
             (Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            u0[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]) + \
+            u0[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]) - \
             g / (c**2 * R))
 
         print('calculated u and v')
@@ -1244,11 +1249,11 @@ class Simulation:
         phiGuess = mg.soln_grid.scratch_array()
         phiGuess[mg.ilo-1:mg.ihi+2,mg.jlo-1:mg.jhi+2] = \
            phi[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]
-        #mg.init_solution(phiGuess)
+        mg.init_solution(phiGuess)
 
         # solve
-        #mg.solve(rtol=1.e-12)
-        mg.solve(rtol=1.e-9)
+        mg.solve(rtol=1.e-12)
+        #mg.solve(rtol=1.e-9)
 
         # store the solution in our self.cc_data object -- include a single
         # ghostcell
@@ -1294,10 +1299,7 @@ class Simulation:
         self.cc_data.fill_BC("gradp_x")
         self.cc_data.fill_BC("gradp_y")
 
-        #xi2d = np.array([xi,] * np.size(xi))
-
         tracer[:,:] = v.copy()
-        print('Dh: ', Dh[30, myg.jhi-3:])
 
 
 
