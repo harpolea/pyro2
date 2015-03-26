@@ -943,9 +943,9 @@ class CellCenterData2d:
         # using a stride of 2 in the indexing.
         cData[ilo_c:ihi_c+1,jlo_c:jhi_c+1] = \
             0.25*(fData[fG.ilo  :fG.ihi+1:2,fG.jlo  :fG.jhi+1:2] +
-                  fData[fG.ilo+1:fG.ihi+1:2,fG.jlo  :fG.jhi+1:2] +
-                  fData[fG.ilo  :fG.ihi+1:2,fG.jlo+1:fG.jhi+1:2] +
-                  fData[fG.ilo+1:fG.ihi+1:2,fG.jlo+1:fG.jhi+1:2])
+                  fData[fG.ilo+1:fG.ihi+2:2,fG.jlo  :fG.jhi+1:2] +
+                  fData[fG.ilo  :fG.ihi+1:2,fG.jlo+1:fG.jhi+2:2] +
+                  fData[fG.ilo+1:fG.ihi+2:2,fG.jlo+1:fG.jhi+2:2])
 
         return cData
 
@@ -1025,21 +1025,21 @@ class CellCenterData2d:
 
 
         # fill the '2' children
-        fData[ilo_f+1:ihi_f+1:2,jlo_f:jhi_f+1:2] = \
+        fData[ilo_f+1:ihi_f+2:2,jlo_f:jhi_f+1:2] = \
             cData[cG.ilo:cG.ihi+1,cG.jlo:cG.jhi+1] \
             + 0.25*m_x[cG.ilo:cG.ihi+1,cG.jlo:cG.jhi+1] \
             - 0.25*m_y[cG.ilo:cG.ihi+1,cG.jlo:cG.jhi+1]
 
 
         # fill the '3' children
-        fData[ilo_f:ihi_f+1:2,jlo_f+1:jhi_f+1:2] = \
+        fData[ilo_f:ihi_f+1:2,jlo_f+1:jhi_f+2:2] = \
             cData[cG.ilo:cG.ihi+1,cG.jlo:cG.jhi+1] \
             - 0.25*m_x[cG.ilo:cG.ihi+1,cG.jlo:cG.jhi+1] \
             + 0.25*m_y[cG.ilo:cG.ihi+1,cG.jlo:cG.jhi+1]
 
 
         # fill the '4' children
-        fData[ilo_f+1:ihi_f+1:2,jlo_f+1:jhi_f+1:2] = \
+        fData[ilo_f+1:ihi_f+2:2,jlo_f+1:jhi_f+2:2] = \
             cData[cG.ilo:cG.ihi+1,cG.jlo:cG.jhi+1] \
             + 0.25*m_x[cG.ilo:cG.ihi+1,cG.jlo:cG.jhi+1] \
             + 0.25*m_y[cG.ilo:cG.ihi+1,cG.jlo:cG.jhi+1]

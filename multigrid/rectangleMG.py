@@ -302,8 +302,9 @@ class CellCenterMG2dRect:
         plt.scatter(xup, yup, marker="o", color="k", s=40)
 
         if self.up_or_down == "down":
-            plt.scatter(xdown[self.nlevels-self.current_level-1], ydown[self.nlevels-self.current_level-1],
-                          marker="o", color="r", zorder=100, s=38)
+            plt.scatter(xdown[self.nlevels-self.current_level-1],
+                        ydown[self.nlevels-self.current_level-1],
+                        marker="o", color="r", zorder=100, s=38)
 
         else:
             plt.scatter(xup[self.current_level], yup[self.current_level],
@@ -528,6 +529,36 @@ class CellCenterMG2dRect:
 
         self.initialized_RHS = 1
 
+    @staticmethod
+    def checkXSymmetry(grid, nx):
+        """
+        Checks to see if a grid is symmetric in the x-direction.
+
+        Parameters
+        ----------
+        grid : float array
+            2d grid to be checked
+        nx :
+            grid x-dimension
+
+        Returns
+        -------
+        sym : boolean
+            whether or not the grid is symmetric
+        """
+
+        halfGrid = np.abs(grid[-np.floor(nx/2):, :]) - \
+            np.abs(grid[np.floor(nx/2)-1::-1, :])
+        sym = True
+
+        if np.max(np.abs(halfGrid)) > 1.e-25:
+            print('\nOh no! An asymmetry has occured!\n')
+            print('Asymmetry has amplitude: ', np.max(np.abs(halfGrid)))
+            sym = False
+            sys.exit()
+
+        #return sym
+
 
     def _compute_residual(self, level):
         """ compute the residual and store it in the r variable"""
@@ -542,14 +573,17 @@ class CellCenterMG2dRect:
         # r = f - alpha phi + beta L phi
         r[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] = \
             f[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] - \
-            self.alpha*v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] + \
-            self.beta*(
-            (v[myg.ilo-1:myg.ihi  ,myg.jlo  :myg.jhi+1] +
-             v[myg.ilo+1:myg.ihi+2,myg.jlo  :myg.jhi+1] -
-             2.0*v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/(myg.dx*myg.dx) +
-            (v[myg.ilo  :myg.ihi+1,myg.jlo-1:myg.jhi  ] +
-             v[myg.ilo  :myg.ihi+1,myg.jlo+1:myg.jhi+2] -
-             2.0*v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/(myg.dy*myg.dy) )
+            self.alpha * v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] + \
+            self.beta * ( \
+            (v[myg.ilo-1:myg.ihi  ,myg.jlo  :myg.jhi+1] + \
+             v[myg.ilo+1:myg.ihi+2,myg.jlo  :myg.jhi+1] - \
+             2.0 * v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/(myg.dx**2) + \
+            (v[myg.ilo  :myg.ihi+1,myg.jlo-1:myg.jhi  ] + \
+             v[myg.ilo  :myg.ihi+1,myg.jlo+1:myg.jhi+2] - \
+             2.0*v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/(myg.dy**2) )
+
+        self.checkXSymmetry(r, myg.qx)
+        print('residual')
 
 
     def smooth(self, level, nsmooth):
@@ -615,6 +649,8 @@ class CellCenterMG2dRect:
 
                 if n == 1 or n == 3:
                     self.grids[level].fill_BC("v")
+            self.checkXSymmetry(v, myg.qx)
+            print('v')
 
 
             if self.vis == 1:
@@ -668,6 +704,10 @@ class CellCenterMG2dRect:
             print("source norm = ", self.source_norm)
 
         old_solution = self.grids[self.nlevels-1].get_var("v").copy()
+        myg = self.grids[self.nlevels-1].grid
+
+        self.checkXSymmetry(old_solution, myg.qx)
+        print('old solution')
 
         converged = 0
         cycle = 1
@@ -697,18 +737,26 @@ class CellCenterMG2dRect:
 
                 # access to the residual
                 r = fP.get_var("r")
+                print('fP - r before')
+                self.checkXSymmetry(fP.get_var("r"), fP.grid.qx)
+                print('fP - v before')
+                self.checkXSymmetry(fP.get_var("v"), fP.grid.qx)
 
-                if self.verbose:
-                    self._compute_residual(level)
 
-                    print("  level = %d, nx = %d, ny = %d" %  \
-                        (level, fP.grid.nx, fP.grid.ny))
-
-                    print("  before G-S, residual L2 norm = %g" % \
-                          (_error(fP.grid, r) ))
+                #if self.verbose:
+                #    self._compute_residual(level)
+#
+#                    print("  level = %d, nx = %d, ny = %d" %  \
+#                        (level, fP.grid.nx, fP.grid.ny))
+#
+#                    print("  before G-S, residual L2 norm = %g" % \
+#                          (_error(fP.grid, r) ))
 
                 # smooth on the current level
                 self.smooth(level, self.nsmooth)
+
+                print('fP - v after smooth')
+                self.checkXSymmetry(fP.get_var("v"), fP.grid.qx)
 
 
                 # compute the residual
@@ -718,10 +766,16 @@ class CellCenterMG2dRect:
                     print("  after G-S, residual L2 norm = %g\n" % \
                           (_error(fP.grid, r) ))
 
+                print('fP after')
+                self.checkXSymmetry(fP.get_var("r"), fP.grid.qx)
+
 
                 # restrict the residual down to the RHS of the coarser level
                 f_coarse = cP.get_var("f")
                 f_coarse[:,:] = fP.restrict("r")
+                print('fCoarse')
+                print(1.e5*f_coarse[:,2])
+                #self.checkXSymmetry(f_coarse, cP.grid.qx)
 
                 level -= 1
 
@@ -745,6 +799,10 @@ class CellCenterMG2dRect:
 
             bP.fill_BC("v")
 
+            print('v at bottom')
+            print(1.e5*bP.get_var("v")[:,2])
+            self.checkXSymmetry(bP.get_var("v"), bP.grid.qx)
+
 
             # ascending part
             level = 1
@@ -755,9 +813,14 @@ class CellCenterMG2dRect:
 
                 fP = self.grids[level]
                 cP = self.grids[level-1]
+                print('cP')
+                self.checkXSymmetry(cP.get_var("v"), cP.grid.qx)
 
                 # prolong the error up from the coarse grid
                 e = cP.prolong("v")
+
+                print('fP')
+                self.checkXSymmetry(e, fP.grid.qx)
 
                 # correct the solution on the current grid
                 v = fP.get_var("v")

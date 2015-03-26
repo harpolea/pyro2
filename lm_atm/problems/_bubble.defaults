@@ -1,5 +1,5 @@
 [bubble]
-dens_base = 10.0            ; density at the base of the atmosphere
+dens_base = 1.e8            ; density at the base of the atmosphere
 scale_height = 2.0          ; scale height of the isothermal atmosphere
 
 x_pert = 0.5

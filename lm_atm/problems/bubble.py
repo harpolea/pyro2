@@ -44,6 +44,8 @@ def init_data(my_data, base_data, rp, metric):
     grav = rp.get_param("lm-atmosphere.grav")
 
     gamma = rp.get_param("eos.gamma")
+    c = rp.get_param("lm-atmosphere.c")
+    R = rp.get_param("lm-atmosphere.radius")
 
     scale_height = rp.get_param("bubble.scale_height")
     dens_base = rp.get_param("bubble.dens_base")
@@ -68,9 +70,6 @@ def init_data(my_data, base_data, rp, metric):
 
     dens[:, myg.jlo:myg.jhi+1] = np.maximum(dens_base * \
         np.exp(-myg.y[myg.jlo:myg.jhi+1] / scale_height), dens_cutoff)
-
-
-    cs2 = scale_height*abs(grav)
 
     # set the pressure (P = cs2*dens)
     pres = dens[:,:]**gamma
@@ -100,18 +99,15 @@ def init_data(my_data, base_data, rp, metric):
 
 
     p0 = base_data.get_var("p0")
+    checkXSymmetry(dens, myg.qx)
 
     # redo the pressure via HSE
     #FIXME: need to divide by u0 here???
 
 
     p0[:] = (D0[:] + Dh0[:]) * (gamma - 1.) / (u0flat[:] * (2. - gamma))
-    p0[1:] = p0[:-1] + 0.5 * myg.dy * (D0[1:] + D0[:-1]) * grav/ \
-        (u0flat[1:] * myg.y[1:]**2)
-
-    #p0[myg.jlo+1:myg.jhi+1] = p0[myg.jlo:myg.jhi] + 0.5 * myg.dy * \
-    #    (D0[myg.jlo+1:myg.jhi+1] + D0[myg.jlo:myg.jhi]) * \
-    #    grav/myg.y[myg.jlo+1:myg.jhi+1]**2
+    p0[1:] = p0[:-1] + 0.5 * myg.dy * (Dh0[1:] + Dh0[:-1]) * grav/ \
+        (u0flat[1:] * c**2 * metric.alpha[1:]**2 * R)
 
 
     #fill ghost cells
@@ -124,6 +120,35 @@ def init_data(my_data, base_data, rp, metric):
     base_data.fill_BC("Dh0")
     base_data.fill_BC("p0")
 
+
+def checkXSymmetry(grid, nx):
+    """
+    Checks to see if a grid is symmetric in the x-direction.
+
+    Parameters
+    ----------
+    grid : float array
+        2d grid to be checked
+    nx :
+        grid x-dimension
+
+    Returns
+    -------
+    sym : boolean
+        whether or not the grid is symmetric
+    """
+
+
+
+    halfGrid = grid[-np.floor(nx/2):, :] - grid[np.floor(nx/2)-1::-1, :]
+    sym = True
+
+    if np.max(np.abs(halfGrid)) > 1.e-15:
+        print('\nOh no! An asymmetry has occured!\n')
+        print('Asymmetry has amplitude: ', np.max(np.abs(halfGrid)))
+        sym = False
+
+    #return sym
 
 def finalize():
     """ print out any information to the user at the end of the run """

@@ -8,6 +8,12 @@ cfl = 0.8
 
 [LM-atmosphere]
 
+limiter = 2               ; limiter (0 = none, 1 = 2nd order, 2 = 4th order)
+proj_type = 2             ; what are we projecting? 1 includes -Gp term in U*
+grav = 1.e16                ; GM/R = magnitude of Newtonian surface potential
+c = 3.e8                     ; speed of light
+radius = 1.4e4               ; radius of NS
+
 
 [io]
 basename = lm_bubble_64_
@@ -18,13 +24,11 @@ n_out = 1
 nx = 64
 ny = 64
 xmax = 1.0
-ymin = 12.0
-ymax = 13.0
-
+ymin = 0.0
+ymax = 1.0
 
 xlboundary = periodic
 xrboundary = periodic
-
 ylboundary = reflect
 yrboundary = outflow
 
@@ -33,3 +37,7 @@ yrboundary = outflow
 x_pert = 0.5
 y_pert = 0.5
 r_pert = 0.05
+
+
+[eos]
+gamma = 1.4    ; pres = rho ener (gamma - 1)

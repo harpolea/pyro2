@@ -52,7 +52,7 @@ class VarCoeffCCMG2d(MG.CellCenterMG2d):
                                    alpha=0.0, beta=0.0,
                                    nsmooth=nsmooth, nsmooth_bottom=nsmooth_bottom,
                                    verbose=verbose,
-                                   aux_field=["coeffs"], aux_bc=[coeffs_bc],
+                                   aux_field="coeffs", aux_bc=coeffs_bc,
                                    true_function=true_function, vis=vis,
                                    vis_title=vis_title)
 

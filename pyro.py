@@ -126,13 +126,14 @@ def doit(solver_name, problem_name, param_file,
             dt = tmax - sim.cc_data.t
 
         # evolve for a single timestep
+        #sys.exit()
         sim.evolve(dt)
 
 
         # increment the time
         sim.cc_data.t += dt
         n += 1
-        if verbose > 0: print("%5d %10.5f %10.5f" % (n, sim.cc_data.t, dt))
+        if verbose > 0: print("n: %5d,  t: %10.5f,  dt: %10.5f" % (n, sim.cc_data.t, dt))
 
 
         # output

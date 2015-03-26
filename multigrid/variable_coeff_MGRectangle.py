@@ -29,6 +29,9 @@ class _EdgeCoeffs:
         self.grid = g
 
         if not empty:
+            print('eta')
+            self.checkXSymmetry(eta, g.qx)
+
             eta_x = g.scratch_array()
             eta_y = g.scratch_array()
 
@@ -50,6 +53,36 @@ class _EdgeCoeffs:
             self.x = eta_x
             self.y = eta_y
 
+
+    @staticmethod
+    def checkXSymmetry(grid, nx):
+        """
+        Checks to see if a grid is symmetric in the x-direction.
+
+        Parameters
+        ----------
+        grid : float array
+            2d grid to be checked
+        nx :
+            grid x-dimension
+
+        Returns
+        -------
+        sym : boolean
+            whether or not the grid is symmetric
+        """
+
+        halfGrid = np.abs(grid[-np.floor(nx/2):, :]) - \
+            np.abs(grid[np.floor(nx/2)-1::-1, :])
+        sym = True
+
+        if np.max(np.abs(halfGrid)) > 1.e-15:
+            print('\nOh no! An asymmetry has occured!\n')
+            print('Asymmetry has amplitude: ', np.max(np.abs(halfGrid)))
+            sym = False
+            sys.exit()
+
+        #return sym
 
     def restrict(self):
         """
@@ -112,7 +145,8 @@ class VarCoeffCCMG2dRect(MG.CellCenterMG2dRect):
                                    xl_BC_type=xl_BC_type, xr_BC_type=xr_BC_type,
                                    yl_BC_type=yl_BC_type, yr_BC_type=yr_BC_type,
                                    alpha=0.0, beta=0.0,
-                                   nsmooth=nsmooth, nsmooth_bottom=nsmooth_bottom,
+                                   nsmooth=nsmooth,
+                                   nsmooth_bottom=nsmooth_bottom,
                                    verbose=verbose,
                                    aux_field="coeffs", aux_bc=coeffs_bc,
                                    true_function=true_function, vis=vis,
@@ -127,7 +161,8 @@ class VarCoeffCCMG2dRect(MG.CellCenterMG2dRect):
         self.grids[self.nlevels-1].fill_BC("coeffs")
 
         # put the coefficients on edges
-        self.edge_coeffs.insert(0, _EdgeCoeffs(self.grids[self.nlevels-1].grid, c))
+        self.edge_coeffs.insert(0,
+                    _EdgeCoeffs(self.grids[self.nlevels-1].grid, c))
 
         n = self.nlevels-2
         while n >= 0:
@@ -184,6 +219,9 @@ class VarCoeffCCMG2dRect(MG.CellCenterMG2dRect):
 
         eta_x = self.edge_coeffs[level].x
         eta_y = self.edge_coeffs[level].y
+
+        self.checkXSymmetry(v, myg.qx)
+        print('v, level ', level)
 
         #print('eta_x :', eta_x )
 
@@ -259,6 +297,7 @@ class VarCoeffCCMG2dRect(MG.CellCenterMG2dRect):
                       myg.jlo-1+iy:myg.jhi  :2]) / denom
 
 
+
                 if n == 1 or n == 3:
                     self.grids[level].fill_BC("v")
 
@@ -285,6 +324,10 @@ class VarCoeffCCMG2dRect(MG.CellCenterMG2dRect):
                 plt.savefig("mg_%4.4d.png" % (self.frame))
                 self.frame += 1
 
+            print('v post smooth')
+            self.checkXSymmetry(v, myg.qx)
+
+
 
     def _compute_residual(self, level):
         """ compute the residual and store it in the r variable"""
@@ -298,6 +341,13 @@ class VarCoeffCCMG2dRect(MG.CellCenterMG2dRect):
 
         eta_x = self.edge_coeffs[level].x
         eta_y = self.edge_coeffs[level].y
+
+        print('resf')
+        self.checkXSymmetry(f, myg.nx)
+        print('resv')
+        self.checkXSymmetry(v, myg.nx)
+        print('resr')
+        self.checkXSymmetry(r, myg.nx)
 
 
         # compute the residual
@@ -322,3 +372,6 @@ class VarCoeffCCMG2dRect(MG.CellCenterMG2dRect):
 
         r[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] = \
             f[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] - L_eta_phi
+
+        print('L_eta_phi')
+        self.checkXSymmetry(L_eta_phi, myg.nx)

@@ -91,6 +91,7 @@ class Metric:
         except FloatingPointError:
             msg.bold('\nError!')
             print('Tried to take the square root of a negative Lorentz factor! \nTry checking your velocities?\n')
+            print((u[-10:,-10:]**2 + v[-10:,-10:]**2)/c**2)
             sys.exit()
 
         return W
@@ -160,13 +161,15 @@ class Metric:
 
         christls = np.zeros((3,3,3))
 
-        r = self.cc_data.grid.y[x[2]]
-        g = (self.alpha[x[2]]**2 - 1.) * r**2 * 0.5
+        #r = self.cc_data.grid.y[x[2]]
+        g = self.rp.get_param("lm-atmosphere.grav")
+        R = self.rp.get_param("lm-atmosphere.radius")
+        c = self.rp.get_param("lm-atmosphere.c")
 
         #For simple time-lagged metric, only have 3 non-zero christoffels.
-        christls[0,0,2] = -g/(self.alpha[x[2]]**2 * r**2)
-        christls[0,2,0] = -g/(self.alpha[x[2]]**2 * r**2)
-        christls[2,0,0] = -g/r**2
+        christls[0,0,2] = -g/(self.alpha[x[2]]**2 * c**2 * R)
+        christls[0,2,0] = -g/(self.alpha[x[2]]**2 * c**2 * R)
+        christls[2,0,0] = g/(c**2 * R)
 
 
         # For non-simple, we have to do more icky stuff including time and space

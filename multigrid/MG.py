@@ -90,8 +90,6 @@ class CellCenterMG2d:
                  xmin=0.0, xmax=1.0, ymin=0.0, ymax=1.0,
                  xl_BC_type="dirichlet", xr_BC_type="dirichlet",
                  yl_BC_type="dirichlet", yr_BC_type="dirichlet",
-                 xl_BC=None, xr_BC=None,
-                 yl_BC=None, yr_BC=None,
                  alpha=0.0, beta=-1.0,
                  nsmooth=10, nsmooth_bottom=50,
                  verbose=0,
@@ -123,18 +121,6 @@ class CellCenterMG2d:
             boundary condition to enforce on lower y face
         yr_BC_type : {'neumann', 'dirichlet'}, optional
             boundary condition to enforce on upper y face
-        xl_BC : function, optional
-            function to call to get -x boundary values
-            (homogeneous assumed otherwise)
-        xr_BC : function, optional
-            function to call to get +x boundary values
-            (homogeneous assumed otherwise)
-        yl_BC : function, optional
-            function to call to get -y boundary values
-            (homogeneous assumed otherwise)
-        yr_BC : function, optional
-            function to call to get +y boundary values
-            (homogeneous assumed otherwise)
         alpha : float, optional
             coefficient in Helmholtz equation (alpha - beta L) phi = f
         beta : float, optional
@@ -147,11 +133,11 @@ class CellCenterMG2d:
             solve
         verbose : int, optional
             increase verbosity during the solve (for verbose=1)
-        aux_field : list of str, optional
-            extra fields to define and carry at each level.
+        aux_field : str, optional
+            an extra fields to define and carry at each level.
             Useful for subclassing.
-        aux_bc : list of BCObject, optional
-            the boundary conditions corresponding to the aux fields
+        aux_bc : BCObject, optional
+            the boundary conditions corresponding to the aux field
         true_function : function, optional
             a function (of x,y) that provides the exact solution to
             the elliptic problem we are solving.  This is used only
@@ -218,14 +204,14 @@ class CellCenterMG2d:
         # create the grids.  Here, self.grids[0] will be the coarsest
         # grid and self.grids[nlevel-1] will be the finest grid
         # we store the solution, v, the rhs, f.
+        i = 0
+        nx_t = ny_t = 2
 
         if self.verbose:
             print("alpha = ", self.alpha)
             print("beta  = ", self.beta)
 
-        nx_t = ny_t = 2
-            
-        for i in range(self.nlevels):
+        while i < self.nlevels:
 
             # create the grid
             my_grid = patch.Grid2d(nx_t, ny_t, ng=self.ng,
@@ -239,19 +225,13 @@ class CellCenterMG2d:
             bc = patch.BCObject(xlb=xl_BC_type, xrb=xr_BC_type,
                                 ylb=yl_BC_type, yrb=yr_BC_type)
 
-            # create the phi BC object
-            bc_p = patch.BCObject(xlb=xl_BC_type, xrb=xr_BC_type,
-                                  ylb=yl_BC_type, yrb=yr_BC_type,
-                                  xl_func=xl_BC, xr_func=xr_BC,
-                                  yl_func=yl_BC, yr_func=yr_BC)
-            
-            self.grids[i].register_var("v", bc_p)
+            self.grids[i].register_var("v", bc)
             self.grids[i].register_var("f", bc)
             self.grids[i].register_var("r", bc)
 
             if not aux_field == None:
-                for f, b in zip(aux_field, aux_bc):
-                    self.grids[i].register_var(f, b)
+                self.grids[i].register_var(aux_field, aux_bc)
+
 
             self.grids[i].create()
 
@@ -260,6 +240,8 @@ class CellCenterMG2d:
 
             nx_t = nx_t*2
             ny_t = ny_t*2
+
+            i += 1
 
 
         # provide coordinate and indexing information for the solution mesh
@@ -695,8 +677,10 @@ class CellCenterMG2d:
             self.current_cycle = cycle
 
             # zero out the solution on all but the finest grid
-            for level in range(self.nlevels-1):
+            level = 0
+            while level < self.nlevels-1:
                 v = self.grids[level].zero("v")
+                level += 1
 
             # descending part
             if self.verbose:
@@ -763,7 +747,8 @@ class CellCenterMG2d:
 
 
             # ascending part
-            for level in range(1,self.nlevels):
+            level = 1
+            while level < self.nlevels:
 
                 self.current_level = level
                 self.up_or_down = "up"
@@ -799,6 +784,7 @@ class CellCenterMG2d:
                     print("  after G-S, residual L2 norm = %g\n" % \
                           (_error(fP.grid, r) ))
 
+                level += 1
 
             # compute the error with respect to the previous solution
             # this is for diagnostic purposes only -- it is not used to
