@@ -124,9 +124,6 @@ def init_data(my_data, base_data, rp, metric):
     base_data.fill_BC("Dh0")
     base_data.fill_BC("p0")
 
-    print(p0[-20:])
-    print(p0[:20])
-
 
 def checkXSymmetry(grid, nx):
     """

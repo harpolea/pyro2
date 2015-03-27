@@ -99,7 +99,7 @@ def doit(solver_name, problem_name, param_file,
     plt.ion()
 
     if dovis == 1:
-        plt.figure(num=1, figsize=(8,6), dpi=100, facecolor='w')
+        plt.figure(num=1, figsize=(12,9), dpi=100, facecolor='w')
         sim.dovis()
 
         plt.show(block=False)

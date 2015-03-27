@@ -284,6 +284,39 @@ class CellCenterMG2d:
         self.vis_title = vis_title
         self.frame = 0
 
+
+
+    @staticmethod
+    def checkXSymmetry(grid, nx):
+        """
+        Checks to see if a grid is symmetric in the x-direction.
+
+        Parameters
+        ----------
+        grid : float array
+            2d grid to be checked
+        nx :
+            grid x-dimension
+
+        Returns
+        -------
+        sym : boolean
+            whether or not the grid is symmetric
+        """
+
+        halfGrid = np.abs(grid[-np.floor(nx/2.):, :]) - \
+            np.abs(grid[np.floor(nx/2.)-1::-1, :])
+        #sym = True
+
+        if np.max(np.abs(halfGrid)) > 1.e-14:
+            print('Oh no! An asymmetry has occured!')
+            print('Asymmetry has amplitude: ', np.max(np.abs(halfGrid)))
+            #sym = False
+
+        #return sym
+
+
+
     # these draw functions are for visualization purposes and are
     # not ordinarily used, except for plotting the progression of the
     # solution within the V
@@ -455,6 +488,9 @@ class CellCenterMG2d:
         gx[og.ilo:og.ihi+1,og.jlo:og.jhi+1] = \
             0.5*(v[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
                  v[myg.ilo-1:myg.ihi  ,myg.jlo:myg.jhi+1])/myg.dx
+
+        #print('gx')
+        #self.checkXSymmetry(gx,og.qx)
 
         gy[og.ilo:og.ihi+1,og.jlo:og.jhi+1] = \
             0.5*(v[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] -
@@ -745,6 +781,9 @@ class CellCenterMG2d:
 
             bP.fill_BC("v")
 
+            #print('bP v')
+            #self.checkXSymmetry(bP.get_var("v"), bP.grid.qy)
+
 
             # ascending part
             level = 1
@@ -801,6 +840,9 @@ class CellCenterMG2d:
             # compute the residual error, relative to the source norm
             self._compute_residual(self.nlevels-1)
             r = fP.get_var("r")
+
+            #print('v after')
+            #self.checkXSymmetry(solnP.get_var("v"), solnP.grid.qx)
 
             if self.source_norm != 0.0:
                 residual_error = _error(fP.grid, r)/self.source_norm
