@@ -10,6 +10,7 @@ import multigrid.variable_coeff_MG as vcMG
 import metric
 import sys
 from util import profile
+from util import msg
 import lm_atm_interface as lm_int
 import lm_atm.LM_atm_interface_f as lm_interface_f
 import mesh.reconstruction as reconstruction_f
@@ -409,11 +410,11 @@ class Simulation:
 
 
         # the timestep is min(dx/|u|, dy|v|)
-        xtmp = ytmp = 1.e-2
-        if not np.max(np.abs(u)) < 1.e-20:
+        xtmp = ytmp = 100.
+        if not np.max(np.abs(u)) < 1.e-5:
             xtmp = \
                 np.min(myg.dx/(np.abs(u[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])))
-        if not np.max(np.abs(v)) < 1.e-20:
+        if not np.max(np.abs(v)) < 1.e-5:
             ytmp = \
                 np.min(myg.dy/(np.abs(v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])))
 
@@ -432,9 +433,10 @@ class Simulation:
 
         F_buoy = np.max([np.max(Dprime[:,:] * g / (D[:,:] * R * c**2 * \
                         self.metric.alpha[np.newaxis,:]**2)), 1.e-20])
-        print(np.max(self.metric.alpha))
+        #print(np.max(self.metric.alpha))
 
         dt_buoy = np.sqrt(2.0*myg.dy/F_buoy)
+        #print('dt: ', dt)
 
         dt = min(dt, dt_buoy)
         #print("timestep is {}".format(dt))
@@ -864,8 +866,7 @@ class Simulation:
 
         mg.init_RHS(div_zeta_U[:,:] - \
             constraint[myg.ilo-1:myg.ihi+2, myg.jlo-1:myg.jhi+2])
-        #mg.solve(rtol=1.e-12)
-        mg.solve(1.e-12)
+        mg.solve(rtol=1.e-12)
 
         #print('divZetaU')
         #self.checkXSymmetry(div_zeta_U[:,:], myg.qx)
@@ -1092,8 +1093,6 @@ class Simulation:
                 dt*advect_y[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]
 
         # add the gravitational source (and pressure source)
-
-        # CHANGED: Have added pressure terms to this.
         u0 = self.metric.calcu0()
         gamma = self.rp.get_param("eos.gamma")
         p0 = self.base_data.get_var("p0")
@@ -1118,23 +1117,19 @@ class Simulation:
             0.5 * (p0[np.newaxis, myg.jlo+1:myg.jhi+2] - \
             p0[np.newaxis, myg.jlo-1:myg.jhi]) / myg.dy
 
-        drp0[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] = \
-            -Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * g / \
-            (u0[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * c**2 * R * \
-            self.metric.alpha[np.newaxis, myg.jlo:myg.jhi+1]**2)
+        #drp0[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] = \
+        #    -Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * g / \
+        #    (u0[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * c**2 * R * \
+        #    self.metric.alpha[np.newaxis, myg.jlo:myg.jhi+1]**2)
 
         # cell-centred
         pressureSource[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] = \
-            drp0[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] + \
-            0.5 * xi[np.newaxis, myg.jlo:myg.jhi+1] * \
+            drp0[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] \
+            + 0.5 * xi[np.newaxis, myg.jlo:myg.jhi+1] * \
             (pi[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] / \
             xi[np.newaxis,myg.jlo+1:myg.jhi+2] - \
             pi[myg.ilo:myg.ihi+1,myg.jlo-1:myg.jhi] / \
             xi[np.newaxis,myg.jlo-1:myg.jhi])/myg.dy
-            #-Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * g / \
-            #(u0[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            #(myg.y[np.newaxis, myg.jlo:myg.jhi+1] * \
-            #self.metric.alpha[np.newaxis,myg.jlo:myg.jhi+1])**2) + \
 
 
         print("min/max u   = {}, {}".format(np.min(u), np.max(u)))
@@ -1142,7 +1137,7 @@ class Simulation:
         print("min/max u0   = {}, {}".format(np.min(u0), np.max(u0)))
 
         # dx pi
-        # cell-centred
+        #cell-centred
         xpressureSource[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] = \
             0.5 * (pi[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] - \
             pi[myg.ilo-1:myg.ihi,myg.jlo:myg.jhi+1])/myg.dx
@@ -1172,8 +1167,7 @@ class Simulation:
         #calculate the sound speed
         cs = myg.scratch_array()
         gamma = self.rp.get_param("eos.gamma")
-        cs[:,:] = gamma * (gamma - 1.) / (2. - gamma)
-        cs[:,:] *= (D[:,:] + Dh[:,:]) / D[:,:]
+        cs[:,:] = gamma * D[:,:]**(gamma - 1.)
         cs[:,:] = np.sqrt(np.abs(cs[:,:]))
 
         print("min/max c_s   = {}, {}".format(np.min(cs), np.max(cs)))
@@ -1182,6 +1176,10 @@ class Simulation:
         speed = np.sqrt(u[:,:]**2 + v[:,:]**2)
         M = speed[:,:]/cs[:,:]
         print("min/max M   = {}, {}".format(np.min(M), np.max(M)))
+
+        if np.max(M) > 0.2:
+            msg.bold('\nWarning!')
+            print('Mach number is ', np.max(M), '- simulation will be less accurate.\n')
 
         #---------------------------------------------------------------------
         # React full and base states through second half timestep
@@ -1250,19 +1248,10 @@ class Simulation:
         # this differs depending on what we projected.
         gradphi_x, gradphi_y = mg.get_solution_gradient(grid=myg)
 
-        #print('phi')
-        #self.checkXSymmetry(phi, myg.qx)
-
-        #print('gradphi_x')
-        #self.checkXSymmetry(gradphi_x[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1], myg.nx)
-
-
         # U = U - (zeta/Dhu0) grad (phi/zeta)
         u0 = self.metric.calcu0()
         coeff = 1.0/(Dh[:,:] * u0[:,:])
         coeff[:,:] *= zeta[np.newaxis,:]
-        #self.aux_data.fill_BC("coeff")
-
 
         u[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * \
             coeff[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
@@ -1348,10 +1337,8 @@ class Simulation:
         fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.25)
 
-
         fields = [D, magvel, u, v]
         field_names = [r"$D$", r"$|U|$", r"$u$", r"$v$"]
-
 
         for n in range(len(fields)):
 

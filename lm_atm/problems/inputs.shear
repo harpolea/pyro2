@@ -16,38 +16,28 @@ radius = 1.4e4               ; radius of NS
 
 
 [io]
-basename = lm_bubble_64_   ; basename for output files
-dt_out = 0.1               ; simulation time between writing output files
-n_out = 20                 ; number of timesteps between writing output files
-do_io = 1                  ; do we output at all?
-
-[vis]
-
-dovis = 1                  ; runtime visualization? (1=yes, 0=no)
-store_images = 0           ; store vis images to files (1=yes, 0=no)
+basename = shear_128_
+n_out = 1
 
 
 [mesh]
-nx = 64
-ny = 64
-xmax = 10.0
-ymin = 0.0
-ymax = 10.0
+nx = 128
+ny = 128
+xmax = 1.0
+ymax = 1.0
 
 xlboundary = periodic
 xrboundary = periodic
+
 ylboundary = reflect
 yrboundary = outflow
 
 
-[bubble]
+[shear]
+rho_s = 42.
+delta_s = 0.005
+dens_cutoff  = 0.01
 dens_base = 1.e8            ; density at the base of the atmosphere
-scale_height = 20.0          ; scale height of the isothermal atmosphere
-x_pert = 5.
-y_pert = 5.
-r_pert = 0.7
-pert_amplitude_factor = 20.
-
 
 [eos]
 gamma = 1.4    ; pres = rho ener (gamma - 1)

@@ -7,7 +7,7 @@ from util import msg
 
 def init_data(my_data, base_data, rp, metric):
     """
-    initialize the bubble problem
+    initialize the sinusoid problem
 
     Parameters
     ----------
@@ -21,16 +21,16 @@ def init_data(my_data, base_data, rp, metric):
         metric for simulation
     """
 
-    msg.bold("initializing the bubble problem...")
+    msg.bold("initializing the sinusoid problem...")
 
     # make sure that we are passed a valid patch object
     if not isinstance(my_data, patch.CellCenterData2d):
-        print("ERROR: patch invalid in bubble.py")
+        print("ERROR: patch invalid in sine.py")
         print(my_data.__class__)
         sys.exit()
 
     if not isinstance(base_data, patch.CellCenterData1d):
-        print("ERROR: patch invalid in bubble.py")
+        print("ERROR: patch invalid in sine.py")
         print(base_data.__class__)
         sys.exit()
 
@@ -47,18 +47,16 @@ def init_data(my_data, base_data, rp, metric):
     c = rp.get_param("lm-atmosphere.c")
     R = rp.get_param("lm-atmosphere.radius")
 
-    #scale_height = rp.get_param("bubble.scale_height")
-    dens_base = rp.get_param("bubble.dens_base")
-    dens_cutoff = rp.get_param("bubble.dens_cutoff")
-
-    x_pert = rp.get_param("bubble.x_pert")
-    y_pert = rp.get_param("bubble.y_pert")
-    r_pert = rp.get_param("bubble.r_pert")
-    pert_amplitude_factor = rp.get_param("bubble.pert_amplitude_factor")
+    #scale_height = rp.get_param("sine.scale_height")
+    dens_base = rp.get_param("sine.dens_base")
+    dens_cutoff = rp.get_param("sine.dens_cutoff")
+    initial_xvel = rp.get_param("sine.initial-xvel")
+    pert_amplitude_factor = rp.get_param("sine.pert_amplitude_factor")
+    period = rp.get_param("sine.period")
 
     # initialize the components -- we'll get a pressure too
     # but that is used only to initialize the base state
-    xvel[:,:] = 0.0
+    xvel[:,:] = initial_xvel
     yvel[:,:] = 0.0
     dens[:,:] = dens_cutoff
     u0 = metric.calcu0()
@@ -86,22 +84,11 @@ def init_data(my_data, base_data, rp, metric):
     D0[:] = np.mean(dens[:,:] * u0[:,:], axis=0)
     Dh0[:] = np.mean(enth[:,:] * u0[:,:] * dens[:,:], axis=0)
 
-    for i in range(myg.ilo, myg.ihi+1):
-        for j in range(myg.jlo, myg.jhi+1):
-
-            r = np.sqrt((myg.x[i] - (x_pert+myg.xmin))**2  \
-                + (myg.y[j] - (y_pert+myg.ymin))**2)
-
-            if r <= r_pert:
-                # boost the specific internal energy, keeping the pressure
-                # constant by dropping the density
-                #eint[i,j] *= (1. + (pert_amplitude_factor-1.)*(r_pert-r)/r_pert)
-                eint[i,j] *= pert_amplitude_factor
-                dens[i,j] = pres[i,j]/(eint[i,j]*(gamma - 1.0))
-                enth[i,j] = eint[i,j] + pres[i,j]/dens[i,j]
+    dens[myg.ilo:myg.ihi+1,:] *= 1 + pert_amplitude_factor * \
+        np.sin(np.pi * myg.x[myg.ilo:myg.ihi+1, np.newaxis] / \
+        (myg.xmax * period))
 
     p0 = base_data.get_var("p0")
-    checkXSymmetry(dens, myg.qx)
 
     # base pressure
 
