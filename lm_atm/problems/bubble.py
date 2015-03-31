@@ -75,7 +75,7 @@ def init_data(my_data, base_data, rp, metric):
         metric.alpha[np.newaxis,myg.jlo:myg.jhi+1]**2))
 
     # set the pressure (P = cs2*dens)
-    pres = dens[:,:]**gamma
+    pres = (dens[:,:])**gamma
     eint[:,:] = pres[:,:] /((gamma - 1.0) * dens[:,:])
     enth[:,:] = eint[:,:] + pres[:,:]/dens[:,:]
 
@@ -100,18 +100,18 @@ def init_data(my_data, base_data, rp, metric):
                 dens[i,j] = pres[i,j]/(eint[i,j]*(gamma - 1.0))
                 enth[i,j] = eint[i,j] + pres[i,j]/dens[i,j]
 
-    p0 = base_data.get_var("p0")
-    checkXSymmetry(dens, myg.qx)
-
     # base pressure
-
-    p0[:] = (D0[:]/u0flat[:])**gamma
+    p0 = base_data.get_var("p0")
+    p0[:] = (D0[:] /u0flat[:])**gamma
 
     base_data.fill_BC("p0")
 
     for i in range(myg.jlo,myg.jhi+1):
         p0[i] = p0[i-1] - myg.dy * grav * Dh0[i]/(u0flat[i] * \
             c**2 * metric.alpha[i]**2 * R)
+
+    print('pressure: ', pres[20,10:20])
+    print('p0: ', p0[10:20])
 
     #multiply by correct u0s
     dens[:,:] *= u0[:,:] #rho * u0

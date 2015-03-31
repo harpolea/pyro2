@@ -88,12 +88,12 @@ def doit(solver_name, problem_name, param_file,
 
     plt.ion()
 
-    n = 0
+    sim.cc_data.n = 0
     sim.cc_data.t = 0.0
 
     # output the 0th data
     basename = rp.get_param("io.basename")
-    sim.cc_data.write(basename + "%4.4d" % (n))
+    sim.cc_data.write(basename + "%4.4d" % (sim.cc_data.n))
 
     dovis = rp.get_param("vis.dovis")
     plt.ion()
@@ -106,7 +106,7 @@ def doit(solver_name, problem_name, param_file,
 
     nout = 0
 
-    while sim.cc_data.t < tmax and n < max_steps:
+    while sim.cc_data.t < tmax and sim.cc_data.n < max_steps:
 
         # fill boundary conditions
         tm_bc = tc.timer("fill_bc")
@@ -119,7 +119,7 @@ def doit(solver_name, problem_name, param_file,
         if fix_dt > 0.0:
             dt = fix_dt
         else:
-            if n == 0:
+            if sim.cc_data.n == 0:
                 dt = init_tstep_factor*dt
                 dt_old = dt
             else:
@@ -136,8 +136,8 @@ def doit(solver_name, problem_name, param_file,
 
         # increment the time
         sim.cc_data.t += dt
-        n += 1
-        if verbose > 0: print("n: %5d,  t: %10.5f,  dt: %10.5f" % (n, sim.cc_data.t, dt))
+        sim.cc_data.n += 1 
+        if verbose > 0: print("n: %5d,  t: %10.5f,  dt: %10.5f" % (sim.cc_data.n, sim.cc_data.t, dt))
 
 
         # output
@@ -145,14 +145,14 @@ def doit(solver_name, problem_name, param_file,
         n_out = rp.get_param("io.n_out")
         do_io = rp.get_param("io.do_io")
 
-        if (sim.cc_data.t >= (nout + 1)*dt_out or n%n_out == 0) and do_io == 1:
+        if (sim.cc_data.t >= (nout + 1)*dt_out or sim.cc_data.n%n_out == 0) and do_io == 1:
 
             tm_io = tc.timer("output")
             tm_io.begin()
 
             if verbose > 0: msg.warning("outputting...")
             basename = rp.get_param("io.basename")
-            sim.cc_data.write(basename + "%4.4d" % (n))
+            sim.cc_data.write(basename + "%4.4d" % (sim.cc_data.n))
             nout += 1
 
             tm_io.end()
@@ -170,7 +170,7 @@ def doit(solver_name, problem_name, param_file,
 
             if store == 1:
                 basename = rp.get_param("io.basename")
-                plt.savefig(basename + "%4.4d" % (n) + ".png")
+                plt.savefig(basename + "%4.4d" % (sim.cc_data.n) + ".png")
 
             tm_vis.end()
 
@@ -181,7 +181,7 @@ def doit(solver_name, problem_name, param_file,
     #-------------------------------------------------------------------------
     # are we comparing to a benchmark?
     if comp_bench:
-        compare_file = solver_name + "/tests/" + basename + "%4.4d" % (n)
+        compare_file = solver_name + "/tests/" + basename + "%4.4d" % (sim.cc_data.n)
         msg.warning("comparing to: %s " % (compare_file) )
         try: bench_grid, bench_data = patch.read(compare_file)
         except:
@@ -204,14 +204,14 @@ def doit(solver_name, problem_name, param_file,
             except:
                 msg.fail("ERROR: unable to create the solver's tests/ directory")
 
-        bench_file = solver_name + "/tests/" + basename + "%4.4d" % (n)
+        bench_file = solver_name + "/tests/" + basename + "%4.4d" % (sim.cc_data.n)
         msg.warning("storing new benchmark: %s\n " % (bench_file) )
         sim.cc_data.write(bench_file)
 
     # increment the time
     sim.cc_data.t += dt
-    n += 1
-    print("n: %5d,  t: %10.5f,  dt: %10.5f" % (n, sim.cc_data.t, dt))
+    sim.cc_data.n += 1
+    print("n: %5d,  t: %10.5f,  dt: %10.5f" % (sim.cc_data.n, sim.cc_data.t, dt))
 
 
     #-------------------------------------------------------------------------

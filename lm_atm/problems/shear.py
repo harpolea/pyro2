@@ -76,15 +76,15 @@ def init_data(my_data,base_data, rp, metric):
     for j in range(myg.jlo, myg.jhi+1):
 
         if (myg.y[j] <= y_half):
-            u[:,j] = np.tanh(rho_s * (myg.y[np.newaxis,j] - 0.25))
-            dens[:,j] = dens_base * (1.+ 0.1 * np.tanh(rho_s * \
+            u[:,j] = 1.*np.tanh(rho_s * (myg.y[np.newaxis,j] - 0.25))
+            dens[:,j] = dens_base * (1.+ 0.01 * np.tanh(rho_s * \
                 (myg.y[np.newaxis,j] - 0.25)))
         else:
-            u[:,j] = np.tanh(rho_s * (0.75 - myg.y[np.newaxis,j]))
-            dens[:,j] = dens_base * (1. + 0.1 * np.tanh(rho_s * \
+            u[:,j] = 1.*np.tanh(rho_s * (0.75 - myg.y[np.newaxis,j]))
+            dens[:,j] = dens_base * (1. + 0.01 * np.tanh(rho_s * \
                 (0.75 - myg.y[np.newaxis,j])))
 
-        v[:,j] = delta_s * np.sin(2.0 * np.pi * myg.x[:])
+        v[:,j] = delta_s * np.sin(2.0 * np.pi * myg.x[:] + 0.5*np.pi)
 
     print("extrema: ", np.min(u.flat), np.max(u.flat))
 
@@ -109,7 +109,7 @@ def init_data(my_data,base_data, rp, metric):
         msg.fail("ERROR: domain should be a unit square")
 
     #multiply by correct u0s
-    #dens[:,:] *= u0[:,:] #rho * u0
+    dens[:,:] *= u0[:,:] #rho * u0
     enth[:,:] *= u0[:,:] * dens[:,:] #rho * h * u0
 
     #fill ghost cells

@@ -16,7 +16,7 @@ radius = 1.4e4               ; radius of NS
 
 
 [io]
-basename = lm_bubble_64_   ; basename for output files
+basename = lm_sine_64_   ; basename for output files
 dt_out = 0.1               ; simulation time between writing output files
 n_out = 20                 ; number of timesteps between writing output files
 do_io = 1                  ; do we output at all?
@@ -28,11 +28,11 @@ store_images = 0           ; store vis images to files (1=yes, 0=no)
 
 
 [mesh]
-nx = 128
-ny = 128
-xmax = 10.0
+nx = 64
+ny = 64
+xmax = 1.0
 ymin = 0.0
-ymax = 10.0
+ymax = 1.0
 
 xlboundary = periodic
 xrboundary = periodic
@@ -46,7 +46,7 @@ scale_height = 20.0          ; scale height of the isothermal atmosphere
 pert_amplitude_factor = 0.5
 dens_cutoff  = 0.01
 initial-xvel = 1.
-period = 1.              ; period as fraction of x-domain size
+period = 0.5              ; period as fraction of x-domain size
 
 
 [eos]

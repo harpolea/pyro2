@@ -2,7 +2,6 @@ from __future__ import print_function
 
 import numpy as np
 import matplotlib.pyplot as plt
-#import lm_atm.problems.bubble as bubble
 
 from lm_atm.problems import *
 import mesh.patch as patch
@@ -177,8 +176,7 @@ class Simulation:
         g = self.rp.get_param("lm-atmosphere.grav")
         c = self.rp.get_param("lm-atmosphere.c")
         R = self.rp.get_param("lm-atmosphere.radius")
-        alpha = np.sqrt(1. - \
-                2. * g * (1. - myg.y[:]/R)/ c**2)
+        alpha = np.sqrt(1. - 2. * g * (1. - myg.y[:]/R)/ c**2)
         beta = [0., 0.] #really flat
         gamma = np.eye(2) #extremely flat
         self.metric = metric.Metric(self.cc_data, self.rp, alpha, beta, gamma)
@@ -243,14 +241,11 @@ class Simulation:
 
         halfGrid = np.abs(grid[-np.floor(nx/2.):, :]) - \
             np.abs(grid[np.floor(nx/2.)-1::-1, :])
-        sym = True
 
         if np.max(np.abs(halfGrid)) > 1.e-14:
             print('Oh no! An asymmetry has occured!')
             print('Asymmetry has amplitude: ', np.max(np.abs(halfGrid)))
-            sym = False
 
-        #return sym
 
 
 
@@ -271,12 +266,10 @@ class Simulation:
         #find variables
         p0 = self.base_data.get_var("p0")
         gamma = self.rp.get_param("eos.gamma")
-        #sg, sgamma = self.metric.dets()
-        #sgflat = self.lateralAvg(sg)
-
         # xi = exp(ln p0 / Gamma1)
         xi = self.base_data.get_var("xi")
         xi_edges = self.base_data.get_var("xi-edges")
+
         try:
             xi[myg.jlo:myg.jhi+1] = np.exp(np.log(p0[myg.jlo:myg.jhi+1]) / \
                 gamma)
@@ -358,7 +351,6 @@ class Simulation:
         g = self.rp.get_param("lm-atmosphere.grav")
         c = self.rp.get_param("lm-atmosphere.c")
         R = self.rp.get_param("lm-atmosphere.radius")
-        #Gamma1 = gamma for our EoS.
         gamma = self.rp.get_param("eos.gamma")
         v = self.cc_data.get_var("y-velocity")
 
@@ -422,24 +414,14 @@ class Simulation:
 
         # We need an alternate timestep that accounts for buoyancy to
         # handle the case where the velocity is initially zero.
-
-        # FIXME: Need to do this relativistically!!!!!!!!!!!!
         g = self.rp.get_param("lm-atmosphere.grav")
         R = self.rp.get_param("lm-atmosphere.radius")
         c = self.rp.get_param("lm-atmosphere.c")
-        D = self.cc_data.get_var("density")
-        D0 = self.cc_data.get_var("density")
-        Dprime = self.make_prime(D, D0)
 
-        F_buoy = np.max([np.max(Dprime[:,:] * g / (D[:,:] * R * c**2 * \
-                        self.metric.alpha[np.newaxis,:]**2)), 1.e-20])
-        #print(np.max(self.metric.alpha))
-
+        F_buoy = np.max([np.max(g / (R * c**2)), 1.e-20])
         dt_buoy = np.sqrt(2.0*myg.dy/F_buoy)
-        #print('dt: ', dt)
 
         dt = min(dt, dt_buoy)
-        #print("timestep is {}".format(dt))
 
         return dt
 
@@ -460,10 +442,8 @@ class Simulation:
         c = self.rp.get_param("lm-atmosphere.c")
         R = self.rp.get_param("lm-atmosphere.radius")
         myg = self.cc_data.grid
-        #r = np.array([myg.y,] * myg.qx) + R
         D = self.cc_data.get_var("density")
         Dh = self.cc_data.get_var("enthalpy")
-        #u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
         D0 = self.base_data.get_var("D0")
         Dh0 = self.base_data.get_var("Dh0")
@@ -477,27 +457,21 @@ class Simulation:
             v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] )
 
         Dh0[myg.jlo:myg.jhi+1] += dt * 0.5 * \
-            self.lateralAvg(-Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+            self.lateralAvg(-(Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] + \
+            Dh0[np.newaxis,myg.jlo:myg.jhi+1]) * \
             christfl[np.newaxis,myg.jlo:myg.jhi+1] * \
-            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]  - \
-            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            Dh0[np.newaxis,myg.jlo:myg.jhi+1] * g / \
-            (c**2 * R * \
-            self.metric.alpha[np.newaxis,myg.jlo:myg.jhi+1]**2) )
+            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] )
 
         D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt * 0.5 * \
             D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
             v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
             christfl[np.newaxis,myg.jlo:myg.jhi+1]
 
-        Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] += dt * 0.5 * (\
-            -Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
+        Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] += dt * 0.5 * ( \
+            -(Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] + \
+            Dh0[np.newaxis,myg.jlo:myg.jhi+1]) * \
             v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            christfl[np.newaxis,myg.jlo:myg.jhi+1] - \
-            v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
-            Dh0[np.newaxis,myg.jlo:myg.jhi+1] * g / \
-            (c**2 * R * \
-            self.metric.alpha[np.newaxis,myg.jlo:myg.jhi+1]**2) )
+            christfl[np.newaxis,myg.jlo:myg.jhi+1])
 
 
         #fill ghostcells
@@ -541,7 +515,6 @@ class Simulation:
 
         myg = self.cc_data.grid
 
-        #D = self.cc_data.get_var("density")
         Dh = self.cc_data.get_var("enthalpy")
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
@@ -600,7 +573,6 @@ class Simulation:
         # D(zeta^2/Dhu0) G (phi/zeta) + zeta(S - dp/dt / Gamma1*p)= D( zeta U )
 
         # set the RHS to div_xi_U - xi(S -...) and solve
-        #p0 = self.base_data.get_var("p0")
         constraint = self.calcConstraint(zeta)
         mg.init_RHS(div_zeta_U[:,:] -\
             constraint[myg.ilo-1:myg.ihi+2, myg.jlo-1:myg.jhi+2])
@@ -697,9 +669,6 @@ class Simulation:
         phi = self.cc_data.get_var("phi")
 
         myg = self.cc_data.grid
-        #self.checkXSymmetry(D, myg.qx)
-        #self.checkXSymmetry(Dh, myg.qx)
-
 
         #---------------------------------------------------------------------
         # create the limited slopes of D, Dh, u and v (in both directions)
@@ -733,7 +702,6 @@ class Simulation:
         g = self.rp.get_param("lm-atmosphere.grav")
         R = self.rp.get_param("lm-atmosphere.radius")
         c = self.rp.get_param("lm-atmosphere.c")
-        #r = np.array([myg.y,] * myg.qx) + R
 
         #---------------------------------------------------------------------
         # React full and base states through first half timestep
@@ -783,22 +751,16 @@ class Simulation:
 
         # create the source term
         source = self.aux_data.get_var("source_y")
-        """
-        #g = self.rp.get_param("lm-atmosphere.grav")
-        Dprime = self.make_prime(D, D0)
-
-        source[:,:] = Dprime*g/D
-        """
 
         """
         Have attempted to do this relativistically.
 
         Source here is given by -U_j Dlnu0/Dt + Gamma_{rho nu j} U^nu U^rho.
-        The second term in our simple metric is just g/c^2 R.
+        The second term in our simple metric is just -g/c^2 R.
         The first term presents some difficulty so shall try to ignore it for
         now.
         """
-        source[:,:] = g  / (c**2 * R)
+        source[:,:] = -g  / (c**2 * R)
         self.aux_data.fill_BC("source_y")
 
         #u_MAC, v_MAC = lm_int.mac_vels(myg, dt, u, v, ldelta_ux, ldelta_vx,
@@ -844,7 +806,7 @@ class Simulation:
                                  ymin=myg.ymin, ymax=myg.ymax,
                                  coeffs=coeff,
                                  coeffs_bc=self.cc_data.BCs["density"],
-                                 verbose=0)
+                                 verbose=0, nsmooth=20)
 
         # first compute div{zeta U}
         div_zeta_U = mg.soln_grid.scratch_array()
@@ -861,16 +823,10 @@ class Simulation:
 
         # solve the Poisson problem
         constraint = self.calcConstraint(zeta)
-        #print('constraint')
-        #self.checkXSymmetry(constraint, myg.qx)
 
         mg.init_RHS(div_zeta_U[:,:] - \
             constraint[myg.ilo-1:myg.ihi+2, myg.jlo-1:myg.jhi+2])
         mg.solve(rtol=1.e-12)
-
-        #print('divZetaU')
-        #self.checkXSymmetry(div_zeta_U[:,:], myg.qx)
-
 
 
         # update the normal velocities with the pressure gradient -- these
@@ -923,9 +879,6 @@ class Simulation:
 
         D0_xint, D0_yint = lm_int.D_states(myg, dt, D02d, u_MAC,
                             v_MAC, ldelta_r0x, ldelta_r0y)
-        #print('D symmetry')
-        #self.checkXSymmetry(D, myg.qx)
-
 
         #D_xint, D_yint are on edges, D cell-centred.
         D[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] -= dt*(
@@ -1035,8 +988,7 @@ class Simulation:
             lm_int.states(myg, dt, u, v, ldelta_ux, ldelta_vx,
                                  ldelta_uy, ldelta_vy,
                                  coeff*gradp_x, coeff*gradp_y,
-                                 source,
-                                 u_MAC, v_MAC)
+                                 source, u_MAC, v_MAC)
 
 
         #---------------------------------------------------------------------
@@ -1098,39 +1050,48 @@ class Simulation:
         p0 = self.base_data.get_var("p0")
         self.updateXi(self.cc_data.grid)
         xi = self.base_data.get_var("xi")
+        gradpi_x = myg.scratch_array()
+        gradpibyxi_y = myg.scratch_array()
+        xi2d = np.array([xi,] * np.size(xi))
 
-        try:
-            pi = self.make_prime((D[:,:] / u0[:,:])**gamma, p0[:])
-        except FloatingPointError:
-            print('D min:', np.min(D[:,:]))
-            print('u0 min:', np.min(u0[:,:]))
-            print('D/u0: ', np.min(D[:,:]/u0[:,:]))
-            sys.exit()
+        #predict xi to edges by first finding limited slopes
+        ldelta_xix = limitFunc(1, xi2d, myg)
+        ldelta_xiy = limitFunc(2, xi2d, myg)
+
+        # FIXME: should you use MAC velocities/phi or advected ones??
+        xi_xint, xi_yint = lm_int.D_states(myg, dt, xi2d, u_MAC, v_MAC,
+                                           ldelta_xix, ldelta_xiy)
+
+        #edge-centered pi given by phi_MAC/delta t, so find gradpi:
+        gradpi_x[myg.ilo:myg.ihi+1, myg.jlo:myg.jhi+1] = \
+            (phi_MAC[myg.ilo+1:myg.ihi+2, myg.jlo:myg.jhi+1] - \
+            phi_MAC[myg.ilo:myg.ihi+1, myg.jlo:myg.jhi+1]) / (myg.dx * dt)
+        gradpibyxi_y[myg.ilo:myg.ihi+1, myg.jlo:myg.jhi+1] = \
+            (phi_MAC[myg.ilo:myg.ihi+1, myg.jlo+1:myg.jhi+2] / \
+            xi_yint[myg.ilo:myg.ihi+1, myg.jlo+1:myg.jhi+2] - \
+            phi_MAC[myg.ilo:myg.ihi+1, myg.jlo:myg.jhi+1] / \
+            xi_yint[myg.ilo:myg.ihi+1, myg.jlo:myg.jhi+1]) / (myg.dy * dt)
+
 
         pressureSource = myg.scratch_array()
-        xpressureSource = myg.scratch_array()
         drp0 = myg.scratch_array()
 
         # drp0 + xi*dr(pi/xi)
         # cell-centred
-        drp0[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] = \
-            0.5 * (p0[np.newaxis, myg.jlo+1:myg.jhi+2] - \
-            p0[np.newaxis, myg.jlo-1:myg.jhi]) / myg.dy
-
         #drp0[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] = \
-        #    -Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * g / \
-        #    (u0[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * c**2 * R * \
-        #    self.metric.alpha[np.newaxis, myg.jlo:myg.jhi+1]**2)
+        #    0.5 * (p0[np.newaxis, myg.jlo+1:myg.jhi+2] - \
+        #    p0[np.newaxis, myg.jlo-1:myg.jhi]) / myg.dy
+
+        drp0[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] = \
+            -Dh0[np.newaxis,myg.jlo:myg.jhi+1] * g / \
+            (u0[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * c**2 * R * \
+            self.metric.alpha[np.newaxis, myg.jlo:myg.jhi+1]**2)
 
         # cell-centred
         pressureSource[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] = \
             drp0[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] \
-            + 0.5 * xi[np.newaxis, myg.jlo:myg.jhi+1] * \
-            (pi[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] / \
-            xi[np.newaxis,myg.jlo+1:myg.jhi+2] - \
-            pi[myg.ilo:myg.ihi+1,myg.jlo-1:myg.jhi] / \
-            xi[np.newaxis,myg.jlo-1:myg.jhi])/myg.dy
-
+            + xi[np.newaxis, myg.jlo:myg.jhi+1] * \
+            gradpibyxi_y[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]
 
         print("min/max u   = {}, {}".format(np.min(u), np.max(u)))
         print("min/max v   = {}, {}".format(np.min(v), np.max(v)))
@@ -1138,12 +1099,8 @@ class Simulation:
 
         # dx pi
         #cell-centred
-        xpressureSource[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] = \
-            0.5 * (pi[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] - \
-            pi[myg.ilo-1:myg.ihi,myg.jlo:myg.jhi+1])/myg.dx
-
         u[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] += dt * \
-            -xpressureSource[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] / \
+            -gradpi_x[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] / \
             (Dh[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] * \
             u0[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])
 
@@ -1164,17 +1121,17 @@ class Simulation:
         print("min/max v   = {}, {}".format(np.min(v), np.max(v)))
 
 
-        #calculate the sound speed
-        cs = myg.scratch_array()
+        # calculate the sound speed using base density as
         gamma = self.rp.get_param("eos.gamma")
-        cs[:,:] = gamma * D[:,:]**(gamma - 1.)
+        u0 = self.metric.calcu0()
+        cs = gamma * (D0[np.newaxis,:]/u0[:,:])**(gamma - 1.)
         cs[:,:] = np.sqrt(np.abs(cs[:,:]))
 
         print("min/max c_s   = {}, {}".format(np.min(cs), np.max(cs)))
 
-        #calculate and print Mach number
-        speed = np.sqrt(u[:,:]**2 + v[:,:]**2)
-        M = speed[:,:]/cs[:,:]
+        # calculate and print Mach number
+        speed = np.sqrt(u[:,:]**2 + v[:,:]**2) * u0[:,:]
+        M = speed[:,:]/cs[np.newaxis,:]
         print("min/max M   = {}, {}".format(np.min(M), np.max(M)))
 
         if np.max(M) > 0.2:
@@ -1202,18 +1159,6 @@ class Simulation:
         coeff[:,:] *= zeta[np.newaxis,myg.jlo-1:myg.jhi+2]**2
 
         if self.verbose > 0: print("  final projection")
-
-        # create the multigrid object
-        mg = vcMG.VarCoeffCCMG2d(myg.nx, myg.ny,
-                                 xl_BC_type=self.cc_data.BCs["phi"].xlb,
-                                 xr_BC_type=self.cc_data.BCs["phi"].xrb,
-                                 yl_BC_type=self.cc_data.BCs["phi"].ylb,
-                                 yr_BC_type=self.cc_data.BCs["phi"].yrb,
-                                 xmin=myg.xmin, xmax=myg.xmax,
-                                 ymin=myg.ymin, ymax=myg.ymax,
-                                 coeffs=coeff,
-                                 coeffs_bc=self.cc_data.BCs["density"],
-                                 verbose=0, nsmooth=20)
 
         # first compute div{zeta U}
 
@@ -1282,9 +1227,6 @@ class Simulation:
         self.cc_data.fill_BC("gradp_x")
         self.cc_data.fill_BC("gradp_y")
 
-        #print('gradp_x')
-        #self.checkXSymmetry(gradp_x, myg.qx)
-
         tracer[:,:] = v.copy()
 
 
@@ -1300,26 +1242,27 @@ class Simulation:
 
         D = self.cc_data.get_var("density")
         Dh = self.cc_data.get_var("enthalpy")
+        #D0 = self.base_data.get_var("D0")
 
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
-        #u0 = self.metric.calcu0()
+        #self.metric.calcu0()
         #tracer = self.cc_data.get_var("tracer")
         #print('xi size', np.shape(xi))
 
         myg = self.cc_data.grid
+        u0 = np.ones((myg.qx, myg.qy))
 
-        magvel = np.sqrt(u**2 + v**2)
+        magvel = np.sqrt(u[:,:]**2 + v[:,:]**2) / u0[:,:]
 
-        cs = myg.scratch_array()
         #gamma = self.rp.get_param("eos.gamma")
-        gamma = 1.4
+        gamma = 2.6
         #cs[:,:] = gamma * (gamma - 1.) / (2. - gamma)
         #cs[:,:] *= (D[:,:] + Dh[:,:]) / D[:,:]
         #cs[:,:] = np.sqrt(np.abs(cs[:,:]))
-        cs[:,:] = gamma * D[:,:]**(gamma - 1.)
-        cs[:,:] = np.sqrt(np.abs(cs[:,:]))
-        M = magvel[:,:]/cs[:,:]
+        cs = gamma * (D[np.newaxis,:]/u0[:,:])**(gamma - 1.)
+        cs[:] = np.sqrt(np.abs(cs[:]))
+        M = magvel[:,:]/cs[np.newaxis,:]
 
         vort = myg.scratch_array()
 
@@ -1332,13 +1275,14 @@ class Simulation:
 
         # for some reason, setting vort here causes the density in the
         # simulation to NaN.  Seems like a bug (in python?)
-        vort[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] = dv - du
+        vort[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] = (dv - du) * \
+            u0[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]
 
         fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.25)
 
         fields = [D, magvel, u, v]
-        field_names = [r"$D$", r"$|U|$", r"$u$", r"$v$"]
+        field_names = [r"$D$", r"$|U|$", r"$U$", r"$V$"]
 
         for n in range(len(fields)):
 
@@ -1368,10 +1312,11 @@ class Simulation:
             plt.colorbar(img, ax=ax)
 
 
-        plt.figtext(0.05,0.0125, "t = %10.5f" % self.cc_data.t)
+        plt.figtext(0.05,0.0125, "n: %4d,   t = %10.5f" % (self.cc_data.n, self.cc_data.t))
         #plt.tight_layout()
 
         plt.draw()
+
 
 
     def finalize(self):
