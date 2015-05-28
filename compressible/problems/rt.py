@@ -23,6 +23,9 @@ def init_data(my_data, rp):
     xmom = my_data.get_var("x-momentum")
     ymom = my_data.get_var("y-momentum")
     ener = my_data.get_var("energy")
+    phi  = my_data.get_var("phi")
+
+    phi[:,:]  = 0.0
 
     gamma = rp.get_param("eos.gamma")
 

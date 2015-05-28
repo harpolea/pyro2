@@ -21,6 +21,9 @@ def init_data(my_data, rp):
     xmom = my_data.get_var("x-momentum")
     ymom = my_data.get_var("y-momentum")
     ener = my_data.get_var("energy")
+    phi  = my_data.get_var("phi")
+
+    phi[:,:]  = 0.0
 
     gamma = rp.get_param("eos.gamma")
 
@@ -58,7 +61,7 @@ def init_data(my_data, rp):
                 0.5*(xmom[:,:]**2 + ymom[:,:]**2)/dens[:,:]
 
 
-    
+
     i = myg.ilo
     while i <= myg.ihi:
 
@@ -70,7 +73,7 @@ def init_data(my_data, rp):
             if (r <= r_pert):
                 # boost the specific internal energy, keeping the pressure
                 # constant, by dropping the density
-                eint = (ener[i,j] - 
+                eint = (ener[i,j] -
                         0.5*(xmom[i,j]**2 - ymom[i,j]**2)/dens[i,j])/dens[i,j]
 
                 pres = dens[i,j]*eint*(gamma - 1.0)
@@ -83,8 +86,8 @@ def init_data(my_data, rp):
 
             j += 1
         i += 1
-        
-    
+
+
 
 def finalize():
     """ print out any information to the user at the end of the run """

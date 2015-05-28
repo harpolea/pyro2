@@ -21,6 +21,9 @@ def init_data(my_data, rp):
     xmom = my_data.get_var("x-momentum")
     ymom = my_data.get_var("y-momentum")
     ener = my_data.get_var("energy")
+    phi  = my_data.get_var("phi")
+
+    phi[:,:]  = 0.0
 
     # initialize the components, remember, that ener here is
     # rho*eint + 0.5*rho*v**2, where eint is the specific
@@ -47,15 +50,15 @@ def init_data(my_data, rp):
 
     cx = rp.get_param("quadrant.cx")
     cy = rp.get_param("quadrant.cy")
-    
+
     gamma = rp.get_param("eos.gamma")
-    
+
     # there is probably an easier way to do this, but for now, we
     # will just do an explicit loop.  Also, we really want to set
     # the pressue and get the internal energy from that, and then
     # compute the total energy (which is what we store).  For now
     # we will just fake this
-    
+
     myg = my_data.grid
 
     for i in range(myg.ilo, myg.ihi+1):
@@ -68,7 +71,7 @@ def init_data(my_data, rp):
                 xmom[i,j] = r1*u1
                 ymom[i,j] = r1*v1
                 ener[i,j] = p1/(gamma - 1.0) + 0.5*r1*(u1*u1 + v1*v1)
-                
+
             elif myg.x[i] < cx and myg.y[j] >= cy:
 
                 # quadrant 2
@@ -93,7 +96,7 @@ def init_data(my_data, rp):
                 ymom[i,j] = r4*v4
                 ener[i,j] = p4/(gamma - 1.0) + 0.5*r4*(u4*u4 + v4*v4)
 
-    
+
 def finalize():
     """ print out any information to the user at the end of the run """
     pass

@@ -11,12 +11,12 @@ cfl = 0.8
 limiter = 2               ; limiter (0 = none, 1 = 2nd order, 2 = 4th order)
 proj_type = 2             ; what are we projecting? 1 includes -Gp term in U*
 grav = 1.e16                ; GM/R = magnitude of Newtonian surface potential
-c = 3.e8                     ; speed of light
+c = 3.e8                    ; speed of light
 radius = 1.4e4               ; radius of NS
 
 
 [io]
-basename = lm_bubble_64_   ; basename for output files
+basename = ../../Work/pyro/results/lm_bubble_64_   ; basename for output files
 dt_out = 0.1               ; simulation time between writing output files
 n_out = 20                 ; number of timesteps between writing output files
 do_io = 1                  ; do we output at all?
@@ -46,7 +46,7 @@ scale_height = 20.0          ; scale height of the isothermal atmosphere
 x_pert = 5.
 y_pert = 5.
 r_pert = 0.7
-pert_amplitude_factor = 100.
+pert_amplitude_factor = 10.01
 
 
 [eos]

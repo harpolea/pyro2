@@ -26,13 +26,16 @@ def init_data(my_data, rp):
 
     p_left = rp.get_param("sod.p_left")
     p_right = rp.get_param("sod.p_right")
-    
+
 
     # get the density, momenta, and energy as separate variables
     dens = my_data.get_var("density")
     xmom = my_data.get_var("x-momentum")
     ymom = my_data.get_var("y-momentum")
     ener = my_data.get_var("energy")
+    phi  = my_data.get_var("phi")
+
+    phi[:,:]  = 0.0
 
     # initialize the components, remember, that ener here is rho*eint
     # + 0.5*rho*v**2, where eint is the specific internal energy
@@ -46,12 +49,12 @@ def init_data(my_data, rp):
     gamma = rp.get_param("eos.gamma")
 
     direction = rp.get_param("sod.direction")
-    
+
     xctr = 0.5*(xmin + xmax)
     yctr = 0.5*(ymin + ymax)
 
     myg = my_data.grid
-    
+
     # there is probably an easier way to do this, but for now, we
     # will just do an explicit loop.  Also, we really want to set
     # the pressue and get the internal energy from that, and then
@@ -70,13 +73,13 @@ def init_data(my_data, rp):
                     xmom[i,j] = dens_left*u_left
                     ymom[i,j] = 0.0
                     ener[i,j] = p_left/(gamma - 1.0) + 0.5*xmom[i,j]*u_left
-                
+
                 else:
                     dens[i,j] = dens_right
                     xmom[i,j] = dens_right*u_right
                     ymom[i,j] = 0.0
                     ener[i,j] = p_right/(gamma - 1.0) + 0.5*xmom[i,j]*u_right
-                    
+
                 j += 1
             i += 1
 
@@ -92,29 +95,25 @@ def init_data(my_data, rp):
                     xmom[i,j] = 0.0
                     ymom[i,j] = dens_left*u_left
                     ener[i,j] = p_left/(gamma - 1.0) + 0.5*ymom[i,j]*u_left
-                
+
                 else:
                     dens[i,j] = dens_right
                     xmom[i,j] = 0.0
                     ymom[i,j] = dens_right*u_right
                     ener[i,j] = p_right/(gamma - 1.0) + 0.5*ymom[i,j]*u_right
-                    
+
                 j += 1
             i += 1
-        
-    
+
+
 
 def finalize():
     """ print out any information to the user at the end of the run """
 
     msg = """
-          The script analysis/sod_compare.py can be used to compare 
+          The script analysis/sod_compare.py can be used to compare
           this output to the exact solution.  Some sample exact solution
           data is present as analysis/sod-exact.out
           """
 
     print(msg)
-
-
-
-                             

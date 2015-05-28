@@ -73,11 +73,14 @@ def init_data(my_data, base_data, rp, metric):
     dens[:,myg.jlo:myg.jhi+1] = dens_base * np.exp(-grav * \
         myg.y[np.newaxis,myg.jlo:myg.jhi+1] / (gamma * c**2 * R * \
         metric.alpha[np.newaxis,myg.jlo:myg.jhi+1]**2))
+    #dens[:,myg.jlo:myg.jhi+1] = (dens_base**gamma - grav * \
+    #    myg.y[np.newaxis, myg.jlo:myg.jhi+1] / (R * \
+    #    metric.alpha[np.newaxis,myg.jlo:myg.jhi+1]**2))**(1./gamma)
 
     # set the pressure (P = cs2*dens)
     pres = (dens[:,:])**gamma
     eint[:,:] = pres[:,:] /((gamma - 1.0) * dens[:,:])
-    enth[:,:] = eint[:,:] + pres[:,:]/dens[:,:]
+    enth[:,:] = eint[:,:] + pres[:,:]/dens[:,:] #Newtonian
 
     # do the base state by laterally averaging
     D0 = base_data.get_var("D0")

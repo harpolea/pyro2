@@ -15,7 +15,11 @@ import lm_atm.LM_atm_interface_f as lm_interface_f
 import mesh.reconstruction as reconstruction_f
 
 """
-TODO: Do some dimensional analysis or similar to work out initial conditions?
+TODO:  Add in vanilla pyro's new null initialisation
+
+TODO:  Break code down more into separate functions
+
+TODO:  Do some dimensional analysis or similar to work out initial conditions?
 
 FIXME: Make sure ghost cells in both full state and base state are updated.
 
@@ -24,11 +28,11 @@ FIXME: After ~15 timesteps, the elliptic equation solver diverges.
        Coincides with density/enthalpy becoming negative which is definitely
        not good.
 
-TODO: Implement some abstract base classes?
-        Could create some abstract base classes to help create problems and
-        set up initial conditions
+TODO:  Implement some abstract base classes?
+       Could create some abstract base classes to help create problems and
+       set up initial conditions
 
-TODO: Identify where code normally breaks and put in validation
+TODO:  Identify where code normally breaks and put in validation
 
 FIXME: There is no p0 evolution - perhaps derive from D0 then enforce HSE?
 """
@@ -396,19 +400,25 @@ class Simulation:
         myg = self.cc_data.grid
 
         cfl = self.rp.get_param("driver.cfl")
+        gamma = self.rp.get_param("eos.gamma")#####
+        u0 = self.metric.calcu0()#####
 
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
+        D = self.cc_data.get_var("density")
 
 
         # the timestep is min(dx/|u|, dy|v|)
         xtmp = ytmp = 100.
-        if not np.max(np.abs(u)) < 1.e-5:
+        cs = gamma * (D[:,:]/u0[:,:])**(gamma - 1.)
+        cs[:,:] = np.sqrt(np.abs(cs[:,:]))
+        #print('cs shape: ', np.shape(cs))
+        if not np.max(np.abs(u)+cs) < 1.e-5:
             xtmp = \
-                np.min(myg.dx/(np.abs(u[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])))
-        if not np.max(np.abs(v)) < 1.e-5:
+                np.min(myg.dx/np.abs(u[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]))
+        if not np.max(np.abs(v)+cs) < 1.e-5:
             ytmp = \
-                np.min(myg.dy/(np.abs(v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])))
+                np.min(myg.dy/np.abs(v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]))
 
         dt = cfl * min(xtmp, ytmp)
 
@@ -1262,7 +1272,7 @@ class Simulation:
         #cs[:,:] = np.sqrt(np.abs(cs[:,:]))
         cs = gamma * (D[np.newaxis,:]/u0[:,:])**(gamma - 1.)
         cs[:] = np.sqrt(np.abs(cs[:]))
-        M = magvel[:,:]/cs[np.newaxis,:]
+        M = magvel[:,:] / cs[np.newaxis,:]
 
         vort = myg.scratch_array()
 
@@ -1305,8 +1315,8 @@ class Simulation:
                             extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax],
                             cmap = cmap, vmin = vmin, vmax = vmax)
 
-            ax.set_xlabel("x")
-            ax.set_ylabel("y")
+            ax.set_xlabel("$x$")
+            ax.set_ylabel("$y$")
             ax.set_title(field_names[n])
 
             plt.colorbar(img, ax=ax)

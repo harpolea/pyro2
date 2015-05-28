@@ -49,6 +49,9 @@ def init_data(my_data,base_data, rp, metric):
     delta_s = rp.get_param("shear.delta_s")
     dens_base = rp.get_param("shear.dens_base")
     gamma = rp.get_param("eos.gamma")
+    c = rp.get_param("lm-atmosphere.c")
+    R = rp.get_param("lm-atmosphere.radius")
+    grav = rp.get_param("lm-atmosphere.grav")
 
     # get the velocities
     # get the density and velocities
@@ -78,13 +81,14 @@ def init_data(my_data,base_data, rp, metric):
         if (myg.y[j] <= y_half):
             u[:,j] = 1.*np.tanh(rho_s * (myg.y[np.newaxis,j] - 0.25))
             dens[:,j] = dens_base * (1.+ 0.01 * np.tanh(rho_s * \
-                (myg.y[np.newaxis,j] - 0.25)))
+                        (myg.y[np.newaxis,j] - 0.25)))
         else:
             u[:,j] = 1.*np.tanh(rho_s * (0.75 - myg.y[np.newaxis,j]))
             dens[:,j] = dens_base * (1. + 0.01 * np.tanh(rho_s * \
-                (0.75 - myg.y[np.newaxis,j])))
+                        (0.75 - myg.y[np.newaxis,j])))
 
-        v[:,j] = delta_s * np.sin(2.0 * np.pi * myg.x[:] + 0.5*np.pi)
+    v[:,myg.jlo: myg.jhi+1] = delta_s * np.sin(2.0 * np.pi * \
+                              myg.x[:,np.newaxis] + 0.5 * np.pi)
 
     print("extrema: ", np.min(u.flat), np.max(u.flat))
 
@@ -98,11 +102,14 @@ def init_data(my_data,base_data, rp, metric):
     D0[:] = np.mean(dens[:,:] * u0[:,:], axis=0)
     Dh0[:] = np.mean(enth[:,:] * u0[:,:] * dens[:,:], axis=0)
 
-    p0 = base_data.get_var("p0")
-
     # base pressure
-
+    p0 = base_data.get_var("p0")
     p0[:] = (D0[:]/u0flat[:])**gamma
+    base_data.fill_BC("p0")
+
+    for i in range(myg.jlo,myg.jhi+1):
+        p0[i] = p0[i-1] - myg.dy * grav * Dh0[i]/(u0flat[i] * \
+                c**2 * metric.alpha[i]**2 * R)
 
     if (myg.xmin != 0 or myg.xmax != 1 or
         myg.ymin != 0 or myg.ymax != 1):

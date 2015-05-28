@@ -16,8 +16,8 @@ class Variables:
     a container class for easy access to the different compressible
     variable by an integer key
     """
-    def __init__(self, idens=-1, ixmom=-1, iymom=-1, iener=-1):
-        self.nvar = 4
+    def __init__(self, idens=-1, ixmom=-1, iymom=-1, iener=-1, iphi=-1):
+        self.nvar = 5
 
         # conserved variables -- we set these when we initialize for
         # they match the CellCenterData2d object
@@ -25,6 +25,7 @@ class Variables:
         self.ixmom = ixmom
         self.iymom = iymom
         self.iener = iener
+        self.iphi = iphi
 
         # primitive variables
         self.irho = 0
@@ -80,7 +81,7 @@ class Simulation:
         ymax = self.rp.get_param("mesh.ymax")
 
         verbose = self.rp.get_param("driver.verbose")
-        
+
         my_grid = patch.Grid2d(nx, ny,
                                xmin=xmin, xmax=xmax,
                                ymin=ymin, ymax=ymax, ng=4)
@@ -128,6 +129,9 @@ class Simulation:
 
         my_data.register_var("y-momentum", bc_yodd)
 
+        # level-set field
+        my_data.register_var("phi", bc)
+
 
         # store the EOS gamma as an auxillary quantity so we can have a
         # self-contained object stored in output files to make plots.
@@ -142,7 +146,8 @@ class Simulation:
         self.vars = Variables(idens = my_data.vars.index("density"),
                               ixmom = my_data.vars.index("x-momentum"),
                               iymom = my_data.vars.index("y-momentum"),
-                              iener = my_data.vars.index("energy"))
+                              iener = my_data.vars.index("energy"),
+                              iphi = my_data.vars.index("phi"))
 
 
         # initial conditions for the problem
@@ -213,6 +218,7 @@ class Simulation:
         xmom = self.cc_data.get_var("x-momentum")
         ymom = self.cc_data.get_var("y-momentum")
         ener = self.cc_data.get_var("energy")
+        phi  = self.cc_data.get_var("phi")
 
         grav = self.rp.get_param("compressible.grav")
 
@@ -256,6 +262,7 @@ class Simulation:
         xmom = self.cc_data.get_var("x-momentum")
         ymom = self.cc_data.get_var("y-momentum")
         ener = self.cc_data.get_var("energy")
+        phi  = self.cc_data.get_var("phi")
 
         # get the velocities
         u = xmom/dens
