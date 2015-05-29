@@ -23,7 +23,7 @@ def init_data(my_data, rp):
     ener = my_data.get_var("energy")
     phi  = my_data.get_var("phi")
 
-    phi[:,:]  = 0.0
+    phi[:,:]  = -1.0
 
     # initialize the components, remember, that ener here is
     # rho*eint + 0.5*rho*v**2, where eint is the specific
@@ -71,6 +71,7 @@ def init_data(my_data, rp):
                 xmom[i,j] = r1*u1
                 ymom[i,j] = r1*v1
                 ener[i,j] = p1/(gamma - 1.0) + 0.5*r1*(u1*u1 + v1*v1)
+                phi[i,j] = 1.0
 
             elif myg.x[i] < cx and myg.y[j] >= cy:
 

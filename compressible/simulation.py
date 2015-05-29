@@ -9,6 +9,7 @@ import compressible.eos as eos
 import mesh.patch as patch
 from compressible.unsplitFluxes import *
 from util import profile
+import pylsmlib
 
 
 class Variables:
@@ -224,7 +225,8 @@ class Simulation:
 
         myg = self.cc_data.grid
 
-        Flux_x, Flux_y = unsplitFluxes(self.cc_data, self.rp, self.vars, self.tc, dt)
+        Flux_x, Flux_y = unsplitFluxes(self.cc_data, self.rp, self.vars,
+                         self.tc, dt)
 
         old_dens = dens.copy()
         old_ymom = ymom.copy()
@@ -245,6 +247,9 @@ class Simulation:
         # gravitational source terms
         ymom += 0.5*dt*(dens + old_dens)*grav
         ener += 0.5*dt*(ymom + old_ymom)*grav
+
+        # reinitialise
+        phi[:,:] = pylsmlib.computeDistanceFunction(phi, dx=self.cc_data.grid.dx, order=1)
 
         tm_evolve.end()
 
@@ -283,7 +288,6 @@ class Simulation:
         p = eos.pres(gamma, dens, e)
 
         myg = self.cc_data.grid
-
 
         # figure out the geometry
         L_x = self.cc_data.grid.xmax - self.cc_data.grid.xmin
@@ -332,8 +336,8 @@ class Simulation:
             onLeft = [0,2]
 
 
-        fields = [dens, magvel, p, e]
-        field_names = [r"$\rho$", r"U", "p", "e"]
+        fields = [dens, magvel, phi, e]
+        field_names = [r"$\rho$", r"U", r"$\phi$", "e"]
 
         for n in range(4):
             ax = axes.flat[n]

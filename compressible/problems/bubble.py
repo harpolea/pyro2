@@ -23,7 +23,7 @@ def init_data(my_data, rp):
     ener = my_data.get_var("energy")
     phi  = my_data.get_var("phi")
 
-    phi[:,:]  = 0.0
+    phi[:,:]  = -1.0
 
     gamma = rp.get_param("eos.gamma")
 
@@ -83,6 +83,8 @@ def init_data(my_data, rp):
 
                 ener[i,j] = dens[i,j]*eint + \
                     0.5*(xmom[i,j]**2 + ymom[i,j]**2)/dens[i,j]
+
+                phi[i,j] = 1.0
 
             j += 1
         i += 1

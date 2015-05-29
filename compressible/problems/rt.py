@@ -25,7 +25,7 @@ def init_data(my_data, rp):
     ener = my_data.get_var("energy")
     phi  = my_data.get_var("phi")
 
-    phi[:,:]  = 0.0
+    phi[:,:]  = -1.0
 
     gamma = rp.get_param("eos.gamma")
 
@@ -58,6 +58,7 @@ def init_data(my_data, rp):
         if (myg.y[j] < ycenter):
             dens[:,j] = dens1
             p[:,j] = p0 + dens1*grav*myg.y[j]
+            phi[:,j] = 1.0
 
         else:
             dens[:,j] = dens2
@@ -67,7 +68,8 @@ def init_data(my_data, rp):
         j += 1
 
 
-    ymom[:,:] = amp*numpy.cos(2.0*math.pi*myg.x2d/(myg.xmax-myg.xmin))*numpy.exp(-(myg.y2d-ycenter)**2/sigma**2)
+    ymom[:,:] = amp*numpy.cos(2.0*math.pi*myg.x2d/(myg.xmax-myg.xmin)) * \
+                numpy.exp(-(myg.y2d-ycenter)**2/sigma**2)
 
     ymom *= dens
 

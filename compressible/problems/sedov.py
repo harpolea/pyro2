@@ -5,6 +5,7 @@ import mesh.patch as patch
 import numpy
 from util import msg
 import math
+import pylsmlib
 
 def init_data(my_data, rp):
     """ initialize the sedov problem """
@@ -30,7 +31,7 @@ def init_data(my_data, rp):
     dens[:,:] = 1.0
     xmom[:,:] = 0.0
     ymom[:,:] = 0.0
-    phi[:,:]  = 0.0
+    phi[:,:]  = -1.0
 
     E_sedov = 1.0
 
@@ -53,6 +54,8 @@ def init_data(my_data, rp):
     # volume of constant pressure.  Then compute the energy in a zone
     # from this.
     nsub = 4
+
+    phii = -1.0
 
     i = my_data.grid.ilo
     while i <= my_data.grid.ihi:
@@ -80,8 +83,10 @@ def init_data(my_data, rp):
 
                         if dist <= r_init:
                             p = (gamma - 1.0)*E_sedov/(pi*r_init*r_init)
+                            phii = 1.0
                         else:
                             p = 1.e-5
+                            phii = -1.0
 
                         pzone += p
 
@@ -93,9 +98,12 @@ def init_data(my_data, rp):
                 p = 1.e-5
 
             ener[i,j] = p/(gamma - 1.0)
+            phi[i,j] = phii
 
             j += 1
         i += 1
+
+        phi[:,:] = pylsmlib.computeDistanceFunction(phi, dx=my_data.grid.dx, order=1)
 
 
 

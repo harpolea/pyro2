@@ -136,7 +136,7 @@ def doit(solver_name, problem_name, param_file,
 
         # increment the time
         sim.cc_data.t += dt
-        sim.cc_data.n += 1 
+        sim.cc_data.n += 1
         if verbose > 0: print("n: %5d,  t: %10.5f,  dt: %10.5f" % (sim.cc_data.n, sim.cc_data.t, dt))
 
 
@@ -185,8 +185,8 @@ def doit(solver_name, problem_name, param_file,
         msg.warning("comparing to: %s " % (compare_file) )
         try: bench_grid, bench_data = patch.read(compare_file)
         except:
-            msg.warning("ERROR openning compare file")
-            return "ERROR openning compare file"
+            msg.warning("ERROR opening compare file")
+            return "ERROR opening compare file"
 
 
         result = compare.compare(sim.cc_data.grid, sim.cc_data, bench_grid, bench_data)
