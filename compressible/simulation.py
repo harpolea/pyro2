@@ -7,9 +7,17 @@ import compressible.BC as BC
 from compressible.problems import *
 import compressible.eos as eos
 import mesh.patch as patch
+from simulation_null import NullSimulation, grid_setup, bc_setup
 from compressible.unsplitFluxes import *
 from util import profile
 import pylsmlib
+
+"""
+TODO:    Add in burning and laminar speed calculation.
+
+CHANGED: Have implemented the null initialisation from the latest version of
+         vanilla pyro.
+"""
 
 
 class Variables:
@@ -33,12 +41,13 @@ class Variables:
         self.iu = 1
         self.iv = 2
         self.ip = 3
+        self.iph = 4
 
 
-class Simulation:
-
+class Simulation(NullSimulation):
+"""
     def __init__(self, problem_name, rp, timers=None):
-        """
+        #
         Initialize the Simulation object for compressible hydrodynamics.
 
         Parameters
@@ -50,7 +59,7 @@ class Simulation:
             The runtime parameters for the simulation
         timers : TimerCollection object, optional
             The timers used for profiling this simulation
-        """
+        #
 
         self.rp = rp
         self.cc_data = None
@@ -64,7 +73,7 @@ class Simulation:
             self.tc = profile.TimerCollection()
         else:
             self.tc = timers
-
+"""
 
     def initialize(self):
         """
@@ -73,29 +82,32 @@ class Simulation:
         """
 
         # setup the grid
-        nx = self.rp.get_param("mesh.nx")
-        ny = self.rp.get_param("mesh.ny")
+        #nx = self.rp.get_param("mesh.nx")
+        #ny = self.rp.get_param("mesh.ny")
 
-        xmin = self.rp.get_param("mesh.xmin")
-        xmax = self.rp.get_param("mesh.xmax")
-        ymin = self.rp.get_param("mesh.ymin")
-        ymax = self.rp.get_param("mesh.ymax")
+        #xmin = self.rp.get_param("mesh.xmin")
+        #xmax = self.rp.get_param("mesh.xmax")
+        #ymin = self.rp.get_param("mesh.ymin")
+        #ymax = self.rp.get_param("mesh.ymax")
 
-        verbose = self.rp.get_param("driver.verbose")
+        #verbose = self.rp.get_param("driver.verbose")
 
-        my_grid = patch.Grid2d(nx, ny,
-                               xmin=xmin, xmax=xmax,
-                               ymin=ymin, ymax=ymax, ng=4)
+        #my_grid = patch.Grid2d(nx, ny,
+        #                       xmin=xmin, xmax=xmax,
+        #                       ymin=ymin, ymax=ymax, ng=4)
 
 
         # create the variables
+        my_grid = grid_setup(self.rp, ng=4)
         my_data = patch.CellCenterData2d(my_grid)
 
 
         # define solver specific boundary condition routines
         patch.define_bc("hse", BC.user)
 
+        bc, bc_xodd, bc_yodd = bc_setup(self.rp)
 
+        """
         # first figure out the boundary conditions.  Note: the action
         # can depend on the variable (for reflecting BCs)
         xlb_type = self.rp.get_param("mesh.xlboundary")
@@ -105,7 +117,7 @@ class Simulation:
 
         bc = patch.BCObject(xlb=xlb_type, xrb=xrb_type,
                             ylb=ylb_type, yrb=yrb_type)
-
+        """
         # density and energy
         my_data.register_var("density", bc)
         my_data.register_var("energy", bc)
@@ -115,18 +127,18 @@ class Simulation:
 
         # x-momentum -- if we are reflecting in x, then we need to
         # reflect odd
-        bc_xodd = patch.BCObject(xlb=xlb_type, xrb=xrb_type,
-                                 ylb=ylb_type, yrb=yrb_type,
-                                 odd_reflect_dir="x")
+        #bc_xodd = patch.BCObject(xlb=xlb_type, xrb=xrb_type,
+        #                         ylb=ylb_type, yrb=yrb_type,
+        #                         odd_reflect_dir="x")
 
         my_data.register_var("x-momentum", bc_xodd)
 
 
         # y-momentum -- if we are reflecting in y, then we need to
         # reflect odd
-        bc_yodd = patch.BCObject(xlb=xlb_type, xrb=xrb_type,
-                                 ylb=ylb_type, yrb=yrb_type,
-                                 odd_reflect_dir="y")
+        #bc_yodd = patch.BCObject(xlb=xlb_type, xrb=xrb_type,
+        #                         ylb=ylb_type, yrb=yrb_type,
+        #                         odd_reflect_dir="y")
 
         my_data.register_var("y-momentum", bc_yodd)
 
@@ -185,7 +197,7 @@ class Simulation:
 
         p = eos.pres(gamma, dens, e)
 
-        # compute the sounds speed
+        # compute the sound speed
         cs = np.sqrt(gamma*p/dens)
 
 
@@ -198,12 +210,12 @@ class Simulation:
         return dt
 
 
-    def preevolve(self):
+#    def preevolve(self):
         """
         Do any necessary evolution before the main evolve loop.  This
         is not needed for compressible flow.
         """
-        pass
+#        pass
 
 
     def evolve(self, dt):
@@ -371,9 +383,9 @@ class Simulation:
         plt.draw()
 
 
-    def finalize(self):
+#    def finalize(self):
         """
         Do any final clean-ups for the simulation and call the problem's
         finalize() method.
         """
-        exec(self.problem_name + '.finalize()')
+#        exec(self.problem_name + '.finalize()')

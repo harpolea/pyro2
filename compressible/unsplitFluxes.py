@@ -128,6 +128,58 @@ import compressible.eos as eos
 import compressible.interface_f as interface_f
 import mesh.reconstruction_f as reconstruction_f
 from util import msg
+import pylsmlib
+
+
+def burning(my_data, rp, vars, dt):
+    """
+    Carry out burning reactions at front over timestep dt.
+
+    Parameters
+    ----------
+    my_data : CellCenterData2d object
+        The data object containing the grid and advective scalar that
+        we are advecting.
+    rp : RuntimeParameters object
+        The runtime parameters for the simulation
+    vars : Variables object
+        The Variables object that tells us which indices refer to which
+    dt : float
+        The timestep we are advancing through.
+    """
+    pass
+
+
+def calcSL(my_data, rp, vars):
+    """
+    Find the laminar burning speed
+
+    Parameters
+    ----------
+    my_data : CellCenterData2d object
+        The data object containing the grid and advective scalar that
+        we are advecting.
+    rp : RuntimeParameters object
+        The runtime parameters for the simulation
+    vars : Variables object
+        The Variables object that tells us which indices refer to which
+        variables
+
+    Returns
+    -------
+    sL : ndarray
+        The laminar flame speed
+    """
+    dens = my_data.get_var("density")
+    xmom = my_data.get_var("x-momentum")
+    ymom = my_data.get_var("y-momentum")
+    ener = my_data.get_var("energy")
+    phi  = my_data.get_var("phi")
+
+    sL = np.zeros_like(xmom)
+    return sL
+
+
 
 def unsplitFluxes(my_data, rp, vars, tc, dt):
     """
