@@ -45,7 +45,7 @@ class Variables:
 
 
 class Simulation(NullSimulation):
-"""
+    """
     def __init__(self, problem_name, rp, timers=None):
         #
         Initialize the Simulation object for compressible hydrodynamics.
@@ -73,7 +73,7 @@ class Simulation(NullSimulation):
             self.tc = profile.TimerCollection()
         else:
             self.tc = timers
-"""
+        """
 
     def initialize(self):
         """
@@ -166,7 +166,7 @@ class Simulation(NullSimulation):
         # initial conditions for the problem
         exec(self.problem_name + '.init_data(self.cc_data, self.rp)')
 
-        if verbose > 0: print(my_data)
+        if self.verbose > 0: print(my_data)
 
 
     def timestep(self):
@@ -261,7 +261,7 @@ class Simulation(NullSimulation):
         ener += 0.5*dt*(ymom + old_ymom)*grav
 
         # reinitialise
-        phi[:,:] = pylsmlib.computeDistanceFunction(phi, dx=self.cc_data.grid.dx, order=1)
+        phi[:,:] = pylsmlib.computeDistanceFunction(phi, dx=self.cc_data.grid.dx, order=2)
 
         tm_evolve.end()
 
@@ -355,7 +355,13 @@ class Simulation(NullSimulation):
             ax = axes.flat[n]
 
             v = fields[n]
-            img = ax.imshow(np.transpose(v[myg.ilo:myg.ihi+1,
+            if n == 2:
+                img = ax.contour(np.transpose(v[myg.ilo:myg.ihi+1,
+                                               myg.jlo:myg.jhi+1]),
+                            origin="lower",
+                            extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax])
+            else:
+                img = ax.imshow(np.transpose(v[myg.ilo:myg.ihi+1,
                                            myg.jlo:myg.jhi+1]),
                         interpolation="nearest", origin="lower",
                         extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax])

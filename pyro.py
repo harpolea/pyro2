@@ -68,7 +68,7 @@ def doit(solver_name, problem_name, param_file,
     # initialize the Simulation object -- this will hold the grid and
     # data and know about the runtime parameters and which problem we
     # are running
-    sim = solver.Simulation(problem_name, rp, timers=tc)
+    sim = solver.Simulation(solver_name, problem_name, rp, timers=tc)
 
     sim.initialize()
     sim.preevolve()
