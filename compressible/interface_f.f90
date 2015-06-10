@@ -339,7 +339,7 @@ subroutine riemann_cgf(idir, qx, qy, ng, &
         pstar =   (W_l*p_r + W_r*p_l + W_l*W_r*(un_l - un_r))/(W_l + W_r)
         pstar = max(pstar, smallp)
         ustar =   (W_l*un_l + W_r*un_r + (p_l - p_r))/(W_l + W_r)
-        phistar = (W_l*phi_r + W_r*phi_l)/(W_l + W_r)
+        phistar = 0.5*(phi_l + phi_r)
         phistar = max(phistar, smallphi)
 
         ! now compute the remaining state to the left and right

@@ -61,41 +61,14 @@ class Simulation(NullSimulation):
             The timers used for profiling this simulation
         #
 
-        self.rp = rp
-        self.cc_data = None
-        self.problem_name = problem_name
-
-        self.vars = None
-
-        self.SMALL = 1.e-12
-
-        if timers == None:
-            self.tc = profile.TimerCollection()
-        else:
-            self.tc = timers
-        """
+        NullSimulation.__init__(self, solver_name, problem_name, rp, timers=timers)
+    """
 
     def initialize(self):
         """
         Initialize the grid and variables for compressible flow and set
         the initial conditions for the chosen problem.
         """
-
-        # setup the grid
-        #nx = self.rp.get_param("mesh.nx")
-        #ny = self.rp.get_param("mesh.ny")
-
-        #xmin = self.rp.get_param("mesh.xmin")
-        #xmax = self.rp.get_param("mesh.xmax")
-        #ymin = self.rp.get_param("mesh.ymin")
-        #ymax = self.rp.get_param("mesh.ymax")
-
-        #verbose = self.rp.get_param("driver.verbose")
-
-        #my_grid = patch.Grid2d(nx, ny,
-        #                       xmin=xmin, xmax=xmax,
-        #                       ymin=ymin, ymax=ymax, ng=4)
-
 
         # create the variables
         my_grid = grid_setup(self.rp, ng=4)
@@ -107,39 +80,10 @@ class Simulation(NullSimulation):
 
         bc, bc_xodd, bc_yodd = bc_setup(self.rp)
 
-        """
-        # first figure out the boundary conditions.  Note: the action
-        # can depend on the variable (for reflecting BCs)
-        xlb_type = self.rp.get_param("mesh.xlboundary")
-        xrb_type = self.rp.get_param("mesh.xrboundary")
-        ylb_type = self.rp.get_param("mesh.ylboundary")
-        yrb_type = self.rp.get_param("mesh.yrboundary")
-
-        bc = patch.BCObject(xlb=xlb_type, xrb=xrb_type,
-                            ylb=ylb_type, yrb=yrb_type)
-        """
         # density and energy
         my_data.register_var("density", bc)
         my_data.register_var("energy", bc)
-
-        # for velocity, if we are reflecting, we need odd reflection
-        # in the normal direction.
-
-        # x-momentum -- if we are reflecting in x, then we need to
-        # reflect odd
-        #bc_xodd = patch.BCObject(xlb=xlb_type, xrb=xrb_type,
-        #                         ylb=ylb_type, yrb=yrb_type,
-        #                         odd_reflect_dir="x")
-
         my_data.register_var("x-momentum", bc_xodd)
-
-
-        # y-momentum -- if we are reflecting in y, then we need to
-        # reflect odd
-        #bc_yodd = patch.BCObject(xlb=xlb_type, xrb=xrb_type,
-        #                         ylb=ylb_type, yrb=yrb_type,
-        #                         odd_reflect_dir="y")
-
         my_data.register_var("y-momentum", bc_yodd)
 
         # level-set field
@@ -199,7 +143,6 @@ class Simulation(NullSimulation):
 
         # compute the sound speed
         cs = np.sqrt(gamma*p/dens)
-
 
         # the timestep is min(dx/(|u| + cs), dy/(|v| + cs))
         xtmp = self.cc_data.grid.dx/(abs(u) + cs)
@@ -387,11 +330,3 @@ class Simulation(NullSimulation):
         plt.figtext(0.05,0.0125, "t = %10.5f" % self.cc_data.t)
 
         plt.draw()
-
-
-#    def finalize(self):
-        """
-        Do any final clean-ups for the simulation and call the problem's
-        finalize() method.
-        """
-#        exec(self.problem_name + '.finalize()')
