@@ -8,7 +8,7 @@ from compressible.problems import *
 import compressible.eos as eos
 import mesh.patch as patch
 from simulation_null import NullSimulation, grid_setup, bc_setup
-from compressible.unsplitFluxes import *
+from compressible.unsplitFluxessL import *
 from util import profile
 import pylsmlib
 
@@ -179,10 +179,6 @@ class Simulation(NullSimulation):
         grav = self.rp.get_param("compressible.grav")
 
         myg = self.cc_data.grid
-
-        #calculate laminar flame speed
-        ibLims = np.array([myg.ilo, myg.ihi, myg.jlo, myg.jhi])
-        sL = calcSL(self.cc_data, self.rp, self.vars)
 
         Flux_x, Flux_y = unsplitFluxes(self.cc_data, self.rp, self.vars,
                          self.tc, dt)

@@ -30,11 +30,11 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
   double precision, intent(  out) :: q_l(0:qx-1, 0:qy-1, 0:nvar-1)
   double precision, intent(  out) :: q_r(0:qx-1, 0:qy-1, 0:nvar-1)
 
-!f2py depend(qx, qy) :: r, u, v, p, phi
+!f2py depend(qx, qy) :: r, u, v, p, phi, sL
 !f2py depend(qx, qy) :: ldelta_r, ldelta_u, ldelta_v, ldelta_p, ldelta_phi
 !f2py depend(qx, qy, nvar) :: q_l, q_r
 !f2py intent(in) :: r, u, v, p, phi, sL
-!f2py intent(in) :: ldelta_r, ldelta_u, ldelta_v, ldelta_p, ldelta_phi, ldelta_sL
+!f2py intent(in) :: ldelta_r, ldelta_u, ldelta_v, ldelta_p, ldelta_phi
 !f2py intent(out) :: q_l, q_r
 
 

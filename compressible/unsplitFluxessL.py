@@ -125,10 +125,11 @@ Updating U_{i,j}:
 """
 
 import compressible.eos as eos
-import compressible.interface_f as interface_f
+import compressible.interface_fsL as interface_fsL
 import mesh.reconstruction_f as reconstruction_f
 from util import msg
 import pylsmlib
+import numpy as np
 
 
 def burning(my_data, rp, vars, dt):
@@ -177,18 +178,18 @@ def calcSL(my_data, rp, vars):
     phi  = my_data.get_var("phi")
 
     #get these from my_data
-    sL0 = 1.
-    marksteinLength = 1.
+    sL0 = 1.e-2
+    marksteinLength = 1.e-2
     ibLims = np.array([my_data.grid.ilo, my_data.grid.ihi,
                        my_data.grid.jlo, my_data.grid.jhi])
 
-    return pythonisedfns.laminarFlameSpeed2d(phi, sL0, marksteinLength,
+    return pylsmlib.pythonisedfns.laminarFlameSpeed2d(phi, sL0, marksteinLength,
                 xmom/dens, ymom/dens, ibLims,
                 dx=my_data.grid.dx, dy=my_data.grid.dy)
 
 
 
-def unsplitFluxes(my_data, rp, vars, tc, dt, sL):
+def unsplitFluxes(my_data, rp, vars, tc, dt):
     """
     unsplitFluxes returns the fluxes through the x and y interfaces by
     doing an unsplit reconstruction of the interface values and then
@@ -317,8 +318,9 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, sL):
     V_r = myg.scratch_array(vars.nvar)
 
     #find x-component of sL
-    phi_x, phi_y = pythonisedfns.gradPhi2d(phi, dx=myg.dx, dy=myg.dy)
-    norm_x, norm_y = pythonisedfns.signedUnitNormal2d(phi,
+    sL = calcSL(my_data, rp, vars)
+    phi_x, phi_y = pylsmlib.pythonisedfns.gradPhi2d(phi, dx=myg.dx, dy=myg.dy)
+    norm_x, norm_y = pylsmlib.pythonisedfns.signedUnitNormal2d(phi,
                                     phi_x, phi_y, dx=myg.dx, dy=myg.dy)
     sLx = norm_x[:,:] * sL[:,:]
 
@@ -363,7 +365,7 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, sL):
     # y-component of laminar flame speed
     sLy = norm_y[:,:] * sL[:,:]
 
-    V_l, V_r = interface_f.states(2, myg.qx, myg.qy, myg.ng, myg.dy, dt,
+    V_l, V_r = interface_fsL.states(2, myg.qx, myg.qy, myg.ng, myg.dy, dt,
                                   vars.nvar,
                                   gamma,
                                   r, u, v, p, phi, sLy,
@@ -435,9 +437,9 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, sL):
     riemann = rp.get_param("compressible.riemann")
 
     if riemann == "HLLC":
-        riemannFunc = interface_f.riemann_hllc
+        riemannFunc = interface_fsL.riemann_hllc
     elif riemann == "CGF":
-        riemannFunc = interface_f.riemann_cgf
+        riemannFunc = interface_fsL.riemann_cgf
     else:
         msg.fail("ERROR: Riemann solver undefined")
 
@@ -549,7 +551,7 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, sL):
     #=========================================================================
     cvisc = rp.get_param("compressible.cvisc")
 
-    (avisco_x, avisco_y) = interface_f.artificial_viscosity( \
+    (avisco_x, avisco_y) = interface_fsL.artificial_viscosity( \
                               myg.qx, myg.qy, myg.ng, myg.dx, myg.dy, \
                               cvisc, u, v)
 
