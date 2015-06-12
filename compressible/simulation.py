@@ -180,6 +180,10 @@ class Simulation(NullSimulation):
 
         myg = self.cc_data.grid
 
+        #calculate laminar flame speed
+        ibLims = np.array([myg.ilo, myg.ihi, myg.jlo, myg.jhi])
+        sL = calcSL(self.cc_data, self.rp, self.vars)
+
         Flux_x, Flux_y = unsplitFluxes(self.cc_data, self.rp, self.vars,
                          self.tc, dt)
 

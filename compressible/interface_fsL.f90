@@ -26,7 +26,6 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
   double precision, intent(inout) :: ldelta_v(0:qx-1, 0:qy-1)
   double precision, intent(inout) :: ldelta_p(0:qx-1, 0:qy-1)
   double precision, intent(inout) :: ldelta_phi(0:qx-1, 0:qy-1)
-  double precision, intent(inout) :: ldelta_sL(0:qx-1, 0:qy-1)
 
   double precision, intent(  out) :: q_l(0:qx-1, 0:qy-1, 0:nvar-1)
   double precision, intent(  out) :: q_r(0:qx-1, 0:qy-1, 0:nvar-1)
@@ -149,7 +148,7 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
            rvec(4,:) = [0.0d0, 0.0d0,      0.0d0, 0.0d0, 1.0d0 ]
 
         else
-           eval = [v(i,j) - cs, v(i,j), v(i,j), v(i,j) + cs, v(i,j) + sLy(i,j)]
+           eval = [v(i,j) - cs, v(i,j), v(i,j), v(i,j) + cs, v(i,j) + sL(i,j)]
 
            lvec(0,:) = [ 0.0d0, 0.0d0, -0.5d0*r(i,j)/cs, 0.5d0/(cs*cs), 0.0d0 ]
            lvec(1,:) = [ 1.0d0, 0.0d0, 0.0d0,            -1.0d0/(cs*cs),0.0d0 ]
@@ -229,7 +228,7 @@ subroutine riemann_cgf(idir, qx, qy, ng, &
   ! 0-based indexing to match python
   double precision, intent(inout) :: U_l(0:qx-1,0:qy-1,0:nvar-1)
   double precision, intent(inout) :: U_r(0:qx-1,0:qy-1,0:nvar-1)
-  double precision, intent(inout) :: sL(0:qx-1,0:qy-1,0:nvar-1)
+  double precision, intent(inout) :: sL(0:qx-1,0:qy-1)
   double precision, intent(  out) :: F(0:qx-1,0:qy-1,0:nvar-1)
 
 !f2py depend(qx, qy, nvar) :: U_l, U_r, sL
@@ -528,7 +527,7 @@ end subroutine riemann_cgf
 
 subroutine riemann_HLLC(idir, qx, qy, ng, &
                         nvar, idens, ixmom, iymom, iener, iphi, &
-                        gamma, U_l, U_r, F)
+                        gamma, U_l, U_r, sL, F)
 
 
   implicit none
@@ -541,10 +540,11 @@ subroutine riemann_HLLC(idir, qx, qy, ng, &
   ! 0-based indexing to match python
   double precision, intent(inout) :: U_l(0:qx-1,0:qy-1,0:nvar-1)
   double precision, intent(inout) :: U_r(0:qx-1,0:qy-1,0:nvar-1)
+  double precision, intent(inout) :: sL(0:qx-1,0:qy-1)
   double precision, intent(  out) :: F(0:qx-1,0:qy-1,0:nvar-1)
 
-!f2py depend(qx, qy, nvar) :: U_l, U_r
-!f2py intent(in) :: U_l, U_r
+!f2py depend(qx, qy, nvar) :: U_l, U_r, sL
+!f2py intent(in) :: U_l, U_r, sL
 !f2py intent(out) :: F
 
   ! this is the HLLC Riemann solver.  The implementation follows
@@ -738,7 +738,7 @@ subroutine riemann_HLLC(idir, qx, qy, ng, &
            U_state(:) = U_r(i,j,:)
 
            call consFlux(idir, gamma, idens, ixmom, iymom, iener, iphi, nvar, &
-                         U_state, F(i,j,:))
+                         U_state, sL(i,j), F(i,j,:))
 
         else if (S_r > 0.0d0 .and. S_c <= 0) then
            ! R* region
@@ -760,7 +760,7 @@ subroutine riemann_HLLC(idir, qx, qy, ng, &
 
            ! find the flux on the right interface
            call consFlux(idir, gamma, idens, ixmom, iymom, iener, iphi, nvar, &
-                         U_r(i,j,:), F(i,j,:))
+                         U_r(i,j,:), sL(i,j), F(i,j,:))
 
            ! correct the flux
            F(i,j,:) = F(i,j,:) + S_r*(U_state(:) - U_r(i,j,:))
@@ -785,7 +785,7 @@ subroutine riemann_HLLC(idir, qx, qy, ng, &
 
            ! find the flux on the left interface
            call consFlux(idir, gamma, idens, ixmom, iymom, iener, iphi, nvar, &
-                         U_l(i,j,:), F(i,j,:))
+                         U_l(i,j,:), sL(i,j), F(i,j,:))
 
            ! correct the flux
            F(i,j,:) = F(i,j,:) + S_l*(U_state(:) - U_l(i,j,:))
@@ -795,7 +795,7 @@ subroutine riemann_HLLC(idir, qx, qy, ng, &
            U_state(:) = U_l(i,j,:)
 
            call consFlux(idir, gamma, idens, ixmom, iymom, iener, iphi, nvar, &
-                         U_state, F(i,j,:))
+                         U_state, sL(i,j), F(i,j,:))
 
         endif
 
@@ -803,12 +803,13 @@ subroutine riemann_HLLC(idir, qx, qy, ng, &
   enddo
 end subroutine riemann_HLLC
 
-subroutine consFlux(idir, gamma, idens, ixmom, iymom, iener, iphi, nvar, U_state, F)
+subroutine consFlux(idir, gamma, idens, ixmom, iymom, iener, iphi, nvar, U_state, sL, F)
 
   integer, intent(in) :: idir
   double precision, intent(in) :: gamma
   integer, intent(in) :: idens, ixmom, iymom, iener, iphi, nvar
   double precision, intent(in) :: U_state(0:nvar-1)
+  double precision, intent(in) :: sL
   double precision, intent(out) :: F(0:nvar-1)
 
   double precision :: p, u, v
@@ -825,13 +826,13 @@ subroutine consFlux(idir, gamma, idens, ixmom, iymom, iener, iphi, nvar, U_state
      F(ixmom) = U_state(ixmom)*u + p
      F(iymom) = U_state(iymom)*u
      F(iener) = (U_state(iener) + p)*u
-     F(iphi)  = U_state(iphi)*u
+     F(iphi)  = U_state(iphi)*(u + sL)
   else
      F(idens) = U_state(idens)*v
      F(ixmom) = U_state(ixmom)*v
      F(iymom) = U_state(iymom)*v + p
      F(iener) = (U_state(iener) + p)*v
-     F(iphi)  = U_state(iphi)*v
+     F(iphi)  = U_state(iphi)*(v + sL)
   endif
 
 end subroutine consFlux
