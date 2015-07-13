@@ -89,7 +89,6 @@ class Simulation(NullSimulation):
         # level-set field
         my_data.register_var("phi", bc)
 
-
         # store the EOS gamma as an auxillary quantity so we can have a
         # self-contained object stored in output files to make plots.
         # store grav because we'll need that in some BCs

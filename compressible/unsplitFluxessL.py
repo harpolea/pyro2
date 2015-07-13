@@ -178,12 +178,13 @@ def calcSL(my_data, rp, vars):
     phi  = my_data.get_var("phi")
 
     #get these from my_data
-    sL0 = 1.e-2
-    marksteinLength = 1.e-2
-    ibLims = np.array([my_data.grid.ilo, my_data.grid.ihi,
-                       my_data.grid.jlo, my_data.grid.jhi])
+    sL0 = 0.01 #don't make too big. E.g. 1 works well for sedov, 5 does not.
+    marksteinLength = 0.01 #don't make too big either. e.g. 0.1 is ok, 1 is not.
+    ibLims = np.array([my_data.grid.ilo, my_data.grid.ihi+1,
+                       my_data.grid.jlo, my_data.grid.jhi+1])
 
-    return pylsmlib.pythonisedfns.laminarFlameSpeed2d(phi, sL0, marksteinLength,
+    return pylsmlib.pythonisedfns.laminarFlameSpeed2d(phi, sL0,
+                marksteinLength,
                 xmom/dens, ymom/dens, ibLims,
                 dx=my_data.grid.dx, dy=my_data.grid.dy)
 
