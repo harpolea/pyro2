@@ -3,39 +3,11 @@ import matplotlib.pyplot as plt
 
 from diffusion.problems import *
 import mesh.patch as patch
+from simulation_null import NullSimulation, grid_setup
 import multigrid.MG as MG
 from util import msg, profile
 
-class Simulation:
-
-    def __init__(self, problem_name, rp, timers=None):
-        """
-        Initialize the Simulation object for diffusion:
-
-           a  = k a
-            t      xx
-
-        Parameters
-        ----------
-        problem_name : str
-            The name of the problem we wish to run.  This should
-            correspond to one of the modules in diffusion/problems/
-        rp : RuntimeParameters object
-            The runtime parameters for the simulation
-        timers : TimerCollection object, optional
-            The timers used for profiling this simulation
-        """
-
-        self.rp = rp
-        self.cc_data = None
-
-        self.problem_name = problem_name
-
-        if timers == None:
-            self.tc = profile.TimerCollection()
-        else:
-            self.tc = timers
-
+class Simulation(NullSimulation):
 
     def initialize(self):
         """
@@ -44,18 +16,7 @@ class Simulation:
         """
 
         # setup the grid
-        nx = self.rp.get_param("mesh.nx")
-        ny = self.rp.get_param("mesh.ny")
-
-        xmin = self.rp.get_param("mesh.xmin")
-        xmax = self.rp.get_param("mesh.xmax")
-        ymin = self.rp.get_param("mesh.ymin")
-        ymax = self.rp.get_param("mesh.ymax")
-
-        my_grid = patch.Grid2d(nx, ny,
-                               xmin=xmin, xmax=xmax,
-                               ymin=ymin, ymax=ymax, ng=1)
-
+        my_grid = grid_setup(self.rp, ng=1)
 
         # create the variables
 
@@ -81,9 +42,7 @@ class Simulation:
 
 
         my_data = patch.CellCenterData2d(my_grid)
-
         my_data.register_var("phi", bc)
-
         my_data.create()
 
         self.cc_data = my_data
@@ -111,14 +70,6 @@ class Simulation:
         dt = cfl*min(xtmp, ytmp)
 
         return dt
-
-
-    def preevolve(myd):
-        """
-        Do any necessary evolution before the main evolve loop.  This
-        is not needed for diffusion.
-        """
-        pass
 
 
     def evolve(self, dt):
@@ -156,16 +107,11 @@ class Simulation:
 
         # form the RHS: f = phi + (dt/2) k L phi  (where L is the Laplacian)
         f = mg.soln_grid.scratch_array()
-        f[mg.ilo:mg.ihi+1,mg.jlo:mg.jhi+1] = \
-           phi[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] + 0.5*dt*k * \
-           ((phi[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] +
-             phi[myg.ilo-1:myg.ihi  ,myg.jlo:myg.jhi+1] -
-             2.0*phi[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/myg.dx**2 +
-            (phi[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] +
-             phi[myg.ilo:myg.ihi+1,myg.jlo-1:myg.jhi  ] -
-             2.0*phi[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/myg.dy**2)
+        f.v()[:,:] = phi.v() + 0.5*dt*k * (
+            (phi.ip(1) + phi.ip(-1) - 2.0*phi.v())/myg.dx**2 +
+            (phi.jp(1) + phi.jp(-1) - 2.0*phi.v())/myg.dy**2)
 
-        mg.init_RHS(f)
+        mg.init_RHS(f.d)
 
         # initial guess is zeros
         mg.init_zeros()
@@ -175,7 +121,7 @@ class Simulation:
         #mg.smooth(mg.nlevels-1,100)
 
         # update the solution
-        phi[:,:] = mg.get_solution()
+        phi.v()[:,:] = mg.get_solution().v()
 
 
     def dovis(self):
@@ -203,11 +149,3 @@ class Simulation:
         plt.figtext(0.05,0.0125, "t = %10.5f" % self.cc_data.t)
 
         plt.draw()
-
-
-    def finalize(self):
-        """
-        Do any final clean-ups for the simulation and call the problem's
-        finalize() method.
-        """
-        exec(self.problem_name + '.finalize()')

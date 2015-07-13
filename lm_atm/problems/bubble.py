@@ -58,9 +58,9 @@ def init_data(my_data, base_data, rp, metric):
 
     # initialize the components -- we'll get a pressure too
     # but that is used only to initialize the base state
-    xvel[:,:] = 0.0
-    yvel[:,:] = 0.0
-    dens[:,:] = dens_cutoff
+    xvel.d[:,:] = 0.0
+    yvel.d[:,:] = 0.0
+    dens.d[:,:] = dens_cutoff
     u0 = metric.calcu0()
     u0flat = np.mean(u0[:,:], axis=0)
 
@@ -70,7 +70,7 @@ def init_data(my_data, base_data, rp, metric):
 
     #dens[:, myg.jlo:myg.jhi+1] = np.maximum(dens_base * \
     #    np.exp(-myg.y[myg.jlo:myg.jhi+1] / scale_height), dens_cutoff)
-    dens[:,myg.jlo:myg.jhi+1] = dens_base * np.exp(-grav * \
+    dens.d[:,myg.jlo:myg.jhi+1] = dens_base * np.exp(-grav * \
         myg.y[np.newaxis,myg.jlo:myg.jhi+1] / (gamma * c**2 * R * \
         metric.alpha[np.newaxis,myg.jlo:myg.jhi+1]**2))
     #dens[:,myg.jlo:myg.jhi+1] = (dens_base**gamma - grav * \
@@ -78,16 +78,16 @@ def init_data(my_data, base_data, rp, metric):
     #    metric.alpha[np.newaxis,myg.jlo:myg.jhi+1]**2))**(1./gamma)
 
     # set the pressure (P = cs2*dens)
-    pres = (dens[:,:])**gamma
-    eint[:,:] = pres[:,:] /((gamma - 1.0) * dens[:,:])
-    enth[:,:] = eint[:,:] + pres[:,:]/dens[:,:] #Newtonian
+    pres.d = (dens.d[:,:])**gamma
+    eint.d[:,:] = pres.d[:,:] /((gamma - 1.0) * dens.d[:,:])
+    enth.d[:,:] = eint.d[:,:] + pres.d[:,:]/dens.d[:,:] #Newtonian
 
     # do the base state by laterally averaging
     D0 = base_data.get_var("D0")
     Dh0 = base_data.get_var("Dh0")
 
-    D0[:] = np.mean(dens[:,:] * u0[:,:], axis=0)
-    Dh0[:] = np.mean(enth[:,:] * u0[:,:] * dens[:,:], axis=0)
+    D0.d[:] = np.mean(dens.d[:,:] * u0[:,:], axis=0)
+    Dh0.d[:] = np.mean(enth.d[:,:] * u0[:,:] * dens.d[:,:], axis=0)
 
     for i in range(myg.ilo, myg.ihi+1):
         for j in range(myg.jlo, myg.jhi+1):
@@ -99,26 +99,26 @@ def init_data(my_data, base_data, rp, metric):
                 # boost the specific internal energy, keeping the pressure
                 # constant by dropping the density
                 #eint[i,j] *= (1. + (pert_amplitude_factor-1.)*(r_pert-r)/r_pert)
-                eint[i,j] *= pert_amplitude_factor
-                dens[i,j] = pres[i,j]/(eint[i,j]*(gamma - 1.0))
-                enth[i,j] = eint[i,j] + pres[i,j]/dens[i,j]
+                eint.d[i,j] *= pert_amplitude_factor
+                dens.d[i,j] = pres.d[i,j]/(eint.d[i,j]*(gamma - 1.0))
+                enth.d[i,j] = eint.d[i,j] + pres.d[i,j]/dens.d[i,j]
 
     # base pressure
     p0 = base_data.get_var("p0")
-    p0[:] = (D0[:] /u0flat[:])**gamma
+    p0.d[:] = (D0.d[:] /u0flat[:])**gamma
 
     base_data.fill_BC("p0")
 
     for i in range(myg.jlo,myg.jhi+1):
-        p0[i] = p0[i-1] - myg.dy * grav * Dh0[i]/(u0flat[i] * \
+        p0.d[i] = p0.d[i-1] - myg.dy * grav * Dh0.d[i]/(u0flat[i] * \
             c**2 * metric.alpha[i]**2 * R)
 
-    print('pressure: ', pres[20,10:20])
-    print('p0: ', p0[10:20])
+    print('pressure: ', pres.d[20,10:20])
+    print('p0: ', p0.d[10:20])
 
     #multiply by correct u0s
-    dens[:,:] *= u0[:,:] #rho * u0
-    enth[:,:] *= u0[:,:] * dens[:,:] #rho * h * u0
+    dens.d[:,:] *= u0[:,:] #rho * u0
+    enth.d[:,:] *= u0[:,:] * dens.d[:,:] #rho * h * u0
 
     #fill ghost cells
     my_data.fill_BC("x-velocity")

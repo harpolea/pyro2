@@ -12,7 +12,7 @@ Helmholtz equation:
 where L is the Laplacian and alpha and beta are constants.  If alpha =
 0 and beta = -1, then this is the Poisson equation.
 
-We support homogeneous Dirichlet or Neumann BCs, or on periodic domain.
+We support Dirichlet or Neumann BCs, or a periodic domain.
 
 The general usage is as follows:
 
@@ -49,7 +49,7 @@ For convenience, the grid information on the solution level is available as
 attributes to the class,
 
 a.ilo, a.ihi, a.jlo, a.jhi are the indices bounding the interior
-of the solution array (i.e. excluding the guardcells).
+of the solution array (i.e. excluding the ghost cells).
 
 a.x and a.y are the coordinate arrays
 a.dx and a.dy are the grid spacings
@@ -78,7 +78,7 @@ def _error(myg, r):
                       np.sum((r[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]**2).flat))
 
 
-class CellCenterMG2d:
+class CellCenterMG2d(object):
     """
     The main multigrid class for cell-centered data.
 
@@ -113,14 +113,26 @@ class CellCenterMG2d:
             minimum physical coordinate in y-direction
         ymax : float, optional
             maximum physical coordinate in y-direction
-        xl_BC_type : {'neumann', 'dirichlet'}, optional
+        xl_BC_type : {'neumann', 'dirichlet', 'periodic'}, optional
             boundary condition to enforce on lower x face
-        xr_BC_type : {'neumann', 'dirichlet'}, optional
+        xr_BC_type : {'neumann', 'dirichlet', 'periodic'}, optional
             boundary condition to enforce on upper x face
-        yl_BC_type : {'neumann', 'dirichlet'}, optional
+        yl_BC_type : {'neumann', 'dirichlet', 'periodic'}, optional
             boundary condition to enforce on lower y face
-        yr_BC_type : {'neumann', 'dirichlet'}, optional
+        yr_BC_type : {'neumann', 'dirichlet', 'periodic'}, optional
             boundary condition to enforce on upper y face
+        xl_BC : function, optional
+            function (of y) to call to get -x boundary values
+            (homogeneous assumed otherwise)
+        xr_BC : function, optional
+            function (of y) to call to get +x boundary values
+            (homogeneous assumed otherwise)
+        yl_BC : function, optional
+            function (of x) to call to get -y boundary values
+            (homogeneous assumed otherwise)
+        yr_BC : function, optional
+            function (of x) to call to get +y boundary values
+            (homogeneous assumed otherwise)
         alpha : float, optional
             coefficient in Helmholtz equation (alpha - beta L) phi = f
         beta : float, optional
@@ -207,25 +219,32 @@ class CellCenterMG2d:
         i = 0
         nx_t = ny_t = 2
 
-        if self.verbose:
-            print("alpha = ", self.alpha)
-            print("beta  = ", self.beta)
+        # create the boundary condition object
+        bc = patch.BCObject(xlb=xl_BC_type, xrb=xr_BC_type,
+                            ylb=yl_BC_type, yrb=yr_BC_type)
 
         while i < self.nlevels:
 
             # create the grid
             my_grid = patch.Grid2d(nx_t, ny_t, ng=self.ng,
-                                   xmin=xmin, xmax=xmax,
-                                   ymin=ymin, ymax=ymax)
+                                   xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
 
             # add a CellCenterData2d object for this level to our list
             self.grids.append(patch.CellCenterData2d(my_grid, dtype=np.float64))
 
-            # create the boundary condition object
-            bc = patch.BCObject(xlb=xl_BC_type, xrb=xr_BC_type,
-                                ylb=yl_BC_type, yrb=yr_BC_type)
+            # create the phi BC object -- this only applies for the finest
+            # level.  On the coarser levels, phi represents the residual,
+            # which has homogeneous BCs
+            bc_p = patch.BCObject(xlb=xl_BC_type, xrb=xr_BC_type,
+                                  ylb=yl_BC_type, yrb=yr_BC_type,
+                                  xl_func=xl_BC, xr_func=xr_BC,
+                                  yl_func=yl_BC, yr_func=yr_BC, grid=my_grid)
 
-            self.grids[i].register_var("v", bc)
+            if i == self.nlevels-1:
+                self.grids[i].register_var("v", bc_p)
+            else:
+                self.grids[i].register_var("v", bc)
+
             self.grids[i].register_var("f", bc)
             self.grids[i].register_var("r", bc)
 
@@ -235,8 +254,7 @@ class CellCenterMG2d:
 
             self.grids[i].create()
 
-            if self.verbose:
-                print(self.grids[i])
+            if self.verbose: print(self.grids[i])
 
             nx_t = nx_t*2
             ny_t = ny_t*2
@@ -254,12 +272,10 @@ class CellCenterMG2d:
 
         self.x  = soln_grid.x
         self.dx = soln_grid.dx
-
         self.x2d = soln_grid.x2d
 
         self.y  = soln_grid.y
         self.dy = soln_grid.dy   # note, dy = dx is assumed
-
         self.y2d = soln_grid.y2d
 
         self.soln_grid = soln_grid
@@ -335,12 +351,13 @@ class CellCenterMG2d:
         plt.scatter(xup, yup, marker="o", color="k", s=40)
 
         if self.up_or_down == "down":
-            plt.scatter(xdown[self.nlevels-self.current_level-1], ydown[self.nlevels-self.current_level-1],
-                          marker="o", color="r", zorder=100, s=38)
+            plt.scatter(xdown[self.nlevels-self.current_level-1],
+                        ydown[self.nlevels-self.current_level-1],
+                        marker="o", color="r", zorder=100, s=38)
 
         else:
             plt.scatter(xup[self.current_level], yup[self.current_level],
-                          marker="o", color="r", zorder=100, s=38)
+                        marker="o", color="r", zorder=100, s=38)
 
         plt.text(0.7, 0.1, "V-cycle %d" % (self.current_cycle))
         plt.axis("off")
@@ -353,8 +370,8 @@ class CellCenterMG2d:
         v = self.grids[self.current_level].get_var("v")
 
         plt.imshow(np.transpose(v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]),
-                     interpolation="nearest", origin="lower",
-                     extent=[self.xmin, self.xmax, self.ymin, self.ymax])
+                   interpolation="nearest", origin="lower",
+                   extent=[self.xmin, self.xmax, self.ymin, self.ymax])
 
         #plt.xlabel("x")
         plt.ylabel("y")
@@ -383,13 +400,11 @@ class CellCenterMG2d:
         v = self.grids[self.nlevels-1].get_var("v")
 
         plt.imshow(np.transpose(v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]),
-                     interpolation="nearest", origin="lower",
-                     extent=[self.xmin, self.xmax, self.ymin, self.ymax])
+                   interpolation="nearest", origin="lower",
+                   extent=[self.xmin, self.xmax, self.ymin, self.ymax])
 
         plt.xlabel("x")
         plt.ylabel("y")
-
-
         plt.title(r"current fine grid solution")
 
         formatter = matplotlib.ticker.ScalarFormatter(useMathText=True)
@@ -412,13 +427,11 @@ class CellCenterMG2d:
         e = v - self.true_function(myg.x2d, myg.y2d)
 
         plt.imshow(np.transpose(e[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]),
-                     interpolation="nearest", origin="lower",
-                     extent=[self.xmin, self.xmax, self.ymin, self.ymax])
+                   interpolation="nearest", origin="lower",
+                   extent=[self.xmin, self.xmax, self.ymin, self.ymax])
 
         plt.xlabel("x")
         plt.ylabel("y")
-
-
         plt.title(r"current fine grid error")
 
         formatter = matplotlib.ticker.ScalarFormatter(useMathText=True)
@@ -433,8 +446,8 @@ class CellCenterMG2d:
         """
         Return the solution after doing the MG solve
 
-        If a grid object is passed in, then the gradient is computed on that
-        grid.
+        If a grid object is passed in, then the solution is put on that
+        grid -- not the passed in grid must have the same dx and dy
 
         Returns
         -------
@@ -442,22 +455,18 @@ class CellCenterMG2d:
 
         """
 
-        if grid is None:
-            og = self.soln_grid
-        else:
-            og = grid
-
         v = self.grids[self.nlevels-1].get_var("v")
-
-        myg = self.soln_grid
 
         if grid is None:
             return v.copy()
         else:
-            sol = og.scratch_array()
-            sol[og.ilo-1:og.ihi+2,og.jlo-1:og.jhi+2] = \
-                v[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]
+            myg = self.soln_grid
+            assert grid.dx == myg.dx and grid.dy == myg.dy
+
+            sol = grid.scratch_array()
+            sol.v(buf=1)[:,:] = v.v(buf=1)
             return sol
+
 
     def get_solution_gradient(self, grid=None):
         """
@@ -465,7 +474,7 @@ class CellCenterMG2d:
         x- and y-components are returned in separate arrays.
 
         If a grid object is passed in, then the gradient is computed on that
-        grid.
+        grid.  Note: the passed-in grid must have the same dx, dy
 
         Returns
         -------
@@ -473,28 +482,21 @@ class CellCenterMG2d:
 
         """
 
+        myg = self.soln_grid
+
         if grid is None:
             og = self.soln_grid
         else:
             og = grid
+            assert og.dx == myg.dx and og.dy == myg.dy
 
         v = self.grids[self.nlevels-1].get_var("v")
 
         gx = og.scratch_array()
         gy = og.scratch_array()
 
-        myg = self.soln_grid
-
-        gx[og.ilo:og.ihi+1,og.jlo:og.jhi+1] = \
-            0.5*(v[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
-                 v[myg.ilo-1:myg.ihi  ,myg.jlo:myg.jhi+1])/myg.dx
-
-        #print('gx')
-        #self.checkXSymmetry(gx,og.qx)
-
-        gy[og.ilo:og.ihi+1,og.jlo:og.jhi+1] = \
-            0.5*(v[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] -
-                 v[myg.ilo:myg.ihi+1,myg.jlo-1:myg.jhi  ])/myg.dy
+        gx.v()[:,:] = 0.5*(v.ip(1) - v.ip(-1))/myg.dx
+        gy.v()[:,:] = 0.5*(v.jp(1) - v.jp(-1))/myg.dy
 
         return gx, gy
 
@@ -525,7 +527,7 @@ class CellCenterMG2d:
 
         """
         v = self.grids[self.nlevels-1].get_var("v")
-        v[:,:] = data.copy()
+        v.d[:,:] = data.copy()
 
 
     def init_zeros(self):
@@ -533,7 +535,7 @@ class CellCenterMG2d:
         Set the initial solution to zero
         """
         v = self.grids[self.nlevels-1].get_var("v")
-        v[:,:] = 0.0
+        v.d[:,:] = 0.0
 
 
     def init_RHS(self, data):
@@ -550,17 +552,13 @@ class CellCenterMG2d:
         """
 
         f = self.grids[self.nlevels-1].get_var("f")
-        f[:,:] = data.copy()
+        f.d[:,:] = data.copy()
 
         # store the source norm
-        self.source_norm = _error(self.grids[self.nlevels-1].grid, f)
+        self.source_norm = f.norm()
 
         if self.verbose:
             print("Source norm = ", self.source_norm)
-
-        # note: if we wanted to do inhomogeneous Dirichlet BCs, we
-        # would modify the source term, f, here to include a boundary
-        # charge
 
         self.initialized_RHS = 1
 
@@ -576,16 +574,9 @@ class CellCenterMG2d:
 
         # compute the residual
         # r = f - alpha phi + beta L phi
-        r[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] = \
-            f[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] - \
-            self.alpha*v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] + \
-            self.beta*(
-            (v[myg.ilo-1:myg.ihi  ,myg.jlo  :myg.jhi+1] +
-             v[myg.ilo+1:myg.ihi+2,myg.jlo  :myg.jhi+1] -
-             2.0*v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/(myg.dx*myg.dx) +
-            (v[myg.ilo  :myg.ihi+1,myg.jlo-1:myg.jhi  ] +
-             v[myg.ilo  :myg.ihi+1,myg.jlo+1:myg.jhi+2] -
-             2.0*v[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/(myg.dy*myg.dy) )
+        r.v()[:,:] = f.v()[:,:] - self.alpha*v.v()[:,:] + \
+            self.beta*( (v.ip(-1) + v.ip(1) - 2*v.v())/myg.dx**2 +
+                        (v.jp(-1) + v.jp(1) - 2*v.v())/myg.dy**2)
 
 
     def smooth(self, level, nsmooth):
@@ -637,17 +628,10 @@ class CellCenterMG2d:
 
             for n, (ix, iy) in enumerate([(0,0), (1,1), (1,0), (0,1)]):
 
-                v[myg.ilo+ix:myg.ihi+1:2,myg.jlo+iy:myg.jhi+1:2] = \
-                   (f[myg.ilo+ix:myg.ihi+1:2,myg.jlo+iy:myg.jhi+1:2] +
-                    xcoeff*(v[myg.ilo+1+ix:myg.ihi+2:2,
-                              myg.jlo+iy  :myg.jhi+1:2] +
-                            v[myg.ilo-1+ix:myg.ihi  :2,
-                              myg.jlo+iy  :myg.jhi+1:2]) +
-                    ycoeff*(v[myg.ilo+ix  :myg.ihi+1:2,
-                              myg.jlo+1+iy:myg.jhi+2:2] +
-                            v[myg.ilo+ix  :myg.ihi+1:2,
-                              myg.jlo-1+iy:myg.jhi  :2]))/ \
-                   (self.alpha + 2.0*xcoeff + 2.0*ycoeff)
+                v.ip_jp(ix, iy, s=2)[:,:] = (f.ip_jp(ix, iy, s=2) +
+                      xcoeff*(v.ip_jp(1+ix, iy, s=2) + v.ip_jp(-1+ix, iy, s=2)) +
+                      ycoeff*(v.ip_jp(ix, 1+iy, s=2) + v.ip_jp(ix, -1+iy, s=2)) )/ \
+                    (self.alpha + 2.0*xcoeff + 2.0*ycoeff)
 
                 if n == 1 or n == 3:
                     self.grids[level].fill_BC("v")
@@ -731,17 +715,11 @@ class CellCenterMG2d:
                 fP = self.grids[level]
                 cP = self.grids[level-1]
 
-                # access to the residual
-                r = fP.get_var("r")
-
                 if self.verbose:
                     self._compute_residual(level)
 
-                    print("  level = %d, nx = %d, ny = %d" %  \
-                        (level, fP.grid.nx, fP.grid.ny))
-
-                    print("  before G-S, residual L2 norm = %g" % \
-                          (_error(fP.grid, r) ))
+                    print("  level: {}, grid: {} x {}".format(level, fP.grid.nx, fP.grid.ny))
+                    print("  before G-S, residual L2: {}".format(fP.get_var("r").norm() ))
 
                 # smooth on the current level
                 self.smooth(level, self.nsmooth)
@@ -751,13 +729,12 @@ class CellCenterMG2d:
                 self._compute_residual(level)
 
                 if self.verbose:
-                    print("  after G-S, residual L2 norm = %g\n" % \
-                          (_error(fP.grid, r) ))
+                    print("  after G-S, residual L2: {}".format(fP.get_var("r").norm() ))
 
 
                 # restrict the residual down to the RHS of the coarser level
                 f_coarse = cP.get_var("f")
-                f_coarse[:,:] = fP.restrict("r")
+                f_coarse.v()[:,:] = fP.restrict("r").v()
 
                 level -= 1
 
@@ -766,16 +743,14 @@ class CellCenterMG2d:
             # number of different matrix solvers here (like CG), but
             # since we are 2x2 by design at this point, we will just
             # smooth
-            if self.verbose:
-                print("  bottom solve:")
+            if self.verbose: print("  bottom solve:")
 
             self.current_level = 0
-
             bP = self.grids[0]
 
             if self.verbose:
-                print("  level = %d, nx = %d, ny = %d\n" %  \
-                    (level, bP.grid.nx, bP.grid.ny))
+                print("  level = {}, nx = {}, ny = {}\n".format(
+                    level, bP.grid.nx, bP.grid.ny))
 
             self.smooth(0, self.nsmooth_bottom)
 
@@ -800,19 +775,17 @@ class CellCenterMG2d:
 
                 # correct the solution on the current grid
                 v = fP.get_var("v")
-                v += e
+                v.v()[:,:] += e.v()
 
                 fP.fill_BC("v")
 
                 if self.verbose:
                     self._compute_residual(level)
-                    r = fP.get_var("r")
 
-                    print("  level = %d, nx = %d, ny = %d" % \
-                        (level, fP.grid.nx, fP.grid.ny))
+                    print("  level = {}, nx = {}, ny = {}".format(
+                        level, fP.grid.nx, fP.grid.ny))
 
-                    print("  before G-S, residual L2 norm = %g" % \
-                          (_error(fP.grid, r) ))
+                    print("  before G-S, residual L2: {}".format(fP.get_var("r").norm() ))
 
                 # smooth
                 self.smooth(level, self.nsmooth)
@@ -820,8 +793,7 @@ class CellCenterMG2d:
                 if self.verbose:
                     self._compute_residual(level)
 
-                    print("  after G-S, residual L2 norm = %g\n" % \
-                          (_error(fP.grid, r) ))
+                    print("  after G-S, residual L2: {}".format(fP.get_var("r").norm() ))
 
                 level += 1
 
@@ -830,10 +802,10 @@ class CellCenterMG2d:
             # determine convergence
             solnP = self.grids[self.nlevels-1]
 
-            diff = (solnP.get_var("v") - old_solution)/ \
-                (solnP.get_var("v") + self.small)
+            diff = (solnP.get_var("v").v() - old_solution.v())/ \
+                (solnP.get_var("v").v() + self.small)
 
-            relative_error = _error(solnP.grid, diff)
+            relative_error = solnP.grid.norm(diff)
 
             old_solution = solnP.get_var("v").copy()
 
@@ -845,10 +817,9 @@ class CellCenterMG2d:
             #self.checkXSymmetry(solnP.get_var("v"), solnP.grid.qx)
 
             if self.source_norm != 0.0:
-                residual_error = _error(fP.grid, r)/self.source_norm
+                residual_error = r.norm()/self.source_norm
             else:
-                residual_error = _error(fP.grid, r)
-
+                residual_error = r.norm()
 
             if residual_error < rtol:
                 converged = 1
@@ -858,8 +829,8 @@ class CellCenterMG2d:
                 fP.fill_BC("v")
 
             if self.verbose:
-                print("cycle %d: relative err = %g, residual err = %g\n" % \
-                      (cycle, relative_error, residual_error))
+                print("cycle {}: relative err = {}, residual err = {}\n".format(
+                      cycle, relative_error, residual_error))
 
             cycle += 1
 

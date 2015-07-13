@@ -62,8 +62,13 @@ class NullSimulation(object):
 
         self.n = 0
 
-        self.tmax = rp.get_param("driver.tmax")
-        self.max_steps = rp.get_param("driver.max_steps")
+        try: self.tmax = rp.get_param("driver.tmax")
+        except:
+            self.tmax = None
+
+        try: self.max_steps = rp.get_param("driver.max_steps")
+        except:
+            self.max_steps = None
 
         self.rp = rp
         self.cc_data = None
@@ -78,7 +83,11 @@ class NullSimulation(object):
         else:
             self.tc = timers
 
-        self.verbose = self.rp.get_param("driver.verbose")
+        try: self.verbose = self.rp.get_param("driver.verbose")
+        except:
+            self.verbose = None
+
+        self.n_num_out = 0
 
 
     def finished(self):
@@ -86,6 +95,22 @@ class NullSimulation(object):
         is the simulation finished based on time or the number of steps
         """
         return self.cc_data.t >= self.tmax or self.n >= self.max_steps
+
+
+    def do_output(self):
+        """
+        is it time to output?
+        """
+        dt_out = self.rp.get_param("io.dt_out")
+        n_out = self.rp.get_param("io.n_out")
+        do_io = self.rp.get_param("io.do_io")
+
+        is_time = self.cc_data.t >= (self.n_num_out + 1)*dt_out or self.n%n_out == 0
+        if is_time and do_io == 1:
+            self.n_num_out += 1
+            return True
+        else:
+            return False
 
 
     def initialize(self):
