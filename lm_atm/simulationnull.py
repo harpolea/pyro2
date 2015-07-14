@@ -9,7 +9,7 @@ import multigrid.variable_coeff_MG as vcMG
 import metric
 import sys
 from util import profile
-#from util import msg
+from util import msg
 import lm_atm_interface as lm_int
 import lm_atm.LM_atm_interface_f as lm_interface_f
 import mesh.reconstruction as reconstruction_f
@@ -92,7 +92,7 @@ class Simulation(NullSimulation):
 
         # setup the grid
         myg = grid_setup(self.rp, ng=4)
-        myg1d = patch.Grid1d(ny, ymin=ymin, ymax=ymax, ng=4)
+        myg1d = patch.Grid1d(myg.ny, ymin=myg.ymin, ymax=myg.ymax, ng=4)
         bc_dens, bc_xodd, bc_yodd = bc_setup(self.rp)
 
         my_data = patch.CellCenterData2d(myg)
@@ -256,7 +256,7 @@ class Simulation(NullSimulation):
         xi_edges = self.base_data.get_var("xi-edges")
 
         try:
-            xi.v()[:] = np.exp(np.log(p0.v()) /gamma)
+            xi.v()[:] = np.exp(np.log(p0.v()) / gamma)
         except FloatingPointError:
             print(np.min(p0.v()))
 
@@ -347,7 +347,7 @@ class Simulation(NullSimulation):
         dp0dt = self.lateralAvg(S.d) * 0. #placeholder for now
         dp0dt[:] /= gamma * p0.d
 
-        return zeta.d[np.newaxis,:] * (S.d - dp0dt[np.newaxis,:])
+        return zeta.v2d(buf=zeta.ng) * (S.d - dp0dt[np.newaxis,:])
 
 
     @staticmethod
@@ -428,28 +428,29 @@ class Simulation(NullSimulation):
         g = self.rp.get_param("lm-atmosphere.grav")
         c = self.rp.get_param("lm-atmosphere.c")
         R = self.rp.get_param("lm-atmosphere.radius")
-        myg = self.cc_data.grid
+        #myg = self.cc_data.grid
         D = self.cc_data.get_var("density")
         Dh = self.cc_data.get_var("enthalpy")
         v = self.cc_data.get_var("y-velocity")
         D0 = self.base_data.get_var("D0")
         Dh0 = self.base_data.get_var("Dh0")
 
+        christfl = self.base_data.grid.scratch_array()
 
-        christfl = g/(self.metric.alpha.d**2 * c**2 * R)
+        christfl.d[:] = g/(self.metric.alpha.d**2 * c**2 * R)
 
         D0.v()[:] -= dt * 0.5 * self.lateralAvg(D.v() * \
-            christfl[np.newaxis,myg.jlo:myg.jhi+1] * v.v() )
+            christfl.v2d() * v.v() )
 
         Dh0.v()[:] += dt * 0.5 * self.lateralAvg(-(Dh.v() + \
-            Dh0.v2d()) * christfl[np.newaxis,myg.jlo:myg.jhi+1] * \
+            Dh0.v2d()) * christfl.v2d() * \
             v.v() )
 
         D.v()[:,:] -= dt * 0.5 * D.v() * v.v() * \
-            christfl[np.newaxis,myg.jlo:myg.jhi+1]
+            christfl.v2d()
 
         Dh.v()[:,:] += dt * 0.5 * ( -(Dh.v() + Dh0.v2d()) * \
-            v.v() * christfl[np.newaxis,myg.jlo:myg.jhi+1])
+            v.v() * christfl.v2d())
 
 
         #fill ghostcells
@@ -501,6 +502,8 @@ class Simulation(NullSimulation):
         self.cc_data.fill_BC("x-velocity")
         self.cc_data.fill_BC("y-velocity")
         self.cc_data.fill_BC("enthalpy")
+
+        coeff = self.aux_data.get_var("coeff")
 
 
         # 1. do the initial projection.  This makes sure that our original
@@ -737,11 +740,11 @@ class Simulation(NullSimulation):
         #                                       source)
         u_MAC, v_MAC = lm_interface_f.mac_vels(myg.qx, myg.qy, myg.ng,
                                                myg.dx, myg.dy, dt,
-                                               u.d, v.d,
+                                               u, v,
                                                ldelta_ux, ldelta_vx,
                                                ldelta_uy, ldelta_vy,
-                                               coeff.d*gradp_x.d, coeff.d*gradp_y.d,
-                                               source.d)
+                                               gradp_x, gradp_y, coeff,
+                                               source)
 
         #---------------------------------------------------------------------
         # do a MAC projection to make the advective velocities divergence
@@ -833,16 +836,11 @@ class Simulation(NullSimulation):
         #---------------------------------------------------------------------
         # predict D to the edges and do its conservative update
         #---------------------------------------------------------------------
-        _D_xint, _D_yint = lm_int.D_states(myg, dt, D.d,
-                            u_MAC.d, v_MAC.d, ldelta_rx, ldelta_ry)
+        D_xint, D_yint = lm_int.D_states(myg, dt, D,
+                            u_MAC, v_MAC, ldelta_rx, ldelta_ry)
 
-        _D0_xint, _D0_yint = lm_int.D_states(myg, dt, D02d.d, u_MAC.d,
-                            v_MAC.d, ldelta_r0x, ldelta_r0y)
-
-        D_xint = patch.ArrayIndexer(d=_D_xint, grid=myg)
-        D_yint = patch.ArrayIndexer(d=_D_yint, grid=myg)
-        D0_xint = patch.ArrayIndexer(d=_D0_xint, grid=myg)
-        D0_yint = patch.ArrayIndexer(d=_D0_yint, grid=myg)
+        _, D0_yint = lm_int.D_states(myg, dt, D02d, u_MAC,
+                            v_MAC, ldelta_r0x, ldelta_r0y)
 
         #D_xint, D_yint are on edges, D cell-centred.
         D.v()[:,:] -= dt*(
@@ -874,16 +872,11 @@ class Simulation(NullSimulation):
         #
         # Exactly the same as for density
         #---------------------------------------------------------------------
-        _Dh_xint, _Dh_yint = lm_int.D_states(myg, dt, D.d, u_MAC.d, v_MAC.d, ldelta_ex,
+        Dh_xint, Dh_yint = lm_int.D_states(myg, dt, D, u_MAC, v_MAC, ldelta_ex,
                             ldelta_ey)
 
-        _Dh0_xint, _Dh0_yint = lm_int.D_states(myg, dt, Dh02d.d, u_MAC.d,
-                            v_MAC.d, ldelta_e0x, ldelta_e0y)
-
-        Dh_xint = patch.ArrayIndexer(d=_Dh_xint, grid=myg)
-        Dh_yint = patch.ArrayIndexer(d=_Dh_yint, grid=myg)
-        Dh0_xint = patch.ArrayIndexer(d=_Dh0_xint, grid=myg)
-        Dh0_yint = patch.ArrayIndexer(d=_Dh0_yint, grid=myg)
+        _, Dh0_yint = lm_int.D_states(myg, dt, Dh02d, u_MAC,
+                            v_MAC, ldelta_e0x, ldelta_e0y)
 
         Dh_old = Dh.copy()
 
@@ -932,19 +925,14 @@ class Simulation(NullSimulation):
         # Might not need to recalculate zeta but shall just in case
         self.updateZeta(self.cc_data.grid)
         zeta = self.base_data.get_var("zeta")
-        coeff.d[:,:] *= zeta.d[np.newaxis,:]
+        coeff.d[:,:] *= zeta.v2d(buf=zeta.ng)
         self.aux_data.fill_BC("coeff")
 
-        _ux, _vx, _uy, _vy = \
-            lm_int.states(myg, dt, u.d, v.d, ldelta_ux, ldelta_vx,
+        u_xint, v_xint, u_yint, v_yint = \
+            lm_int.states(myg, dt, u, v, ldelta_ux, ldelta_vx,
                                  ldelta_uy, ldelta_vy,
-                                 coeff.d*gradp_x.d, coeff.d*gradp_y.d,
-                                 source.d, u_MAC.d, v_MAC.d)
-
-        u_xint = patch.ArrayIndexer(d=_ux, grid=myg)
-        v_xint = patch.ArrayIndexer(d=_vx, grid=myg)
-        u_yint = patch.ArrayIndexer(d=_uy, grid=myg)
-        v_yint = patch.ArrayIndexer(d=_vy, grid=myg)
+                                 gradp_x, gradp_y,
+                                 coeff, source, u_MAC, v_MAC)
 
 
         #---------------------------------------------------------------------
@@ -987,7 +975,7 @@ class Simulation(NullSimulation):
         # add the gravitational source (and pressure source)
         u0 = self.metric.calcu0()
         gamma = self.rp.get_param("eos.gamma")
-        p0 = self.base_data.get_var("p0")
+        #p0 = self.base_data.get_var("p0")
         self.updateXi(self.cc_data.grid)
         xi = self.base_data.get_var("xi")
         gradpi_x = myg.scratch_array()
@@ -999,10 +987,8 @@ class Simulation(NullSimulation):
         ldelta_xiy = limitFunc(2, xi2d, myg)
 
         # FIXME: should you use MAC velocities/phi or advected ones??
-        _xix, _xiy = lm_int.D_states(myg, dt, xi2d.d, u_MAC.d, v_MAC.d,
+        _, xi_yint = lm_int.D_states(myg, dt, xi2d, u_MAC, v_MAC,
                                            ldelta_xix, ldelta_xiy)
-        xi_yint = patch.ArrayIndexer(d=_xix, grid=myg)
-        xi_yint = patch.ArrayIndexer(d=_xiy, grid=myg)
 
         #edge-centered pi given by phi_MAC/delta t, so find gradpi:
         gradpi_x.v()[:,:] = (phi_MAC.ip(1) - phi_MAC.v()) / (myg.dx * dt)
@@ -1050,7 +1036,7 @@ class Simulation(NullSimulation):
         # calculate the sound speed using base density as
         gamma = self.rp.get_param("eos.gamma")
         u0 = self.metric.calcu0()
-        cs = gamma * (D0.d[np.newaxis,:]/u0.d)**(gamma - 1.)
+        cs = gamma * (D0.v2d(buf=D0.ng)/u0.d)**(gamma - 1.)
         cs[:,:] = np.sqrt(np.abs(cs[:,:]))
 
         print("min/max c_s   = {}, {}".format(np.min(cs), np.max(cs)))
@@ -1151,7 +1137,7 @@ class Simulation(NullSimulation):
         #plt.rc("font", size=10)
 
         D = self.cc_data.get_var("density")
-        Dh = self.cc_data.get_var("enthalpy")
+       # Dh = self.cc_data.get_var("enthalpy")
         #D0 = self.base_data.get_var("D0")
 
         u = self.cc_data.get_var("x-velocity")
@@ -1172,7 +1158,7 @@ class Simulation(NullSimulation):
         #cs[:,:] = np.sqrt(np.abs(cs[:,:]))
         cs = gamma * (D.d / u0.d)**(gamma - 1.)
         cs[:] = np.sqrt(np.abs(cs[:]))
-        M = magvel[:,:] / cs[np.newaxis,:]
+       # M = magvel[:,:] / cs[np.newaxis,:]
 
         vort = myg.scratch_array()
 
@@ -1185,7 +1171,7 @@ class Simulation(NullSimulation):
         # simulation to NaN.  Seems like a bug (in python?)
         vort.v()[:,:] = (dv - du) * u0.v()
 
-        fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
+        _, axes = plt.subplots(nrows=2, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.25)
 
         fields = [D, magvel, u, v]

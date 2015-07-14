@@ -1,10 +1,7 @@
 from __future__ import print_function
 
-import numpy as np
-
-
 def mac_vels(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy,
-    ldelta_vy, gradp_x, gradp_y, source):
+    ldelta_vy, gradp_x, gradp_y, coeff, source):
     """
     Calculates the MAC velocities
 
@@ -44,9 +41,9 @@ def mac_vels(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy,
     # get the full u and v left and right states (including transverse terms) on
     # both the x- and y-interfaces
 
-    u_xl, u_xr, u_yl, u_yr, v_xl, v_xr, v_yl, v_yr = get_interface_states(myg,
+    u_xl, u_xr, _, _, _, _, v_yl, v_yr = get_interface_states(myg,
         dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy, ldelta_vy, gradp_x, gradp_y,
-                            source)
+                            coeff, source)
 
     # Riemann problem -- this follows Burger's equation.  We don't use
     # any input velocity for the upwinding.  Also, we only care about
@@ -58,11 +55,8 @@ def mac_vels(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy,
 
 
 
-
-
-
 def states(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy, ldelta_vy,
-                  gradp_x, gradp_y, source, u_MAC, v_MAC):
+                  gradp_x, gradp_y, coeff, source, u_MAC, v_MAC):
     """
     This is similar to mac_vels, but it predicts the interface states
     of both u and v on both interfaces, using the MAC velocities to
@@ -104,8 +98,8 @@ def states(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy, ldelta_vy,
     """
 
     u_xl, u_xr, u_yl, u_yr, v_xl, v_xr, v_yl, v_yr = get_interface_states(myg,
-            dt, u, v, ldelta_ux, ldelta_vx,ldelta_uy, ldelta_vy,gradp_x,
-            gradp_y,source)
+            dt, u, v, ldelta_ux, ldelta_vx,ldelta_uy, ldelta_vy, gradp_x,
+            gradp_y, coeff, source)
 
     u_xint = upwind(myg, u_xl, u_xr, u_MAC)
     v_xint = upwind(myg, v_xl, v_xr, u_MAC)
@@ -119,7 +113,7 @@ def states(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy, ldelta_vy,
 
 
 def get_interface_states(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy,
-                        ldelta_vy, gradp_x, gradp_y, source):
+                        ldelta_vy, gradp_x, gradp_y, coeff, source):
 
     """
     Compute the unsplit predictions of u and v on both the x- and
@@ -173,60 +167,36 @@ def get_interface_states(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy,
     # first predict u and v to both interfaces, considering only the normal
     # part of the predictor.  These are the 'hat' states.
 
-    dtdx = dt/myg.dx
-    dtdy = dt/myg.dy
+    dtdx = dt / myg.dx
+    dtdy = dt / myg.dy
 
     # u on x-edges
-    u_xl[myg.ilo-1:myg.ihi+4, myg.jlo-2:myg.jhi+3] = \
-        u[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] + \
-        0.5*(1. - dtdx * \
-        u[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]) * \
-        ldelta_ux[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]
+    u_xl.ip(1, buf=2)[:,:] = u.v(buf=2) + \
+        0.5 * (1. - dtdx * u.v(buf=2)) * ldelta_ux.v(buf=2)
 
-    u_xr[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] = \
-        u[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] - \
-        0.5*(1. + dtdx * \
-        u[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]) * \
-        ldelta_ux[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]
+    u_xr.v(buf=2)[:,:] = u.v(buf=2) - \
+        0.5 * (1. + dtdx * u.v(buf=2)) * ldelta_ux.v(buf=2)
 
     # v on x-edges
-    v_xl[myg.ilo-1:myg.ihi+4, myg.jlo-2:myg.jhi+3] = \
-        v[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] + \
-        0.5*(1. - dtdx * \
-        u[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]) * \
-        ldelta_vx[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]
+    v_xl.ip(1, buf=2)[:,:] = v.v(buf=2) + \
+        0.5 * (1. - dtdx * u.v(buf=2)) * ldelta_vx.v(buf=2)
 
-    v_xr[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] = \
-        v[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] - \
-        0.5*(1. + dtdx * \
-        u[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]) * \
-        ldelta_vx[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]
+    v_xr.v(buf=2)[:,:] = v.v(buf=2) - \
+        0.5 * (1. + dtdx * u.v(buf=2)) * ldelta_vx.v(buf=2)
 
     # u on y-edges
-    u_yl[myg.ilo-2:myg.ihi+3, myg.jlo-1:myg.jhi+4] = \
-        u[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] + \
-        0.5*(1. - dtdy * \
-        v[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]) * \
-        ldelta_uy[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]
+    u_yl.jp(1, buf=2)[:,:] = u.v(buf=2) + \
+        0.5 * (1. - dtdy * v.v(buf=2)) * ldelta_uy.v(buf=2)
 
-    u_yr[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] = \
-        u[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] - \
-        0.5*(1. + dtdy * \
-        v[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]) * \
-        ldelta_uy[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]
+    u_yr.v(buf=2)[:,:] = u.v(buf=2) - \
+        0.5 * (1. + dtdy * v.v(buf=2)) * ldelta_uy.v(buf=2)
 
     # v on y-edges
-    v_yl[myg.ilo-2:myg.ihi+3, myg.jlo-1:myg.jhi+4] = \
-        v[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] + \
-        0.5*(1. - dtdy * \
-        v[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]) * \
-        ldelta_vy[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]
+    v_yl.jp(1, buf=2)[:,:] = v.v(buf=2) + \
+        0.5 * (1. - dtdy * v.v(buf=2)) * ldelta_vy.v(buf=2)
 
-    v_yr[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] = \
-        v[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] - \
-        0.5*(1. + dtdy * \
-        v[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]) * \
-        ldelta_vy[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]
+    v_yr.v(buf=2)[:,:] = v.v(buf=2) - \
+        0.5 * (1. + dtdy * v.v(buf=2)) * ldelta_vy.v(buf=2)
 
 
 
@@ -253,55 +223,47 @@ def get_interface_states(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy,
     # CHANGED: Fixed a load of sign errors in transverse terms
 
     # add the transverse flux differences to the preliminary interface states
-    ubar = 0.5*(uhat_adv[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] + \
-            uhat_adv[myg.ilo:myg.ihi+3,myg.jlo-1:myg.jhi+2])
-    vbar = 0.5*(vhat_adv[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] + \
-            vhat_adv[myg.ilo-1:myg.ihi+2,myg.jlo:myg.jhi+3])
+    ubar = 0.5 * (uhat_adv.v(buf=1) + uhat_adv.ip(1, buf=1))
+    vbar = 0.5 * (vhat_adv.v(buf=1) + vhat_adv.jp(1, buf=1))
 
     # v du/dy is the transverse term for the u states on x-interfaces
-    vu_y = vbar[:,:]*(u_yint[myg.ilo-1:myg.ihi+2,myg.jlo:myg.jhi+3] - \
-            u_yint[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2])
+    vu_y = vbar[:,:] * (u_yint.jp(1, buf=1) - u_yint.v(buf=1))
 
-    u_xl[myg.ilo:myg.ihi+3,myg.jlo-1:myg.jhi+2] += -0.5 * dtdy * \
-        vu_y[:,:] - 0.5 * dt * gradp_x[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]
-    u_xr[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] += -0.5 * dtdy * \
-        vu_y[:,:] - 0.5 * dt * gradp_x[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]
+    u_xl.ip(1, buf=1)[:,:] += -0.5 * dtdy * \
+        vu_y[:,:] - 0.5 * dt * gradp_x.v(buf=1) * coeff.v(buf=1)
+    u_xr.v(buf=1)[:,:] += -0.5 * dtdy * \
+        vu_y[:,:] - 0.5 * dt * gradp_x.v(buf=1) * coeff.v(buf=1)
 
     # v dv/dy is the transverse term for the v states on x-interfaces
-    vv_y = vbar[:,:]*(v_yint[myg.ilo-1:myg.ihi+2,myg.jlo:myg.jhi+3] - \
-            v_yint[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2])
+    vv_y = vbar[:,:] * (v_yint.jp(1, buf=1) - v_yint.v(buf=1))
 
-    v_xl[myg.ilo:myg.ihi+3,myg.jlo-1:myg.jhi+2] += -0.5 * dtdy * \
-        vv_y[:,:] - 0.5 * dt * gradp_y[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]\
-        + 0.5 * dt * source[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]
-    v_xr[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] += -0.5 * dtdy * \
-        vv_y[:,:] - 0.5 * dt * gradp_y[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]\
-        + 0.5 * dt * source[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]
+    v_xl.ip(1, buf=1)[:,:] += -0.5 * dtdy * \
+        vv_y[:,:] - 0.5 * dt * gradp_y.v(buf=1) * coeff.v(buf=1) \
+        + 0.5 * dt * source.v(buf=1)
+    v_xr.v(buf=1)[:,:] += -0.5 * dtdy * \
+        vv_y[:,:] - 0.5 * dt * gradp_y.v(buf=1) * coeff.v(buf=1) \
+        + 0.5 * dt * source.v(buf=1)
 
     # u dv/dx is the transverse term for the v states on y-interfaces
-    uv_x = ubar[:,:]*(v_xint[myg.ilo:myg.ihi+3,myg.jlo-1:myg.jhi+2] - \
-            v_xint[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2])
+    uv_x = ubar[:,:] * (v_xint.ip(1, buf=1) - v_xint.v(buf=1))
 
-    v_yl[myg.ilo-1:myg.ihi+2,myg.jlo:myg.jhi+3] += -0.5 * dtdx * \
-        uv_x[:,:] - 0.5 * dt * gradp_y[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]\
-        + 0.5 * dt * source[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]
-    v_yr[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] += -0.5 * dtdx * \
-        uv_x[:,:] - 0.5 * dt * gradp_y[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]\
-        + 0.5 * dt * source[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]
+    v_yl.jp(1, buf=1)[:,:] += -0.5 * dtdx * \
+        uv_x[:,:] - 0.5 * dt * gradp_y.v(buf=1) * coeff.v(buf=1) \
+        + 0.5 * dt * source.v(buf=1)
+    v_yr.v(buf=1)[:,:] += -0.5 * dtdx * \
+        uv_x[:,:] - 0.5 * dt * gradp_y.v(buf=1) * coeff.v(buf=1) \
+        + 0.5 * dt * source.v(buf=1)
 
     # u du/dx is the transverse term for the u states on y-interfaces
-    uu_x = ubar[:,:]*(u_xint[myg.ilo:myg.ihi+3,myg.jlo-1:myg.jhi+2] - \
-            u_xint[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2])
+    uu_x = ubar[:,:] * (u_xint.ip(1, buf=1) - u_xint.v(buf=1))
 
-    u_yl[myg.ilo-1:myg.ihi+2,myg.jlo:myg.jhi+3] += -0.5 * dtdx * \
-        uu_x[:,:] - 0.5 * dt * gradp_x[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]
-    u_yr[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] += -0.5 * dtdx * \
-        uu_x[:,:] - 0.5 * dt * gradp_x[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]
+    u_yl.jp(1, buf=1)[:,:] += -0.5 * dtdx * \
+        uu_x[:,:] - 0.5 * dt * gradp_x.v(buf=1) * coeff.v(buf=1)
+    u_yr.v(buf=1)[:,:] += -0.5 * dtdx * \
+        uu_x[:,:] - 0.5 * dt * gradp_x.v(buf=1) * coeff.v(buf=1)
+
 
     return u_xl, u_xr, u_yl, u_yr, v_xl, v_xr, v_yl, v_yr
-
-
-
 
 
 
@@ -341,30 +303,22 @@ def D_states(myg, dt, D, u_MAC, v_MAC, ldelta_rx, ldelta_ry):
     D_yl = myg.scratch_array()
     D_yr = myg.scratch_array()
 
-    dtdx = dt/myg.dx
-    dtdy = dt/myg.dy
+    dtdx = dt / myg.dx
+    dtdy = dt / myg.dy
 
     # D on x-edges
-    D_xl[myg.ilo-1:myg.ihi+4,myg.jlo-2:myg.jhi+3] = \
-        D[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] + 0.5 * (1. - dtdx * \
-        u_MAC[myg.ilo-1:myg.ihi+4,myg.jlo-2:myg.jhi+3]) * \
-        ldelta_rx[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]
+    D_xl.ip(1, buf=2)[:,:] = D.v(buf=2) + \
+        0.5 * (1. - dtdx * u_MAC.ip(1, buf=2)) * ldelta_rx.v(buf=2)
 
-    D_xr[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] = \
-        D[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] - 0.5 * (1. + dtdx * \
-        u_MAC[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]) * \
-        ldelta_rx[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]
+    D_xr.v(buf=2)[:,:] = D.v(buf=2) - \
+        0.5 * (1. + dtdx * u_MAC.v(buf=2)) * ldelta_rx.v(buf=2)
 
     # D on y-edges
-    D_yl[myg.ilo-2:myg.ihi+3,myg.jlo-1:myg.jhi+4] = \
-        D[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] + 0.5 * (1. - dtdy * \
-        v_MAC[myg.ilo-2:myg.ihi+3,myg.jlo-1:myg.jhi+4]) * \
-        ldelta_ry[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]
+    D_yl.jp(1, buf=2)[:,:] = D.v(buf=2) + \
+        0.5 * (1. - dtdy * v_MAC.jp(1, buf=2)) * ldelta_ry.v(buf=2)
 
-    D_yr[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] = \
-        D[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] - 0.5 * (1. + dtdy * \
-        v_MAC[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]) * \
-        ldelta_ry[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]
+    D_yr.v(buf=2)[:,:] = D.v(buf=2) - \
+        0.5 * (1. + dtdy * v_MAC.v(buf=2)) * ldelta_ry.v(buf=2)
 
     # we upwind based on the MAC velocities
     D_xint = upwind(myg, D_xl, D_xr, u_MAC)
@@ -374,42 +328,30 @@ def D_states(myg, dt, D, u_MAC, v_MAC, ldelta_rx, ldelta_ry):
     # now add the transverse term and the non-advective part of the normal
     # divergence
 
-    u_x = (u_MAC[myg.ilo-1:myg.ihi+4,myg.jlo-2:myg.jhi+3] - \
-        u_MAC[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]) / myg.dx
-    v_y = (v_MAC[myg.ilo-2:myg.ihi+3,myg.jlo-1:myg.jhi+4] - \
-        v_MAC[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]) / myg.dy
+    u_x = (u_MAC.ip(1, buf=2) - u_MAC.v(buf=2)) / myg.dx
+    v_y = (v_MAC.jp(1, buf=2) - v_MAC.v(buf=2)) / myg.dy
 
     #    (D v)_y is the transverse term for the x-interfaces
     # D u_x is the non-advective piece for the x-interfaces
-    Dv_y = (D_yint[myg.ilo-2:myg.ihi+3,myg.jlo-1:myg.jhi+4] * \
-        v_MAC[myg.ilo-2:myg.ihi+3,myg.jlo-1:myg.jhi+4] - \
-        D_yint[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] * \
-         v_MAC[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]) / myg.dy
+    Dv_y = (D_yint.jp(1, buf=2) * v_MAC.jp(1, buf=2) - \
+        D_yint.v(buf=2) * v_MAC.v(buf=2)) / myg.dy
 
-    D_xl[myg.ilo-1:myg.ihi+4,myg.jlo-2:myg.jhi+3] -= 0.5 * dt * \
-        (Dv_y[:,:] + D[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] * u_x[:,:])
-    D_xr[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] -= 0.5 * dt * \
-        (Dv_y[:,:] + D[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] * u_x[:,:])
+    D_xl.ip(1, buf=2)[:,:] -= 0.5 * dt * (Dv_y[:,:] + D.v(buf=2) * u_x[:,:])
+    D_xr.v(buf=2)[:,:] -= 0.5 * dt * (Dv_y[:,:] + D.v(buf=2) * u_x[:,:])
 
     #    (D u)_x is the transverse term for the y-interfaces
     # D v_y is the non-advective piece for the y-interfaces
-    Du_x = (D_xint[myg.ilo-1:myg.ihi+4,myg.jlo-2:myg.jhi+3] * \
-        u_MAC[myg.ilo-1:myg.ihi+4,myg.jlo-2:myg.jhi+3] - \
-        D_xint[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] * \
-         u_MAC[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3]) / myg.dx
+    Du_x = (D_xint.ip(1, buf=2) * u_MAC.ip(1, buf=2) - \
+        D_xint.v(buf=2) * u_MAC.v(buf=2)) / myg.dx
 
-    D_yl[myg.ilo-2:myg.ihi+3,myg.jlo-1:myg.jhi+4] -= 0.5 * dt * \
-        (Du_x[:,:] + D[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] * v_y[:,:])
-    D_yr[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] -= 0.5 * dt * \
-        (Du_x[:,:] + D[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] * v_y[:,:])
+    D_yl.jp(1, buf=2)[:,:] -= 0.5 * dt * (Du_x[:,:] + D.v(buf=2) * v_y[:,:])
+    D_yr.v(buf=2)[:,:] -= 0.5 * dt * (Du_x[:,:] + D.v(buf=2) * v_y[:,:])
 
     # finally upwind the full states
     D_xint = upwind(myg, D_xl, D_xr, u_MAC)
     D_yint = upwind(myg, D_yl, D_yr, v_MAC)
 
     return D_xint, D_yint
-
-
 
 
 
@@ -442,16 +384,14 @@ def upwind(myg, q_l, q_r, s):
     for j in range(myg.jlo-1, myg.jhi+3):
         for i in range(myg.ilo-1, myg.ihi+3):
 
-            if (s[i,j] > 0.0):
-                q_int[i,j] = q_l[i,j]
-            elif (s[i,j] == 0.0):
-                q_int[i,j] = 0.5*(q_l[i,j] + q_r[i,j])
+            if (s.d[i,j] > 0.0):
+                q_int.d[i,j] = q_l.d[i,j]
+            elif (s.d[i,j] == 0.0):
+                q_int.d[i,j] = 0.5*(q_l.d[i,j] + q_r.d[i,j])
             else:
-                q_int[i,j] = q_r[i,j]
+                q_int.d[i,j] = q_r.d[i,j]
 
     return q_int
-
-
 
 
 
@@ -484,12 +424,12 @@ def riemann(myg, q_l, q_r):
     for j in range(myg.jlo-1, myg.jhi+3):
         for i in range(myg.ilo-1, myg.ihi+3):
 
-            if (q_l[i,j] > 0.0 and q_l[i,j] + q_r[i,j] > 0.0):
-                s[i,j] = q_l[i,j]
-            elif (q_l[i,j] <= 0.0 and q_r[i,j] >= 0.0):
-                s[i,j] = 0.
+            if (q_l.d[i,j] > 0.0 and q_l.d[i,j] + q_r.d[i,j] > 0.0):
+                s.d[i,j] = q_l.d[i,j]
+            elif (q_l.d[i,j] <= 0.0 and q_r.d[i,j] >= 0.0):
+                s.d[i,j] = 0.
             else:
-                s[i,j] = q_r[i,j]
+                s.d[i,j] = q_r.d[i,j]
 
     return s
 
