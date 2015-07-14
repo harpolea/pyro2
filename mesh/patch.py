@@ -655,9 +655,10 @@ class Grid1d:
         and number of ghostcells as the parent grid
         """
         if nvar == 1:
-            return np.zeros(self.qy, dtype=np.float64)
+            _tmp =  np.zeros(self.qy, dtype=np.float64)
         else:
-            return np.zeros((self.qy, nvar), dtype=np.float64)
+            _tmp = np.zeros((self.qy, nvar), dtype=np.float64)
+        return ArrayIndexer(d=_tmp, grid=self)
 
 
     def coarse_like(self, N):
@@ -665,7 +666,14 @@ class Grid1d:
         return a new grid object coarsened by a factor n, but with
         all the other properties the same
         """
-        return Grid2d(self.ny/N, ng=self.ng, ymin=self.ymin, ymax=self.ymax)
+        return Grid1d(self.ny/N, ng=self.ng, ymin=self.ymin, ymax=self.ymax)
+
+    def fine_like(self, N):
+        """
+        return a new grid object finer by a factor n, but with
+        all the other properties the same
+        """
+        return Grid1d(self.ny*N, ng=self.ng, ymin=self.ymin, ymax=self.ymax)
 
 
     def __str__(self):
@@ -1302,6 +1310,7 @@ class CellCenterData1d:
 
         # time
         self.t = -1.0
+        self.n = -1
 
         self.initialized = 0
 
@@ -1373,8 +1382,7 @@ class CellCenterData1d:
         jlo = self.grid.jlo
         jhi = self.grid.jhi
 
-        n = 0
-        while n < self.nvar:
+        for n in range(self.nvar):
             myStr += "%16s: min: %15.10f    max: %15.10f\n" % \
                 (self.vars[n],
                  np.min(self.data[n,jlo:jhi+1]),
@@ -1382,7 +1390,6 @@ class CellCenterData1d:
             myStr += "%16s  BCs: -y: %-12s +y: %-12s\n" %\
                 (" " , self.BCs[self.vars[n]].ylb,
                        self.BCs[self.vars[n]].yrb)
-            n += 1
 
         return myStr
 
@@ -1405,7 +1412,7 @@ class CellCenterData1d:
 
         """
         n = self.vars.index(name)
-        return self.data[n,:]
+        return ArrayIndexer(d=self.data[n,:], grid=self.grid)
 
 
     def get_var_by_index(self, n):
@@ -1425,7 +1432,7 @@ class CellCenterData1d:
             The array of data corresponding to the index
 
         """
-        return self.data[n,:]
+        return ArrayIndexer(d=self.data[n,:], grid=self.grid)
 
 
     def get_aux(self, keyword):
@@ -1499,34 +1506,34 @@ class CellCenterData1d:
         n = self.vars.index(name)
 
         # -y boundary
-        if self.BCs[name].ylb == "outflow" or self.BCs[name].ylb == "neumann":
+        if self.BCs[name].ylb in ["outflow", "neumann"]:
 
-            j = 0
-            while j < self.grid.jlo:
-                self.data[n,j] = self.data[n,self.grid.jlo]
-                j += 1
+            if self.BCs[name].yl_value == None:
+                for j in range(self.grid.jlo):
+                    self.data[n,j] = self.data[n,self.grid.jlo]
+            else:
+                self.data[n,self.grid.jlo-1] = \
+                    self.data[n,self.grid.jlo] - self.grid.dy * \
+                    self.BCs[name].yl_value
 
         elif self.BCs[name].ylb == "reflect-even":
 
-            j = 0
-            while j < self.grid.jlo:
+            for j in range(self.grid.jlo):
                 self.data[n,j] = self.data[n,2*self.grid.ng-j-1]
-                j += 1
 
-        elif (self.BCs[name].ylb == "reflect-odd" or
-              self.BCs[name].ylb == "dirichlet"):
+        elif self.BCs[name].ylb in ["reflect-odd", "dirichlet"]:
 
-            j = 0
-            while j < self.grid.jlo:
-                self.data[n,j] = -self.data[n,2*self.grid.ng-j-1]
-                j += 1
+            if self.BCs[name].yl_value == None:
+                for j in range(self.grid.jlo):
+                    self.data[n,j] = -self.data[n,2*self.grid.ng-j-1]
+            else:
+                self.data[n,self.grid.jlo-1] = \
+                    2 * self.BCs[name].yl_value - self.data[n,self.grid.jlo]
 
         elif self.BCs[name].ylb == "periodic":
 
-            j = 0
-            while j < self.grid.jlo:
+            for j in range(self.grid.jlo):
                 self.data[n,j] = self.data[n,self.grid.jhi-self.grid.ng+j+1]
-                j += 1
 
         else:
             if self.BCs[name].ylb in extBCs.keys():
@@ -1535,40 +1542,39 @@ class CellCenterData1d:
 
 
         # +y boundary
-        if self.BCs[name].yrb == "outflow" or self.BCs[name].yrb == "neumann":
+        if self.BCs[name].yrb in ["outflow", "neumann"]:
 
-            j = self.grid.jhi+1
-            while j < self.grid.ny+2*self.grid.ng:
-                self.data[n,j] = self.data[n,self.grid.jhi]
-                j += 1
+            if self.BCs[name].yr_value == None:
+                for j in range(self.grid.jhi+1, self.grid.ny+2*self.grid.ng):
+                    self.data[n,j] = self.data[n,self.grid.jhi]
+            else:
+                self.data[n,self.grid.jhi+1] = \
+                    self.data[n,self.grid.jhi] + self.grid.dy*self.BCs[name].yr_value
 
         elif self.BCs[name].yrb == "reflect-even":
 
-            j = 0
-            while j < self.grid.ng:
+            for j in range(self.grid.ng):
                 j_bnd = self.grid.jhi+1+j
                 j_src = self.grid.jhi-j
 
                 self.data[n,j_bnd] = self.data[n,j_src]
-                j += 1
 
-        elif (self.BCs[name].yrb == "reflect-odd" or
-              self.BCs[name].yrb == "dirichlet"):
+        elif self.BCs[name].yrb in ["reflect-odd", "dirichlet"]:
 
-            j = 0
-            while j < self.grid.ng:
-                j_bnd = self.grid.jhi+1+j
-                j_src = self.grid.jhi-j
+            if self.BCs[name].yr_value == None:
+                for j in range(self.grid.ng):
+                    j_bnd = self.grid.jhi+1+j
+                    j_src = self.grid.jhi-j
 
-                self.data[n,j_bnd] = -self.data[n,j_src]
-                j += 1
+                    self.data[n,j_bnd] = -self.data[n,j_src]
+            else:
+                self.data[n,self.grid.jhi+1] = \
+                    2*self.BCs[name].yr_value - self.data[n,self.grid.jhi]
 
         elif self.BCs[name].yrb == "periodic":
 
-            j = self.grid.jhi+1
-            while j < 2*self.grid.ng + self.grid.ny:
+            for j in range(self.grid.jhi+1, 2*self.grid.ng + self.grid.ny):
                 self.data[n,j] = self.data[n,j-self.grid.jhi-1+self.grid.ng]
-                j += 1
 
         else:
             if self.BCs[name].yrb in extBCs.keys():
@@ -1587,23 +1593,15 @@ class CellCenterData1d:
         fData = self.get_var(varname)
 
         # allocate an array for the coarsely gridded data
-        ng_c = fG.ng
-        ny_c = fG.ny/2
-
-        cData = np.zeros(2*ng_c+ny_c, dtype=self.dtype)
-
-        jlo_c = ng_c
-        jhi_c = ng_c+ny_c-1
-
+        cG = fG.coarse_like(2)
+        cData = cG.scratch_array()
         # fill the coarse array with the restricted data -- just
         # average the 4 fine cells into the corresponding coarse cell
         # that encompasses them.
 
         # This is done by shifting our view into the fData array and
         # using a stride of 2 in the indexing.
-        cData[jlo_c:jhi_c+1] = \
-            0.5*(fData[fG.jlo  :fG.jhi+1:2] +
-                 fData[fG.jlo+1:fG.jhi+1:2])
+        cData.v()[:] = 0.5 * (fData.v(s=2) + fData.jp(1, s=2))
 
         return cData
 
@@ -1650,44 +1648,18 @@ class CellCenterData1d:
         cData = self.get_var(varname)
 
         # allocate an array for the coarsely gridded data
-        ng_f = cG.ng
-        ny_f = cG.ny*2
-
-        fData = np.zeros(2*ng_f+ny_f, dtype=self.dtype)
-
-        jlo_f = ng_f
-        jhi_f = ng_f+ny_f-1
+        fG = cG.fine_like(2)
+        fData = fG.scratch_array()
 
         # slopes for the coarse data
         m_y = cG.scratch_array()
-        m_y[cG.jlo:cG.jhi+1] = \
-            0.5*(cData[cG.jlo+1:cG.jhi+2] -
-                 cData[cG.jlo-1:cG.jhi  ])
+        m_y.v()[:] = 0.5 * (cData.jp(1) - cData.jp(-1))
 
 
+        # fill the children
+        fData.v(s=2)[:] = cData.v() - 0.5 * m_y.v() # 1 and 2
 
-        # fill the '1' children
-        fData[jlo_f:jhi_f+1:2] = \
-            cData[cG.jlo:cG.jhi+1] \
-            - 0.5*m_y[cG.jlo:cG.jhi+1]
-
-
-        # fill the '2' children
-        fData[jlo_f:jhi_f+1:2] = \
-            cData[cG.jlo:cG.jhi+1] \
-            - 0.5*m_y[cG.jlo:cG.jhi+1]
-
-
-        # fill the '3' children
-        fData[jlo_f+1:jhi_f+1:2] = \
-            cData[cG.jlo:cG.jhi+1] \
-            + 0.5*m_y[cG.jlo:cG.jhi+1]
-
-
-        # fill the '4' children
-        fData[jlo_f+1:jhi_f+1:2] = \
-            cData[cG.jlo:cG.jhi+1] \
-            + 0.5*m_y[cG.jlo:cG.jhi+1]
+        fData.jp(1, s=2)[:] = cData.v() + 0.5 * m_y.v() # 3 and 4
 
         return fData
 
@@ -1710,37 +1682,7 @@ class CellCenterData1d:
         """
 
         a = self.get_var(varname)
-
-        if self.dtype == np.int:
-            fmt = "%4d"
-        elif self.dtype == np.float64:
-            fmt = "%10.5g"
-        else:
-            msg.fail("ERROR: dtype not supported")
-
-        # print j descending, so it looks like a grid (y increasing
-        # with height)
-        j = self.grid.qy-1
-        while j >= 0:
-
-            if (j < self.grid.jlo or j > self.grid.jhi):
-                gc = 1
-            else:
-                gc = 0
-
-            if gc:
-                print("\033[31m" + fmt % (a[j]) + "\033[0m", end="")
-            else:
-                print (fmt % (a[j]), end="")
-
-
-            print(" ")
-            j -= 1
-
-        leg = """
-         y
-        """
-        print(leg)
+        a.pretty_print()
 
 
 # backwards compatibility

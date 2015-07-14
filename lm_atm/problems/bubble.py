@@ -70,42 +70,38 @@ def init_data(my_data, base_data, rp, metric):
 
     #dens[:, myg.jlo:myg.jhi+1] = np.maximum(dens_base * \
     #    np.exp(-myg.y[myg.jlo:myg.jhi+1] / scale_height), dens_cutoff)
-    dens.d[:,myg.jlo:myg.jhi+1] = dens_base * np.exp(-grav * \
+    dens.v()[:,:] = dens_base * np.exp(-grav * \
         myg.y[np.newaxis,myg.jlo:myg.jhi+1] / (gamma * c**2 * R * \
-        metric.alpha[np.newaxis,myg.jlo:myg.jhi+1]**2))
+        metric.alpha.v2d()**2))
     #dens[:,myg.jlo:myg.jhi+1] = (dens_base**gamma - grav * \
     #    myg.y[np.newaxis, myg.jlo:myg.jhi+1] / (R * \
     #    metric.alpha[np.newaxis,myg.jlo:myg.jhi+1]**2))**(1./gamma)
 
     # set the pressure (P = cs2*dens)
-    pres.d = (dens.d[:,:])**gamma
-    eint.d[:,:] = pres.d[:,:] /((gamma - 1.0) * dens.d[:,:])
-    enth.d[:,:] = eint.d[:,:] + pres.d[:,:]/dens.d[:,:] #Newtonian
+    pres.d[:,:] = (dens.d)**gamma
+    eint.d[:,:] = pres.d /((gamma - 1.0) * dens.d)
+    enth.d[:,:] = eint.d + pres.d/dens.d #Newtonian
 
     # do the base state by laterally averaging
-    D0.d = base_data.get_var("D0")
-    Dh0.d = base_data.get_var("Dh0")
+    D0 = base_data.get_var("D0")
+    Dh0 = base_data.get_var("Dh0")
 
-    D0.d[:] = np.mean(dens.d[:,:] * u0[:,:], axis=0)
-    Dh0.d[:] = np.mean(enth.d[:,:] * u0[:,:] * dens.d[:,:], axis=0)
+    D0.d[:] = np.mean(dens.d * u0[:,:], axis=0)
+    Dh0.d[:] = np.mean(enth.d * u0[:,:] * dens.d, axis=0)
 
-    for i in range(myg.ilo, myg.ihi+1):
-        for j in range(myg.jlo, myg.jhi+1):
+    # boost the specific internal energy, keeping the pressure
+    # constant, by dropping the density
+    r = np.sqrt((myg.x2d - x_pert)**2  + (myg.y2d - y_pert)**2)
 
-            r = np.sqrt((myg.x[i] - (x_pert+myg.xmin))**2  \
-                + (myg.y[j] - (y_pert+myg.ymin))**2)
+    idx = r <= r_pert
+    eint.d[idx] *= pert_amplitude_factor
+    dens.d[idx] = pres.d[idx]/(eint.d[idx]*(gamma - 1.0))
+    enth.d[idx] = eint.d[idx] + pres.d[idx]/dens.d[idx]
 
-            if r <= r_pert:
-                # boost the specific internal energy, keeping the pressure
-                # constant by dropping the density
-                #eint[i,j] *= (1. + (pert_amplitude_factor-1.)*(r_pert-r)/r_pert)
-                eint.d[i,j] *= pert_amplitude_factor
-                dens.d[i,j] = pres.d[i,j]/(eint.d[i,j]*(gamma - 1.0))
-                enth.d[i,j] = eint.d[i,j] + pres.d[i,j]/dens.d[i,j]
 
     # base pressure
     p0 = base_data.get_var("p0")
-    p0.d[:] = (D0.d[:] /u0flat[:])**gamma
+    p0.d[:] = (D0.d /u0flat[:])**gamma
 
     base_data.fill_BC("p0")
 
@@ -118,7 +114,7 @@ def init_data(my_data, base_data, rp, metric):
 
     #multiply by correct u0s
     dens.d[:,:] *= u0[:,:] #rho * u0
-    enth.d[:,:] *= u0[:,:] * dens.d[:,:] #rho * h * u0
+    enth.d[:,:] *= u0[:,:] * dens.d #rho * h * u0
 
     #fill ghost cells
     my_data.fill_BC("x-velocity")
@@ -129,6 +125,7 @@ def init_data(my_data, base_data, rp, metric):
     base_data.fill_BC("D0")
     base_data.fill_BC("Dh0")
     base_data.fill_BC("p0")
+
 
 
 def checkXSymmetry(grid, nx):
@@ -148,8 +145,6 @@ def checkXSymmetry(grid, nx):
         whether or not the grid is symmetric
     """
 
-
-
     halfGrid = grid[-np.floor(nx/2):, :] - grid[np.floor(nx/2)-1::-1, :]
     #sym = True
 
@@ -157,33 +152,6 @@ def checkXSymmetry(grid, nx):
         print('\nOh no! An asymmetry has occured!\n')
         print('Asymmetry has amplitude: ', np.max(np.abs(halfGrid)))
         #sym = False
-
-    j = myg.jlo
-    for j in range(myg.jlo, myg.jhi+1):
-        dens.d[:,j] = max(dens_base*numpy.exp(-myg.y[j]/scale_height),
-                          dens_cutoff)
-
-    cs2 = scale_height*abs(grav)
-
-    # set the pressure (P = cs2*dens)
-    pres.d = cs2*dens.d
-    eint.d[:,:] = pres.d/(gamma - 1.0)/dens.d
-
-    # boost the specific internal energy, keeping the pressure
-    # constant, by dropping the density
-    r = numpy.sqrt((myg.x2d - x_pert)**2  + (myg.y2d - y_pert)**2)
-
-    idx = r <= r_pert
-    eint.d[idx] = eint.d[idx]*pert_amplitude_factor
-    dens.d[idx] = pres.d[idx]/(eint.d[idx]*(gamma - 1.0))
-
-    # do the base state
-    base["rho0"].d[:] = numpy.mean(dens.d, axis=0)
-    base["p0"].d[:] = numpy.mean(pres.d, axis=0)
-
-    # redo the pressure via HSE
-    for j in range(myg.jlo+1, myg.jhi):
-        base["p0"].d[j] = base["p0"].d[j-1] + 0.5*myg.dy*(base["rho0"].d[j] + base["rho0"].d[j-1])*grav
 
 
     #return sym

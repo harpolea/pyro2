@@ -1,5 +1,70 @@
 from __future__ import print_function
 
+def is_sym_pair(myg, nodal, sl, sr):
+    """
+    """
+    sym = True
+
+    if not nodal:
+        for j in range(myg.jlo, myg.jhi+1):
+            for i in range(1, myg.nx/2 + 1):
+                il = myg.ilo + i -1
+                ir = myg.ihi - i + 1
+
+                if sl(il,j) != sr(ir, j):
+                    sym = False
+                    return sym
+    else:
+        for j in range(myg.jlo, myg.jhi+1):
+            for i in range(1, myg.nx/2 + 1):
+                il = myg.ilo + i -1
+                ir = myg.ihi - i + 2
+
+                if sl(il,j) != sr(ir, j):
+                    sym = False
+                    return sym
+    return sym
+
+
+def is_sym(myg, nodal, s):
+    """
+    """
+    return is_sym_pair(myg, nodal, s, s)
+
+
+def is_asym_pair(myg, nodal, sl, sr):
+    """
+    """
+    asym = True
+
+    if not nodal:
+        for j in range(myg.jlo, myg.jhi+1):
+            for i in range(1, myg.nx/2 + 1):
+                il = myg.ilo + i -1
+                ir = myg.ihi - i + 1
+
+                if sl(il,j) != -sr(ir, j):
+                    asym = False
+                    return asym
+    else:
+        for j in range(myg.jlo, myg.jhi+1):
+            for i in range(1, myg.nx/2 + 1):
+                il = myg.ilo + i -1
+                ir = myg.ihi - i + 2
+
+                if sl(il,j) != -sr(ir, j):
+                    asym = False
+                    return asym
+
+    return asym
+
+
+def is_asym(myg, nodal, s):
+    """
+    """
+    return is_asym_pair(myg, nodal, s, s)
+
+
 def mac_vels(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy,
     ldelta_vy, gradp_x, gradp_y, coeff, source):
     """
@@ -107,7 +172,6 @@ def states(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy, ldelta_vy,
     v_yint = upwind(myg, v_yl, v_yr, v_MAC)
 
     return u_xint, v_xint, u_yint, v_yint
-
 
 
 
@@ -268,7 +332,6 @@ def get_interface_states(myg, dt, u, v, ldelta_ux, ldelta_vx, ldelta_uy,
 
 
 
-
 def D_states(myg, dt, D, u_MAC, v_MAC, ldelta_rx, ldelta_ry):
     """
     This predicts D to the interfaces.  We use the MAC velocities to do
@@ -396,7 +459,6 @@ def upwind(myg, q_l, q_r, s):
 
 
 
-
 def riemann(myg, q_l, q_r):
     """
     Solve the Burger's Riemann problem given the input left and right
@@ -432,7 +494,6 @@ def riemann(myg, q_l, q_r):
                 s.d[i,j] = q_r.d[i,j]
 
     return s
-
 
 
 
