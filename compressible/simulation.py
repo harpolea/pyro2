@@ -61,7 +61,8 @@ class Simulation(NullSimulation):
             The timers used for profiling this simulation
         #
 
-        NullSimulation.__init__(self, solver_name, problem_name, rp, timers=timers)
+        NullSimulation.__init__(self, solver_name, problem_name, rp,
+        timers=timers)
     """
 
     def initialize(self):
@@ -73,7 +74,6 @@ class Simulation(NullSimulation):
         # create the variables
         my_grid = grid_setup(self.rp, ng=4)
         my_data = patch.CellCenterData2d(my_grid)
-
 
         # define solver specific boundary condition routines
         patch.define_bc("hse", BC.user)
@@ -99,18 +99,17 @@ class Simulation(NullSimulation):
 
         self.cc_data = my_data
 
-        self.vars = Variables(idens = my_data.vars.index("density"),
-                              ixmom = my_data.vars.index("x-momentum"),
-                              iymom = my_data.vars.index("y-momentum"),
-                              iener = my_data.vars.index("energy"),
-                              iphi = my_data.vars.index("phi"))
-
+        self.vars = Variables(idens=my_data.vars.index("density"),
+                              ixmom=my_data.vars.index("x-momentum"),
+                              iymom=my_data.vars.index("y-momentum"),
+                              iener=my_data.vars.index("energy"),
+                              iphi=my_data.vars.index("phi"))
 
         # initial conditions for the problem
         exec(self.problem_name + '.init_data(self.cc_data, self.rp)')
 
-        if self.verbose > 0: print(my_data)
-
+        if self.verbose > 0:
+            print(my_data)
 
     def timestep(self):
         """
@@ -159,7 +158,6 @@ class Simulation(NullSimulation):
         """
 #        pass
 
-
     def evolve(self, dt):
         """
         Evolve the equations of compressible hydrodynamics through a
@@ -173,14 +171,14 @@ class Simulation(NullSimulation):
         xmom = self.cc_data.get_var("x-momentum")
         ymom = self.cc_data.get_var("y-momentum")
         ener = self.cc_data.get_var("energy")
-        phi  = self.cc_data.get_var("phi")
+        phi = self.cc_data.get_var("phi")
 
         grav = self.rp.get_param("compressible.grav")
 
         myg = self.cc_data.grid
 
         Flux_x, Flux_y = unsplitFluxes(self.cc_data, self.rp, self.vars,
-                         self.tc, dt)
+                                       self.tc, dt)
 
         old_dens = dens.copy()
         old_ymom = ymom.copy()
@@ -192,21 +190,22 @@ class Simulation(NullSimulation):
         for n in range(self.vars.nvar):
             var = self.cc_data.get_var_by_index(n)
 
-            var[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] += \
-                dtdx*(Flux_x[myg.ilo  :myg.ihi+1,myg.jlo  :myg.jhi+1,n] - \
-                      Flux_x[myg.ilo+1:myg.ihi+2,myg.jlo  :myg.jhi+1,n]) + \
-                dtdy*(Flux_y[myg.ilo  :myg.ihi+1,myg.jlo  :myg.jhi+1,n] - \
-                      Flux_y[myg.ilo  :myg.ihi+1,myg.jlo+1:myg.jhi+2,n])
+            var[myg.ilo:myg.ihi+1, myg.jlo:myg.jhi+1] += \
+                dtdx*(Flux_x[myg.ilo:myg.ihi+1, myg.jlo:myg.jhi+1, n] -
+                      Flux_x[myg.ilo+1:myg.ihi+2, myg.jlo:myg.jhi+1, n]) + \
+                dtdy*(Flux_y[myg.ilo:myg.ihi+1, myg.jlo:myg.jhi+1, n] -
+                      Flux_y[myg.ilo:myg.ihi+1, myg.jlo+1:myg.jhi+2, n])
 
         # gravitational source terms
         ymom += 0.5*dt*(dens + old_dens)*grav
         ener += 0.5*dt*(ymom + old_ymom)*grav
 
         # reinitialise
-        phi[:,:] = pylsmlib.computeDistanceFunction(phi, dx=self.cc_data.grid.dx, order=2)
+        phi[:, :] = pylsmlib.computeDistanceFunction(phi,
+                                                     dx=self.cc_data.grid.dx,
+                                                     order=2)
 
         tm_evolve.end()
-
 
     def dovis(self):
         """
@@ -221,7 +220,7 @@ class Simulation(NullSimulation):
         xmom = self.cc_data.get_var("x-momentum")
         ymom = self.cc_data.get_var("y-momentum")
         ener = self.cc_data.get_var("energy")
-        phi  = self.cc_data.get_var("phi")
+        phi = self.cc_data.get_var("phi")
 
         # get the velocities
         u = xmom/dens
@@ -267,7 +266,6 @@ class Simulation(NullSimulation):
 
             onLeft = list(range(self.vars.nvar))
 
-
         elif (L_y > 2*L_x):
 
             # we want 4 columns:  rho  |U|  p  e
@@ -287,8 +285,7 @@ class Simulation(NullSimulation):
             fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
             plt.subplots_adjust(hspace=0.25)
 
-            onLeft = [0,2]
-
+            onLeft = [0, 2]
 
         fields = [dens, magvel, phi, e]
         field_names = [r"$\rho$", r"U", r"$\phi$", "e"]
@@ -299,14 +296,16 @@ class Simulation(NullSimulation):
             v = fields[n]
             if n == 2:
                 img = ax.contour(np.transpose(v[myg.ilo:myg.ihi+1,
-                                               myg.jlo:myg.jhi+1]),
-                            origin="lower",
-                            extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax])
+                                                myg.jlo:myg.jhi+1]),
+                                 origin="lower",
+                                 extent=[myg.xmin, myg.xmax, myg.ymin,
+                                         myg.ymax])
             else:
                 img = ax.imshow(np.transpose(v[myg.ilo:myg.ihi+1,
-                                           myg.jlo:myg.jhi+1]),
-                        interpolation="nearest", origin="lower",
-                        extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax])
+                                               myg.jlo:myg.jhi+1]),
+                                interpolation="nearest", origin="lower",
+                                extent=[myg.xmin, myg.xmax, myg.ymin,
+                                        myg.ymax])
 
             ax.set_xlabel("x")
             if n == 0:
@@ -316,16 +315,16 @@ class Simulation(NullSimulation):
 
             ax.set_title(field_names[n])
 
-            if not n in onLeft:
+            if n not in onLeft:
                 ax.yaxis.offsetText.set_visible(False)
-                if n > 0: ax.get_yaxis().set_visible(False)
+                if n > 0:
+                    ax.get_yaxis().set_visible(False)
 
             if sparseX:
                 ax.xaxis.set_major_locator(plt.MaxNLocator(3))
 
             plt.colorbar(img, ax=ax, orientation=orientation, shrink=shrink)
 
-
-        plt.figtext(0.05,0.0125, "t = %10.5f" % self.cc_data.t)
+        plt.figtext(0.05, 0.0125, "t = %10.5f" % self.cc_data.t)
 
         plt.draw()

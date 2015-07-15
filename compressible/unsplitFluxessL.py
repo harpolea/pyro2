@@ -175,19 +175,21 @@ def calcSL(my_data, rp, vars):
     xmom = my_data.get_var("x-momentum")
     ymom = my_data.get_var("y-momentum")
     ener = my_data.get_var("energy")
-    phi  = my_data.get_var("phi")
+    phi = my_data.get_var("phi")
 
-    #get these from my_data
-    sL0 = 0.01 #don't make too big. E.g. 1 works well for sedov, 5 does not.
-    marksteinLength = 0.01 #don't make too big either. e.g. 0.1 is ok, 1 is not.
+    # get these from my_data
+    sL0 = 0.01  # don't make too big. E.g. 1 works well for sedov, 5 does not.
+    marksteinLength = 0.01
+    # don't make too big either. e.g. 0.1 is ok, 1 is not.
     ibLims = np.array([my_data.grid.ilo, my_data.grid.ihi+1,
                        my_data.grid.jlo, my_data.grid.jhi+1])
 
     return pylsmlib.pythonisedfns.laminarFlameSpeed2d(phi, sL0,
-                marksteinLength,
-                xmom/dens, ymom/dens, ibLims,
-                dx=my_data.grid.dx, dy=my_data.grid.dy)
-
+                                                      marksteinLength,
+                                                      xmom/dens, ymom/dens,
+                                                      ibLims,
+                                                      dx=my_data.grid.dx,
+                                                      dy=my_data.grid.dy)
 
 
 def unsplitFluxes(my_data, rp, vars, tc, dt):
@@ -230,9 +232,9 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
 
     gamma = rp.get_param("eos.gamma")
 
-    #=========================================================================
+    # =========================================================================
     # compute the primitive variables
-    #=========================================================================
+    # =========================================================================
     # Q = (rho, u, v, p, phi)
 
     dens = my_data.get_var("density")
@@ -248,17 +250,16 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     v = ymom/dens
 
     # get the pressure
-    e = (ener - 0.5*(xmom**2 + ymom**2)/dens)/dens
+    e = (ener - 0.5 * (xmom**2 + ymom**2)/dens)/dens
 
     p = eos.pres(gamma, dens, e)
 
     smallp = 1.e-10
     p = p.clip(smallp)   # apply a floor to the pressure
 
-
-    #=========================================================================
+    # =========================================================================
     # compute the flattening coefficients
-    #=========================================================================
+    # =========================================================================
 
     # there is a single flattening coefficient (xi) for all directions
     use_flattening = rp.get_param("compressible.use_flattening")
@@ -268,14 +269,15 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
         z0 = rp.get_param("compressible.z0")
         z1 = rp.get_param("compressible.z1")
 
-        xi_x = reconstruction_f.flatten(1, p, u, myg.qx, myg.qy, myg.ng, smallp, delta, z0, z1)
-        xi_y = reconstruction_f.flatten(2, p, v, myg.qx, myg.qy, myg.ng, smallp, delta, z0, z1)
+        xi_x = reconstruction_f.flatten(1, p, u, myg.qx, myg.qy, myg.ng,
+                                        smallp, delta, z0, z1)
+        xi_y = reconstruction_f.flatten(2, p, v, myg.qx, myg.qy, myg.ng,
+                                        smallp, delta, z0, z1)
 
-        xi = reconstruction_f.flatten_multid(xi_x, xi_y, p, myg.qx, myg.qy, myg.ng)
+        xi = reconstruction_f.flatten_multid(xi_x, xi_y, p, myg.qx, myg.qy,
+                                             myg.ng)
     else:
         xi = 1.0
-
-
 
     # monotonized central differences in x-direction
     tm_limit = tc.timer("limiting")
@@ -304,12 +306,9 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
 
     tm_limit.end()
 
-
-
-    #=========================================================================
+    # =========================================================================
     # x-direction
-    #=========================================================================
-
+    # =========================================================================
 
     # left and right primitive variable states
     tm_states = tc.timer("interfaceStates")
@@ -318,120 +317,119 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     V_l = myg.scratch_array(vars.nvar)
     V_r = myg.scratch_array(vars.nvar)
 
-    #find x-component of sL
+    # find x-component of sL
     sL = calcSL(my_data, rp, vars)
     phi_x, phi_y = pylsmlib.pythonisedfns.gradPhi2d(phi, dx=myg.dx, dy=myg.dy)
     norm_x, norm_y = pylsmlib.pythonisedfns.signedUnitNormal2d(phi,
-                                    phi_x, phi_y, dx=myg.dx, dy=myg.dy)
-    sLx = norm_x[:,:] * sL[:,:]
+                                                               phi_x, phi_y,
+                                                               dx=myg.dx,
+                                                               dy=myg.dy)
+    sLx = norm_x[:, :] * sL[:, :]
 
     V_l, V_r = interface_fsL.states(1, myg.qx, myg.qy, myg.ng, myg.dx, dt,
-                                  vars.nvar,
-                                  gamma,
-                                  r, u, v, p, phi, sLx,
-                                  ldelta_rx, ldelta_ux, ldelta_vx, ldelta_px,
-                                  ldelta_phix)
+                                    vars.nvar,
+                                    gamma,
+                                    r, u, v, p, phi, sLx,
+                                    ldelta_rx, ldelta_ux, ldelta_vx, ldelta_px,
+                                    ldelta_phix)
 
     tm_states.end()
-
 
     # transform interface states back into conserved variables
     U_xl = myg.scratch_array(vars.nvar)
     U_xr = myg.scratch_array(vars.nvar)
 
-    U_xl[:,:,vars.idens] = V_l[:,:,vars.irho]
-    U_xl[:,:,vars.ixmom] = V_l[:,:,vars.irho]*V_l[:,:,vars.iu]
-    U_xl[:,:,vars.iymom] = V_l[:,:,vars.irho]*V_l[:,:,vars.iv]
-    U_xl[:,:,vars.iener] = eos.rhoe(gamma, V_l[:,:,vars.ip]) + \
-        0.5*V_l[:,:,vars.irho]*(V_l[:,:,vars.iu]**2 + V_l[:,:,vars.iv]**2)
-    U_xl[:,:,vars.iphi]  = V_l[:,:,vars.iphi]
+    U_xl[:, :, vars.idens] = V_l[:, :, vars.irho]
+    U_xl[:, :, vars.ixmom] = V_l[:, :, vars.irho] * V_l[:, :, vars.iu]
+    U_xl[:, :, vars.iymom] = V_l[:, :, vars.irho] * V_l[:, :, vars.iv]
+    U_xl[:, :, vars.iener] = eos.rhoe(gamma, V_l[:, :, vars.ip]) + \
+        0.5 * V_l[:, :, vars.irho] * (V_l[:, :, vars.iu]**2 +
+                                      V_l[:, :, vars.iv]**2)
+    U_xl[:, :, vars.iphi] = V_l[:, :, vars.iphi]
 
-    U_xr[:,:,vars.idens] = V_r[:,:,vars.irho]
-    U_xr[:,:,vars.ixmom] = V_r[:,:,vars.irho]*V_r[:,:,vars.iu]
-    U_xr[:,:,vars.iymom] = V_r[:,:,vars.irho]*V_r[:,:,vars.iv]
-    U_xr[:,:,vars.iener] = eos.rhoe(gamma, V_r[:,:,vars.ip]) + \
-        0.5*V_r[:,:,vars.irho]*(V_r[:,:,vars.iu]**2 + V_r[:,:,vars.iv]**2)
-    U_xr[:,:,vars.iphi]  = V_r[:,:,vars.iphi]
+    U_xr[:, :, vars.idens] = V_r[:, :, vars.irho]
+    U_xr[:, :, vars.ixmom] = V_r[:, :, vars.irho] * V_r[:, :, vars.iu]
+    U_xr[:, :, vars.iymom] = V_r[:, :, vars.irho] * V_r[:, :, vars.iv]
+    U_xr[:, :, vars.iener] = eos.rhoe(gamma, V_r[:, :, vars.ip]) + \
+        0.5 * V_r[:, :, vars.irho] * (V_r[:, :, vars.iu]**2 +
+                                      V_r[:, :, vars.iv]**2)
+    U_xr[:, :, vars.iphi] = V_r[:, :, vars.iphi]
 
-
-
-    #=========================================================================
+    # =========================================================================
     # y-direction
-    #=========================================================================
-
+    # =========================================================================
 
     # left and right primitive variable states
     tm_states.begin()
 
     # y-component of laminar flame speed
-    sLy = norm_y[:,:] * sL[:,:]
+    sLy = norm_y[:, :] * sL[:, :]
 
     V_l, V_r = interface_fsL.states(2, myg.qx, myg.qy, myg.ng, myg.dy, dt,
-                                  vars.nvar,
-                                  gamma,
-                                  r, u, v, p, phi, sLy,
-                                  ldelta_ry, ldelta_uy, ldelta_vy, ldelta_py,
-                                  ldelta_phiy)
+                                    vars.nvar,
+                                    gamma,
+                                    r, u, v, p, phi, sLy,
+                                    ldelta_ry, ldelta_uy, ldelta_vy, ldelta_py,
+                                    ldelta_phiy)
 
     tm_states.end()
-
 
     # transform interface states back into conserved variables
     U_yl = myg.scratch_array(vars.nvar)
     U_yr = myg.scratch_array(vars.nvar)
 
-    U_yl[:,:,vars.idens] = V_l[:,:,vars.irho]
-    U_yl[:,:,vars.ixmom] = V_l[:,:,vars.irho]*V_l[:,:,vars.iu]
-    U_yl[:,:,vars.iymom] = V_l[:,:,vars.irho]*V_l[:,:,vars.iv]
-    U_yl[:,:,vars.iener] = eos.rhoe(gamma, V_l[:,:,vars.ip]) + \
-        0.5*V_l[:,:,vars.irho]*(V_l[:,:,vars.iu]**2 + V_l[:,:,vars.iv]**2)
-    U_yl[:,:,vars.iphi]  = V_l[:,:,vars.iphi]
+    U_yl[:, :, vars.idens] = V_l[:, :, vars.irho]
+    U_yl[:, :, vars.ixmom] = V_l[:, :, vars.irho] * V_l[:, :, vars.iu]
+    U_yl[:, :, vars.iymom] = V_l[:, :, vars.irho] * V_l[:, :, vars.iv]
+    U_yl[:, :, vars.iener] = eos.rhoe(gamma, V_l[:, :, vars.ip]) + \
+        0.5 * V_l[:, :, vars.irho] * (V_l[:, :, vars.iu]**2 +
+                                      V_l[:, :, vars.iv]**2)
+    U_yl[:, :, vars.iphi] = V_l[:, :, vars.iphi]
 
-    U_yr[:,:,vars.idens] = V_r[:,:,vars.irho]
-    U_yr[:,:,vars.ixmom] = V_r[:,:,vars.irho]*V_r[:,:,vars.iu]
-    U_yr[:,:,vars.iymom] = V_r[:,:,vars.irho]*V_r[:,:,vars.iv]
-    U_yr[:,:,vars.iener] = eos.rhoe(gamma, V_r[:,:,vars.ip]) + \
-        0.5*V_r[:,:,vars.irho]*(V_r[:,:,vars.iu]**2 + V_r[:,:,vars.iv]**2)
-    U_yr[:,:,vars.iphi]  = V_r[:,:,vars.iphi]
+    U_yr[:, :, vars.idens] = V_r[:, :, vars.irho]
+    U_yr[:, :, vars.ixmom] = V_r[:, :, vars.irho] * V_r[:, :, vars.iu]
+    U_yr[:, :, vars.iymom] = V_r[:, :, vars.irho] * V_r[:, :, vars.iv]
+    U_yr[:, :, vars.iener] = eos.rhoe(gamma, V_r[:, :, vars.ip]) + \
+        0.5 * V_r[:, :, vars.irho] * (V_r[:, :, vars.iu]**2 +
+                                      V_r[:, :, vars.iv]**2)
+    U_yr[:, :, vars.iphi] = V_r[:, :, vars.iphi]
 
-
-    #=========================================================================
+    # =========================================================================
     # apply source terms
-    #=========================================================================
+    # =========================================================================
     grav = rp.get_param("compressible.grav")
 
-    # ymom_xl[i,j] += 0.5*dt*dens[i-1,j]*grav
-    U_xl[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2,vars.iymom] += \
-        0.5*dt*dens[myg.ilo-2:myg.ihi+1,myg.jlo-1:myg.jhi+2]*grav
+    # ymom_xl[i,j] += 0.5 * dt * dens[i-1,j] * grav
+    U_xl[myg.ilo-1:myg.ihi+2, myg.jlo-1:myg.jhi+2, vars.iymom] += \
+        0.5 * dt * dens[myg.ilo-2:myg.ihi+1, myg.jlo-1:myg.jhi+2] * grav
 
-    U_xl[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2,vars.iener] += \
-        0.5*dt*ymom[myg.ilo-2:myg.ihi+1,myg.jlo-1:myg.jhi+2]*grav
+    U_xl[myg.ilo-1:myg.ihi+2, myg.jlo-1:myg.jhi+2, vars.iener] += \
+        0.5 * dt * ymom[myg.ilo-2:myg.ihi+1, myg.jlo-1:myg.jhi+2] * grav
 
-    # ymom_xr[i,j] += 0.5*dt*dens[i,j]*grav
-    U_xr[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2,vars.iymom] += \
-        0.5*dt*dens[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]*grav
+    # ymom_xr[i,j] += 0.5 * dt * dens[i,j] * grav
+    U_xr[myg.ilo-1:myg.ihi+2, myg.jlo-1:myg.jhi+2, vars.iymom] += \
+        0.5 * dt * dens[myg.ilo-1:myg.ihi+2, myg.jlo-1:myg.jhi+2] * grav
 
-    U_xr[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2,vars.iener] += \
-        0.5*dt*ymom[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]*grav
+    U_xr[myg.ilo-1:myg.ihi+2, myg.jlo-1:myg.jhi+2, vars.iener] += \
+        0.5 * dt * ymom[myg.ilo-1:myg.ihi+2, myg.jlo-1:myg.jhi+2] * grav
 
-    # ymom_yl[i,j] += 0.5*dt*dens[i,j-1]*grav
-    U_yl[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2,vars.iymom] += \
-        0.5*dt*dens[myg.ilo-1:myg.ihi+2,myg.jlo-2:myg.jhi+1]*grav
+    # ymom_yl[i,j] += 0.5 * dt * dens[i,j-1] * grav
+    U_yl[myg.ilo-1:myg.ihi+2, myg.jlo-1:myg.jhi+2, vars.iymom] += \
+        0.5 * dt * dens[myg.ilo-1:myg.ihi+2, myg.jlo-2:myg.jhi+1] * grav
 
-    U_yl[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2,vars.iener] += \
-        0.5*dt*ymom[myg.ilo-1:myg.ihi+2,myg.jlo-2:myg.jhi+1]*grav
+    U_yl[myg.ilo-1:myg.ihi+2, myg.jlo-1:myg.jhi+2, vars.iener] += \
+        0.5 * dt * ymom[myg.ilo-1:myg.ihi+2, myg.jlo-2:myg.jhi+1] * grav
 
-    # ymom_yr[i,j] += 0.5*dt*dens[i,j]*grav
-    U_yr[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2,vars.iymom] += \
-        0.5*dt*dens[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]*grav
+    # ymom_yr[i,j] += 0.5 * dt * dens[i,j] * grav
+    U_yr[myg.ilo-1:myg.ihi+2, myg.jlo-1:myg.jhi+2, vars.iymom] += \
+        0.5 * dt * dens[myg.ilo-1:myg.ihi+2, myg.jlo-1:myg.jhi+2] * grav
 
-    U_yr[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2,vars.iener] += \
-        0.5*dt*ymom[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]*grav
+    U_yr[myg.ilo-1:myg.ihi+2, myg.jlo-1:myg.jhi+2, vars.iener] += \
+        0.5 * dt * ymom[myg.ilo-1:myg.ihi+2, myg.jlo-1:myg.jhi+2] * grav
 
-
-    #=========================================================================
+    # =========================================================================
     # compute transverse fluxes
-    #=========================================================================
+    # =========================================================================
     tm_riem = tc.timer("riemann")
     tm_riem.begin()
 
@@ -444,20 +442,21 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     else:
         msg.fail("ERROR: Riemann solver undefined")
 
-
     F_x = riemannFunc(1, myg.qx, myg.qy, myg.ng,
-                      vars.nvar, vars.idens, vars.ixmom, vars.iymom, vars.iener,
+                      vars.nvar, vars.idens, vars.ixmom, vars.iymom,
+                      vars.iener,
                       vars.iphi, gamma, U_xl, U_xr, sLx)
 
     F_y = riemannFunc(2, myg.qx, myg.qy, myg.ng,
-                      vars.nvar, vars.idens, vars.ixmom, vars.iymom, vars.iener,
+                      vars.nvar, vars.idens, vars.ixmom, vars.iymom,
+                      vars.iener,
                       vars.iphi, gamma, U_yl, U_yr, sLy)
 
     tm_riem.end()
 
-    #=========================================================================
+    # =========================================================================
     # construct the interface values of U now
-    #=========================================================================
+    # =========================================================================
 
     """
     finally, we can construct the state perpendicular to the interface
@@ -473,19 +472,19 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
              |          |          |          |
         j+1 -+          |          |          |
              |          |          |          |
-             |          |          |          |    1: U_xl[i,j,:] = U
+             |          |          |          |    1: U_xl[i,j, :] = U
       j+1/2--+----------XXXXXXXXXXXX----------+                      i-1/2,j,L
              |          X          X          |
              |          X          X          |
-          j -+        1 X 2        X          |    2: U_xr[i,j,:] = U
+          j -+        1 X 2        X          |    2: U_xr[i,j, :] = U
              |          X          X          |                      i-1/2,j,R
              |          X    4     X          |
       j-1/2--+----------XXXXXXXXXXXX----------+
-             |          |    3     |          |    3: U_yl[i,j,:] = U
+             |          |    3     |          |    3: U_yl[i,j, :] = U
              |          |          |          |                      i,j-1/2,L
         j-1 -+          |          |          |
              |          |          |          |
-             |          |          |          |    4: U_yr[i,j,:] = U
+             |          |          |          |    4: U_yr[i,j, :] = U
       j-3/2--+----------+----------+----------+                      i,j-1/2,R
              |    |     |    |     |    |     |
                  i-1         i         i+1
@@ -494,10 +493,10 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
 
     remember that the fluxes are stored on the left edge, so
 
-    F_x[i,j,:] = F_x
+    F_x[i,j, :] = F_x
                     i-1/2, j
 
-    F_y[i,j,:] = F_y
+    F_y[i,j, :] = F_y
                     i, j-1/2
 
     """
@@ -505,32 +504,37 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     tm_transverse = tc.timer("transverse flux addition")
     tm_transverse.begin()
 
-    # U_xl[i,j,:] = U_xl[i,j,:] - 0.5*dt/dy * (F_y[i-1,j+1,:] - F_y[i-1,j,:])
-    U_xl[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2,:] += \
-        - 0.5*dt/myg.dy * (F_y[myg.ilo-3:myg.ihi+1,myg.jlo-1:myg.jhi+3,:] - \
-                           F_y[myg.ilo-3:myg.ihi+1,myg.jlo-2:myg.jhi+2,:])
+    # U_xl[i,j, :] = U_xl[i,j, :] - 0.5 * dt/dy *
+    # (F_y[i-1,j+1, :] - F_y[i-1,j, :])
+    U_xl[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2, :] += \
+        - 0.5 * dt/myg.dy * \
+        (F_y[myg.ilo-3:myg.ihi+1, myg.jlo-1:myg.jhi+3, :] -
+         F_y[myg.ilo-3:myg.ihi+1, myg.jlo-2:myg.jhi+2, :])
 
-    # U_xr[i,j,:] = U_xr[i,j,:] - 0.5*dt/dy * (F_y[i,j+1,:] - F_y[i,j,:])
-    U_xr[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2,:] += \
-        - 0.5*dt/myg.dy * (F_y[myg.ilo-2:myg.ihi+2,myg.jlo-1:myg.jhi+3,:] - \
-                           F_y[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2,:])
+    # U_xr[i,j, :] = U_xr[i,j, :] - 0.5 * dt/dy * (F_y[i,j+1, :] - F_y[i,j, :])
+    U_xr[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2, :] += \
+        - 0.5 * dt/myg.dy * \
+        (F_y[myg.ilo-2:myg.ihi+2, myg.jlo-1:myg.jhi+3, :] -
+         F_y[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2, :])
 
-    # U_yl[i,j,:] = U_yl[i,j,:] - 0.5*dt/dx * (F_x[i+1,j-1,:] - F_x[i,j-1,:])
-    U_yl[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2,:] += \
-        - 0.5*dt/myg.dx * (F_x[myg.ilo-1:myg.ihi+3,myg.jlo-3:myg.jhi+1,:] - \
-                           F_x[myg.ilo-2:myg.ihi+2,myg.jlo-3:myg.jhi+1,:])
+    # U_yl[i,j, :] = U_yl[i,j, :] - 0.5 * dt/dx * (F_x[i+1,j-1, :] -
+    # F_x[i,j-1, :])
+    U_yl[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2, :] += \
+        - 0.5 * dt/myg.dx * \
+        (F_x[myg.ilo-1:myg.ihi+3, myg.jlo-3:myg.jhi+1, :] -
+         F_x[myg.ilo-2:myg.ihi+2, myg.jlo-3:myg.jhi+1, :])
 
-    # U_yr[i,j,:] = U_yr[i,j,:] - 0.5*dt/dx * (F_x[i+1,j,:] - F_x[i,j,:])
-    U_yr[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2,:] += \
-        - 0.5*dt/myg.dx * (F_x[myg.ilo-1:myg.ihi+3,myg.jlo-2:myg.jhi+2,:] - \
-                           F_x[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2,:])
+    # U_yr[i,j, :] = U_yr[i,j, :] - 0.5 * dt/dx * (F_x[i+1,j, :] - F_x[i,j, :])
+    U_yr[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2, :] += \
+        - 0.5 * dt/myg.dx * \
+        (F_x[myg.ilo-1:myg.ihi+3, myg.jlo-2:myg.jhi+2, :] -
+         F_x[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2, :])
 
     tm_transverse.end()
 
-
-    #=========================================================================
+    # =========================================================================
     # construct the fluxes normal to the interfaces
-    #=========================================================================
+    # =========================================================================
 
     # up until now, F_x and F_y stored the transverse fluxes, now we
     # overwrite with the fluxes normal to the interfaces
@@ -538,79 +542,78 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     tm_riem.begin()
 
     F_x = riemannFunc(1, myg.qx, myg.qy, myg.ng,
-                      vars.nvar, vars.idens, vars.ixmom, vars.iymom, vars.iener,
+                      vars.nvar, vars.idens, vars.ixmom, vars.iymom,
+                      vars.iener,
                       vars.iphi, gamma, U_xl, U_xr, sLx)
 
     F_y = riemannFunc(2, myg.qx, myg.qy, myg.ng,
-                      vars.nvar, vars.idens, vars.ixmom, vars.iymom, vars.iener,
+                      vars.nvar, vars.idens, vars.ixmom, vars.iymom,
+                      vars.iener,
                       vars.iphi, gamma, U_yl, U_yr, sLy)
 
     tm_riem.end()
 
-    #=========================================================================
+    # =========================================================================
     # apply artificial viscosity
-    #=========================================================================
+    # =========================================================================
     cvisc = rp.get_param("compressible.cvisc")
 
-    (avisco_x, avisco_y) = interface_fsL.artificial_viscosity( \
-                              myg.qx, myg.qy, myg.ng, myg.dx, myg.dy, \
-                              cvisc, u, v)
+    (avisco_x, avisco_y) = \
+        interface_fsL.artificial_viscosity(myg.qx, myg.qy, myg.ng,
+                                           myg.dx, myg.dy,
+                                           cvisc, u, v)
 
     # F_x = F_x + avisco_x * (U(i-1,j) - U(i,j))
-    F_x[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2,vars.idens] += \
-        avisco_x[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2]* \
-          (dens[myg.ilo-3:myg.ihi+1,myg.jlo-2:myg.jhi+2] - \
-           dens[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2])
+    F_x[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2, vars.idens] += \
+        avisco_x[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2] * \
+        (dens[myg.ilo-3:myg.ihi+1, myg.jlo-2:myg.jhi+2] -
+         dens[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2])
 
-    F_x[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2,vars.ixmom] += \
-        avisco_x[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2]* \
-          (xmom[myg.ilo-3:myg.ihi+1,myg.jlo-2:myg.jhi+2] - \
-           xmom[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2])
+    F_x[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2, vars.ixmom] += \
+        avisco_x[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2] * \
+        (xmom[myg.ilo-3:myg.ihi+1, myg.jlo-2:myg.jhi+2] -
+         xmom[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2])
 
-    F_x[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2,vars.iymom] += \
-        avisco_x[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2]* \
-          (ymom[myg.ilo-3:myg.ihi+1,myg.jlo-2:myg.jhi+2] - \
-           ymom[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2])
+    F_x[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2, vars.iymom] += \
+        avisco_x[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2] * \
+        (ymom[myg.ilo-3:myg.ihi+1, myg.jlo-2:myg.jhi+2] -
+         ymom[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2])
 
-    F_x[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2,vars.iener] += \
-        avisco_x[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2]* \
-          (ener[myg.ilo-3:myg.ihi+1,myg.jlo-2:myg.jhi+2] - \
-           ener[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2])
+    F_x[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2, vars.iener] += \
+        avisco_x[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2] * \
+        (ener[myg.ilo-3:myg.ihi+1, myg.jlo-2:myg.jhi+2] -
+         ener[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2])
 
-    F_x[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2,vars.iphi] += \
-        avisco_x[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2]* \
-          (phi[myg.ilo-3:myg.ihi+1,myg.jlo-2:myg.jhi+2] - \
-           phi[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2])
-
-
+    F_x[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2, vars.iphi] += \
+        avisco_x[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2] * \
+        (phi[myg.ilo-3:myg.ihi+1, myg.jlo-2:myg.jhi+2] -
+         phi[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2])
 
     # F_y = F_y + avisco_y * (U(i,j-1) - U(i,j))
-    F_y[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2,vars.idens] += \
-        avisco_y[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2]* \
-          (dens[myg.ilo-2:myg.ihi+2,myg.jlo-3:myg.jhi+1] - \
-           dens[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2])
+    F_y[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2, vars.idens] += \
+        avisco_y[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2] * \
+        (dens[myg.ilo-2:myg.ihi+2, myg.jlo-3:myg.jhi+1] -
+         dens[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2])
 
-    F_y[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2,vars.ixmom] += \
-        avisco_y[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2]* \
-          (xmom[myg.ilo-2:myg.ihi+2,myg.jlo-3:myg.jhi+1] - \
-           xmom[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2])
+    F_y[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2, vars.ixmom] += \
+        avisco_y[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2] * \
+        (xmom[myg.ilo-2:myg.ihi+2, myg.jlo-3:myg.jhi+1] -
+         xmom[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2])
 
-    F_y[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2,vars.iymom] += \
-        avisco_y[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2]* \
-          (ymom[myg.ilo-2:myg.ihi+2,myg.jlo-3:myg.jhi+1] - \
-           ymom[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2])
+    F_y[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2, vars.iymom] += \
+        avisco_y[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2] * \
+        (ymom[myg.ilo-2:myg.ihi+2, myg.jlo-3:myg.jhi+1] -
+         ymom[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2])
 
-    F_y[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2,vars.iener] += \
-        avisco_y[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2]* \
-          (ener[myg.ilo-2:myg.ihi+2,myg.jlo-3:myg.jhi+1] - \
-           ener[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2])
+    F_y[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2, vars.iener] += \
+        avisco_y[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2] * \
+        (ener[myg.ilo-2:myg.ihi+2, myg.jlo-3:myg.jhi+1] -
+         ener[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2])
 
-    F_y[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2,vars.iphi] += \
-        avisco_y[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2]* \
-          (phi[myg.ilo-2:myg.ihi+2,myg.jlo-3:myg.jhi+1] - \
-           phi[myg.ilo-2:myg.ihi+2,myg.jlo-2:myg.jhi+2])
-
-
+    F_y[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2, vars.iphi] += \
+        avisco_y[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2] * \
+        (phi[myg.ilo-2:myg.ihi+2, myg.jlo-3:myg.jhi+1] -
+         phi[myg.ilo-2:myg.ihi+2, myg.jlo-2:myg.jhi+2])
 
     tm_flux.end()
 

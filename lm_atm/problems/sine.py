@@ -5,6 +5,7 @@ import mesh.patch as patch
 import numpy as np
 from util import msg
 
+
 def init_data(my_data, base_data, rp, metric):
     """
     initialize the sinusoid problem
@@ -47,7 +48,7 @@ def init_data(my_data, base_data, rp, metric):
     c = rp.get_param("lm-atmosphere.c")
     R = rp.get_param("lm-atmosphere.radius")
 
-    #scale_height = rp.get_param("sine.scale_height")
+    # scale_height = rp.get_param("sine.scale_height")
     dens_base = rp.get_param("sine.dens_base")
     dens_cutoff = rp.get_param("sine.dens_cutoff")
     initial_xvel = rp.get_param("sine.initial-xvel")
@@ -56,37 +57,38 @@ def init_data(my_data, base_data, rp, metric):
 
     # initialize the components -- we'll get a pressure too
     # but that is used only to initialize the base state
-    xvel[:,:] = initial_xvel
-    yvel[:,:] = 0.0
-    dens[:,:] = dens_cutoff
+    xvel[:, :] = initial_xvel
+    yvel[:, :] = 0.0
+    dens[:, :] = dens_cutoff
     u0 = metric.calcu0()
-    u0flat = np.mean(u0[:,:], axis=0)
+    u0flat = np.mean(u0[:, :], axis=0)
 
     # set the density to be stratified in the y-direction
     myg = my_data.grid
     pres = myg.scratch_array()
 
-    #dens[:, myg.jlo:myg.jhi+1] = np.maximum(dens_base * \
+    # dens[:, myg.jlo:myg.jhi+1] = np.maximum(dens_base * \
     #    np.exp(-myg.y[myg.jlo:myg.jhi+1] / scale_height), dens_cutoff)
-    dens[:,myg.jlo:myg.jhi+1] = dens_base * np.exp(-grav * \
-        myg.y[np.newaxis,myg.jlo:myg.jhi+1] / (gamma * c**2 * R * \
-        metric.alpha[np.newaxis,myg.jlo:myg.jhi+1]**2))
+    dens[:, myg.jlo:myg.jhi+1] = dens_base * \
+        np.exp(-grav * myg.y[np.newaxis, myg.jlo:myg.jhi+1] /
+               (gamma * c**2 * R *
+               metric.alpha[np.newaxis, myg.jlo:myg.jhi+1]**2))
 
     # set the pressure (P = cs2*dens)
-    pres = dens[:,:]**gamma
-    eint[:,:] = pres[:,:] /((gamma - 1.0) * dens[:,:])
-    enth[:,:] = eint[:,:] + pres[:,:]/dens[:,:]
+    pres = dens[:, :]**gamma
+    eint[:, :] = pres[:, :] / ((gamma - 1.0) * dens[:, :])
+    enth[:, :] = eint[:, :] + pres[:, :]/dens[:, :]
 
     # do the base state by laterally averaging
     D0 = base_data.get_var("D0")
     Dh0 = base_data.get_var("Dh0")
 
-    D0[:] = np.mean(dens[:,:] * u0[:,:], axis=0)
-    Dh0[:] = np.mean(enth[:,:] * u0[:,:] * dens[:,:], axis=0)
+    D0[:] = np.mean(dens[:, :] * u0[:, :], axis=0)
+    Dh0[:] = np.mean(enth[:, :] * u0[:, :] * dens[:, :], axis=0)
 
-    dens[myg.ilo:myg.ihi+1,:] *= 1 + pert_amplitude_factor * \
-        np.sin(np.pi * myg.x[myg.ilo:myg.ihi+1, np.newaxis] / \
-        (myg.xmax * period))
+    dens[myg.ilo:myg.ihi+1, :] *= 1 + pert_amplitude_factor * \
+        np.sin(np.pi * myg.x[myg.ilo:myg.ihi+1, np.newaxis] /
+               (myg.xmax * period))
 
     p0 = base_data.get_var("p0")
 
@@ -96,15 +98,15 @@ def init_data(my_data, base_data, rp, metric):
 
     base_data.fill_BC("p0")
 
-    for i in range(myg.jlo,myg.jhi+1):
-        p0[i] = p0[i-1] - myg.dy * grav * Dh0[i]/(u0flat[i] * \
-            c**2 * metric.alpha[i]**2 * R)
+    for i in range(myg.jlo, myg.jhi+1):
+        p0[i] = p0[i-1] - myg.dy * grav * Dh0[i] / \
+            (u0flat[i] * c**2 * metric.alpha[i]**2 * R)
 
-    #multiply by correct u0s
-    dens[:,:] *= u0[:,:] #rho * u0
-    enth[:,:] *= u0[:,:] * dens[:,:] #rho * h * u0
+    # multiply by correct u0s
+    dens[:, :] *= u0[:, :]  # rho * u0
+    enth[:, :] *= u0[:, :] * dens[:, :]  # rho * h * u0
 
-    #fill ghost cells
+    # fill ghost cells
     my_data.fill_BC("x-velocity")
     my_data.fill_BC("y-velocity")
     my_data.fill_BC("density")
@@ -132,17 +134,16 @@ def checkXSymmetry(grid, nx):
         whether or not the grid is symmetric
     """
 
-
-
     halfGrid = grid[-np.floor(nx/2):, :] - grid[np.floor(nx/2)-1::-1, :]
-    #sym = True
+    # sym = True
 
     if np.max(np.abs(halfGrid)) > 1.e-15:
         print('\nOh no! An asymmetry has occured!\n')
         print('Asymmetry has amplitude: ', np.max(np.abs(halfGrid)))
-        #sym = False
+        # sym = False
 
-    #return sym
+    # return sym
+
 
 def finalize():
     """ print out any information to the user at the end of the run """

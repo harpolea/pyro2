@@ -24,17 +24,16 @@ def doit(solver_name, problem_name, param_file,
     tm_main = tc.timer("main")
     tm_main.begin()
 
-    #-------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # solver setup
-    #-------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
 
     # actually import the solver-specific stuff under the 'solver' namespace
     exec('import ' + solver_name + ' as solver')
 
-
-    #-------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # runtime parameters
-    #-------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
 
     # parameter defaults
     rp = runparams.RuntimeParameters()
@@ -54,16 +53,15 @@ def doit(solver_name, problem_name, param_file,
     rp.load_params(param_file, no_new=1)
 
     # and any commandline overrides
-    if not other_commands == None:
+    if other_commands is not None:
         rp.command_line_params(other_commands)
 
     # write out the inputs.auto
     rp.print_paramfile()
 
-
-    #-------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # initialization
-    #-------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
 
     # initialize the Simulation object -- this will hold the grid and
     # data and know about the runtime parameters and which problem we
@@ -73,10 +71,9 @@ def doit(solver_name, problem_name, param_file,
     sim.initialize()
     sim.preevolve()
 
-
-    #-------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # evolve
-    #-------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     tmax = rp.get_param("driver.tmax")
     max_steps = rp.get_param("driver.max_steps")
 
@@ -99,7 +96,7 @@ def doit(solver_name, problem_name, param_file,
     plt.ion()
 
     if dovis == 1:
-        plt.figure(num=1, figsize=(12,9), dpi=100, facecolor='w')
+        plt.figure(num=1, figsize=(12, 9), dpi=100, facecolor='w')
         sim.dovis()
 
         plt.show(block=False)
@@ -130,33 +127,34 @@ def doit(solver_name, problem_name, param_file,
             dt = tmax - sim.cc_data.t
 
         # evolve for a single timestep
-        #sys.exit()
+        # sys.exit()
         sim.evolve(dt)
-
 
         # increment the time
         sim.cc_data.t += dt
         sim.cc_data.n += 1
-        if verbose > 0: print("n: %5d,  t: %10.5f,  dt: %10.5f" % (sim.cc_data.n, sim.cc_data.t, dt))
-
+        if verbose > 0:
+            print("n: %5d,  t: %10.5f,  dt: %10.5f" %
+                  (sim.cc_data.n, sim.cc_data.t, dt))
 
         # output
         dt_out = rp.get_param("io.dt_out")
         n_out = rp.get_param("io.n_out")
         do_io = rp.get_param("io.do_io")
 
-        if (sim.cc_data.t >= (nout + 1)*dt_out or sim.cc_data.n%n_out == 0) and do_io == 1:
+        if (sim.cc_data.t >= (nout + 1) * dt_out
+                or sim.cc_data.n % n_out == 0) and do_io == 1:
 
             tm_io = tc.timer("output")
             tm_io.begin()
 
-            if verbose > 0: msg.warning("outputting...")
+            if verbose > 0:
+                msg.warning("outputting...")
             basename = rp.get_param("io.basename")
             sim.cc_data.write(basename + "%4.4d" % (sim.cc_data.n))
             nout += 1
 
             tm_io.end()
-
 
         # visualization
         if dovis == 1:
@@ -176,49 +174,55 @@ def doit(solver_name, problem_name, param_file,
 
     tm_main.end()
 
-    #-------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # benchmarks (for regression testing)
-    #-------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # are we comparing to a benchmark?
     if comp_bench:
-        compare_file = solver_name + "/tests/" + basename + "%4.4d" % (sim.cc_data.n)
-        msg.warning("comparing to: %s " % (compare_file) )
-        try: bench_grid, bench_data = patch.read(compare_file)
+        compare_file = solver_name + "/tests/" + basename + "%4.4d" % \
+            (sim.cc_data.n)
+        msg.warning("comparing to: %s " % (compare_file))
+        try:
+            bench_grid, bench_data = patch.read(compare_file)
         except:
             msg.warning("ERROR opening compare file")
             return "ERROR opening compare file"
 
-
-        result = compare.compare(sim.cc_data.grid, sim.cc_data, bench_grid, bench_data)
+        result = compare.compare(sim.cc_data.grid, sim.cc_data,
+                                 bench_grid, bench_data)
 
         if result == 0:
             msg.success("results match benchmark\n")
         else:
             msg.warning("ERROR: " + compare.errors[result] + "\n")
 
-
     # are we storing a benchmark?
     if make_bench:
         if not os.path.isdir(solver_name + "/tests/"):
-            try: os.mkdir(solver_name + "/tests/")
+            try:
+                os.mkdir(solver_name + "/tests/")
             except:
-                msg.fail("ERROR: unable to create the solver's tests/ directory")
+                msg.fail("ERROR: unable to create the solver's \
+                         tests/ directory")
 
-        bench_file = solver_name + "/tests/" + basename + "%4.4d" % (sim.cc_data.n)
-        msg.warning("storing new benchmark: %s\n " % (bench_file) )
+        bench_file = solver_name + "/tests/" + basename + "%4.4d" % \
+            (sim.cc_data.n)
+        msg.warning("storing new benchmark: %s\n " % (bench_file))
         sim.cc_data.write(bench_file)
 
     # increment the time
     sim.cc_data.t += dt
     sim.cc_data.n += 1
-    print("n: %5d,  t: %10.5f,  dt: %10.5f" % (sim.cc_data.n, sim.cc_data.t, dt))
+    print("n: %5d,  t: %10.5f,  dt: %10.5f" % (sim.cc_data.n, sim.cc_data.t,
+                                               dt))
 
-
-    #-------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # final reports
-    #-------------------------------------------------------------------------
-    if verbose > 0: rp.print_unused_params()
-    if verbose > 0: tc.report()
+    # -------------------------------------------------------------------------
+    if verbose > 0:
+        rp.print_unused_params()
+    if verbose > 0:
+        tc.report()
 
     sim.finalize()
 
@@ -247,10 +251,10 @@ if __name__ == "__main__":
                    help="name of the inputs file")
 
     p.add_argument("other", metavar="runtime-parameters", type=str, nargs="*",
-                   help="additional runtime parameters that override the inputs file")
+                   help="additional runtime parameters that override the \
+                   inputs file")
 
     args = p.parse_args()
-
 
     doit(args.solver[0], args.problem[0], args.param[0],
          other_commands=args.other,

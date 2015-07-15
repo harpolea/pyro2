@@ -26,16 +26,13 @@ class Metric:
             spatial 3-metric
         """
 
-
         self.cc_data = cellData
         self.rp = rp
         self.alpha = alpha
         self.beta = beta
-        self.W = 1. #Lorentz factor.
+        self.W = 1.  # Lorentz factor.
         self.gamma = gamma
-        np.seterr(invalid='raise') #raise numpy warnings as errors
-
-
+        np.seterr(invalid='raise')  # raise numpy warnings as errors
 
     def dets(self):
         """
@@ -51,17 +48,15 @@ class Metric:
         sg = myg.scratch_array()
         sgamma = myg.scratch_array()
 
+        # calculate metric at point then take square roots of determinants.
+        sg.d[:, :] = [[np.sqrt(-1.*np.linalg.det(self.g([0, i, j])))
+                      for j in range(0, myg.qy)] for i in range(0, myg.qx)]
 
-        #calculate metric at point then take square roots of determinants.
-        sg.d[:,:] = [[np.sqrt(-1.*np.linalg.det(self.g([0,i,j]))) \
-            for j in range(0, myg.qy)] for i in range(0, myg.qx)]
-
-        sgamma.d[:,:] = [[np.sqrt(np.linalg.det((self.g([0,i,j]))[1:,1:])) \
-            for j in range(0, myg.qy)] for i in range(0, myg.qx)]
+        sgamma.d[:, :] = [[np.sqrt(np.linalg.det((self.g([0, i, j]))[1:, 1:]))
+                           for j in range(0, myg.qy)]
+                          for i in range(0, myg.qx)]
 
         return sg, sgamma
-
-
 
     def calcW(self):
         """
@@ -74,25 +69,24 @@ class Metric:
         """
         myg = self.cc_data.grid
         W = myg.scratch_array()
-        #W = np.ones(np.shape(W))
+        # W = np.ones(np.shape(W))
 
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
         c = self.rp.get_param("lm-atmosphere.c")
 
-        W.d[:,:] = 1. - (u.d**2 + v.d**2)/c**2
+        W.d[:, :] = 1. - (u.d**2 + v.d**2)/c**2
 
         try:
-            W.d[:,:] = 1./ np.sqrt(W.d)
+            W.d[:, :] = 1. / np.sqrt(W.d)
         except FloatingPointError:
             msg.bold('\nError!')
-            print('Tried to take the square root of a negative Lorentz factor! \nTry checking your velocities?\n')
-            print((u.d[-10:,-10:]**2 + v.d[-10:,-10:]**2)/c**2)
+            print('Tried to take the square root of a negative Lorentz \
+                  factor! \nTry checking your velocities?\n')
+            print((u.d[-10:, -10:]**2 + v.d[-10:, -10:]**2)/c**2)
             sys.exit()
 
         return W
-
-
 
     def calcu0(self):
         """
@@ -107,9 +101,7 @@ class Metric:
 
         W = self.calcW()
 
-        return W.d[:,:] / self.alpha.v(buf=self.alpha.ng)
-
-
+        return W.d[:, :] / self.alpha.v(buf=self.alpha.ng)
 
     def g(self, x):
         """
@@ -127,15 +119,13 @@ class Metric:
             (d+1)*(d+1) array containing metric
         """
 
-        met = np.diag([-1., 1., 1.]) #flat default
-        met[0,0] = -self.alpha.d[x[2]]**2 + np.dot(self.beta, self.beta)
-        met[0,1:] = np.transpose(self.beta)
-        met[1:,0] = self.beta
-        met[1:,1:] = self.gamma
+        met = np.diag([-1., 1., 1.])  # flat default
+        met[0, 0] = -self.alpha.d[x[2]]**2 + np.dot(self.beta, self.beta)
+        met[0, 1:] = np.transpose(self.beta)
+        met[1:, 0] = self.beta
+        met[1:, 1:] = self.gamma
 
         return met
-
-
 
     def christoffels(self, x):
         """
@@ -152,20 +142,20 @@ class Metric:
             (d+1)^3 array containing christoffel symbols at x
         """
 
-        christls = np.zeros((3,3,3))
+        christls = np.zeros((3, 3, 3))
 
-        #r = self.cc_data.grid.y[x[2]]
+        # r = self.cc_data.grid.y[x[2]]
         g = self.rp.get_param("lm-atmosphere.grav")
         R = self.rp.get_param("lm-atmosphere.radius")
         c = self.rp.get_param("lm-atmosphere.c")
 
-        #For simple time-lagged metric, only have 3 non-zero christoffels.
-        christls[0,0,2] = -g/(self.alpha.d[x[2]]**2 * c**2 * R)
-        christls[0,2,0] = -g/(self.alpha.d[x[2]]**2 * c**2 * R)
-        christls[2,0,0] = g/(c**2 * R)
+        # For simple time-lagged metric, only have 3 non-zero christoffels.
+        christls[0, 0, 2] = -g/(self.alpha.d[x[2]]**2 * c**2 * R)
+        christls[0, 2, 0] = -g/(self.alpha.d[x[2]]**2 * c**2 * R)
+        christls[2, 0, 0] = g/(c**2 * R)
 
-
-        # For non-simple, we have to do more icky stuff including time and space
+        # For non-simple, we have to do more icky stuff including time and
+        # space
         # derivatives of stuff, so I shall not do this for now.
 
         return christls

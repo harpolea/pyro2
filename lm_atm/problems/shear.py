@@ -20,7 +20,8 @@ import numpy as np
 import mesh.patch as patch
 from util import msg
 
-def init_data(my_data,base_data, rp, metric):
+
+def init_data(my_data, base_data, rp, metric):
     """
     initialize the incompressible shear problem
 
@@ -43,7 +44,6 @@ def init_data(my_data,base_data, rp, metric):
         print(my_data.__class__)
         msg.fail("ERROR: patch invalid in shear.py")
 
-
     # get the necessary runtime parameters
     rho_s = rp.get_param("shear.rho_s")
     delta_s = rp.get_param("shear.delta_s")
@@ -62,11 +62,11 @@ def init_data(my_data,base_data, rp, metric):
     eint = my_data.get_var("eint")
 
     myg = my_data.grid
-    dens[:,:] = dens_base
+    dens[:, :] = dens_base
     pres = myg.scratch_array()
-    pres = dens[:,:]**gamma
-    eint[:,:] = pres[:,:] /((gamma - 1.0) * dens[:,:])
-    enth[:,:] = eint[:,:] + pres[:,:]/dens[:,:]
+    pres = dens[:, :]**gamma
+    eint[:, :] = pres[:, :] / ((gamma - 1.0) * dens[:, :])
+    enth[:, :] = eint[:, :] + pres[:, :]/dens[:, :]
 
     y_half = 0.5*(myg.ymin + myg.ymax)
 
@@ -79,47 +79,47 @@ def init_data(my_data,base_data, rp, metric):
     for j in range(myg.jlo, myg.jhi+1):
 
         if (myg.y[j] <= y_half):
-            u[:,j] = 1.*np.tanh(rho_s * (myg.y[np.newaxis,j] - 0.25))
-            dens[:,j] = dens_base * (1.+ 0.01 * np.tanh(rho_s * \
-                        (myg.y[np.newaxis,j] - 0.25)))
+            u[:, j] = 1.*np.tanh(rho_s * (myg.y[np.newaxis, j] - 0.25))
+            dens[:, j] = dens_base * \
+                (1. + 0.01 * np.tanh(rho_s * (myg.y[np.newaxis, j] - 0.25)))
         else:
-            u[:,j] = 1.*np.tanh(rho_s * (0.75 - myg.y[np.newaxis,j]))
-            dens[:,j] = dens_base * (1. + 0.01 * np.tanh(rho_s * \
-                        (0.75 - myg.y[np.newaxis,j])))
+            u[:, j] = 1.*np.tanh(rho_s * (0.75 - myg.y[np.newaxis, j]))
+            dens[:, j] = dens_base * \
+                (1. + 0.01 * np.tanh(rho_s * (0.75 - myg.y[np.newaxis, j])))
 
-    v[:,myg.jlo: myg.jhi+1] = delta_s * np.sin(2.0 * np.pi * \
-                              myg.x[:,np.newaxis] + 0.5 * np.pi)
+    v[:, myg.jlo: myg.jhi+1] = delta_s * \
+        np.sin(2.0 * np.pi * myg.x[:, np.newaxis] + 0.5 * np.pi)
 
     print("extrema: ", np.min(u.flat), np.max(u.flat))
 
     u0 = metric.calcu0()
-    u0flat = np.mean(u0[:,:], axis=0)
+    u0flat = np.mean(u0[:, :], axis=0)
 
     # do the base state by laterally averaging
     D0 = base_data.get_var("D0")
     Dh0 = base_data.get_var("Dh0")
 
-    D0[:] = np.mean(dens[:,:] * u0[:,:], axis=0)
-    Dh0[:] = np.mean(enth[:,:] * u0[:,:] * dens[:,:], axis=0)
+    D0[:] = np.mean(dens[:, :] * u0[:, :], axis=0)
+    Dh0[:] = np.mean(enth[:, :] * u0[:, :] * dens[:, :], axis=0)
 
     # base pressure
     p0 = base_data.get_var("p0")
     p0[:] = (D0[:]/u0flat[:])**gamma
     base_data.fill_BC("p0")
 
-    for i in range(myg.jlo,myg.jhi+1):
-        p0[i] = p0[i-1] - myg.dy * grav * Dh0[i]/(u0flat[i] * \
-                c**2 * metric.alpha[i]**2 * R)
+    for i in range(myg.jlo, myg.jhi+1):
+        p0[i] = p0[i-1] - myg.dy * grav * Dh0[i] / \
+            (u0flat[i] * c**2 * metric.alpha[i]**2 * R)
 
     if (myg.xmin != 0 or myg.xmax != 1 or
-        myg.ymin != 0 or myg.ymax != 1):
+            myg.ymin != 0 or myg.ymax != 1):
         msg.fail("ERROR: domain should be a unit square")
 
-    #multiply by correct u0s
-    dens[:,:] *= u0[:,:] #rho * u0
-    enth[:,:] *= u0[:,:] * dens[:,:] #rho * h * u0
+    # multiply by correct u0s
+    dens[:, :] *= u0[:, :]  # rho * u0
+    enth[:, :] *= u0[:, :] * dens[:, :]  # rho * h * u0
 
-    #fill ghost cells
+    # fill ghost cells
     my_data.fill_BC("x-velocity")
     my_data.fill_BC("y-velocity")
     my_data.fill_BC("density")
