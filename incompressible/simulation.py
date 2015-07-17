@@ -23,7 +23,7 @@ class Simulation(NullSimulation):
 
         # create the variables
         bc, bc_xodd, bc_yodd = bc_setup(self.rp)
-        
+
         my_data = patch.CellCenterData2d(my_grid)
 
         # velocities
@@ -44,7 +44,7 @@ class Simulation(NullSimulation):
         exec(self.problem_name + '.init_data(self.cc_data, self.rp)')
 
 
-    def timestep(self):
+    def compute_timestep(self):
         """
         The timestep() function computes the advective timestep
         (CFL) constraint.  The CFL constraint says that information
@@ -63,9 +63,7 @@ class Simulation(NullSimulation):
         xtmp = self.cc_data.grid.dx/(abs(u))
         ytmp = self.cc_data.grid.dy/(abs(v))
 
-        dt = cfl*min(xtmp.min(), ytmp.min())
-
-        return dt
+        self.dt = cfl*min(xtmp.min(), ytmp.min())
 
 
     def preevolve(self):
@@ -76,6 +74,8 @@ class Simulation(NullSimulation):
         value of phi.  The fluid state (u, v) is then reset to values
         before this evolve.
         """
+
+        self.in_preevolve = True
 
         myg = self.cc_data.grid
 
@@ -139,10 +139,10 @@ class Simulation(NullSimulation):
         orig_data = patch.cell_center_data_clone(self.cc_data)
 
         # get the timestep
-        dt = self.timestep()
+        self.compute_timestep()
 
         # evolve
-        self.evolve(dt)
+        self.evolve()
 
         # update gradp_x and gradp_y in our main data object
         new_gp_x = self.cc_data.get_var("gradp_x")
@@ -158,8 +158,10 @@ class Simulation(NullSimulation):
 
         if self.verbose > 0: print("done with the pre-evolution")
 
+        self.in_preevolve = False
 
-    def evolve(self, dt):
+
+    def evolve(self):
         """
         Evolve the incompressible equations through one timestep.
         """
@@ -219,7 +221,7 @@ class Simulation(NullSimulation):
         if self.verbose > 0: print("  making MAC velocities")
 
         _um, _vm = incomp_interface_f.mac_vels(myg.qx, myg.qy, myg.ng,
-                                               myg.dx, myg.dy, dt,
+                                               myg.dx, myg.dy, self.dt,
                                                u.d, v.d,
                                                ldelta_ux, ldelta_vx,
                                                ldelta_uy, ldelta_vy,
@@ -227,7 +229,7 @@ class Simulation(NullSimulation):
 
         u_MAC = patch.ArrayIndexer(d=_um, grid=myg)
         v_MAC = patch.ArrayIndexer(d=_vm, grid=myg)
-        
+
 
         #---------------------------------------------------------------------
         # do a MAC projection ot make the advective velocities divergence
@@ -285,7 +287,7 @@ class Simulation(NullSimulation):
 
         _ux, _vx, _uy, _vy = \
                incomp_interface_f.states(myg.qx, myg.qy, myg.ng,
-                                         myg.dx, myg.dy, dt,
+                                         myg.dx, myg.dy, self.dt,
                                          u.d, v.d,
                                          ldelta_ux, ldelta_vx,
                                          ldelta_uy, ldelta_vy,
@@ -322,12 +324,12 @@ class Simulation(NullSimulation):
         proj_type = self.rp.get_param("incompressible.proj_type")
 
         if proj_type == 1:
-            u.d[:,:] -= (dt*advect_x.d[:,:] + dt*gradp_x.d[:,:])
-            v.d[:,:] -= (dt*advect_y.d[:,:] + dt*gradp_y.d[:,:])
+            u.d[:,:] -= (self.dt*advect_x.d[:,:] + self.dt*gradp_x.d[:,:])
+            v.d[:,:] -= (self.dt*advect_y.d[:,:] + self.dt*gradp_y.d[:,:])
 
         elif proj_type == 2:
-            u.d[:,:] -= dt*advect_x.d[:,:]
-            v.d[:,:] -= dt*advect_y.d[:,:]
+            u.d[:,:] -= self.dt*advect_x.d[:,:]
+            v.d[:,:] -= self.dt*advect_y.d[:,:]
 
         self.cc_data.fill_BC("x-velocity")
         self.cc_data.fill_BC("y-velocity")
@@ -356,7 +358,7 @@ class Simulation(NullSimulation):
         divU.v()[:,:] = \
             0.5*(u.ip(1) - u.ip(-1))/myg.dx + 0.5*(v.jp(1) - v.jp(-1))/myg.dy
 
-        mg.init_RHS(divU.d/dt)
+        mg.init_RHS(divU.d/self.dt)
 
         # use the old phi as our initial guess
         phiGuess = mg.soln_grid.scratch_array()
@@ -374,8 +376,8 @@ class Simulation(NullSimulation):
         gradphi_x, gradphi_y = mg.get_solution_gradient(grid=myg)
 
         # u = u - grad_x phi dt
-        u.d[:,:] -= dt*gradphi_x.d
-        v.d[:,:] -= dt*gradphi_y.d
+        u.d[:,:] -= self.dt*gradphi_x.d
+        v.d[:,:] -= self.dt*gradphi_y.d
 
         # store gradp for the next step
         if proj_type == 1:
@@ -388,6 +390,11 @@ class Simulation(NullSimulation):
 
         self.cc_data.fill_BC("x-velocity")
         self.cc_data.fill_BC("y-velocity")
+
+        # increment the time
+        if not self.in_preevolve:
+            self.cc_data.t += self.dt
+            self.n += 1
 
 
     def dovis(self):

@@ -348,7 +348,7 @@ class Simulation(NullSimulation):
         """
         return a - a0.v2d(buf=a0.ng)
 
-    def timestep(self):
+    def compute_timestep(self):
         """
         The timestep() function computes the advective timestep
         (CFL) constraint.  The CFL constraint says that information
@@ -396,11 +396,10 @@ class Simulation(NullSimulation):
         F_buoy = np.max([np.max(g / (R * c**2)), 1.e-20])
         dt_buoy = np.sqrt(2.0*myg.dy/F_buoy)
 
-        dt = min(dt, dt_buoy)
+        self.dt = min(dt, dt_buoy)
+        if self.verbose > 0: print("timestep is {}".format(dt))
 
-        return dt
-
-    def ReactState(self, dt):
+    def ReactState(self):
         """
         React full and base states through half timestep
         Assume for simplicity here that only non-zero Christoffel of
@@ -426,16 +425,16 @@ class Simulation(NullSimulation):
 
         christfl.d[:] = g/(self.metric.alpha.d**2 * c**2 * R)
 
-        D0.v()[:] -= dt * 0.5 * self.lateralAvg(D.v() *
+        D0.v()[:] -= self.dt * 0.5 * self.lateralAvg(D.v() *
                                                 christfl.v2d() * v.v())
 
-        Dh0.v()[:] += dt * 0.5 * \
+        Dh0.v()[:] += self.dt * 0.5 * \
             self.lateralAvg(-(Dh.v() + Dh0.v2d()) * christfl.v2d() * v.v())
 
-        D.v()[:, :] -= dt * 0.5 * D.v() * v.v() * \
+        D.v()[:, :] -= self.dt * 0.5 * D.v() * v.v() * \
             christfl.v2d()
 
-        Dh.v()[:, :] += dt * 0.5 * (-(Dh.v() + Dh0.v2d()) *
+        Dh.v()[:, :] += self.dt * 0.5 * (-(Dh.v() + Dh0.v2d()) *
                                     v.v() * christfl.v2d())
 
         # fill ghostcells
@@ -473,6 +472,8 @@ class Simulation(NullSimulation):
         before this evolve.
         """
 
+        self.in_preevolve = True
+
         myg = self.cc_data.grid
 
         Dh = self.cc_data.get_var("enthalpy")
@@ -506,14 +507,14 @@ class Simulation(NullSimulation):
         # next create the multigrid object.  We defined phi with
         # the right BCs previously
         mg = vcMG.VarCoeffCCMG2d(myg.nx, myg.ny,
-                                 xl_BC_type=self.cc_data.BCs["phi"].xlb,
-                                 xr_BC_type=self.cc_data.BCs["phi"].xrb,
-                                 yl_BC_type=self.cc_data.BCs["phi"].ylb,
-                                 yr_BC_type=self.cc_data.BCs["phi"].yrb,
+                                 xl_BC_type= self.cc_data.BCs["phi"].xlb,
+                                 xr_BC_type= self.cc_data.BCs["phi"].xrb,
+                                 yl_BC_type= self.cc_data.BCs["phi"].ylb,
+                                 yr_BC_type= self.cc_data.BCs["phi"].yrb,
                                  xmin=myg.xmin, xmax=myg.xmax,
                                  ymin=myg.ymin, ymax=myg.ymax,
                                  coeffs=coeff,
-                                 coeffs_bc=self.cc_data.BCs["density"],
+                                 coeffs_bc= self.cc_data.BCs["density"],
                                  verbose=0)
 
         # first compute div{zeta U}
@@ -561,10 +562,10 @@ class Simulation(NullSimulation):
         orig_base = patch.cell_center_data1d_clone(self.base_data)
 
         # get the timestep
-        dt = self.timestep()
+        self.compute_timestep()
 
         # evolve
-        self.evolve(dt)
+        self.evolve()
 
         # update gradp_x and gradp_y in our main data object
         new_gp_x = self.cc_data.get_var("gradp_x")
@@ -582,7 +583,10 @@ class Simulation(NullSimulation):
         if self.verbose > 0:
             print("done with the pre-evolution")
 
-    def evolve(self, dt):
+        self.in_preevolve = False
+
+
+    def evolve(self):
         """
         Evolve the low Mach system through one timestep.
 
@@ -592,7 +596,7 @@ class Simulation(NullSimulation):
             timestep
         """
 
-        print('dt is: ', dt)
+        #print('dt is: ', dt)
 
         D = self.cc_data.get_var("density")
         Dh = self.cc_data.get_var("enthalpy")
@@ -656,7 +660,7 @@ class Simulation(NullSimulation):
         # React full and base states through first half timestep
         # ---------------------------------------------------------------------
 
-        self.ReactState(dt)
+        self.ReactState()
 
         # ---------------------------------------------------------------------
         # get the advective velocities
@@ -716,7 +720,7 @@ class Simulation(NullSimulation):
         #                                       coeff*gradp_x, coeff*gradp_y,
         #                                       source)
         u_MAC, v_MAC = lm_interface_f.mac_vels(myg.qx, myg.qy, myg.ng,
-                                               myg.dx, myg.dy, dt,
+                                               myg.dx, myg.dy, self.dt,
                                                u, v,
                                                ldelta_ux, ldelta_vx,
                                                ldelta_uy, ldelta_vy,
@@ -745,14 +749,14 @@ class Simulation(NullSimulation):
 
         # create the multigrid object
         mg = vcMG.VarCoeffCCMG2d(myg.nx, myg.ny,
-                                 xl_BC_type=self.cc_data.BCs["phi-MAC"].xlb,
-                                 xr_BC_type=self.cc_data.BCs["phi-MAC"].xrb,
-                                 yl_BC_type=self.cc_data.BCs["phi-MAC"].ylb,
-                                 yr_BC_type=self.cc_data.BCs["phi-MAC"].yrb,
+                                 xl_BC_type= self.cc_data.BCs["phi-MAC"].xlb,
+                                 xr_BC_type= self.cc_data.BCs["phi-MAC"].xrb,
+                                 yl_BC_type= self.cc_data.BCs["phi-MAC"].ylb,
+                                 yr_BC_type= self.cc_data.BCs["phi-MAC"].yrb,
                                  xmin=myg.xmin, xmax=myg.xmax,
                                  ymin=myg.ymin, ymax=myg.ymax,
                                  coeffs=coeff,
-                                 coeffs_bc=self.cc_data.BCs["density"],
+                                 coeffs_bc= self.cc_data.BCs["density"],
                                  verbose=0, nsmooth=20)
 
         # first compute div{zeta U}
@@ -809,14 +813,14 @@ class Simulation(NullSimulation):
         # ---------------------------------------------------------------------
         # predict D to the edges and do its conservative update
         # ---------------------------------------------------------------------
-        D_xint, D_yint = lm_int.D_states(myg, dt, D,
+        D_xint, D_yint = lm_int.D_states(myg, self.dt, D,
                                          u_MAC, v_MAC, ldelta_rx, ldelta_ry)
 
-        _, D0_yint = lm_int.D_states(myg, dt, D02d, u_MAC,
+        _, D0_yint = lm_int.D_states(myg, self.dt, D02d, u_MAC,
                                      v_MAC, ldelta_r0x, ldelta_r0y)
 
         # D_xint, D_yint are on edges, D cell-centred.
-        D.v()[:, :] -= dt*(
+        D.v()[:, :] -= self.dt*(
             #  (D u)_x
             (D_xint.ip(1) * u_MAC.ip(1) - D_xint.v() * u_MAC.v())/myg.dx +
             #  (D v)_y
@@ -827,7 +831,7 @@ class Simulation(NullSimulation):
 
         # need to do some averaging as D0 is only 1d
 
-        D02d.v()[:] -= dt*(
+        D02d.v()[:] -= self.dt*(
             #  (D0 u)_x
             # (D0_xint[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1]*
             # u_MAC[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
@@ -843,15 +847,15 @@ class Simulation(NullSimulation):
         #
         # Exactly the same as for density
         # ---------------------------------------------------------------------
-        Dh_xint, Dh_yint = lm_int.D_states(myg, dt, D, u_MAC, v_MAC, ldelta_ex,
+        Dh_xint, Dh_yint = lm_int.D_states(myg, self.dt, D, u_MAC, v_MAC, ldelta_ex,
                                            ldelta_ey)
 
-        _, Dh0_yint = lm_int.D_states(myg, dt, Dh02d, u_MAC,
+        _, Dh0_yint = lm_int.D_states(myg, self.dt, Dh02d, u_MAC,
                                       v_MAC, ldelta_e0x, ldelta_e0y)
 
         Dh_old = Dh.copy()
 
-        Dh.v()[:, :] -= dt * (
+        Dh.v()[:, :] -= self.dt * (
             #  (Dh u)_x
             (Dh_xint.ip(1) * u_MAC.ip(1) - Dh_xint.v() * u_MAC.v()) / myg.dx +
             #  (Dh v)_y
@@ -859,7 +863,7 @@ class Simulation(NullSimulation):
 
         # average laterally as Dh0 is 1d
 
-        Dh02d.v()[:, :] -= dt * (
+        Dh02d.v()[:, :] -= self.dt * (
             #  (Dh u)_x
             # (Dh0_xint[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1]*
             # u_MAC[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
@@ -899,7 +903,7 @@ class Simulation(NullSimulation):
         self.aux_data.fill_BC("coeff")
 
         u_xint, v_xint, u_yint, v_yint = \
-            lm_int.states(myg, dt, u, v, ldelta_ux, ldelta_vx,
+            lm_int.states(myg, self.dt, u, v, ldelta_ux, ldelta_vx,
                           ldelta_uy, ldelta_vy,
                           gradp_x, gradp_y,
                           coeff, source, u_MAC, v_MAC)
@@ -930,14 +934,14 @@ class Simulation(NullSimulation):
         proj_type = self.rp.get_param("lm-atmosphere.proj_type")
 
         if proj_type == 1:
-            u.v()[:, :] -= (dt * advect_x.v() + dt * gradp_x.v())
+            u.v()[:, :] -= (dt * advect_x.v() + self.dt * gradp_x.v())
 
-            v.v()[:, :] -= (dt * advect_y.v() + dt * gradp_y.v())
+            v.v()[:, :] -= (dt * advect_y.v() + self.dt * gradp_y.v())
 
         elif proj_type == 2:
-            u.v()[:, :] -= dt * advect_x.v()
+            u.v()[:, :] -= self.dt * advect_x.v()
 
-            v.v()[:, :] -= dt * advect_y.v()
+            v.v()[:, :] -= self.dt * advect_y.v()
 
         # add the gravitational source (and pressure source)
         u0 = self.metric.calcu0()
@@ -954,13 +958,13 @@ class Simulation(NullSimulation):
         ldelta_xiy = limitFunc(2, xi2d, myg)
 
         # FIXME: should you use MAC velocities/phi or advected ones??
-        _, xi_yint = lm_int.D_states(myg, dt, xi2d, u_MAC, v_MAC,
+        _, xi_yint = lm_int.D_states(myg, self.dt, xi2d, u_MAC, v_MAC,
                                      ldelta_xix, ldelta_xiy)
 
         # edge-centered pi given by phi_MAC/delta t, so find gradpi:
-        gradpi_x.v()[:, :] = (phi_MAC.ip(1) - phi_MAC.v()) / (myg.dx * dt)
+        gradpi_x.v()[:, :] = (phi_MAC.ip(1) - phi_MAC.v()) / (myg.dx * self.dt)
         gradpibyxi_y.v()[:, :] = (phi_MAC.jp(1) / xi_yint.jp(1) -
-                                  phi_MAC.v() / xi_yint.v()) / (myg.dy * dt)
+                                  phi_MAC.v() / xi_yint.v()) / (myg.dy * self.dt)
 
         pressureSource = myg.scratch_array()
         drp0 = myg.scratch_array()
@@ -983,9 +987,9 @@ class Simulation(NullSimulation):
 
         # dx pi
         # cell-centred
-        u.v()[:, :] += dt * -gradpi_x.v() / (Dh.v() * u0.v())
+        u.v()[:, :] += self.dt * -gradpi_x.v() / (Dh.v() * u0.v())
 
-        v.v()[:, :] += dt * (-pressureSource.v() / (Dh.v() * u0.v()) -
+        v.v()[:, :] += self.dt * (-pressureSource.v() / (Dh.v() * u0.v()) -
                              g / (c**2 * R))
 
         print('calculated u and v')
@@ -1020,7 +1024,7 @@ class Simulation(NullSimulation):
         # React full and base states through second half timestep
         # ---------------------------------------------------------------------
 
-        self.ReactState(dt)
+        self.ReactState()
 
         # ---------------------------------------------------------------------
         # project the final velocity
@@ -1046,7 +1050,7 @@ class Simulation(NullSimulation):
             0.5 * (zeta.v2dp(1) * v.jp(1) - zeta.v2dp(-1) * v.jp(-1)) / myg.dy
 
         constraint = self.calcConstraint(zeta)
-        mg.init_RHS((div_zeta_U.d - constraint.d) / dt)
+        mg.init_RHS((div_zeta_U.d - constraint.d) /self.dt)
 
         # use the old phi as our initial guess
         phiGuess = mg.soln_grid.scratch_array()
@@ -1069,9 +1073,9 @@ class Simulation(NullSimulation):
         coeff.d[:, :] = 1.0/(Dh.d * u0.d)
         coeff.v()[:, :] *= zeta.v2d()
 
-        u.v()[:, :] -= dt * coeff.v() * gradphi_x.v()
+        u.v()[:, :] -= self.dt * coeff.v() * gradphi_x.v()
 
-        v.v()[:, :] -= dt * coeff.v() * gradphi_y.v()
+        v.v()[:, :] -= self.dt * coeff.v() * gradphi_y.v()
 
         # store gradp for the next step
 
@@ -1091,6 +1095,11 @@ class Simulation(NullSimulation):
         self.cc_data.fill_BC("gradp_y")
 
         tracer.d[:, :] = v.copy()
+
+        # increment the time
+        if not self.in_preevolve:
+            self.cc_data.t += self.dt
+            self.n += 1
 
     def dovis(self):
         """

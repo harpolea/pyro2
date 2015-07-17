@@ -112,30 +112,26 @@ def doit(solver_name, problem_name, param_file,
         tm_bc.end()
 
         # get the timestep
-        dt = sim.timestep()
         if fix_dt > 0.0:
-            dt = fix_dt
+            sim.dt = fix_dt
         else:
-            if sim.cc_data.n == 0:
-                dt = init_tstep_factor*dt
-                dt_old = dt
+            sim.compute_timestep()
+            if sim.n == 0:
+                sim.dt = init_tstep_factor*sim.dt
             else:
-                dt = min(max_dt_change*dt_old, dt)
-                dt_old = dt
+                sim.dt = min(max_dt_change*dt_old, sim.dt)
+            dt_old = sim.dt
 
-        if sim.cc_data.t + dt > tmax:
-            dt = tmax - sim.cc_data.t
+        if sim.cc_data.t + sim.dt > tmax:
+            sim.dt = tmax - sim.cc_data.t
 
         # evolve for a single timestep
         # sys.exit()
-        sim.evolve(dt)
+        sim.evolve()
 
-        # increment the time
-        sim.cc_data.t += dt
-        sim.cc_data.n += 1
         if verbose > 0:
             print("n: %5d,  t: %10.5f,  dt: %10.5f" %
-                  (sim.cc_data.n, sim.cc_data.t, dt))
+                  (sim.cc_data.n, sim.cc_data.t, sim.dt))
 
         # output
         dt_out = rp.get_param("io.dt_out")
@@ -210,11 +206,8 @@ def doit(solver_name, problem_name, param_file,
         msg.warning("storing new benchmark: %s\n " % (bench_file))
         sim.cc_data.write(bench_file)
 
-    # increment the time
-    sim.cc_data.t += dt
-    sim.cc_data.n += 1
     print("n: %5d,  t: %10.5f,  dt: %10.5f" % (sim.cc_data.n, sim.cc_data.t,
-                                               dt))
+                                               sim.dt))
 
     # -------------------------------------------------------------------------
     # final reports

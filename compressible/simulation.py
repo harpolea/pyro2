@@ -111,12 +111,11 @@ class Simulation(NullSimulation):
         if self.verbose > 0:
             print(my_data)
 
-    def timestep(self):
+    def compute_timestep(self):
         """
         The timestep function computes the advective timestep (CFL)
         constraint.  The CFL constraint says that information cannot
         propagate further than one zone per timestep.
-
         We use the driver.cfl parameter to control what fraction of the
         CFL step we actually take.
         """
@@ -139,16 +138,15 @@ class Simulation(NullSimulation):
 
         p = eos.pres(gamma, dens, e)
 
-        # compute the sound speed
+        # compute the sounds speed
         cs = np.sqrt(gamma*p/dens)
+
 
         # the timestep is min(dx/(|u| + cs), dy/(|v| + cs))
         xtmp = self.cc_data.grid.dx/(abs(u) + cs)
         ytmp = self.cc_data.grid.dy/(abs(v) + cs)
 
-        dt = cfl*min(xtmp.min(), ytmp.min())
-
-        return dt
+        self.dt = cfl*min(xtmp.min(), ytmp.min())
 
 
 #    def preevolve(self):
@@ -158,7 +156,7 @@ class Simulation(NullSimulation):
         """
 #        pass
 
-    def evolve(self, dt):
+    def evolve(self):
         """
         Evolve the equations of compressible hydrodynamics through a
         timestep dt.
@@ -178,14 +176,14 @@ class Simulation(NullSimulation):
         myg = self.cc_data.grid
 
         Flux_x, Flux_y = unsplitFluxes(self.cc_data, self.rp, self.vars,
-                                       self.tc, dt)
+                                       self.tc, self.dt)
 
         old_dens = dens.copy()
         old_ymom = ymom.copy()
 
         # conservative update
-        dtdx = dt/myg.dx
-        dtdy = dt/myg.dy
+        dtdx = self.dt/myg.dx
+        dtdy = self.dt/myg.dy
 
         for n in range(self.vars.nvar):
             var = self.cc_data.get_var_by_index(n)
@@ -204,6 +202,9 @@ class Simulation(NullSimulation):
         phi[:, :] = pylsmlib.computeDistanceFunction(phi,
                                                      dx=self.cc_data.grid.dx,
                                                      order=2)
+
+        self.cc_data.t += self.dt
+        self.n += 1
 
         tm_evolve.end()
 
