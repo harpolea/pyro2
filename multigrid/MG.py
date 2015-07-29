@@ -61,7 +61,7 @@ from __future__ import print_function
 import math
 
 import numpy as np
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import matplotlib
 
 import mesh.patch as patch
@@ -90,6 +90,8 @@ class CellCenterMG2d(object):
                  xmin=0.0, xmax=1.0, ymin=0.0, ymax=1.0,
                  xl_BC_type="dirichlet", xr_BC_type="dirichlet",
                  yl_BC_type="dirichlet", yr_BC_type="dirichlet",
+                 xl_BC=None, xr_BC=None,
+                 yl_BC=None, yr_BC=None,
                  alpha=0.0, beta=-1.0,
                  nsmooth=10, nsmooth_bottom=50,
                  verbose=0,

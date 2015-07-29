@@ -69,8 +69,8 @@ def limit2(idir, a, myg):
     """
 
     #initialise some stuff
-    lda = myg.scratch_array()
-    test = myg.scratch_array()
+    lda = myg.scratch_array().d
+    test = myg.scratch_array().d
 
     if idir==1:
 

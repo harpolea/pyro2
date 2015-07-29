@@ -62,13 +62,13 @@ def init_data(my_data, base_data, rp, metric):
     eint = my_data.get_var("eint")
 
     myg = my_data.grid
-    dens[:, :] = dens_base
+    dens.d[:, :] = dens_base
     pres = myg.scratch_array()
-    pres = dens[:, :]**gamma
-    eint[:, :] = pres[:, :] / ((gamma - 1.0) * dens[:, :])
-    enth[:, :] = eint[:, :] + pres[:, :]/dens[:, :]
+    pres.d[:, :] = dens.d**gamma
+    eint.d[:, :] = pres.d / ((gamma - 1.0) * dens.d)
+    enth.d[:, :] = eint.d + pres.d / dens.d
 
-    y_half = 0.5*(myg.ymin + myg.ymax)
+    y_half = 0.5 * (myg.ymin + myg.ymax)
 
     print('y_half = ', y_half)
     print('delta_s = ', delta_s)
@@ -79,45 +79,45 @@ def init_data(my_data, base_data, rp, metric):
     for j in range(myg.jlo, myg.jhi+1):
 
         if (myg.y[j] <= y_half):
-            u[:, j] = 1.*np.tanh(rho_s * (myg.y[np.newaxis, j] - 0.25))
-            dens[:, j] = dens_base * \
+            u.d[:, j] = 1.*np.tanh(rho_s * (myg.y[np.newaxis, j] - 0.25))
+            dens.d[:, j] = dens_base * \
                 (1. + 0.01 * np.tanh(rho_s * (myg.y[np.newaxis, j] - 0.25)))
         else:
-            u[:, j] = 1.*np.tanh(rho_s * (0.75 - myg.y[np.newaxis, j]))
-            dens[:, j] = dens_base * \
+            u.d[:, j] = 1.*np.tanh(rho_s * (0.75 - myg.y[np.newaxis, j]))
+            dens.d[:, j] = dens_base * \
                 (1. + 0.01 * np.tanh(rho_s * (0.75 - myg.y[np.newaxis, j])))
 
-    v[:, myg.jlo: myg.jhi+1] = delta_s * \
+    v.d[:, myg.jlo: myg.jhi+1] = delta_s * \
         np.sin(2.0 * np.pi * myg.x[:, np.newaxis] + 0.5 * np.pi)
 
-    print("extrema: ", np.min(u.flat), np.max(u.flat))
+    print("extrema: ", np.min(u.d.flat), np.max(u.d.flat))
 
     u0 = metric.calcu0()
-    u0flat = np.mean(u0[:, :], axis=0)
+    u0flat = np.mean(u0.d, axis=0)
 
     # do the base state by laterally averaging
     D0 = base_data.get_var("D0")
     Dh0 = base_data.get_var("Dh0")
 
-    D0[:] = np.mean(dens[:, :] * u0[:, :], axis=0)
-    Dh0[:] = np.mean(enth[:, :] * u0[:, :] * dens[:, :], axis=0)
+    D0.d[:] = np.mean(dens.d * u0.d, axis=0)
+    Dh0.d[:] = np.mean(enth.d * u0.d * dens.d, axis=0)
 
     # base pressure
     p0 = base_data.get_var("p0")
-    p0[:] = (D0[:]/u0flat[:])**gamma
+    p0.d[:] = (D0.d / u0flat[:])**gamma
     base_data.fill_BC("p0")
 
     for i in range(myg.jlo, myg.jhi+1):
-        p0[i] = p0[i-1] - myg.dy * grav * Dh0[i] / \
-            (u0flat[i] * c**2 * metric.alpha[i]**2 * R)
+        p0.d[i] = p0.d[i-1] - myg.dy * grav * Dh0.d[i] / \
+            (u0flat[i] * c**2 * metric.alpha.d[i]**2 * R)
 
     if (myg.xmin != 0 or myg.xmax != 1 or
             myg.ymin != 0 or myg.ymax != 1):
         msg.fail("ERROR: domain should be a unit square")
 
     # multiply by correct u0s
-    dens[:, :] *= u0[:, :]  # rho * u0
-    enth[:, :] *= u0[:, :] * dens[:, :]  # rho * h * u0
+    dens.d[:, :] *= u0.d  # rho * u0
+    enth.d[:, :] *= u0.d * dens.d  # rho * h * u0
 
     # fill ghost cells
     my_data.fill_BC("x-velocity")

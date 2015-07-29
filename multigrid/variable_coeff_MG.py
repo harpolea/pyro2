@@ -12,7 +12,7 @@ A cell-centered discretization is used throughout.
 from __future__ import print_function
 
 import numpy as np
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 import multigrid.MG as MG
 import multigrid.edge_coeffs as ec

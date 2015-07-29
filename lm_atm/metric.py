@@ -100,8 +100,11 @@ class Metric:
         """
 
         W = self.calcW()
+        myg = self.cc_data.grid
+        u0 = myg.scratch_array()
+        u0.d[:,:] = W.d / self.alpha.v2d(buf=self.alpha.ng)
 
-        return W.d[:, :] / self.alpha.v(buf=self.alpha.ng)
+        return u0
 
     def g(self, x):
         """

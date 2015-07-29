@@ -6,7 +6,7 @@ import argparse
 import os
 import sys
 
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 import compare
 import mesh.patch as patch
@@ -83,7 +83,7 @@ def doit(solver_name, problem_name, param_file,
 
     verbose = rp.get_param("driver.verbose")
 
-    plt.ion()
+    # plt.ion()
 
     sim.cc_data.n = 0
     sim.cc_data.t = 0.0
@@ -93,13 +93,14 @@ def doit(solver_name, problem_name, param_file,
     sim.cc_data.write(basename + "%4.4d" % (sim.cc_data.n))
 
     dovis = rp.get_param("vis.dovis")
-    plt.ion()
+    dovis = 0
+    # plt.ion()
 
     if dovis == 1:
-        plt.figure(num=1, figsize=(12, 9), dpi=100, facecolor='w')
+        # plt.figure(num=1, figsize=(12, 9), dpi=100, facecolor='w')
         sim.dovis()
 
-        plt.show(block=False)
+        # plt.show(block=False)
 
     nout = 0
 
@@ -117,9 +118,9 @@ def doit(solver_name, problem_name, param_file,
         else:
             sim.compute_timestep()
             if sim.n == 0:
-                sim.dt = init_tstep_factor*sim.dt
+                sim.dt = init_tstep_factor * sim.dt
             else:
-                sim.dt = min(max_dt_change*dt_old, sim.dt)
+                sim.dt = min(max_dt_change * dt_old, sim.dt)
             dt_old = sim.dt
 
         if sim.cc_data.t + sim.dt > tmax:
@@ -159,12 +160,12 @@ def doit(solver_name, problem_name, param_file,
 
             sim.dovis()
 
-            plt.show(block=False)
+            # plt.show(block=False)
             store = rp.get_param("vis.store_images")
 
             if store == 1:
                 basename = rp.get_param("io.basename")
-                plt.savefig(basename + "%4.4d" % (sim.cc_data.n) + ".png")
+                # plt.savefig(basename + "%4.4d" % (sim.cc_data.n) + ".png")
 
             tm_vis.end()
 

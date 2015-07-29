@@ -225,6 +225,15 @@ def _buf_split(b):
         bxhi = byhi = bhi
     return bxlo, bxhi, bylo, byhi
 
+def _buf_split1d(b):
+    try: blo, bhi = b
+    except:
+        blo = b
+        bhi = b
+    bylo = blo
+    byhi = bhi
+    return bylo, byhi
+
 
 class ArrayIndexer(object):
     """ a class that wraps the data region of a single array (d)
@@ -406,6 +415,178 @@ class ArrayIndexer(object):
                     print("\033[31m" + fmt % (self.d[i,j]) + "\033[0m", end="")
                 else:
                     print (fmt % (self.d[i,j]), end="")
+
+            print(" ")
+
+        leg = """
+         ^ y
+         |
+         +---> x
+        """
+        print(leg)
+
+class ArrayIndexer1d(object):
+    """ a class that wraps the data region of a single array (d)
+        and allows us to easily do array operations like d[i+1,j]
+        using the ip() method. """
+
+
+    # ?? Can we accomplish this a lot easier by subclassing
+    # the ndarray?
+    # e.g, the InfoArray example here:
+    # http://docs.scipy.org/doc/numpy/user/basics.subclassing.html
+    def __init__(self, d=None, grid=None):
+        self.d = d
+        self.g = grid
+        s = d.shape
+        self.c = len(s)
+        self.ng = grid.ng
+
+    def __add__(self, other):
+        if isinstance(other, ArrayIndexer1d):
+            return ArrayIndexer(d=self.d + other.d, grid=self.g)
+        else:
+            return ArrayIndexer1d(d=self.d + other, grid=self.g)
+
+    def __radd__(self, other):
+        return self.__add__(other)
+
+    def __sub__(self, other):
+        if isinstance(other, ArrayIndexer1d):
+            return ArrayIndexer1d(d=self.d - other.d, grid=self.g)
+        else:
+            return ArrayIndexer1d(d=self.d - other, grid=self.g)
+
+    def __mul__(self, other):
+        if isinstance(other, ArrayIndexer1d):
+            return ArrayIndexer1d(d=self.d * other.d, grid=self.g)
+        else:
+            return ArrayIndexer1d(d=self.d * other, grid=self.g)
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
+
+    def __truediv__(self, other):
+        if isinstance(other, ArrayIndexer1d):
+            return ArrayIndexer1d(d=self.d / other.d, grid=self.g)
+        else:
+            return ArrayIndexer1d(d=self.d / other, grid=self.g)
+
+    def __div__(self, other):
+        if isinstance(other, ArrayIndexer1d):
+            return ArrayIndexer1d(d=self.d / other.d, grid=self.g)
+        else:
+            return ArrayIndexer1d(d=self.d / other, grid=self.g)
+
+    def __rdiv__(self, other):
+        if isinstance(other, ArrayIndexer1d):
+            return ArrayIndexer1d(d=other.d / self.d, grid=self.g)
+        else:
+            return ArrayIndexer1d(d=other / self.d, grid=self.g)
+
+    def __rtruediv__(self, other):
+        if isinstance(other, ArrayIndexer1d):
+            return ArrayIndexer1d(d=other.d / self.d, grid=self.g)
+        else:
+            return ArrayIndexer1d(d=other / self.d, grid=self.g)
+
+    def __pow__(self, other):
+        return ArrayIndexer1d(d=self.d**2, grid=self.g)
+
+    def __abs__(self):
+        return ArrayIndexer1d(d=np.abs(self.d), grid=self.g)
+
+    def v(self, buf=0, s=1):
+        return self.jp(0, buf=buf, s=s)
+
+    def v2d(self, buf=0, s=1):
+        return self.jp(0, buf=buf, s=s)[np.newaxis, :]
+
+    def v2dp(self, shift, buf=0, s=1):
+        return self.jp(shift, buf=buf, s=s)[np.newaxis, :]
+
+    def jp(self, shift, buf=0, s=1):
+        bylo, byhi = _buf_split1d(buf)
+
+        return self.d[self.g.jlo-bylo+shift:self.g.jhi+1+byhi+shift:s]
+
+    def norm(self, n=0):
+        """
+        find the norm of the quantity (index n) defined on the same grid,
+        in the domain's valid region
+
+        """
+        if self.c == 2:
+            return self.g.norm(self.d)
+        else:
+            return self.g.norm(self.d[:, n])
+
+    def sqrt(self):
+        return ArrayIndexer1d(d=np.sqrt(self.d), grid=self.g)
+
+    def min(self):
+        return self.d.min()
+
+    def max(self):
+        return self.d.max()
+
+    def copy(self):
+        return ArrayIndexer1d(d=self.d.copy(), grid=self.g)
+
+    def is_symmetric(self, nodal=False, tol=1.e-14):
+        if not nodal:
+            L = self.d[self.g.jlo:self.g.jhi+1]
+            R = self.d[self.g.jlo:self.g.jhi+1]
+        else:
+            L = self.d[self.g.jlo:self.g.jhi+1]
+            R = self.d[self.g.jlo:self.g.jhi+1]
+
+
+        e = abs(L - np.flipud(R)).max()
+        print(e, tol, e < tol)
+        return e < tol
+
+
+    def is_asymmetric(self, nodal=False, tol=1.e-14):
+        if not nodal:
+            L = self.d[self.g.jlo:self.g.jhi+1]
+            R = self.d[self.g.jlo:self.g.jhi+1]
+        else:
+            L = self.d[self.g.jlo:self.g.jhi+1]
+            R = self.d[self.g.jlo:self.g.jhi+1]
+
+
+        e = abs(L + np.flipud(R)).max()
+        print(e, tol, e < tol)
+        return e < tol
+
+
+    def pretty_print(self):
+        """
+        Print out a small dataset to the screen with the ghost cells
+        a different color, to make things stand out
+        """
+
+        if self.d.dtype == np.int:
+            fmt = "%4d"
+        elif self.d.dtype == np.float64:
+            fmt = "%10.5g"
+        else:
+            msg.fail("ERROR: dtype not supported")
+
+        # print j descending, so it looks like a grid (y increasing
+        # with height)
+        for j in reversed(range(self.g.qy)):
+
+            if (j < self.g.jlo or j > self.g.jhi):
+                gc = 1
+            else:
+                gc = 0
+
+            if gc:
+                print("\033[31m" + fmt % (self.d[j]) + "\033[0m", end="")
+            else:
+                print (fmt % (self.d[j]), end="")
 
             print(" ")
 
@@ -658,7 +839,7 @@ class Grid1d:
             _tmp =  np.zeros(self.qy, dtype=np.float64)
         else:
             _tmp = np.zeros((self.qy, nvar), dtype=np.float64)
-        return ArrayIndexer(d=_tmp, grid=self)
+        return ArrayIndexer1d(d=_tmp, grid=self)
 
 
     def coarse_like(self, N):
@@ -1412,7 +1593,7 @@ class CellCenterData1d:
 
         """
         n = self.vars.index(name)
-        return ArrayIndexer(d=self.data[n,:], grid=self.grid)
+        return ArrayIndexer1d(d=self.data[n,:], grid=self.grid)
 
 
     def get_var_by_index(self, n):
@@ -1432,7 +1613,7 @@ class CellCenterData1d:
             The array of data corresponding to the index
 
         """
-        return ArrayIndexer(d=self.data[n,:], grid=self.grid)
+        return ArrayIndexer1d(d=self.data[n,:], grid=self.grid)
 
 
     def get_aux(self, keyword):
