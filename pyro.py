@@ -89,14 +89,15 @@ def doit(solver_name, problem_name, param_file,
 
     dovis = rp.get_param("vis.dovis")
     #dovis = 1
-    #plt.ion()
+    plt.ion()
 
     if dovis == 1:
         store = rp.get_param("vis.store_images")
         plt.figure(num=1, figsize=(12, 9), dpi=100, facecolor='w')
+        plt.show(block=False)
         sim.dovis()
         print("PLOT")
-        plt.show(block=False)
+        #plt.show(block=False)
         #plt.show()
 
     nout = 0
@@ -157,7 +158,7 @@ def doit(solver_name, problem_name, param_file,
 
             sim.dovis()
 
-            plt.show(block=False)
+            #plt.show(block=False)
 
             if store == 1:
                 basename = rp.get_param("io.basename")

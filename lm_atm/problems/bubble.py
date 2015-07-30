@@ -63,7 +63,7 @@ def init_data(my_data, base_data, rp, metric):
     yvel.d[:, :] = 0.0
     dens.d[:, :] = dens_cutoff
     u0 = metric.calcu0()
-    u0flat = np.mean(u0[:, :], axis=0)
+    u0flat = np.mean(u0.d, axis=0)
 
     # set the density to be stratified in the y-direction
     myg = my_data.grid
@@ -87,8 +87,8 @@ def init_data(my_data, base_data, rp, metric):
     D0 = base_data.get_var("D0")
     Dh0 = base_data.get_var("Dh0")
 
-    D0.d[:] = np.mean(dens.d * u0[:, :], axis=0)
-    Dh0.d[:] = np.mean(enth.d * u0[:, :] * dens.d, axis=0)
+    D0.d[:] = np.mean(dens.d * u0.d, axis=0)
+    Dh0.d[:] = np.mean(enth.d * u0.d * dens.d, axis=0)
 
     # boost the specific internal energy, keeping the pressure
     # constant, by dropping the density
@@ -107,14 +107,14 @@ def init_data(my_data, base_data, rp, metric):
 
     for i in range(myg.jlo, myg.jhi+1):
         p0.d[i] = p0.d[i-1] - myg.dy * grav * Dh0.d[i] / \
-            (u0flat[i] * c**2 * metric.alpha[i]**2 * R)
+            (u0flat[i] * c**2 * metric.alpha.d[i]**2 * R)
 
-    print('pressure: ', pres[20, 10:20])
-    print('p0: ', p0[10:20])
+    print('pressure: ', pres.d[20, 10:20])
+    print('p0: ', p0.d[10:20])
 
     # multiply by correct u0s
-    dens.d[:, :] *= u0[:, :]  # rho * u0
-    enth.d[:, :] *= u0[:, :] * dens.d  # rho * h * u0
+    dens.d[:, :] *= u0.d  # rho * u0
+    enth.d[:, :] *= u0.d * dens.d  # rho * h * u0
 
     # fill ghost cells
     my_data.fill_BC("x-velocity")

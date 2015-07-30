@@ -134,7 +134,7 @@ class NullSimulation(object):
 
     def evolve(self):
 
-        #increment the time
+        # increment the time and step counter
         self.t += self.dt
         self.n += 1
 

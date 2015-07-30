@@ -933,9 +933,6 @@ class CellCenterData2d:
 
         self.BCs = {}
 
-        # time
-        self.t = -1.0
-
         self.initialized = 0
 
 
@@ -1487,10 +1484,6 @@ class CellCenterData1d:
         self.aux = {}
 
         self.BCs = {}
-
-        # time
-        self.t = -1.0
-        self.n = -1
 
         self.initialized = 0
 

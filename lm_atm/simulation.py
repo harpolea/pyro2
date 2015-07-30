@@ -36,6 +36,8 @@ TODO:  Implement some abstract base classes?
 TODO:  Identify where code normally breaks and put in validation
 
 FIXME: There is no p0 evolution - perhaps derive from D0 then enforce HSE?
+
+FIXME: Visualisation no longer works in ubuntu 15.04.
 """
 
 
@@ -43,12 +45,12 @@ class Basestate(object):
     def __init__(self, ny, ng=0):
         self.ny = ny
         self.ng = ng
-        self.qy = ny + 2*ng
+        self.qy = ny + 2 * ng
 
         self.d = np.zeros((self.qy), dtype=np.float64)
 
         self.jlo = ng
-        self.jhi = ng+ny-1
+        self.jhi = ng + ny - 1
 
     def v(self, buf=0):
         return self.d[self.jlo-buf:self.jhi+1+buf]
@@ -153,7 +155,7 @@ class Simulation(NullSimulation):
         self.aux_data = aux_data
 
         # we also need storage for the 1-d base state -- we'll store this
-        # in the main class directly.
+        # in 1D version of cell data class
         base_data = patch.CellCenterData1d(myg1d)
         base_data.register_var("D0", bc_dens)
         base_data.register_var("Dh0", bc_dens)
@@ -330,8 +332,7 @@ class Simulation(NullSimulation):
 
         S = self.aux_data.get_var("S")
 
-        S.d[:, :] = -g * v.d / (c**2 * R *
-                                self.metric.alpha.d**2)
+        S.d[:, :] = -g * v.d / (c**2 * R * self.metric.alpha.d**2)
         self.aux_data.fill_BC("S")
 
         p0 = self.base_data.get_var("p0")
@@ -384,11 +385,10 @@ class Simulation(NullSimulation):
         # cs[:,:] = np.sqrt(np.abs(cs[:,:]))
         # print('cs shape: ', np.shape(cs))
         if not np.max(np.abs(u.d)) < 1.e-5:
-            xtmp = \
-                np.min(myg.dx/np.abs(u.v()))
+            xtmp = np.min(myg.dx/np.abs(u.v()))
+
         if not np.max(np.abs(v.d)) < 1.e-5:
-            ytmp = \
-                np.min(myg.dy/np.abs(v.v()))
+            ytmp = np.min(myg.dy/np.abs(v.v()))
 
         dt = cfl * min(xtmp, ytmp)
 
@@ -428,7 +428,7 @@ class Simulation(NullSimulation):
 
         christfl = self.base_data.grid.scratch_array()
 
-        christfl.d[:] = g/(self.metric.alpha.d**2 * c**2 * R)
+        christfl.d[:] = g / (self.metric.alpha.d**2 * c**2 * R)
 
         D0.v()[:] -= self.dt * 0.5 * self.lateralAvg(D.v() *
                                                 christfl.v2d() * v.v())
@@ -436,8 +436,7 @@ class Simulation(NullSimulation):
         Dh0.v()[:] += self.dt * 0.5 * \
             self.lateralAvg(-(Dh.v() + Dh0.v2d()) * christfl.v2d() * v.v())
 
-        D.v()[:, :] -= self.dt * 0.5 * D.v() * v.v() * \
-            christfl.v2d()
+        D.v()[:, :] -= self.dt * 0.5 * D.v() * v.v() * christfl.v2d()
 
         Dh.v()[:, :] += self.dt * 0.5 * (-(Dh.v() + Dh0.v2d()) *
                                     v.v() * christfl.v2d())
@@ -526,7 +525,8 @@ class Simulation(NullSimulation):
         div_zeta_U = mg.soln_grid.scratch_array()
 
         # u/v are cell-centered, divU is cell-centered
-        div_zeta_U.v()[:, :] = 0.5 * zeta.v2d() * (u.ip(1) - u.ip(-1))/myg.dx + \
+        div_zeta_U.v()[:, :] = 0.5 * zeta.v2d() * \
+            (u.ip(1) - u.ip(-1)) / myg.dx + \
             0.5 * (zeta.v2dp(1) * v.jp(1) - zeta.v2dp(-1) * v.jp(-1))/myg.dy
 
         # solve
@@ -550,7 +550,7 @@ class Simulation(NullSimulation):
 
         coeff = myg.scratch_array()
 
-        coeff.d[:,:] = 1.0/(Dh.d * u0.d)
+        coeff.d[:,:] = 1.0 / (Dh.d * u0.d)
         coeff.v()[:, :] *= zeta.v2d()
 
         u.v()[:, :] -= coeff.v() * gradp_x.v()
@@ -716,7 +716,7 @@ class Simulation(NullSimulation):
         coeff = self.aux_data.get_var("coeff")
         tracer = self.cc_data.get_var("tracer")
 
-        coeff.d[:, :] = 1.0/(Dh.d * u0.d)
+        coeff.d[:, :] = 1.0 / (Dh.d * u0.d)
         coeff.v()[:, :] *= xi.v2d()
         self.aux_data.fill_BC("coeff")
 
@@ -740,7 +740,8 @@ class Simulation(NullSimulation):
         #                                       source)
         u_MAC = myg.scratch_array()
         v_MAC = myg.scratch_array()
-        u_MAC.d[:,:], v_MAC.d[:,:] = lm_interface_f.mac_vels(myg.qx, myg.qy, myg.ng,
+        u_MAC.d[:,:], v_MAC.d[:,:] = lm_interface_f.mac_vels(myg.qx, myg.qy,
+                                               myg.ng,
                                                myg.dx, myg.dy, self.dt,
                                                u.d, v.d,
                                                ldelta_ux.d, ldelta_vx.d,
@@ -759,7 +760,7 @@ class Simulation(NullSimulation):
 
         # create the coefficient array: zeta**2/Dhu0
         u0 = self.metric.calcu0()
-        coeff.v(buf=1)[:, :] = 1.0/(Dh.v(buf=1) * u0.v(buf=1))
+        coeff.v(buf=1)[:, :] = 1.0 / (Dh.v(buf=1) * u0.v(buf=1))
         self.updateZeta(self.cc_data.grid)
         zeta = self.base_data.get_var("zeta")
         zeta_edges = self.base_data.get_var("zeta-edges")
@@ -803,7 +804,7 @@ class Simulation(NullSimulation):
 
         coeff = self.aux_data.get_var("coeff")
         u0 = self.metric.calcu0()
-        coeff.v()[:, :] = 1.0/(Dh.v() * u0.v())
+        coeff.v()[:, :] = 1.0 / (Dh.v() * u0.v())
         coeff.v()[:, :] *= zeta.v2d()
         self.aux_data.fill_BC("coeff")
 
@@ -865,8 +866,8 @@ class Simulation(NullSimulation):
         #
         # Exactly the same as for density
         # ---------------------------------------------------------------------
-        Dh_xint, Dh_yint = lm_int.D_states(myg, self.dt, D, u_MAC, v_MAC, ldelta_ex,
-                                           ldelta_ey)
+        Dh_xint, Dh_yint = lm_int.D_states(myg, self.dt, D, u_MAC, v_MAC,
+                                           ldelta_ex, ldelta_ey)
 
         _, Dh0_yint = lm_int.D_states(myg, self.dt, Dh02d, u_MAC,
                                       v_MAC, ldelta_e0x, ldelta_e0y)
@@ -909,7 +910,7 @@ class Simulation(NullSimulation):
             print("  making u, v edge states")
 
         coeff = self.aux_data.get_var("coeff")
-        coeff.v()[:, :] = 2./((Dh.v() + Dh_old.v()) * u0.v())
+        coeff.v()[:, :] = 2. / ((Dh.v() + Dh_old.v()) * u0.v())
 
         # Might not need to recalculate zeta but shall just in case
         self.updateZeta(self.cc_data.grid)
@@ -950,12 +951,10 @@ class Simulation(NullSimulation):
 
         if proj_type == 1:
             u.v()[:, :] -= (dt * advect_x.v() + self.dt * gradp_x.v())
-
             v.v()[:, :] -= (dt * advect_y.v() + self.dt * gradp_y.v())
 
         elif proj_type == 2:
             u.v()[:, :] -= self.dt * advect_x.v()
-
             v.v()[:, :] -= self.dt * advect_y.v()
 
         # add the gravitational source (and pressure source)
@@ -987,16 +986,13 @@ class Simulation(NullSimulation):
                                  (myg.dy * self.dt) - \
                                  (phi_MAC.v() / xi_yint.v()) / \
                                  (myg.dy * self.dt)
-        print("min/max xi_yint   = {}, {}".format(np.min(xi_yint.d), np.max(xi_yint.d)))
 
         pressureSource = myg.scratch_array()
         drp0 = myg.scratch_array()
 
         # drp0 + xi*dr(pi/xi)
         # cell-centred
-        # drp0[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] = \
-        #    0.5 * (p0[np.newaxis, myg.jlo+1:myg.jhi+2] - \
-        #    p0[np.newaxis, myg.jlo-1:myg.jhi]) / myg.dy
+        # drp0.v()[:, :] = 0.5 * (p0.v2dp(1) - p0.v2dp(-1)) / myg.dy
 
         drp0.v()[:, :] = -Dh0.v2d() * g / \
             (u0.v() * c**2 * R * self.metric.alpha.v2d()**2)
@@ -1057,7 +1053,7 @@ class Simulation(NullSimulation):
 
         # create the coefficient array: zeta**2/Dhu0
         u0 = self.metric.calcu0()
-        coeff.d = 1.0/(Dh.d * u0.d)
+        coeff.d = 1.0 / (Dh.d * u0.d)
         self.updateZeta(self.cc_data.grid)
         zeta = self.base_data.get_var("zeta")
         coeff.v()[:, :] *= zeta.v2d()**2
@@ -1093,18 +1089,16 @@ class Simulation(NullSimulation):
 
         # U = U - (zeta/Dhu0) grad (phi/zeta)
         u0 = self.metric.calcu0()
-        coeff.d[:, :] = 1.0/(Dh.d * u0.d)
+        coeff.d[:, :] = 1.0 / (Dh.d * u0.d)
         coeff.v()[:, :] *= zeta.v2d()
 
         u.v()[:, :] -= self.dt * coeff.v() * gradphi_x.v()
-
         v.v()[:, :] -= self.dt * coeff.v() * gradphi_y.v()
 
         # store gradp for the next step
 
         if proj_type == 1:
             gradp_x.v()[:, :] += gradphi_x.v()
-
             gradp_y.v()[:, :] += gradphi_y.v()
 
         elif proj_type == 2:
@@ -1148,19 +1142,18 @@ class Simulation(NullSimulation):
 
         magvel = np.sqrt(u.d**2 + v.d**2) / u0.d
 
-        # gamma = self.rp.get_param("eos.gamma")
-        gamma = 2.6
+        gamma = self.rp.get_param("eos.gamma")
+        # gamma = 2.6
         # cs[:,:] = gamma * (gamma - 1.) / (2. - gamma)
         # cs[:,:] *= (D[:,:] + Dh[:,:]) / D[:,:]
         # cs[:,:] = np.sqrt(np.abs(cs[:,:]))
         cs = gamma * (D.d / u0.d)**(gamma - 1.)
-        cs[:] = np.sqrt(np.abs(cs[:]))
+        cs[:,:] = np.sqrt(np.abs(cs[:,:]))
         # M = magvel[:,:] / cs[np.newaxis,:]
 
         vort = myg.scratch_array()
 
         dv = 0.5 * (v.ip(1) - v.ip(-1)) / myg.dx
-
         du = 0.5 * (u.jp(1) - u.jp(-1)) / myg.dy
 
         # for some reason, setting vort here causes the density in the
@@ -1199,7 +1192,6 @@ class Simulation(NullSimulation):
 
             plt.colorbar(img, ax=ax)
 
-        plt.figtext(0.05, 0.0125, "n: %4d,   t = %10.5f" % (self.n,
-                    self.t))
+        plt.figtext(0.05, 0.0125, "n: %4d,   t = %10.5f" % (self.n, self.t))
         plt.tight_layout()
-        plt.draw()
+        #plt.draw()
