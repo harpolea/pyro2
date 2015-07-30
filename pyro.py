@@ -6,7 +6,7 @@ import argparse
 import os
 import sys
 
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 
 import compare
 import mesh.patch as patch
@@ -83,28 +83,25 @@ def doit(solver_name, problem_name, param_file,
 
     verbose = rp.get_param("driver.verbose")
 
-    # plt.ion()
-
-    sim.cc_data.n = 0
-    sim.cc_data.t = 0.0
-
     # output the 0th data
     basename = rp.get_param("io.basename")
-    sim.cc_data.write(basename + "%4.4d" % (sim.cc_data.n))
+    sim.cc_data.write(basename + "%4.4d" % (sim.n))
 
     dovis = rp.get_param("vis.dovis")
-    dovis = 0
-    # plt.ion()
+    #dovis = 1
+    #plt.ion()
 
     if dovis == 1:
-        # plt.figure(num=1, figsize=(12, 9), dpi=100, facecolor='w')
+        store = rp.get_param("vis.store_images")
+        plt.figure(num=1, figsize=(12, 9), dpi=100, facecolor='w')
         sim.dovis()
-
-        # plt.show(block=False)
+        print("PLOT")
+        plt.show(block=False)
+        #plt.show()
 
     nout = 0
 
-    while sim.cc_data.t < tmax and sim.cc_data.n < max_steps:
+    while sim.t < tmax and sim.n < max_steps:
 
         # fill boundary conditions
         tm_bc = tc.timer("fill_bc")
@@ -123,8 +120,8 @@ def doit(solver_name, problem_name, param_file,
                 sim.dt = min(max_dt_change * dt_old, sim.dt)
             dt_old = sim.dt
 
-        if sim.cc_data.t + sim.dt > tmax:
-            sim.dt = tmax - sim.cc_data.t
+        if sim.t + sim.dt > tmax:
+            sim.dt = tmax - sim.t
 
         # evolve for a single timestep
         # sys.exit()
@@ -132,15 +129,15 @@ def doit(solver_name, problem_name, param_file,
 
         if verbose > 0:
             print("n: %5d,  t: %10.5f,  dt: %10.5f" %
-                  (sim.cc_data.n, sim.cc_data.t, sim.dt))
+                  (sim.n, sim.t, sim.dt))
 
         # output
         dt_out = rp.get_param("io.dt_out")
         n_out = rp.get_param("io.n_out")
         do_io = rp.get_param("io.do_io")
 
-        if (sim.cc_data.t >= (nout + 1) * dt_out
-                or sim.cc_data.n % n_out == 0) and do_io == 1:
+        if (sim.t >= (nout + 1) * dt_out
+                or sim.n % n_out == 0) and do_io == 1:
 
             tm_io = tc.timer("output")
             tm_io.begin()
@@ -148,7 +145,7 @@ def doit(solver_name, problem_name, param_file,
             if verbose > 0:
                 msg.warning("outputting...")
             basename = rp.get_param("io.basename")
-            sim.cc_data.write(basename + "%4.4d" % (sim.cc_data.n))
+            sim.cc_data.write(basename + "%4.4d" % (sim.n))
             nout += 1
 
             tm_io.end()
@@ -160,12 +157,11 @@ def doit(solver_name, problem_name, param_file,
 
             sim.dovis()
 
-            # plt.show(block=False)
-            store = rp.get_param("vis.store_images")
+            plt.show(block=False)
 
             if store == 1:
                 basename = rp.get_param("io.basename")
-                # plt.savefig(basename + "%4.4d" % (sim.cc_data.n) + ".png")
+                plt.savefig(basename + "%4.4d" % (sim.n) + ".png")
 
             tm_vis.end()
 
@@ -177,7 +173,7 @@ def doit(solver_name, problem_name, param_file,
     # are we comparing to a benchmark?
     if comp_bench:
         compare_file = solver_name + "/tests/" + basename + "%4.4d" % \
-            (sim.cc_data.n)
+            (sim.n)
         msg.warning("comparing to: %s " % (compare_file))
         try:
             bench_grid, bench_data = patch.read(compare_file)
@@ -203,11 +199,11 @@ def doit(solver_name, problem_name, param_file,
                          tests/ directory")
 
         bench_file = solver_name + "/tests/" + basename + "%4.4d" % \
-            (sim.cc_data.n)
+            (sim.n)
         msg.warning("storing new benchmark: %s\n " % (bench_file))
         sim.cc_data.write(bench_file)
 
-    print("n: %5d,  t: %10.5f,  dt: %10.5f" % (sim.cc_data.n, sim.cc_data.t,
+    print("n: %5d,  t: %10.5f,  dt: %10.5f" % (sim.n, sim.t,
                                                sim.dt))
 
     # -------------------------------------------------------------------------

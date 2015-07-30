@@ -62,6 +62,7 @@ class NullSimulation(object):
 
         self.n = 0
         self.dt = -1.e33
+        self.t = 0.
 
         try: self.tmax = rp.get_param("driver.tmax")
         except:
@@ -89,13 +90,14 @@ class NullSimulation(object):
             self.verbose = None
 
         self.n_num_out = 0
+        self.in_preevolve = False
 
 
     def finished(self):
         """
         is the simulation finished based on time or the number of steps
         """
-        return self.cc_data.t >= self.tmax or self.n >= self.max_steps
+        return self.t >= self.tmax or self.n >= self.max_steps
 
 
     def do_output(self):
@@ -106,7 +108,7 @@ class NullSimulation(object):
         n_out = self.rp.get_param("io.n_out")
         do_io = self.rp.get_param("io.do_io")
 
-        is_time = self.cc_data.t >= (self.n_num_out + 1)*dt_out or self.n%n_out == 0
+        is_time = self.t >= (self.n_num_out + 1)*dt_out or self.n%n_out == 0
         if is_time and do_io == 1:
             self.n_num_out += 1
             return True
@@ -133,7 +135,7 @@ class NullSimulation(object):
     def evolve(self):
 
         #increment the time
-        self.cc_data.t += self.dt
+        self.t += self.dt
         self.n += 1
 
 

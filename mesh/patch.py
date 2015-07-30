@@ -935,7 +935,6 @@ class CellCenterData2d:
 
         # time
         self.t = -1.0
-        self.n = -1
 
         self.initialized = 0
 

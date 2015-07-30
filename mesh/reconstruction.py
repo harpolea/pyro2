@@ -31,16 +31,16 @@ def nolimit(idir, a, myg):
     lda = myg.scratch_array()
 
     if idir==1:
-        lda[myg.ilo-2: myg.ihi+3, myg.jlo-2: myg.jhi+3] = 0.5 * \
+        lda.v(buf=2)[:,:] = 0.5 * \
             (a[myg.ilo-1:myg.ihi+4, myg.jlo-2:myg.jhi+3] - \
             a[myg.ilo-3:myg.ihi+2, myg.jlo-2:myg.jhi+3])
 
     else:
-        lda[myg.ilo-2: myg.ihi+3, myg.jlo-2: myg.jhi+3] = 0.5 * \
+        lda.v(buf=2)[:,:] = 0.5 * \
             (a[myg.ilo-2:myg.ihi+3, myg.jlo-1:myg.jhi+4] - \
             a[myg.ilo-2:myg.ihi+3, myg.jlo-3:myg.jhi+2])
 
-    return lda[:,:]
+    return lda.d
 
 
 
@@ -69,13 +69,13 @@ def limit2(idir, a, myg):
     """
 
     #initialise some stuff
-    lda = myg.scratch_array().d
-    test = myg.scratch_array().d
+    lda = myg.scratch_array()
+    test = myg.scratch_array()
 
     if idir==1:
 
         # test whether we are at an extremum
-        test[myg.ilo-3:myg.ihi+4, myg.jlo-3:myg.jhi+4] = \
+        test.v(buf=3)[:,:] = \
             (a[myg.ilo-2:myg.ihi+5, myg.jlo-3:myg.jhi+4] - \
             a[myg.ilo-3:myg.ihi+4, myg.jlo-3:myg.jhi+4]) * \
             (a[myg.ilo-3:myg.ihi+4, myg.jlo-3:myg.jhi+4] - \
@@ -84,8 +84,8 @@ def limit2(idir, a, myg):
         for j in range(myg.jlo-3, myg.jhi+4):
             for i in range(myg.ilo-3, myg.ihi+4):
 
-                if (test[i,j] > 0.0):
-                    lda[i,j] = min(0.5*abs(a[i+1,j] - a[i-1,j]), \
+                if (test.d[i,j] > 0.0):
+                    lda.d[i,j] = min(0.5*abs(a[i+1,j] - a[i-1,j]), \
                         min(2.0*abs(a[i+1,j] - a[i,j]), \
                         2.0*abs(a[i,j] - a[i-1,j]))) * \
                         np.sign(a[i+1,j] - a[i-1,j])
@@ -93,7 +93,7 @@ def limit2(idir, a, myg):
     else:
 
         # test whether we are at an extremum
-        test[myg.ilo-3:myg.ihi+4, myg.jlo-3:myg.jhi+4] = \
+        test.v(buf=3)[:,:] = \
             (a[myg.ilo-3:myg.ihi+4, myg.jlo-2:myg.jhi+5] - \
             a[myg.ilo-3:myg.ihi+4, myg.jlo-3:myg.jhi+4]) * \
             (a[myg.ilo-3:myg.ihi+4, myg.jlo-3:myg.jhi+4] - \
@@ -102,13 +102,13 @@ def limit2(idir, a, myg):
         for j in range(myg.jlo-3, myg.jhi+4):
             for i in range(myg.ilo-3, myg.ihi+4):
 
-                if (test[i,j] > 0.):
-                    lda[i,j] = min(0.5*abs(a[i,j+1] - a[i,j-1]), \
+                if (test.d[i,j] > 0.):
+                    lda.d[i,j] = min(0.5*abs(a[i,j+1] - a[i,j-1]), \
                         min(2.0*abs(a[i,j+1] - a[i,j]), \
                         2.0*abs(a[i,j] - a[i,j-1]))) * \
                         np.sign(a[i,j+1] - a[i,j-1])
 
-    return lda[:,:]
+    return lda.d
 
 
 
@@ -144,24 +144,22 @@ def limit4(idir, a, myg):
     temp = myg.scratch_array()
 
     # first get the 2nd order estimate
-    temp[:,:] = limit2(idir, a, myg)
+    temp.d[:,:] = limit2(idir, a, myg)
 
     if idir ==1:
         # test whether we are at an extremum
-        test[myg.ilo-2:myg.ihi+3, myg.jlo-2:myg.jhi+3] = \
-            (a[myg.ilo-1:myg.ihi+4, myg.jlo-2:myg.jhi+3] - \
+        test.v(buf=2)[:,:] = (a[myg.ilo-1:myg.ihi+4, myg.jlo-2:myg.jhi+3] - \
             a[myg.ilo-2:myg.ihi+3, myg.jlo-2:myg.jhi+3]) * \
             (a[myg.ilo-2:myg.ihi+3, myg.jlo-2:myg.jhi+3] - \
             a[myg.ilo-3:myg.ihi+2, myg.jlo-2:myg.jhi+3])
 
-
         for j in range(myg.jlo-2, myg.jhi+3):
             for i in range(myg.ilo-2, myg.ihi+3):
 
-                if (test[i,j] > 0.0):
-                    lda[i,j] = \
+                if (test.d[i,j] > 0.0):
+                    lda.d[i,j] = \
                         min( (2./3.)*abs(a[i+1,j] - a[i-1,j] - \
-                        0.25*(temp[i+1,j] + temp[i-1,j])), \
+                        0.25*(temp.d[i+1,j] + temp.d[i-1,j])), \
                         min(2.0*abs(a[i+1,j] - a[i  ,j]), \
                         2.0*abs(a[i  ,j] - a[i-1,j])) ) * \
                         np.sign(a[i+1,j] - a[i-1,j])
@@ -170,24 +168,23 @@ def limit4(idir, a, myg):
     else:
 
         # test whether we are at an extremum
-        test[myg.ilo-2:myg.ihi+3, myg.jlo-2:myg.jhi+3] = \
-            (a[myg.ilo-2:myg.ihi+3, myg.jlo-1:myg.jhi+4] - \
+        test.v(buf=2)[:,:] = (a[myg.ilo-2:myg.ihi+3, myg.jlo-1:myg.jhi+4] - \
             a[myg.ilo-2:myg.ihi+3, myg.jlo-2:myg.jhi+3]) * \
             (a[myg.ilo-2:myg.ihi+3, myg.jlo-2:myg.jhi+3] - \
             a[myg.ilo-2:myg.ihi+3, myg.jlo-3:myg.jhi+2])
-
+            
         for j in range(myg.jlo-2, myg.jhi+3):
             for i in range(myg.ilo-2, myg.ihi+3):
 
-                if (test[i,j] > 0.):
-                    lda[i,j] = \
+                if (test.d[i,j] > 0.):
+                    lda.d[i,j] = \
                         min( (2./3.)*abs(a[i,j+1] - a[i,j-1] - \
-                        0.25*(temp[i,j+1] + temp[i,j-1])), \
+                        0.25*(temp.d[i,j+1] + temp.d[i,j-1])), \
                         min(2.*abs(a[i,j+1] - a[i,j  ]), \
                         2.*abs(a[i,j  ] - a[i,j-1])) ) * \
                         np.sign(a[i,j+1] - a[i,j-1])
 
-    return lda[:,:]
+    return lda.d
 
 
 
@@ -236,72 +233,54 @@ def flatten(idir, p, u, myg, smallp, delta, z0, z1):
     dp = myg.scratch_array()
     dp2 = myg.scratch_array()
     z = myg.scratch_array()
-    oness = myg.scratch_array() + 1.
-
+    oness = myg.scratch_array()
+    oness.d[:,:] += 1.
 
     if idir==1:
 
-        dp[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] = \
-            abs(p[myg.ilo-1:myg.ihi+4,myg.jlo-2:myg.jhi+3] - \
-            p[myg.ilo-3:myg.ihi+2,myg.jlo-2:myg.jhi+3])
+        dp.v(buf=2)[:,:] = abs(p.ip(1, buf=2) - p.ip(-1,buf=2))
 
-        dp2[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] = \
-            abs(p[myg.ilo:myg.ihi+5,myg.jlo-2:myg.jhi+3] - \
-            p[myg.ilo-4:myg.ihi+1,myg.jlo-2:myg.jhi+3])
+        dp2.v(buf=2)[:,:] = abs(p.ip(2, buf=2) - p.ip(-2, buf=2))
 
-        z[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] = \
-            dp[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] / \
-            np.maximum(dp2[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3], \
-            smallp * oness[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3])
+        z.v(buf=2)[:,:] = dp.v(buf=2) / \
+            np.maximum(dp2.v(buf=2), smallp * oness.v(buf=2))
 
-        test1[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] = \
-            u[myg.ilo-3:myg.ihi+2,myg.jlo-2:myg.jhi+3] - \
-            u[myg.ilo-1:myg.ihi+4,myg.jlo-2:myg.jhi+3]
+        test1.v(buf=2)[:,:] = u.ip(-1, buf=2) - u.ip(1, buf=2)
 
-        test2[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] = \
-            dp / np.minimum(p[myg.ilo-3:myg.ihi+2,myg.jlo-2:myg.jhi+3], \
-            p[myg.ilo-3:myg.ihi+2,myg.jlo-2:myg.jhi+3])
+        test2.v(buf=2)[:,:] = dp / np.minimum(p.ip(1, buf=2), \
+            p.ip(-1, buf=2))
 
 
         for j in range(myg.jlo-2, myg.jhi+3):
             for i in range(myg.ilo-2, myg.ihi+3):
 
-                if (test1[i,j] > 0. and test2[i,j] > delta):
-                    xi[i,j] = min(1., max(0., 1. - (z[i,j] - z0)/(z1 - z0)))
+                if (test1.d[i,j] > 0. and test2.d[i,j] > delta):
+                    xi.d[i,j] = min(1., max(0., 1. - (z.d[i,j] - z0)/(z1 - z0)))
 
 
 
     else:
 
-        dp[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] = \
-            abs(p[myg.ilo-2:myg.ihi+3,myg.jlo-1:myg.jhi+4] - \
-            p[myg.ilo-2:myg.ihi+3,myg.jlo-3:myg.jhi+2])
+        dp.v(buf=2)[:,:] = abs(p.jp(1, buf=2) - p.v(buf=2))
 
-        dp2[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] = \
-            abs(p[myg.ilo-2:myg.ihi+3,myg.jlo:myg.jhi+5] - \
-            p[myg.ilo-2:myg.ihi+3,myg.jlo-4:myg.jhi+1])
+        dp2.v(buf=2)[:,:] = abs(p.jp(2, buf=2) - p.jp(-2, buf=2))
 
-        z[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] = \
-            dp[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] / \
-            np.maximum(dp2[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3], \
-            smallp * oness[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3])
+        z.v(buf=2)[:,:] = dp.v(buf=2) / \
+            np.maximum(dp2.v(buf=2), smallp * oness.v(buf=2))
 
-        test1[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] = \
-            u[myg.ilo-2:myg.ihi+3,myg.jlo-3:myg.jhi+2] - \
-            u[myg.ilo-2:myg.ihi+3,myg.jlo-1:myg.jhi+4]
+        test1.v(buf=2)[:,:] = u.jp(-1, buf=2) - u.jp(1, buf=2)
 
-        test2[myg.ilo-2:myg.ihi+3,myg.jlo-2:myg.jhi+3] = \
-            dp / np.minimum(p[myg.ilo-2:myg.ihi+3,myg.jlo-1:myg.jhi+4], \
-            p[myg.ilo-2:myg.ihi+3,myg.jlo-3:myg.jhi+2])
+        test2.v(buf=2)[:,:] = dp / np.minimum(p.jp(1, buf=2), \
+            p.jp(-1, buf=2))
 
         for j in range(myg.jlo-2, myg.jhi+3):
             for i in range(myg.ilo-2, myg.ihi+3):
 
-                if (test1[i,j] > 0. and test2[i,j] > delta):
-                    xi[i,j] = min(1., max(0., 1. - (z[i,j] - z0)/(z1 - z0)))
+                if (test1.d[i,j] > 0. and test2.d[i,j] > delta):
+                    xi.d[i,j] = min(1., max(0., 1. - (z.d[i,j] - z0)/(z1 - z0)))
 
 
-    return xi[:,:]
+    return xi.d
 
 
 #-----------------------------------------------------------------------------
@@ -339,7 +318,7 @@ def flatten_multid(xi_x, xi_y, p, myg):
             sx = int(np.sign([1., p[i+1,j] - p[i-1,j]]))
             sy = int(np.sign([1., p[i,j+1] - p[i,j-1]]))
 
-            xi[i,j] = min(min(xi_x[i,j], xi_x[i-sx,j]),\
-            min(xi_y[i,j], xi_y[i,j-sy]))
+            xi.d[i,j] = min(min(xi_x.d[i,j], xi_x.d[i-sx,j]),\
+            min(xi_y.d[i,j], xi_y.d[i,j-sy]))
 
-    return xi[:,:]
+    return xi.d

@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 import numpy as np
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 
 from lm_atm.problems import *
 import mesh.patch as patch
@@ -643,8 +643,6 @@ class Simulation(NullSimulation):
         # FIXME: no longer use fortran for this, so can fix?
         D02d = myg.scratch_array()
         Dh02d = myg.scratch_array()
-        #D02d = np.array([D0.d, ] * np.size(D0.d))
-        #Dh02d = np.array([Dh0.d, ] * np.size(Dh0.d))
 
         # x slopes of r0, e0 surely just 0?
         ldelta_rx = myg.scratch_array()
@@ -856,10 +854,7 @@ class Simulation(NullSimulation):
 
         D02d.v()[:] -= self.dt*(
             #  (D0 u)_x
-            # (D0_xint[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1]*
-            # u_MAC[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
-            # D0_xint[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]*
-            # u_MAC[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/myg.dx +
+            # (D0_xint.ip(1) * u_MAC.ip(1) - D0_xint.v() * u_MAC.v())/myg.dx +
             #  (D0 v)_y
             (D0_yint.jp(1) * v_MAC.jp(1) - D0_yint.v() * v_MAC.v()) / myg.dy)
 
@@ -888,10 +883,7 @@ class Simulation(NullSimulation):
 
         Dh02d.v()[:, :] -= self.dt * (
             #  (Dh u)_x
-            # (Dh0_xint[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1]*
-            # u_MAC[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
-            # Dh0_xint[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1]*
-            # u_MAC[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1])/myg.dx +
+            # (Dh0_xint.ip(1) * u_MAC.ip(1) - Dh0_xint.v() * u_MAC.v())/myg.dx +
             #  (Dh v)_y
             (Dh0_yint.jp(1) * v_MAC.jp(1) - Dh0_yint.v() * v_MAC.v()) / myg.dy)
 
@@ -975,6 +967,7 @@ class Simulation(NullSimulation):
         gradpi_x = myg.scratch_array()
         gradpibyxi_y = myg.scratch_array()
         xi2d = myg.scratch_array()
+        xi2d.d[:,:] = xi.v2d(buf=xi.ng)
 
         # predict xi to edges by first finding limited slopes
         ldelta_xix = myg.scratch_array()
@@ -989,11 +982,12 @@ class Simulation(NullSimulation):
         # edge-centered pi given by phi_MAC/delta t, so find gradpi:
         gradpi_x.v()[:, :] = (phi_MAC.ip(1) - phi_MAC.v()) / (myg.dx * self.dt)
 
-        np.seterr(invalid='warn')
+        # np.seterr(invalid='warn')
         gradpibyxi_y.v()[:, :] = (phi_MAC.jp(1) / xi_yint.jp(1)) / \
                                  (myg.dy * self.dt) - \
                                  (phi_MAC.v() / xi_yint.v()) / \
                                  (myg.dy * self.dt)
+        print("min/max xi_yint   = {}, {}".format(np.min(xi_yint.d), np.max(xi_yint.d)))
 
         pressureSource = myg.scratch_array()
         drp0 = myg.scratch_array()
@@ -1091,7 +1085,7 @@ class Simulation(NullSimulation):
 
         # store the solution in our self.cc_data object -- include a single
         # ghostcell
-        phi.d[:, :] = mg.get_solution(grid=myg)
+        phi.d[:, :] = mg.get_solution(grid=myg).d
 
         # get the cell-centered gradient of p and update the velocities
         # this differs depending on what we projected.
@@ -1123,11 +1117,11 @@ class Simulation(NullSimulation):
         self.cc_data.fill_BC("gradp_x")
         self.cc_data.fill_BC("gradp_y")
 
-        tracer.d[:, :] = v.copy()
+        tracer = v.copy()
 
         # increment the time
         if not self.in_preevolve:
-            self.cc_data.t += self.dt
+            self.t += self.dt
             self.n += 1
 
     def dovis(self):
@@ -1136,7 +1130,7 @@ class Simulation(NullSimulation):
         """
         plt.clf()
 
-        # plt.rc("font", size=10)
+        plt.rc("font", size=10)
 
         D = self.cc_data.get_var("density")
         # Dh = self.cc_data.get_var("enthalpy")
@@ -1149,7 +1143,8 @@ class Simulation(NullSimulation):
         # print('xi size', np.shape(xi))
 
         myg = self.cc_data.grid
-        u0 = np.ones((myg.qx, myg.qy))
+        u0 = myg.scratch_array()
+        u0.d[:,:] = np.ones((myg.qx, myg.qy))
 
         magvel = np.sqrt(u.d**2 + v.d**2) / u0.d
 
@@ -1175,7 +1170,7 @@ class Simulation(NullSimulation):
         _, axes = plt.subplots(nrows=2, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.25)
 
-        fields = [D, magvel, u, v]
+        fields = [D.v(), magvel, u.v(), v.v()]
         field_names = [r"$D$", r"$|U|$", r"$U$", r"$V$"]
 
         for n in range(len(fields)):
@@ -1186,14 +1181,14 @@ class Simulation(NullSimulation):
 
             if n < 2:
                 cmap = plt.cm.jet
-                vmin = np.min(f.v())
-                vmax = np.max(f.v())
+                vmin = np.min(f)
+                vmax = np.max(f)
             else:
                 cmap = plt.cm.seismic
-                vmin = -np.max(np.abs(f.v()))
-                vmax = +np.max(np.abs(f.v()))
+                vmin = -np.max(np.abs(f))
+                vmax = +np.max(np.abs(f))
 
-            img = ax.imshow(np.transpose(f.v()),
+            img = ax.imshow(np.transpose(f),
                             interpolation="nearest", origin="lower",
                             extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax],
                             cmap=cmap, vmin=vmin, vmax=vmax)
@@ -1204,15 +1199,7 @@ class Simulation(NullSimulation):
 
             plt.colorbar(img, ax=ax)
 
-        plt.figtext(0.05, 0.0125, "n: %4d,   t = %10.5f" % (self.cc_data.n,
-                    self.cc_data.t))
-        # plt.tight_layout()
-
+        plt.figtext(0.05, 0.0125, "n: %4d,   t = %10.5f" % (self.n,
+                    self.t))
+        plt.tight_layout()
         plt.draw()
-
-    # def finalize(self):
-    #    """
-    #    Do any final clean-ups for the simulation and call the problem's
-    #    finalize() method.
-    #    """
-    #    exec(self.problem_name + '.finalize()')
