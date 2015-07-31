@@ -25,7 +25,7 @@ def init_data(my_data, rp):
     ener = my_data.get_var("energy")
     phi  = my_data.get_var("phi")
 
-    phi[:,:]  = -1.0
+    phi.d[:,:]  = -1.0
 
     gamma = rp.get_param("eos.gamma")
 
@@ -65,17 +65,15 @@ def init_data(my_data, rp):
             dens.d[:,j] = dens2
             p.d[:,j] = p0 + dens1*grav*ycenter + dens2*grav*(myg.y[j] - ycenter)
 
-
         j += 1
 
 
-    ymom.d[:,:] = amp*numpy.cos(2.0*math.pi*myg.x2d/(myg.xmax-myg.xmin))*numpy.exp(-(myg.y2d-ycenter)**2/sigma**2)
+    ymom.d[:,:] = amp * numpy.cos(2.0 * math.pi * myg.x2d / (myg.xmax-myg.xmin)) * numpy.exp(-(myg.y2d-ycenter)**2 / sigma**2)
 
-    ymom *= dens
+    ymom.d[:,:] *= dens.d
 
     # set the energy (P = cs2*dens)
-    ener.d[:,:] = p.d[:,:]/(gamma - 1.0) + \
-        0.5*(xmom.d[:,:]**2 + ymom.d[:,:]**2)/dens.d[:,:]
+    ener.v()[:,:] = p.v()/(gamma - 1.0) + 0.5*(xmom.v()**2 + ymom.v()**2)/dens.v()
 
 
 def finalize():

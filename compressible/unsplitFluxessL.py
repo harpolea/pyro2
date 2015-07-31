@@ -127,6 +127,7 @@ Updating U_{i,j}:
 import compressible.eos as eos
 import compressible.interface_fsL as interface_fsL
 import mesh.reconstruction_f as reconstruction_f
+from simulation_null import NullSimulation, grid_setup, bc_setup
 from util import msg
 import pylsmlib
 import numpy as np
@@ -171,11 +172,11 @@ def calcSL(my_data, rp, vars):
     sL : ndarray
         The laminar flame speed
     """
-    dens = my_data.get_var("density")
-    xmom = my_data.get_var("x-momentum")
-    ymom = my_data.get_var("y-momentum")
-    ener = my_data.get_var("energy")
-    phi = my_data.get_var("phi")
+    dens = my_data.get_var("density").d
+    xmom = my_data.get_var("x-momentum").d
+    ymom = my_data.get_var("y-momentum").d
+    ener = my_data.get_var("energy").d
+    phi = my_data.get_var("phi").d
 
     # get these from my_data
     sL0 = 0.01  # don't make too big. E.g. 1 works well for sedov, 5 does not.
@@ -237,11 +238,11 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     # =========================================================================
     # Q = (rho, u, v, p, phi)
 
-    dens = my_data.get_var("density")
-    xmom = my_data.get_var("x-momentum")
-    ymom = my_data.get_var("y-momentum")
-    ener = my_data.get_var("energy")
-    phi = my_data.get_var("phi")
+    dens = my_data.get_var("density").d
+    xmom = my_data.get_var("x-momentum").d
+    ymom = my_data.get_var("y-momentum").d
+    ener = my_data.get_var("energy").d
+    phi = my_data.get_var("phi").d
 
     r = dens
 
@@ -314,8 +315,10 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     tm_states = tc.timer("interfaceStates")
     tm_states.begin()
 
-    V_l = myg.scratch_array(vars.nvar)
-    V_r = myg.scratch_array(vars.nvar)
+    _V_l = myg.scratch_array(vars.nvar)
+    V_l = _V_l.d
+    _V_r = myg.scratch_array(vars.nvar)
+    V_r = _V_r.d
 
     # find x-component of sL
     sL = calcSL(my_data, rp, vars)
@@ -336,8 +339,10 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     tm_states.end()
 
     # transform interface states back into conserved variables
-    U_xl = myg.scratch_array(vars.nvar)
-    U_xr = myg.scratch_array(vars.nvar)
+    _U_xl = myg.scratch_array(vars.nvar)
+    U_xl = _U_xl.d
+    _U_xr = myg.scratch_array(vars.nvar)
+    U_xr = _U_xr.d
 
     U_xl[:, :, vars.idens] = V_l[:, :, vars.irho]
     U_xl[:, :, vars.ixmom] = V_l[:, :, vars.irho] * V_l[:, :, vars.iu]
@@ -375,8 +380,10 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     tm_states.end()
 
     # transform interface states back into conserved variables
-    U_yl = myg.scratch_array(vars.nvar)
-    U_yr = myg.scratch_array(vars.nvar)
+    _U_yl = myg.scratch_array(vars.nvar)
+    U_yl = _U_yl.d
+    _U_yr = myg.scratch_array(vars.nvar)
+    U_yr = _U_yr.d
 
     U_yl[:, :, vars.idens] = V_l[:, :, vars.irho]
     U_yl[:, :, vars.ixmom] = V_l[:, :, vars.irho] * V_l[:, :, vars.iu]

@@ -36,6 +36,7 @@ def user(bc_name, bc_edge, variable, my_data):
     xmom = my_data.get_var("x-momentum")
     ymom = my_data.get_var("y-momentum")
     ener = my_data.get_var("energy")
+    phi = my_data.get_var("phi")
 
     grav = my_data.get_aux("grav")
     gamma = my_data.get_aux("gamma")
@@ -66,6 +67,12 @@ def user(bc_name, bc_edge, variable, my_data):
                 j = myg.jlo-1
                 while j >= 0:
                     ymom.d[:,j] = ymom.d[:,myg.jlo]
+                    j -= 1
+
+            elif variable == "phi":
+                j = myg.jlo-1
+                while j >= 0:
+                    phi.d[:,j] = phi.d[:,myg.jlo]
                     j -= 1
 
             elif variable == "energy":
@@ -111,6 +118,10 @@ def user(bc_name, bc_edge, variable, my_data):
             elif variable == "y-momentum":
                 for j in range(myg.jhi+1, myg.jhi+myg.ng+1):
                     ymom.d[:,j] = ymom.d[:,myg.jhi]
+
+            elif variable == "phi":
+                for j in range(myg.jhi+1, myg.jhi+myg.ng+1):
+                    phi.d[:,j] = phi.d[:,myg.jhi]
 
             elif variable == "energy":
                 dens_base = dens.d[:,myg.jhi]
