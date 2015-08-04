@@ -176,6 +176,8 @@ subroutine mac_vels(qx, qy, ng, dx, dy, dt, &
   double precision :: u_yl(0:qx-1, 0:qy-1), u_yr(0:qx-1, 0:qy-1)
   double precision :: v_xl(0:qx-1, 0:qy-1), v_xr(0:qx-1, 0:qy-1)
   double precision :: v_yl(0:qx-1, 0:qy-1), v_yr(0:qx-1, 0:qy-1)
+  integer :: i, j
+  integer :: nx, ny, ilo, ihi, jlo, jhi
 
   ! initialize all new arrays to zero to avoid compiler problems
   u_MAC = 0.0d0
@@ -189,8 +191,6 @@ subroutine mac_vels(qx, qy, ng, dx, dy, dt, &
   v_xr = 0.0d0
   v_yr = 0.0d0
 
-  integer :: i, j
-  integer :: nx, ny, ilo, ihi, jlo, jhi
   nx = qx - 2*ng; ny = qy - 2*ng
   ilo = ng; ihi = ng+nx-1; jlo = ng; jhi = ng+ny-1
 
@@ -501,6 +501,8 @@ subroutine get_interface_states(qx, qy, ng, dx, dy, dt, &
   double precision :: dtdx, dtdy
   double precision :: ubar, vbar, uv_x, vu_y, uu_x, vv_y
 
+  integer :: is_asymmetric_pair
+
   uhat_adv = 0.0d0
   vhat_adv = 0.0d0
   u_xint = 0.0d0
@@ -515,8 +517,6 @@ subroutine get_interface_states(qx, qy, ng, dx, dy, dt, &
   u_yr = 0.0d0
   v_xr = 0.0d0
   v_yr = 0.0d0
-
-  integer :: is_asymmetric_pair
 
   nx = qx - 2*ng; ny = qy - 2*ng
   ilo = ng; ihi = ng+nx-1; jlo = ng; jhi = ng+ny-1

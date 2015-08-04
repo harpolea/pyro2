@@ -4,11 +4,9 @@
 
 from numpy.distutils.core import setup, Extension
 
-extra_link_args=[]
+extra_link_args=["-L/Developer/SDKs/MacOSX10.7.sdk/usr/lib"]
 
-ext = Extension("reconstruction_f", 
+ext = Extension("reconstruction_f",
                 ["reconstruction_f.f90"])
 
 setup(ext_modules=[ext])
-
-                

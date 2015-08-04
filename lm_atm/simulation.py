@@ -1193,5 +1193,5 @@ class Simulation(NullSimulation):
             plt.colorbar(img, ax=ax)
 
         plt.figtext(0.05, 0.0125, "n: %4d,   t = %10.5f" % (self.n, self.t))
-        plt.tight_layout()
-        #plt.draw()
+        #plt.tight_layout()
+        plt.draw()

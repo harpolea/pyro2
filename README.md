@@ -31,11 +31,11 @@ http://bender.astro.sunysb.edu/hydro_by_example/
        `dnf install numpy numpy-f2py python-matplotlib python-matplotlib-tk`
 
     (note, for older Fedora releases, replace `dnf` with `yum`)
-	
-  - You also need to make sure gfortran is present on you system. On
-     a Fedora system, it can be installed as: 
 
-       `dnf install gcc-gfortran` 
+  - You also need to make sure gfortran is present on you system. On
+     a Fedora system, it can be installed as:
+
+       `dnf install gcc-gfortran`
 
   - Not all matplotlib backends allow for the interactive plotting as
      pyro is run. One that does is the TkAgg backend. This can be made
@@ -44,30 +44,34 @@ http://bender.astro.sunysb.edu/hydro_by_example/
 
        `backend: TkAgg`
 
-     You can check what backend is your current default in python via: 
+     You can check what backend is your current default in python via:
 
        ```python
-       import matplotlib.pyplot 
-       print matplotlib.pyplot.get_backend() 
+       import matplotlib.pyplot
+       print matplotlib.pyplot.get_backend()
        ```
-	   
+
   - If you want to run the unit tests, you need to have `nose` installed.
-  
-  - The remaining steps are: 
+
+  - The remaining steps are:
 
       * Set the `PYTHONPATH` environment variable to point to the `pyro2/`
         directory.
 
       * Define the environment variable `PYRO_HOME` to point to the
         `pyro2/` directory (only needed to regression testing)
-	  
-      * Build the Fortran source. In `pyro2/` type 
 
-          `./mk.sh` 
+      * Build the Fortran source. In `pyro2/` type
 
-      * Run a quick test of the advection solver: 
+          `./mk.sh`
 
-          `./pyro.py advection smooth inputs.smooth` 
+        In MacOSX this didn't work - instead had to compile each setup file individually, specifically linking to a certain library:
+
+          `python setup.py build_ext -L/Developer/SDKs/MacOS10.7.sdk/usr/lib --inplace`
+
+      * Run a quick test of the advection solver:
+
+          `./pyro.py advection smooth inputs.smooth`
 
         you should see a graphing window pop up with a smooth pulse
         advecting diagonally through the periodic domain.
@@ -180,7 +184,7 @@ with their data.
   The `test.py` script will run several of the problems (as well as some
   stand-alone multigrid tests) and compare the solution to stored
   benchmarks (in each solver's `tests/` subdirectory).
-  
+
   Tests are run nightly and reported here:
 
   http://bender.astro.sunysb.edu/hydro_by_example/download/_stage/pyro2/tests.out

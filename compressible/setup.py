@@ -4,7 +4,7 @@
 
 from numpy.distutils.core import setup, Extension
 
-extra_link_args=[]
+extra_link_args=["-L/Developer/SDKs/MacOSX10.7.sdk/usr/lib"]
 
 ext = Extension("interface_f",
                 ["interface_f.f90"])
