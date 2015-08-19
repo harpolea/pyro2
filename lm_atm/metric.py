@@ -1,3 +1,7 @@
+"""
+TODO: see if can make this a singleton class for the case where the metric is time-independent.
+"""
+
 from __future__ import print_function
 
 import numpy as np

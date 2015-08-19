@@ -338,7 +338,7 @@ class Simulation(NullSimulation):
         p0 = self.base_data.get_var("p0")
 
         # laterally averaged the source as p0 is x-independent
-        dp0dt = self.lateralAvg(S.d) * 0.  # placeholder for now
+        dp0dt = self.lateralAvg(S.d) #* 0.  # placeholder for now
         dp0dt[:] /= gamma * p0.d
 
         constraint = self.cc_data.grid.scratch_array()
@@ -399,7 +399,7 @@ class Simulation(NullSimulation):
         c = self.rp.get_param("lm-atmosphere.c")
 
         F_buoy = np.max([np.max(g / (R * c**2)), 1.e-20])
-        dt_buoy = np.sqrt(2.0*myg.dy/F_buoy)
+        dt_buoy = np.sqrt(2.0 * myg.dy / F_buoy)
 
         self.dt = min(dt, dt_buoy)
         if self.verbose > 0: print("timestep is {}".format(dt))
