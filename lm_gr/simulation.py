@@ -154,7 +154,7 @@ class Simulation(NullSimulation):
         alpha = Basestate(myg.ny, ng=myg.ng)
         alpha.d[:] = np.sqrt(1. - 2. * g * (1. - myg.y[:]/R) / c**2)
         beta = [0., 0.]
-        gamma_matrix = np.sqrt(1. + 2. * g * (1. - myg.y[:]/R) / c**2) * np.eye(2)
+        gamma_matrix = np.sqrt(1. + 2. * g / c**2) * np.eye(2)
         self.metric = metric.Metric(self.cc_data, self.rp, alpha, beta, gamma_matrix)
 
 
@@ -192,7 +192,7 @@ class Simulation(NullSimulation):
         zeta_edges = self.base["zeta-edges"]
 
         try:
-            zeta.d()[:] = D0.d / self.lateral_average(u0.d)
+            zeta.d[:] = D0.d / self.lateral_average(u0.d)
         except FloatingPointError:
             print('D0: ', np.max(D0.d))
             print('u0: ', np.max(u0.d))
@@ -227,7 +227,7 @@ class Simulation(NullSimulation):
         # calculate dp0dt
 
         constraint = myg.scratch_array()
-        # constraint.d[:,:] =
+        constraint.d[:,:] += 1.
         # TODO: calculate constrait terms
 
         return constraint
@@ -269,7 +269,7 @@ class Simulation(NullSimulation):
         c = self.rp.get_param("lm-gr.c")
         R = self.rp.get_param("lm-gr.radius")
 
-        F_buoy = np.max([(g / (R * c**2)).max(), 1.e-20])
+        F_buoy = np.max([g / (R * c**2), 1.e-20])
 
         dt_buoy = np.sqrt(2.0 * myg.dx / F_buoy)
 
@@ -304,6 +304,7 @@ class Simulation(NullSimulation):
         # velocity field satisties div U = 0
 
         # the coefficent for the elliptic equation is zeta^2/Dh u0
+        u0 = self.metric.calcu0()
         coeff = 1. / (Dh * u0)
         zeta = self.base["zeta"]
         try:
@@ -335,8 +336,9 @@ class Simulation(NullSimulation):
         # solve D (zeta^2/Dh u0) G (phi/zeta) = D( zeta U )
         constraint = self.constraint_source()
         # set the RHS to divU and solve
-        mg.init_RHS(div_zeta_U.d - constraint.d)
-        mg.solve(rtol=1.e-10)
+        mg.init_RHS(div_zeta_U.v(buf=1) - constraint.v(buf=1))
+        # FIXME: uncomment
+        #mg.solve(rtol=1.e-10)
 
 
         # store the solution in our self.cc_data object -- include a single
@@ -353,8 +355,9 @@ class Simulation(NullSimulation):
         coeff = 1. / (Dh * u0)
         coeff.v()[:,:] *= zeta.v2d()
 
-        u.v()[:,:] -= coeff.v() * gradp_x.v()
-        v.v()[:,:] -= coeff.v() * gradp_y.v()
+        # FIXME: uncomment
+        #u.v()[:,:] -= coeff.v() * gradp_x.v()
+        #v.v()[:,:] -= coeff.v() * gradp_y.v()
 
         # fill the ghostcells
         self.cc_data.fill_BC("x-velocity")
@@ -426,16 +429,16 @@ class Simulation(NullSimulation):
 
 
         ldelta_rx = limitFunc(1, D.d, myg.qx, myg.qy, myg.ng)
-        ldelta_r0x = limitFunc(1, D0.d2d(), myg.qx, myg.qy, myg.ng)
+        #ldelta_r0x = limitFunc(1, D0.d2d(), myg.qx, myg.qy, myg.ng)
         ldelta_ex = limitFunc(1, Dh.d,myg.qx, myg.qy, myg.ng)
-        ldelta_e0x = limitFunc(1, Dh0.d2d(), myg.qx, myg.qy, myg.ng)
+        #ldelta_e0x = limitFunc(1, Dh0.d2d(), myg.qx, myg.qy, myg.ng)
         ldelta_ux = limitFunc(1, u.d, myg.qx, myg.qy, myg.ng)
         ldelta_vx = limitFunc(1, v.d, myg.qx, myg.qy, myg.ng)
 
         ldelta_ry = limitFunc(2, D.d, myg.qx, myg.qy, myg.ng)
-        ldelta_r0y = limitFunc(2, D0.d2d(), myg.qx, myg.qy, myg.ng)
+        #ldelta_r0y = limitFunc(2, D0.d2d(), myg.qx, myg.qy, myg.ng)
         ldelta_ey = limitFunc(2, Dh.d,myg.qx, myg.qy, myg.ng)
-        ldelta_e0y = limitFunc(2, Dh0.d2d(), myg.qx, myg.qy, myg.ng)
+        #ldelta_e0y = limitFunc(2, Dh0.d2d(), myg.qx, myg.qy, myg.ng)
         ldelta_uy = limitFunc(2, u.d, myg.qx, myg.qy, myg.ng)
         ldelta_vy = limitFunc(2, v.d, myg.qx, myg.qy, myg.ng)
 
@@ -473,8 +476,8 @@ class Simulation(NullSimulation):
         # create the coefficient to the grad (pi/zeta) term
         u0 = self.metric.calcu0()
         coeff = self.aux_data.get_var("coeff")
-        coeff.v()[:,:] = 1.0 / (Dh.v() * u0.d)
-        coeff.v()[:,:] *= zeta.v2d()
+        coeff.d[:,:] = 1.0 / (Dh.d * u0.d)
+        coeff.d[:,:] *= zeta.d2d()
         self.aux_data.fill_BC("coeff")
 
         # create the source term
@@ -487,13 +490,14 @@ class Simulation(NullSimulation):
         # TODO: source term?
         # source.v()[:,:] =
         self.aux_data.fill_BC("source_y")
-
+        # FIXME: gradp_x.d needs to be multiplied by coeff.d
         _um, _vm = lm_interface_f.mac_vels(myg.qx, myg.qy, myg.ng,
                                            myg.dx, myg.dy, self.dt,
                                            u.d, v.d,
                                            ldelta_ux, ldelta_vx,
                                            ldelta_uy, ldelta_vy,
-                                           coeff.d*gradp_x.d, coeff.d*gradp_y.d,
+                                           gradp_x.d,
+                                           gradp_y.d,
                                            source.d)
 
 
@@ -539,11 +543,12 @@ class Simulation(NullSimulation):
             (zeta_edges.v2dp(1) * v_MAC.jp(1) -
              zeta_edges.v2d() * v_MAC.v()) / myg.dy
 
-        # TODO: update constraint here??
+        constraint = self.constraint_source()
 
         # solve the Poisson problem
-        mg.init_RHS(div_zeta_U.d - contraint.v(buf=1))
-        mg.solve(rtol=1.e-12)
+        mg.init_RHS(div_zeta_U.d - constraint.v(buf=1))
+        # FIXME: uncomment
+        #mg.solve(rtol=1.e-12)
 
 
         # update the normal velocities with the pressure gradient -- these
@@ -551,10 +556,11 @@ class Simulation(NullSimulation):
         # solved for here is phi/beta_0
         phi_MAC = self.cc_data.get_var("phi-MAC")
         phi_MAC.d[:,:] = mg.get_solution(grid=myg).d
+        phi_MAC.d[:,:] = 1. #FIXME: un-one
 
         coeff = self.aux_data.get_var("coeff")
-        coeff.v()[:,:] = 1.0 / (Dh.v() * u0.v())
-        coeff.v()[:,:] *= zeta.v2d()
+        coeff.d[:,:] = 1.0 / (Dh.d * u0.d)
+        coeff.d[:,:] *= zeta.d2d()
         self.aux_data.fill_BC("coeff")
 
         coeff_x = myg.scratch_array()
@@ -568,12 +574,14 @@ class Simulation(NullSimulation):
         # we need the MAC velocities on all edges of the computational domain
         # here we do U = U - (beta_0/D) grad (phi/beta_0)
         b = (0, 1, 0, 0)
-        u_MAC.v(buf=b)[:,:] -= \
-                coeff_x.v(buf=b) * (phi_MAC.v(buf=b) - phi_MAC.ip(-1, buf=b)) / myg.dx
+        # FIXME: uncomment
+        #u_MAC.v(buf=b)[:,:] -= \
+        #        coeff_x.v(buf=b) * (phi_MAC.v(buf=b) - phi_MAC.ip(-1, buf=b)) / myg.dx
 
         b = (0, 0, 0, 1)
-        v_MAC.v(buf=b)[:,:] -= \
-                coeff_y.v(buf=b) * (phi_MAC.v(buf=b) - phi_MAC.jp(-1, buf=b)) / myg.dy
+        # FIXME: uncomment
+        #v_MAC.v(buf=b)[:,:] -= \
+        #        coeff_y.v(buf=b) * (phi_MAC.v(buf=b) - phi_MAC.jp(-1, buf=b)) / myg.dy
 
 
         #---------------------------------------------------------------------
@@ -583,11 +591,12 @@ class Simulation(NullSimulation):
                                              myg.dx, myg.dy, self.dt,
                                              D.d, u_MAC.d, v_MAC.d,
                                              ldelta_rx, ldelta_ry)
-
+        # FIXME: change limiters and D back to base state ones
         _, _r0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
-                                             D0.d2d(), u_MAC.d, v_MAC.d,
-                                             ldelta_r0x, ldelta_r0y)
+                                             #D0.d2d().tolist(), u_MAC.d, v_MAC.d,
+                                             D.d, u_MAC.d, v_MAC.d,
+                                             ldelta_rx, ldelta_ry)
 
         D_xint = patch.ArrayIndexer(d=_rx, grid=myg)
         D_yint = patch.ArrayIndexer(d=_ry, grid=myg)
@@ -604,7 +613,7 @@ class Simulation(NullSimulation):
 
         D0_yint = patch.ArrayIndexer(d=_r0y, grid=myg)
 
-        D0_old = D0.copy()
+        #D0_old = D0.copy()
 
         D02d = myg.scratch_array()
         D02d.d[:,:] = D0.d2d()
@@ -620,11 +629,12 @@ class Simulation(NullSimulation):
                                              myg.dx, myg.dy, self.dt,
                                              Dh.d, u_MAC.d, v_MAC.d,
                                              ldelta_ex, ldelta_ey)
-
+        # FIXME: change limiters , Dh back to base state ones
         _, _e0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
-                                             Dh0.d2d(), u_MAC.d, v_MAC.d,
-                                             ldelta_e0x, ldelta_e0y)
+                                             #Dh0.d2d(), u_MAC.d, v_MAC.d,
+                                             Dh.d, u_MAC.d, v_MAC.d,
+                                             ldelta_ex, ldelta_ey)
 
         Dh_xint = patch.ArrayIndexer(d=_ex, grid=myg)
         Dh_yint = patch.ArrayIndexer(d=_ey, grid=myg)
@@ -641,7 +651,7 @@ class Simulation(NullSimulation):
 
         Dh0_yint = patch.ArrayIndexer(d=_e0y, grid=myg)
 
-        Dh0_old = Dh0.copy()
+        #Dh0_old = Dh0.copy()
 
         Dh02d = myg.scratch_array()
         Dh02d.d[:,:] = Dh0.d2d()
@@ -667,15 +677,17 @@ class Simulation(NullSimulation):
         coeff = self.aux_data.get_var("coeff")
         coeff.v()[:,:] = 2.0 / ((Dh.v() + Dh_old.v()) * u0.v())
         coeff.v()[:,:] *= zeta.v2d()
+        # FIXME: delete next line
+        coeff.v()[:,:] = 1.
         self.aux_data.fill_BC("coeff")
-
+        # FIXME: add coeff.d * back in
         _ux, _vx, _uy, _vy = \
                lm_interface_f.states(myg.qx, myg.qy, myg.ng,
                                      myg.dx, myg.dy, self.dt,
                                      u.d, v.d,
                                      ldelta_ux, ldelta_vx,
                                      ldelta_uy, ldelta_vy,
-                                     coeff.d * gradp_x.d, coeff.d * gradp_y.d,
+                                     gradp_x.d, gradp_y.d,
                                      source.d,
                                      u_MAC.d, v_MAC.d)
 
@@ -746,7 +758,8 @@ class Simulation(NullSimulation):
 
         # create the coefficient array: zeta**2 / Dh u0
         coeff = 1.0 / (Dh * u0)
-        self.update_zeta()
+        # FIXME: uncomment?
+        #self.update_zeta()
         coeff.v()[:,:] *= zeta.v2d()**2
 
         # create the multigrid object
@@ -769,7 +782,7 @@ class Simulation(NullSimulation):
             0.5 * (zeta.v2dp(1)*v.jp(1) - zeta.v2dp(-1)*v.jp(-1))/myg.dy
 
         constraint = self.constraint_source()
-        mg.init_RHS(div_zeta_U.d/self.dt - constraint.d/self.dt)
+        mg.init_RHS(div_zeta_U.v(buf=1)/self.dt - constraint.v(buf=1)/self.dt)
 
         # use the old phi as our initial guess
         phiGuess = mg.soln_grid.scratch_array()
@@ -777,7 +790,7 @@ class Simulation(NullSimulation):
         mg.init_solution(phiGuess.d)
 
         # solve
-        mg.solve(rtol=1.e-12)
+        #mg.solve(rtol=1.e-12) FIXME: uncomment
 
 
         # store the solution in our self.cc_data object -- include a single
@@ -792,9 +805,13 @@ class Simulation(NullSimulation):
         # U = U - (zeta/Dh u0) grad (phi)
         coeff = 1.0 / (Dh * u0)
         coeff.v()[:,:] *= zeta.v2d()
+        # FIXME: delete next line
+        coeff.v()[:,:] = 1.
 
         u.v()[:,:] -= self.dt * coeff.v() * gradphi_x.v()
         v.v()[:,:] -= self.dt * coeff.v() * gradphi_y.v()
+        # FIXME: delete
+        v.d[:,:] = np.abs(v.d)
 
         # store gradp for the next step
 
