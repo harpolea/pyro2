@@ -6,7 +6,7 @@ tmax = 1.0
 cfl = 0.8
 
 
-[LM-atmosphere]
+[LM-gr]
 
 
 [io]
@@ -31,6 +31,3 @@ yrboundary = outflow
 x_pert = 0.5
 y_pert = 0.5
 r_pert = 0.05
-
-
-
