@@ -22,18 +22,20 @@ etc. is here:
 http://bender.astro.sunysb.edu/hydro_by_example/
 
 
-## Getting Started
+## Getting started
 
   - There are a few steps to take to get things running. You need to
-     make sure you have numpy, f2py, and matplotlib installed. On a
-     Fedora system, this can be accomplished by doing:
+     make sure you have `numpy`, `f2py`, and `matplotlib`
+     installed. On a Fedora system, this can be accomplished by doing:
 
-       `yum install numpy numpy-f2py python-matplotlib python-matplotlib-tk`
+       `dnf install numpy numpy-f2py python-matplotlib python-matplotlib-tk`
 
+    (note, for older Fedora releases, replace `dnf` with `yum`)
+	
   - You also need to make sure gfortran is present on you system. On
      a Fedora system, it can be installed as: 
 
-       `yum install gcc-gfortran` 
+       `dnf install gcc-gfortran` 
 
   - Not all matplotlib backends allow for the interactive plotting as
      pyro is run. One that does is the TkAgg backend. This can be made
@@ -48,7 +50,9 @@ http://bender.astro.sunysb.edu/hydro_by_example/
        import matplotlib.pyplot 
        print matplotlib.pyplot.get_backend() 
        ```
-
+	   
+  - If you want to run the unit tests, you need to have `nose` installed.
+  
   - The remaining steps are: 
 
       * Set the `PYTHONPATH` environment variable to point to the `pyro2/`
@@ -87,19 +91,19 @@ pyro provides the following solvers (all in 2-d):
   - `diffusion`: a Crank-Nicolson time-discretized solver for the
     constant-coefficient diffusion equation.
 
+  - `lm_atm`: a solver for the equations of low Mach number
+    hydrodynamics for atmospheric flows.
+
+  - `lm_combustion`: (in development) a solver for the equations of
+    low Mach number hydrodynamics for smallscale combustion.
+
   - `multigrid`: a cell-centered multigrid solver for a
     constant-coefficient Helmholtz equation, as well as a
     variable-coefficient Poisson equation (which inherits from the
     constant-coefficient solver).
 
-  - `lm_atm`: (mostly complete) a solver for the equations of 
-    low Mach number hydrodynamics for atmospheric flows.
 
-  - `lm_combustion`: (in development) a solver for the equations of
-    low Mach number hydrodynamics for smallscale combustion.
-
-
-## Working With Data
+## Working with data
 
 In addition to the main pyro program, there are many analysis tools
 that we describe here. Note: some problems write a report at the end
@@ -168,19 +172,25 @@ with their data.
 
   The source for these notes is also available on github:
 
-  https://github.com/zingale/numerical_exercises
+  https://github.com/Open-Astrophysics-Bookshelf/numerical_exercises
 
 
-## Regression testing
+## Regression and unit testing
 
   The `test.py` script will run several of the problems (as well as some
   stand-alone multigrid tests) and compare the solution to stored
   benchmarks (in each solver's `tests/` subdirectory).
-  
 
-## Getting Help
+  It will also invoke the python `nose` module to run the unit tests
+  for the different modules in pyro.
+  
+  Tests are run nightly and reported here:
+
+  http://bender.astro.sunysb.edu/hydro_by_example/download/_stage/pyro2/tests.out
+
+
+## Getting help
 
   Join the mailing list to say up-to-date:
 
-  http://bender.astro.sunysb.edu/mailman/listinfo/pyro-help
-
+  https://groups.google.com/forum/#!forum/pyro-code

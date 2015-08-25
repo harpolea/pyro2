@@ -21,9 +21,6 @@ def init_data(my_data, rp):
     xmom = my_data.get_var("x-momentum")
     ymom = my_data.get_var("y-momentum")
     ener = my_data.get_var("energy")
-    phi  = my_data.get_var("phi")
-
-    phi[:,:]  = -1.0
 
     # initialize the components, remember, that ener here is rho*eint
     # + 0.5*rho*v**2, where eint is the specific internal energy
@@ -50,7 +47,7 @@ def init_data(my_data, rp):
     L_x = xmax - xmin
 
     myg = my_data.grid
-
+    
     for i in range(myg.ilo, myg.ihi+1):
         for j in range(myg.jlo, myg.jhi+1):
 
@@ -60,8 +57,7 @@ def init_data(my_data, rp):
                 dens[i,j] = rho_1
                 xmom[i,j] = rho_1*v_1
                 ymom[i,j] = 0.0
-                phi[i,j] = 1.0
-
+                
             else:
 
                 # upper half

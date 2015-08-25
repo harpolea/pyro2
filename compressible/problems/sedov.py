@@ -2,10 +2,9 @@ from __future__ import print_function
 
 import sys
 import mesh.patch as patch
-import numpy
+import numpy as np
 from util import msg
 import math
-import pylsmlib
 
 def init_data(my_data, rp):
     """ initialize the sedov problem """
@@ -23,15 +22,13 @@ def init_data(my_data, rp):
     xmom = my_data.get_var("x-momentum")
     ymom = my_data.get_var("y-momentum")
     ener = my_data.get_var("energy")
-    phi  = my_data.get_var("phi")
 
     # initialize the components, remember, that ener here is rho*eint
     # + 0.5*rho*v**2, where eint is the specific internal energy
     # (erg/g)
-    dens[:,:] = 1.0
-    xmom[:,:] = 0.0
-    ymom[:,:] = 0.0
-    phi[:,:]  = -1.0
+    dens.d[:,:] = 1.0
+    xmom.d[:,:] = 0.0
+    ymom.d[:,:] = 0.0
 
     E_sedov = 1.0
 
@@ -55,56 +52,36 @@ def init_data(my_data, rp):
     # from this.
     nsub = 4
 
-    phii = -1.0
+    dist = np.sqrt((my_data.grid.x2d - xctr)**2 +
+                   (my_data.grid.y2d - yctr)**2)
 
-    i = my_data.grid.ilo
-    while i <= my_data.grid.ihi:
 
-        j = my_data.grid.jlo
-        while j <= my_data.grid.jhi:
+    p = 1.e-5
+    ener.d[:,:] = p/(gamma - 1.0)
+    
+    for i, j in np.transpose(np.nonzero(dist < 2.0*r_init)):
 
-            dist = numpy.sqrt((my_data.grid.x[i] - xctr)**2 +
-                              (my_data.grid.y[j] - yctr)**2)
+        pzone = 0.0
 
-            if (dist < 2.0*r_init):
-                pzone = 0.0
+        for ii in range(nsub):
+            for jj in range(nsub):
 
-                ii = 0
-                while ii < nsub:
+                xsub = my_data.grid.xl[i] + (my_data.grid.dx/nsub)*(ii + 0.5)
+                ysub = my_data.grid.yl[j] + (my_data.grid.dy/nsub)*(jj + 0.5)
 
-                    jj = 0
-                    while jj < nsub:
+                dist = np.sqrt((xsub - xctr)**2 + 
+                                  (ysub - yctr)**2)
+                
+                if dist <= r_init:
+                    p = (gamma - 1.0)*E_sedov/(pi*r_init*r_init)
+                else:
+                    p = 1.e-5
 
-                        xsub = my_data.grid.xl[i] + (my_data.grid.dx/nsub)*(ii + 0.5)
-                        ysub = my_data.grid.yl[j] + (my_data.grid.dy/nsub)*(jj + 0.5)
+                pzone += p
 
-                        dist = numpy.sqrt((xsub - xctr)**2 + \
-                                          (ysub - yctr)**2)
-
-                        if dist <= r_init:
-                            p = (gamma - 1.0)*E_sedov/(pi*r_init*r_init)
-                            phii = 1.0
-                        else:
-                            p = 1.e-5
-                            phii = -1.0
-
-                        pzone += p
-
-                        jj += 1
-                    ii += 1
-
-                p = pzone/(nsub*nsub)
-            else:
-                p = 1.e-5
-
-            ener[i,j] = p/(gamma - 1.0)
-            phi[i,j] = phii
-
-            j += 1
-        i += 1
-
-        phi[:,:] = pylsmlib.computeDistanceFunction(phi, dx=my_data.grid.dx, order=1)
-
+        p = pzone/(nsub*nsub)
+            
+        ener.d[i,j] = p/(gamma - 1.0)
 
 
 def finalize():
@@ -118,3 +95,4 @@ def finalize():
           """
 
     print(msg)
+

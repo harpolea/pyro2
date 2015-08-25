@@ -1,8 +1,0 @@
-[shear]
-rho_s = 42.0   ; shear layer width
-delta_s = 0.05 ; perturbuation amplitude
-dens_cutoff  = 0.01
-dens_base = 1.e8            ; density at the base of the atmosphere
-
-[eos]
-gamma = 1.4    ; pres = rho ener (gamma - 1)

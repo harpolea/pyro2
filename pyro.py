@@ -3,6 +3,7 @@
 from __future__ import print_function
 
 import argparse
+import importlib
 import os
 import sys
 
@@ -24,13 +25,8 @@ def doit(solver_name, problem_name, param_file,
     tm_main = tc.timer("main")
     tm_main.begin()
 
-    #-------------------------------------------------------------------------
-    # solver setup
-    #-------------------------------------------------------------------------
-
-    # actually import the solver-specific stuff under the 'solver' namespace
-    exec('import ' + solver_name + ' as solver')
-
+    # import desired solver under "solver" namespace
+    solver = importlib.import_module(solver_name)
 
     #-------------------------------------------------------------------------
     # runtime parameters
@@ -77,9 +73,6 @@ def doit(solver_name, problem_name, param_file,
     #-------------------------------------------------------------------------
     # evolve
     #-------------------------------------------------------------------------
-    tmax = rp.get_param("driver.tmax")
-    max_steps = rp.get_param("driver.max_steps")
-
     init_tstep_factor = rp.get_param("driver.init_tstep_factor")
     max_dt_change = rp.get_param("driver.max_dt_change")
     fix_dt = rp.get_param("driver.fix_dt")
@@ -88,106 +81,76 @@ def doit(solver_name, problem_name, param_file,
 
     plt.ion()
 
-    sim.cc_data.n = 0
     sim.cc_data.t = 0.0
 
     # output the 0th data
     basename = rp.get_param("io.basename")
-    sim.cc_data.write(basename + "%4.4d" % (sim.cc_data.n))
-
+    sim.cc_data.write("{}{:04d}".format(basename, sim.n))
+    
     dovis = rp.get_param("vis.dovis")
-    plt.ion()
-
-    if dovis == 1:
-        plt.figure(num=1, figsize=(12,9), dpi=100, facecolor='w')
+    if dovis:
+        plt.figure(num=1, figsize=(8,6), dpi=100, facecolor='w')
         sim.dovis()
 
-        plt.show(block=False)
-
-    nout = 0
-
-    while sim.cc_data.t < tmax and sim.cc_data.n < max_steps:
+    while not sim.finished():
 
         # fill boundary conditions
-        tm_bc = tc.timer("fill_bc")
-        tm_bc.begin()
         sim.cc_data.fill_BC_all()
-        tm_bc.end()
 
         # get the timestep
-        dt = sim.timestep()
         if fix_dt > 0.0:
-            dt = fix_dt
+            sim.dt = fix_dt
         else:
-            if sim.cc_data.n == 0:
-                dt = init_tstep_factor*dt
-                dt_old = dt
+            sim.compute_timestep()
+            if sim.n == 0:
+                sim.dt = init_tstep_factor*sim.dt
             else:
-                dt = min(max_dt_change*dt_old, dt)
-                dt_old = dt
+                sim.dt = min(max_dt_change*dt_old, sim.dt)
+            dt_old = sim.dt
 
-        if sim.cc_data.t + dt > tmax:
-            dt = tmax - sim.cc_data.t
+        if sim.cc_data.t + sim.dt > sim.tmax:
+            sim.dt = sim.tmax - sim.cc_data.t
 
         # evolve for a single timestep
-        #sys.exit()
-        sim.evolve(dt)
+        sim.evolve()
 
-
-        # increment the time
-        sim.cc_data.t += dt
-        sim.cc_data.n += 1
-        if verbose > 0: print("n: %5d,  t: %10.5f,  dt: %10.5f" % (sim.cc_data.n, sim.cc_data.t, dt))
-
+        if verbose > 0: print("%5d %10.5f %10.5f" % (sim.n, sim.cc_data.t, sim.dt))
 
         # output
-        dt_out = rp.get_param("io.dt_out")
-        n_out = rp.get_param("io.n_out")
-        do_io = rp.get_param("io.do_io")
-
-        if (sim.cc_data.t >= (nout + 1)*dt_out or sim.cc_data.n%n_out == 0) and do_io == 1:
-
-            tm_io = tc.timer("output")
-            tm_io.begin()
-
+        if sim.do_output():
             if verbose > 0: msg.warning("outputting...")
             basename = rp.get_param("io.basename")
-            sim.cc_data.write(basename + "%4.4d" % (sim.cc_data.n))
-            nout += 1
-
-            tm_io.end()
-
+            sim.cc_data.write("{}{:04d}".format(basename, sim.n))
 
         # visualization
-        if dovis == 1:
+        if dovis:
             tm_vis = tc.timer("vis")
             tm_vis.begin()
 
             sim.dovis()
-
-            plt.show(block=False)
             store = rp.get_param("vis.store_images")
 
             if store == 1:
                 basename = rp.get_param("io.basename")
-                plt.savefig(basename + "%4.4d" % (sim.cc_data.n) + ".png")
+                plt.savefig("{}{:04d}.png".format(basename, sim.n))
 
             tm_vis.end()
 
     tm_main.end()
+
 
     #-------------------------------------------------------------------------
     # benchmarks (for regression testing)
     #-------------------------------------------------------------------------
     # are we comparing to a benchmark?
     if comp_bench:
-        compare_file = solver_name + "/tests/" + basename + "%4.4d" % (sim.cc_data.n)
+        compare_file = solver_name + "/tests/" + basename + "%4.4d" % (sim.n)
         msg.warning("comparing to: %s " % (compare_file) )
         try: bench_grid, bench_data = patch.read(compare_file)
         except:
-            msg.warning("ERROR opening compare file")
-            return "ERROR opening compare file"
-
+            msg.warning("ERROR openning compare file")
+            return "ERROR openning compare file"
+        
 
         result = compare.compare(sim.cc_data.grid, sim.cc_data, bench_grid, bench_data)
 
@@ -203,15 +166,10 @@ def doit(solver_name, problem_name, param_file,
             try: os.mkdir(solver_name + "/tests/")
             except:
                 msg.fail("ERROR: unable to create the solver's tests/ directory")
-
-        bench_file = solver_name + "/tests/" + basename + "%4.4d" % (sim.cc_data.n)
-        msg.warning("storing new benchmark: %s\n " % (bench_file) )
+            
+        bench_file = solver_name + "/tests/" + basename + "%4.4d" % (sim.n)
+        msg.warning("storing new benchmark: {}\n".format(bench_file))
         sim.cc_data.write(bench_file)
-
-    # increment the time
-    sim.cc_data.t += dt
-    sim.cc_data.n += 1
-    print("n: %5d,  t: %10.5f,  dt: %10.5f" % (sim.cc_data.n, sim.cc_data.t, dt))
 
 
     #-------------------------------------------------------------------------
@@ -226,7 +184,7 @@ def doit(solver_name, problem_name, param_file,
         return result
     else:
         return None
-
+    
 
 if __name__ == "__main__":
 
@@ -256,3 +214,4 @@ if __name__ == "__main__":
          other_commands=args.other,
          comp_bench=args.compare_benchmark,
          make_bench=args.make_benchmark)
+

@@ -2,6 +2,8 @@ from __future__ import print_function
 
 import sys
 
+import numpy as np
+
 import mesh.patch as patch
 from util import msg
 
@@ -21,9 +23,6 @@ def init_data(my_data, rp):
     xmom = my_data.get_var("x-momentum")
     ymom = my_data.get_var("y-momentum")
     ener = my_data.get_var("energy")
-    phi  = my_data.get_var("phi")
-
-    phi[:,:]  = -1.0
 
     # initialize the components, remember, that ener here is
     # rho*eint + 0.5*rho*v**2, where eint is the specific
@@ -50,54 +49,47 @@ def init_data(my_data, rp):
 
     cx = rp.get_param("quadrant.cx")
     cy = rp.get_param("quadrant.cy")
-
+    
     gamma = rp.get_param("eos.gamma")
-
+    
     # there is probably an easier way to do this, but for now, we
     # will just do an explicit loop.  Also, we really want to set
     # the pressue and get the internal energy from that, and then
     # compute the total energy (which is what we store).  For now
     # we will just fake this
-
+    
     myg = my_data.grid
 
-    for i in range(myg.ilo, myg.ihi+1):
-        for j in range(myg.jlo, myg.jhi+1):
+    iq1 = np.logical_and(myg.x2d >= cx, myg.y2d >= cy)
+    iq2 = np.logical_and(myg.x2d < cx,  myg.y2d >= cy)
+    iq3 = np.logical_and(myg.x2d < cx,  myg.y2d < cy)
+    iq4 = np.logical_and(myg.x2d >= cx, myg.y2d < cy)    
+    
+    # quadrant 1
+    dens.d[iq1] = r1
+    xmom.d[iq1] = r1*u1
+    ymom.d[iq1] = r1*v1
+    ener.d[iq1] = p1/(gamma - 1.0) + 0.5*r1*(u1*u1 + v1*v1)
+                
+    # quadrant 2
+    dens.d[iq2] = r2
+    xmom.d[iq2] = r2*u2
+    ymom.d[iq2] = r2*v2
+    ener.d[iq2] = p2/(gamma - 1.0) + 0.5*r2*(u2*u2 + v2*v2)
 
-            if myg.x[i] >= cx and myg.y[j] >= cy:
+    # quadrant 3
+    dens.d[iq3] = r3
+    xmom.d[iq3] = r3*u3
+    ymom.d[iq3] = r3*v3
+    ener.d[iq3] = p3/(gamma - 1.0) + 0.5*r3*(u3*u3 + v3*v3)
 
-                # quadrant 1
-                dens[i,j] = r1
-                xmom[i,j] = r1*u1
-                ymom[i,j] = r1*v1
-                ener[i,j] = p1/(gamma - 1.0) + 0.5*r1*(u1*u1 + v1*v1)
-                phi[i,j] = 1.0
+    # quadrant 4
+    dens.d[iq4] = r4
+    xmom.d[iq4] = r4*u4
+    ymom.d[iq4] = r4*v4
+    ener.d[iq4] = p4/(gamma - 1.0) + 0.5*r4*(u4*u4 + v4*v4)
 
-            elif myg.x[i] < cx and myg.y[j] >= cy:
-
-                # quadrant 2
-                dens[i,j] = r2
-                xmom[i,j] = r2*u2
-                ymom[i,j] = r2*v2
-                ener[i,j] = p2/(gamma - 1.0) + 0.5*r2*(u2*u2 + v2*v2)
-
-            elif myg.x[i] < cx and myg.y[j] < cy:
-
-                # quadrant 3
-                dens[i,j] = r3
-                xmom[i,j] = r3*u3
-                ymom[i,j] = r3*v3
-                ener[i,j] = p3/(gamma - 1.0) + 0.5*r3*(u3*u3 + v3*v3)
-
-            elif myg.x[i] >= cx and myg.y[j] < cy:
-
-                # quadrant 4
-                dens[i,j] = r4
-                xmom[i,j] = r4*u4
-                ymom[i,j] = r4*v4
-                ener[i,j] = p4/(gamma - 1.0) + 0.5*r4*(u4*u4 + v4*v4)
-
-
+    
 def finalize():
     """ print out any information to the user at the end of the run """
     pass

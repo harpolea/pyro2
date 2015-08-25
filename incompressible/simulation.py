@@ -7,80 +7,23 @@ from incompressible.problems import *
 import incompressible.incomp_interface_f as incomp_interface_f
 import mesh.reconstruction_f as reconstruction_f
 import mesh.patch as patch
+from simulation_null import NullSimulation, grid_setup, bc_setup
 import multigrid.MG as MG
 from util import profile
 
-class Simulation:
+class Simulation(NullSimulation):
 
-    def __init__(self, problem_name, rp, timers=None):
-        """
-        Initialize the Simulation object for incompressible flow.
-
-        Parameters
-        ----------
-        problem_name : str
-            The name of the problem we wish to run.  This should
-            correspond to one of the modules in incompressible/problems/
-        rp : RuntimeParameters object
-            The runtime parameters for the simulation
-        timers : TimerCollection object, optional
-            The timers used for profiling this simulation
-        """
-
-        self.rp = rp
-        self.cc_data = None
-
-        self.problem_name = problem_name
-
-        if timers == None:
-            self.tc = profile.TimerCollection()
-        else:
-            self.tc = timers
-
-
-        self.verbose = self.rp.get_param("driver.verbose")
-            
     def initialize(self):
         """
         Initialize the grid and variables for incompressible flow and
         set the initial conditions for the chosen problem.
         """
 
-        # setup the grid
-        nx = self.rp.get_param("mesh.nx")
-        ny = self.rp.get_param("mesh.ny")
-
-        xmin = self.rp.get_param("mesh.xmin")
-        xmax = self.rp.get_param("mesh.xmax")
-        ymin = self.rp.get_param("mesh.ymin")
-        ymax = self.rp.get_param("mesh.ymax")
-
-        my_grid = patch.Grid2d(nx, ny,
-                               xmin=xmin, xmax=xmax,
-                               ymin=ymin, ymax=ymax, ng=4)
-
+        my_grid = grid_setup(self.rp, ng=4)
 
         # create the variables
-
-        # first figure out the BCs
-        xlb_type = self.rp.get_param("mesh.xlboundary")
-        xrb_type = self.rp.get_param("mesh.xrboundary")
-        ylb_type = self.rp.get_param("mesh.ylboundary")
-        yrb_type = self.rp.get_param("mesh.yrboundary")
-
-        bc = patch.BCObject(xlb=xlb_type, xrb=xrb_type,
-                            ylb=ylb_type, yrb=yrb_type)
-
-        # if we are reflecting, we need odd reflection in the normal
-        # directions for the velocity
-        bc_xodd = patch.BCObject(xlb=xlb_type, xrb=xrb_type,
-                                 ylb=ylb_type, yrb=yrb_type,
-                                 odd_reflect_dir="x")
-
-        bc_yodd = patch.BCObject(xlb=xlb_type, xrb=xrb_type,
-                                 ylb=ylb_type, yrb=yrb_type,
-                                 odd_reflect_dir="y")
-
+        bc, bc_xodd, bc_yodd = bc_setup(self.rp)
+        
         my_data = patch.CellCenterData2d(my_grid)
 
         # velocities
@@ -101,7 +44,7 @@ class Simulation:
         exec(self.problem_name + '.init_data(self.cc_data, self.rp)')
 
 
-    def timestep(self):
+    def compute_timestep(self):
         """
         The timestep() function computes the advective timestep
         (CFL) constraint.  The CFL constraint says that information
@@ -120,9 +63,7 @@ class Simulation:
         xtmp = self.cc_data.grid.dx/(abs(u))
         ytmp = self.cc_data.grid.dy/(abs(v))
 
-        dt = cfl*min(xtmp.min(), ytmp.min())
-
-        return dt
+        self.dt = cfl*min(xtmp.min(), ytmp.min())
 
 
     def preevolve(self):
@@ -133,6 +74,8 @@ class Simulation:
         value of phi.  The fluid state (u, v) is then reset to values
         before this evolve.
         """
+
+        self.in_preevolve = True
 
         myg = self.cc_data.grid
 
@@ -160,32 +103,29 @@ class Simulation:
         # first compute divU
         divU = mg.soln_grid.scratch_array()
 
-        divU[mg.ilo:mg.ihi+1,mg.jlo:mg.jhi+1] = \
-            0.5*(u[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
-                 u[myg.ilo-1:myg.ihi  ,myg.jlo:myg.jhi+1])/myg.dx + \
-            0.5*(v[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] -
-                 v[myg.ilo:myg.ihi+1,myg.jlo-1:myg.jhi  ])/myg.dy
+        divU.v()[:,:] = \
+            0.5*(u.ip(1) - u.ip(-1))/myg.dx + 0.5*(v.jp(1) - v.jp(-1))/myg.dy
 
         # solve L phi = DU
 
         # initialize our guess to the solution, set the RHS to divU and
         # solve
         mg.init_zeros()
-        mg.init_RHS(divU)
+        mg.init_RHS(divU.d)
         mg.solve(rtol=1.e-10)
 
         # store the solution in our self.cc_data object -- include a single
         # ghostcell
         phi = self.cc_data.get_var("phi")
-        phi[:,:] = mg.get_solution(grid=myg)
+        phi.d[:,:] = mg.get_solution(grid=myg).d
 
 
         # compute the cell-centered gradient of phi and update the
         # velocities
         gradp_x, gradp_y = mg.get_solution_gradient(grid=myg)
 
-        u[:,:] -= gradp_x
-        v[:,:] -= gradp_y
+        u.d[:,:] -= gradp_x.d
+        v.d[:,:] -= gradp_y.d
 
         # fill the ghostcells
         self.cc_data.fill_BC("x-velocity")
@@ -199,10 +139,10 @@ class Simulation:
         orig_data = patch.cell_center_data_clone(self.cc_data)
 
         # get the timestep
-        dt = self.timestep()
+        self.compute_timestep()
 
         # evolve
-        self.evolve(dt)
+        self.evolve()
 
         # update gradp_x and gradp_y in our main data object
         new_gp_x = self.cc_data.get_var("gradp_x")
@@ -211,15 +151,17 @@ class Simulation:
         orig_gp_x = orig_data.get_var("gradp_x")
         orig_gp_y = orig_data.get_var("gradp_y")
 
-        orig_gp_x[:,:] = new_gp_x[:,:]
-        orig_gp_y[:,:] = new_gp_y[:,:]
+        orig_gp_x.d[:,:] = new_gp_x.d[:,:]
+        orig_gp_y.d[:,:] = new_gp_y.d[:,:]
 
         self.cc_data = orig_data
 
         if self.verbose > 0: print("done with the pre-evolution")
 
+        self.in_preevolve = False
 
-    def evolve(self, dt):
+
+    def evolve(self):
         """
         Evolve the incompressible equations through one timestep.
         """
@@ -243,11 +185,11 @@ class Simulation:
         elif (limiter == 1): limitFunc = reconstruction_f.limit2
         else: limitFunc = reconstruction_f.limit4
 
-        ldelta_ux = limitFunc(1, u, myg.qx, myg.qy, myg.ng)
-        ldelta_vx = limitFunc(1, v, myg.qx, myg.qy, myg.ng)
+        ldelta_ux = limitFunc(1, u.d, myg.qx, myg.qy, myg.ng)
+        ldelta_vx = limitFunc(1, v.d, myg.qx, myg.qy, myg.ng)
 
-        ldelta_uy = limitFunc(2, u, myg.qx, myg.qy, myg.ng)
-        ldelta_vy = limitFunc(2, v, myg.qx, myg.qy, myg.ng)
+        ldelta_uy = limitFunc(2, u.d, myg.qx, myg.qy, myg.ng)
+        ldelta_vy = limitFunc(2, v.d, myg.qx, myg.qy, myg.ng)
 
         #---------------------------------------------------------------------
         # get the advective velocities
@@ -278,13 +220,16 @@ class Simulation:
         # constitute the MAC grid
         if self.verbose > 0: print("  making MAC velocities")
 
-        u_MAC, v_MAC = incomp_interface_f.mac_vels(myg.qx, myg.qy, myg.ng,
-                                                   myg.dx, myg.dy, dt,
-                                                   u, v,
-                                                   ldelta_ux, ldelta_vx,
-                                                   ldelta_uy, ldelta_vy,
-                                                   gradp_x, gradp_y)
+        _um, _vm = incomp_interface_f.mac_vels(myg.qx, myg.qy, myg.ng,
+                                               myg.dx, myg.dy, self.dt,
+                                               u.d, v.d,
+                                               ldelta_ux, ldelta_vx,
+                                               ldelta_uy, ldelta_vy,
+                                               gradp_x.d, gradp_y.d)
 
+        u_MAC = patch.ArrayIndexer(d=_um, grid=myg)
+        v_MAC = patch.ArrayIndexer(d=_vm, grid=myg)
+        
 
         #---------------------------------------------------------------------
         # do a MAC projection ot make the advective velocities divergence
@@ -311,15 +256,12 @@ class Simulation:
         divU = mg.soln_grid.scratch_array()
 
         # MAC velocities are edge-centered.  divU is cell-centered.
-        divU[mg.ilo:mg.ihi+1,mg.jlo:mg.jhi+1] = \
-            (u_MAC[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
-             u_MAC[myg.ilo  :myg.ihi+1,myg.jlo:myg.jhi+1])/myg.dx + \
-            (v_MAC[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] -
-             v_MAC[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1])/myg.dy
+        divU.v()[:,:] = \
+            (u_MAC.ip(1) - u_MAC.v())/myg.dx + (v_MAC.jp(1) - v_MAC.v())/myg.dy
 
         # solve the Poisson problem
         mg.init_zeros()
-        mg.init_RHS(divU)
+        mg.init_RHS(divU.d)
         mg.solve(rtol=1.e-12)
 
         # update the normal velocities with the pressure gradient -- these
@@ -327,17 +269,14 @@ class Simulation:
         phi_MAC = self.cc_data.get_var("phi-MAC")
         solution = mg.get_solution()
 
-        phi_MAC[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2] = \
-            solution[mg.ilo-1:mg.ihi+2,mg.jlo-1:mg.jhi+2]
+        phi_MAC.v(buf=1)[:,:] = solution.v(buf=1)
 
         # we need the MAC velocities on all edges of the computational domain
-        u_MAC[myg.ilo:myg.ihi+2,myg.jlo:myg.jhi+1] -= \
-            (phi_MAC[myg.ilo  :myg.ihi+2,myg.jlo:myg.jhi+1] -
-             phi_MAC[myg.ilo-1:myg.ihi+1,myg.jlo:myg.jhi+1])/myg.dx
+        b = (0, 1, 0, 0)
+        u_MAC.v(buf=b)[:,:] -= (phi_MAC.v(buf=b) - phi_MAC.ip(-1, buf=b))/myg.dx
 
-        v_MAC[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+2] -= \
-            (phi_MAC[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+2] -
-             phi_MAC[myg.ilo:myg.ihi+1,myg.jlo-1:myg.jhi+1])/myg.dy
+        b = (0, 0, 0, 1)
+        v_MAC.v(buf=b)[:,:] -= (phi_MAC.v(buf=b) - phi_MAC.jp(-1, buf=b))/myg.dy
 
 
         #---------------------------------------------------------------------
@@ -346,15 +285,19 @@ class Simulation:
         #---------------------------------------------------------------------
         if self.verbose > 0: print("  making u, v edge states")
 
-        u_xint, v_xint, u_yint, v_yint = \
+        _ux, _vx, _uy, _vy = \
                incomp_interface_f.states(myg.qx, myg.qy, myg.ng,
-                                         myg.dx, myg.dy, dt,
-                                         u, v,
+                                         myg.dx, myg.dy, self.dt,
+                                         u.d, v.d,
                                          ldelta_ux, ldelta_vx,
                                          ldelta_uy, ldelta_vy,
-                                         gradp_x, gradp_y,
-                                         u_MAC, v_MAC)
+                                         gradp_x.d, gradp_y.d,
+                                         u_MAC.d, v_MAC.d)
 
+        u_xint = patch.ArrayIndexer(d=_ux, grid=myg)
+        v_xint = patch.ArrayIndexer(d=_vx, grid=myg)
+        u_yint = patch.ArrayIndexer(d=_uy, grid=myg)
+        v_yint = patch.ArrayIndexer(d=_vy, grid=myg)
 
         #---------------------------------------------------------------------
         # update U to get the provisional velocity field
@@ -368,36 +311,25 @@ class Simulation:
         advect_x = myg.scratch_array()
         advect_y = myg.scratch_array()
 
-        advect_x[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] = \
-            0.5*(u_MAC[myg.ilo  :myg.ihi+1,myg.jlo:myg.jhi+1] +
-                 u_MAC[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1]) * \
-            (u_xint[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
-             u_xint[myg.ilo  :myg.ihi+1,myg.jlo:myg.jhi+1])/myg.dx + \
-            0.5*(v_MAC[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1] +
-                 v_MAC[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2]) * \
-            (u_yint[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] -
-             u_yint[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1])/myg.dy
+        # u u_x + v u_y
+        advect_x.v()[:,:] = \
+            0.5*(u_MAC.v() + u_MAC.ip(1))*(u_xint.ip(1) - u_xint.v())/myg.dx + \
+            0.5*(v_MAC.v() + v_MAC.jp(1))*(u_yint.jp(1) - u_yint.v())/myg.dy
 
-        advect_y[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] = \
-            0.5*(u_MAC[myg.ilo  :myg.ihi+1,myg.jlo:myg.jhi+1] +
-                 u_MAC[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1]) * \
-            (v_xint[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
-             v_xint[myg.ilo  :myg.ihi+1,myg.jlo:myg.jhi+1])/myg.dx + \
-            0.5*(v_MAC[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1] +
-                 v_MAC[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2]) * \
-            (v_yint[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] -
-             v_yint[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1])/myg.dy
-
+        # u v_x + v v_y
+        advect_y.v()[:,:] = \
+            0.5*(u_MAC.v() + u_MAC.ip(1))*(v_xint.ip(1) - v_xint.v())/myg.dx + \
+            0.5*(v_MAC.v() + v_MAC.jp(1))*(v_yint.jp(1) - v_yint.v())/myg.dy
 
         proj_type = self.rp.get_param("incompressible.proj_type")
 
-        if (proj_type == 1):
-            u[:,:] -= (dt*advect_x[:,:] + dt*gradp_x[:,:])
-            v[:,:] -= (dt*advect_y[:,:] + dt*gradp_y[:,:])
+        if proj_type == 1:
+            u.d[:,:] -= (self.dt*advect_x.d[:,:] + self.dt*gradp_x.d[:,:])
+            v.d[:,:] -= (self.dt*advect_y.d[:,:] + self.dt*gradp_y.d[:,:])
 
-        elif (proj_type == 2):
-            u[:,:] -= dt*advect_x[:,:]
-            v[:,:] -= dt*advect_y[:,:]
+        elif proj_type == 2:
+            u.d[:,:] -= self.dt*advect_x.d[:,:]
+            v.d[:,:] -= self.dt*advect_y.d[:,:]
 
         self.cc_data.fill_BC("x-velocity")
         self.cc_data.fill_BC("y-velocity")
@@ -423,45 +355,46 @@ class Simulation:
         # first compute divU
 
         # u/v are cell-centered, divU is cell-centered
-        divU[mg.ilo:mg.ihi+1,mg.jlo:mg.jhi+1] = \
-            0.5*(u[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
-                 u[myg.ilo-1:myg.ihi  ,myg.jlo:myg.jhi+1])/myg.dx + \
-            0.5*(v[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] -
-                 v[myg.ilo:myg.ihi+1,myg.jlo-1:myg.jhi  ])/myg.dy
+        divU.v()[:,:] = \
+            0.5*(u.ip(1) - u.ip(-1))/myg.dx + 0.5*(v.jp(1) - v.jp(-1))/myg.dy
 
-        mg.init_RHS(divU/dt)
+        mg.init_RHS(divU.d/self.dt)
 
         # use the old phi as our initial guess
         phiGuess = mg.soln_grid.scratch_array()
-        phiGuess[mg.ilo-1:mg.ihi+2,mg.jlo-1:mg.jhi+2] = \
-           phi[myg.ilo-1:myg.ihi+2,myg.jlo-1:myg.jhi+2]
-        mg.init_solution(phiGuess)
+        phiGuess.v(buf=1)[:,:] = phi.v(buf=1)
+        mg.init_solution(phiGuess.d)
 
         # solve
         mg.solve(rtol=1.e-12)
 
         # store the solution
-        phi[:,:] = mg.get_solution(grid=myg)
+        phi.d[:,:] = mg.get_solution(grid=myg).d
 
         # compute the cell-centered gradient of p and update the velocities
         # this differs depending on what we projected.
         gradphi_x, gradphi_y = mg.get_solution_gradient(grid=myg)
 
         # u = u - grad_x phi dt
-        u[:,:] -= dt*gradphi_x
-        v[:,:] -= dt*gradphi_y
+        u.d[:,:] -= self.dt*gradphi_x.d
+        v.d[:,:] -= self.dt*gradphi_y.d
 
         # store gradp for the next step
-        if (proj_type == 1):
-            gradp_x[:,:] += gradphi_x[:,:]
-            gradp_y[:,:] += gradphi_y[:,:]
+        if proj_type == 1:
+            gradp_x.d[:,:] += gradphi_x.d[:,:]
+            gradp_y.d[:,:] += gradphi_y.d[:,:]
 
-        elif (proj_type == 2):
-            gradp_x[:,:] = gradphi_x[:,:]
-            gradp_y[:,:] = gradphi_y[:,:]
+        elif proj_type == 2:
+            gradp_x.d[:,:] = gradphi_x.d[:,:]
+            gradp_y.d[:,:] = gradphi_y.d[:,:]
 
         self.cc_data.fill_BC("x-velocity")
         self.cc_data.fill_BC("y-velocity")
+
+        # increment the time
+        if not self.in_preevolve:
+            self.cc_data.t += self.dt
+            self.n += 1
 
 
     def dovis(self):
@@ -480,17 +413,13 @@ class Simulation:
         vort = myg.scratch_array()
         divU = myg.scratch_array()
 
-        vort[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] = \
-             0.5*(v[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
-                  v[myg.ilo-1:myg.ihi,myg.jlo:myg.jhi+1])/myg.dx - \
-             0.5*(u[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] -
-                  u[myg.ilo:myg.ihi+1,myg.jlo-1:myg.jhi])/myg.dy
+        vort.v()[:,:] = \
+             0.5*(v.ip(1) - v.ip(-1))/myg.dx - \
+             0.5*(u.jp(1) - u.jp(-1))/myg.dy
 
-        divU[myg.ilo:myg.ihi+1,myg.jlo:myg.jhi+1] = \
-            0.5*(u[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
-                 u[myg.ilo-1:myg.ihi,myg.jlo:myg.jhi+1])/myg.dx + \
-            0.5*(v[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] -
-                 v[myg.ilo:myg.ihi+1,myg.jlo-1:myg.jhi])/myg.dy
+        divU.v()[:,:] = \
+            0.5*(u.ip(1) - u.ip(-1))/myg.dx + \
+            0.5*(v.jp(1) - v.jp(-1))/myg.dy
 
         fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.25)
@@ -502,8 +431,7 @@ class Simulation:
             ax = axes.flat[n]
 
             f = fields[n]
-            img = ax.imshow(np.transpose(f[myg.ilo:myg.ihi+1,
-                                              myg.jlo:myg.jhi+1]),
+            img = ax.imshow(np.transpose(f.v()),
                             interpolation="nearest", origin="lower",
                             extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax])
 
@@ -517,11 +445,3 @@ class Simulation:
         plt.figtext(0.05,0.0125, "t = %10.5f" % self.cc_data.t)
 
         plt.draw()
-
-
-    def finalize(self):
-        """
-        Do any final clean-ups for the simulation and call the problem's
-        finalize() method.
-        """
-        exec(self.problem_name + '.finalize()')

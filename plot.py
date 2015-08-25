@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-import numpy
-import pylab
+import numpy as np
+import matplotlib.pyplot as plt
 import sys
 import getopt
 
@@ -9,18 +9,18 @@ import mesh.patch as patch
 
 # plot an output file using the solver's dovis script
 
-def makeplot(myd, solverName, outfile, W, H):
+def makeplot(myd, solver_name, outfile, W, H):
 
-    exec 'import ' + solverName + ' as solver'
+    exec 'import ' + solver_name + ' as solver'
 
-    sim = solver.Simulation(None, None)
+    sim = solver.Simulation(solver_name, None, None)
     sim.cc_data = myd
 
-    pylab.figure(num=1, figsize=(W,H), dpi=100, facecolor='w')
+    plt.figure(num=1, figsize=(W,H), dpi=100, facecolor='w')
 
     sim.dovis()
-    pylab.savefig(outfile)
-    pylab.show()
+    plt.savefig(outfile)
+    plt.show()
 
 
 def usage():
@@ -50,8 +50,8 @@ if __name__== "__main__":
 
     outfile = "plot.png"
 
-    W = 16.0
-    H = 9.0
+    W = 8.0
+    H = 4.5
 
     for o, a in opts:
         if o == "-h": usage()
@@ -61,10 +61,14 @@ if __name__== "__main__":
 
     try: solver = next[0]
     except: usage()
-
+        
     try: file = next[1]
     except: usage()
 
     myg, myd = patch.read(file)
 
     makeplot(myd, solver, outfile, W, H)
+
+
+
+

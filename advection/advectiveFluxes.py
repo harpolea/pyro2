@@ -1,33 +1,34 @@
 import mesh.reconstruction_f as reconstruction_f
+import mesh.patch as patch
 
 def unsplitFluxes(my_data, rp, dt, scalar_name):
     """
-    Construct the fluxes through the interfaces for the linear advection 
+    Construct the fluxes through the interfaces for the linear advection
     equation:
 
       a  + u a  + v a  = 0
        t      x      y
 
-    We use a second-order (piecewise linear) unsplit Godunov method 
+    We use a second-order (piecewise linear) unsplit Godunov method
     (following Colella 1990).
 
     In the pure advection case, there is no Riemann problem we need to
     solve -- we just simply do upwinding.  So there is only one 'state'
     at each interface, and the zone the information comes from depends
     on the sign of the velocity.
-    
-    Our convection is that the fluxes are going to be defined on the 
+
+    Our convection is that the fluxes are going to be defined on the
     left edge of the computational zones
 
-            
+
      |             |             |             |
      |             |             |             |
     -+------+------+------+------+------+------+--
      |     i-1     |      i      |     i+1     |
-    
+
               a_l,i  a_r,i   a_l,i+1
-            
-    
+
+
     a_r,i and a_l,i+1 are computed using the information in
     zone i,j.
 
@@ -51,7 +52,7 @@ def unsplitFluxes(my_data, rp, dt, scalar_name):
 
     """
 
-    my_grid = my_data.grid
+    myg = my_data.grid
 
     a = my_data.get_var(scalar_name)
 
@@ -59,11 +60,11 @@ def unsplitFluxes(my_data, rp, dt, scalar_name):
     u = rp.get_param("advection.u")
     v = rp.get_param("advection.v")
 
-    cx = u*dt/my_grid.dx
-    cy = v*dt/my_grid.dy
+    cx = u*dt/myg.dx
+    cy = v*dt/myg.dy
 
-    qx = my_grid.qx
-    qy = my_grid.qy    
+    qx = myg.qx
+    qy = myg.qy
 
     #--------------------------------------------------------------------------
     # monotonized central differences
@@ -77,33 +78,31 @@ def unsplitFluxes(my_data, rp, dt, scalar_name):
     else:
         limitFunc = reconstruction_f.limit4
 
-    ldelta_a = limitFunc(1, a, qx, qy, my_grid.ng)
-
-    a_x = my_grid.scratch_array()
-    
+    _lda = limitFunc(1, a.d, qx, qy, myg.ng)
+    ldelta_a = patch.ArrayIndexer(d=_lda, grid=myg)
+    a_x = myg.scratch_array()
 
     # upwind
     if u < 0:
         # a_x[i,j] = a[i,j] - 0.5*(1.0 + cx)*ldelta_a[i,j]
-        a_x[:,:] = a[:,:] - 0.5*(1.0 + cx)*ldelta_a[:,:]
+        a_x.v(buf=1)[:,:] = a.v(buf=1) - 0.5*(1.0 + cx)*ldelta_a.v(buf=1)
     else:
-        # a_x[i,j] = a[i-1,j] + 0.5*(1.0 - cx)*ldelta_a[i-1,j]        
-        a_x[1:,:] = a[0:qx-1,:] + 0.5*(1.0 - cx)*ldelta_a[0:qx-1,:]
+        # a_x[i,j] = a[i-1,j] + 0.5*(1.0 - cx)*ldelta_a[i-1,j]
+        a_x.v(buf=1)[:,:] = a.ip(-1, buf=1) + 0.5*(1.0 - cx)*ldelta_a.ip(-1, buf=1)
 
 
     # y-direction
-    ldelta_a = limitFunc(2, a, qx, qy, my_grid.ng)
+    _lda = limitFunc(2, a.d, qx, qy, myg.ng)
+    ldelta_a = patch.ArrayIndexer(d=_lda, grid=myg)
+    a_y = myg.scratch_array()
 
-    a_y = my_grid.scratch_array()
-
-    
     # upwind
     if v < 0:
         # a_y[i,j] = a[i,j] - 0.5*(1.0 + cy)*ldelta_a[i,j]
-        a_y[:,:] = a[:,:] - 0.5*(1.0 + cy)*ldelta_a[:,:]
+        a_y.v(buf=1)[:,:] = a.v(buf=1) - 0.5*(1.0 + cy)*ldelta_a.v(buf=1)
     else:
         # a_y[i,j] = a[i,j-1] + 0.5*(1.0 - cy)*ldelta_a[i,j-1]
-        a_y[:,1:] = a[:,0:qy-1] + 0.5*(1.0 - cy)*ldelta_a[:,0:qy-1]
+        a_y.v(buf=1)[:,:] = a.jp(-1, buf=1) + 0.5*(1.0 - cy)*ldelta_a.jp(-1, buf=1)
 
 
     # compute the transverse flux differences.  The flux is just (u a)
@@ -111,12 +110,12 @@ def unsplitFluxes(my_data, rp, dt, scalar_name):
     F_xt = u*a_x
     F_yt = v*a_y
 
-    F_x = my_grid.scratch_array()
-    F_y = my_grid.scratch_array()
+    F_x = myg.scratch_array()
+    F_y = myg.scratch_array()
 
     # the zone where we grab the transverse flux derivative from
     # depends on the sign of the advective velocity
-    
+
     if u <= 0:
         mx = 0
     else:
@@ -128,30 +127,15 @@ def unsplitFluxes(my_data, rp, dt, scalar_name):
         my = -1
 
 
-    dtdx2 = 0.5*dt/my_grid.dx
-    dtdy2 = 0.5*dt/my_grid.dy
-        
-    i = my_grid.ilo
-    while i <= my_grid.ihi+1:
+    dtdx2 = 0.5*dt/myg.dx
+    dtdy2 = 0.5*dt/myg.dy
 
-        j = my_grid.jlo
-        while j <= my_grid.jhi+1:
+    F_x.v(buf=1)[:,:] = u*(a_x.v(buf=1) -
+                           dtdy2*(F_yt.ip_jp(mx, 1, buf=1) -
+                                  F_yt.ip(mx, buf=1)))
 
-            F_x[i,j] = u*(a_x[i,j] - dtdy2*(F_yt[i+mx,j+1] - F_yt[i+mx,j]))
-            
-            j += 1
-        i += 1
+    F_y.v(buf=1)[:,:] = v*(a_y.v(buf=1) -
+                           dtdx2*(F_xt.ip_jp(1, my, buf=1) -
+                                  F_xt.jp(my, buf=1)))
 
-    i = my_grid.ilo
-    while i <= my_grid.ihi+1:
-
-        j = my_grid.jlo
-        while j <= my_grid.jhi+1:
-
-            F_y[i,j] = v*(a_y[i,j] - dtdx2*(F_xt[i+1,j+my] - F_xt[i,j+my]))
-            
-            j += 1
-        i += 1
-        
-            
     return F_x, F_y
