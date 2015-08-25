@@ -22,7 +22,7 @@ def init_data(my_data, base, rp):
     yvel = my_data.get_var("y-velocity")
     eint = my_data.get_var("eint")
 
-    grav = rp.get_param("lm-atmosphere.grav")
+    grav = rp.get_param("lm-gr.grav")
 
     gamma = rp.get_param("eos.gamma")
 
@@ -50,12 +50,12 @@ def init_data(my_data, base, rp):
         dens.d[:,j] = max(dens_base*numpy.exp(-myg.y[j]/scale_height),
                           dens_cutoff)
 
-    cs2 = scale_height*abs(grav)
+    cs2 = scale_height * abs(grav)
 
     # set the pressure (P = cs2*dens)
-    pres = cs2*dens
+    pres = cs2 * dens
     eint.d[:,:] = pres.d/(gamma - 1.0)/dens.d
-    
+
     # boost the specific internal energy, keeping the pressure
     # constant, by dropping the density
     r = numpy.sqrt((myg.x2d - x_pert)**2  + (myg.y2d - y_pert)**2)
@@ -65,12 +65,12 @@ def init_data(my_data, base, rp):
     dens.d[idx] = pres.d[idx]/(eint.d[idx]*(gamma - 1.0))
 
     # do the base state
-    base["rho0"].d[:] = numpy.mean(dens.d, axis=0)
+    base["D0"].d[:] = numpy.mean(dens.d, axis=0)
     base["p0"].d[:] = numpy.mean(pres.d, axis=0)
 
     # redo the pressure via HSE
     for j in range(myg.jlo+1, myg.jhi):
-        base["p0"].d[j] = base["p0"].d[j-1] + 0.5*myg.dy*(base["rho0"].d[j] + base["rho0"].d[j-1])*grav
+        base["p0"].d[j] = base["p0"].d[j-1] + 0.5*myg.dy*(base["D0"].d[j] + base["D0"].d[j-1]) * grav
 
 
 def finalize():

@@ -77,7 +77,7 @@ class Metric:
 
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
-        c = self.rp.get_param("lm-atmosphere.c")
+        c = self.rp.get_param("lm-gr.c")
 
         W.d[:, :] = 1. - (u.d**2 + v.d**2)/c**2
 
@@ -152,9 +152,9 @@ class Metric:
         christls = np.zeros((3, 3, 3))
 
         # r = self.cc_data.grid.y[x[2]]
-        g = self.rp.get_param("lm-atmosphere.grav")
-        R = self.rp.get_param("lm-atmosphere.radius")
-        c = self.rp.get_param("lm-atmosphere.c")
+        g = self.rp.get_param("lm-gr.grav")
+        R = self.rp.get_param("lm-gr.radius")
+        c = self.rp.get_param("lm-gr.c")
 
         # For simple time-lagged metric, only have 7 non-zero (3 unique) christoffels.
         christls[0, 0, 2] = g/(self.alpha.d[x[2]]**2 * c**2 * R)

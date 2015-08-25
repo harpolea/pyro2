@@ -6,8 +6,8 @@ tmax = 1.0
 cfl = 0.8
 
 
-[LM-gr]
-
+[lm-gr]
+grav = -2.0
 
 [io]
 basename = lm_bubble_128_
