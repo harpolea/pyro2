@@ -18,6 +18,7 @@ def init_data(my_data, base, rp):
 
     # get the density and velocities
     dens = my_data.get_var("density")
+    enth = my_data.get_var("enthalpy")
     xvel = my_data.get_var("x-velocity")
     yvel = my_data.get_var("y-velocity")
     eint = my_data.get_var("eint")
@@ -55,6 +56,7 @@ def init_data(my_data, base, rp):
     # set the pressure (P = cs2*dens)
     pres = cs2 * dens
     eint.d[:,:] = pres.d/(gamma - 1.0)/dens.d
+    enth.d[:, :] = eint.d + pres.d / dens.d # Newtonian
 
     # boost the specific internal energy, keeping the pressure
     # constant, by dropping the density
@@ -63,6 +65,7 @@ def init_data(my_data, base, rp):
     idx = r <= r_pert
     eint.d[idx] = eint.d[idx]*pert_amplitude_factor
     dens.d[idx] = pres.d[idx]/(eint.d[idx]*(gamma - 1.0))
+    enth.d[idx] = eint.d[idx] + pres.d[idx]/dens.d[idx]
 
     # do the base state
     base["D0"].d[:] = numpy.mean(dens.d, axis=0)
@@ -71,6 +74,12 @@ def init_data(my_data, base, rp):
     # redo the pressure via HSE
     for j in range(myg.jlo+1, myg.jhi):
         base["p0"].d[j] = base["p0"].d[j-1] + 0.5*myg.dy*(base["D0"].d[j] + base["D0"].d[j-1]) * grav
+
+    # multiply by correct u0s
+    #dens.d[:, :] *= u0.d  # rho * u0
+    #enth.d[:, :] *= u0.d * dens.d  # rho * h * u0
+
+    my_data.fill_BC_all()
 
 
 def finalize():
