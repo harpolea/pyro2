@@ -73,13 +73,18 @@ class Metric:
         """
         myg = self.cc_data.grid
         W = myg.scratch_array()
-        # W = np.ones(np.shape(W))
 
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
         c = self.rp.get_param("lm-gr.c")
 
-        W.d[:, :] = 1. - (u.d**2 + v.d**2)/c**2
+        # for loop here as otherwise my brain hurts
+        # TODO: do this with slicing
+        for i in range(self.cc_data.grid.nx):
+            for j in range(self.cc_data.grid.ny):
+                V = np.array([u.d[i,j], v.d[i,j]]) + self.beta
+                W.d[i,j] = (np.mat(V) * np.mat(self.gamma) * np.mat(V).T).item()
+        W.d[:,:] = 1. - W.d / self.alpha.d2d()**2 * c**2
 
         try:
             W.d[:, :] = 1. / np.sqrt(W.d)
@@ -106,7 +111,7 @@ class Metric:
         W = self.calcW()
         myg = self.cc_data.grid
         u0 = myg.scratch_array()
-        u0.d[:,:] = W.d / self.alpha.v2d(buf=self.alpha.ng)
+        u0.d[:,:] = W.d / self.alpha.d2d()
 
         return u0
 

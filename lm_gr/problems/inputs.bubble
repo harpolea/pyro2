@@ -7,7 +7,7 @@ cfl = 0.8
 
 
 [lm-gr]
-grav = -2.0
+
 
 [io]
 basename = lm_bubble_128_
