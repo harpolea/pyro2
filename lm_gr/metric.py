@@ -80,8 +80,8 @@ class Metric:
 
         # for loop here as otherwise my brain hurts
         # TODO: do this with slicing
-        for i in range(self.cc_data.grid.nx):
-            for j in range(self.cc_data.grid.ny):
+        for i in range(self.cc_data.grid.qx):
+            for j in range(self.cc_data.grid.qy):
                 V = np.array([u.d[i,j], v.d[i,j]]) + self.beta
                 W.d[i,j] = (np.mat(V) * np.mat(self.gamma) * np.mat(V).T).item()
         W.d[:,:] = 1. - W.d / self.alpha.d2d()**2 * c**2

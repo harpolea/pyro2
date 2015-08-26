@@ -34,6 +34,12 @@ class Basestate(object):
     def d2d(self):
         return self.d[np.newaxis, :]
 
+    def d2df(self, qx):
+        """
+        fortran compliable version
+        """
+        return np.array([self.d, ] * qx)
+
     def v(self, buf=0):
         return self.d[self.jlo-buf:self.jhi+1+buf]
 
@@ -232,6 +238,23 @@ class Simulation(NullSimulation):
 
         return constraint
 
+    def react_state(self):
+        """
+        graviational source terms in the continuity equation
+        """
+        myg = self.cc_data.grid
+
+        D = self.cc_data.get_var("density")
+        u = self.cc_data.get_var("x-velocity")
+        v = self.cc_data.get_var("y-velocity")
+
+        # TODO: slicing rather than looping
+        # FIXME: check U^0 = 1
+        for i in range(myg.qx):
+            for j in range(myg.qy):
+                chrls = self.metric.christoffels([self.cc_data.t, i,j])
+                D.d[i,j] *= 1. - 0.5 * self.dt * (chrls[0,0,0] + chrls[1,1,0] + chrls[2,2,0] + (chrls[0,0,1] + chrls[1,1,1] + chrls[2,2,1]) * u.d[i,j] + (chrls[0,0,2] + chrls[1,1,2] + chrls[2,2,2]) * v.d[i,j])
+
 
     def compute_timestep(self):
         """
@@ -427,22 +450,22 @@ class Simulation(NullSimulation):
         elif limiter == 1: limitFunc = reconstruction_f.limit2
         else: limitFunc = reconstruction_f.limit4
 
-
         ldelta_rx = limitFunc(1, D.d, myg.qx, myg.qy, myg.ng)
-        #ldelta_r0x = limitFunc(1, D0.d2d(), myg.qx, myg.qy, myg.ng)
+        ldelta_r0x = limitFunc(1, D0.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
         ldelta_ex = limitFunc(1, Dh.d,myg.qx, myg.qy, myg.ng)
-        #ldelta_e0x = limitFunc(1, Dh0.d2d(), myg.qx, myg.qy, myg.ng)
+        ldelta_e0x = limitFunc(1, Dh0.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
         ldelta_ux = limitFunc(1, u.d, myg.qx, myg.qy, myg.ng)
         ldelta_vx = limitFunc(1, v.d, myg.qx, myg.qy, myg.ng)
 
         ldelta_ry = limitFunc(2, D.d, myg.qx, myg.qy, myg.ng)
-        #ldelta_r0y = limitFunc(2, D0.d2d(), myg.qx, myg.qy, myg.ng)
+        ldelta_r0y = limitFunc(2, D0.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
         ldelta_ey = limitFunc(2, Dh.d,myg.qx, myg.qy, myg.ng)
-        #ldelta_e0y = limitFunc(2, Dh0.d2d(), myg.qx, myg.qy, myg.ng)
+        ldelta_e0y = limitFunc(2, Dh0.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
         ldelta_uy = limitFunc(2, u.d, myg.qx, myg.qy, myg.ng)
         ldelta_vy = limitFunc(2, v.d, myg.qx, myg.qy, myg.ng)
 
         # TODO: react_state?
+        self.react_state()
 
         #---------------------------------------------------------------------
         # get the advective velocities
@@ -591,12 +614,10 @@ class Simulation(NullSimulation):
                                              myg.dx, myg.dy, self.dt,
                                              D.d, u_MAC.d, v_MAC.d,
                                              ldelta_rx, ldelta_ry)
-        # FIXME: change limiters and D back to base state ones
         _, _r0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
-                                             #D0.d2d().tolist(), u_MAC.d, v_MAC.d,
-                                             D.d, u_MAC.d, v_MAC.d,
-                                             ldelta_rx, ldelta_ry)
+                                             D0.d2df(myg.qx), u_MAC.d, v_MAC.d,
+                                             ldelta_r0x, ldelta_r0y)
 
         D_xint = patch.ArrayIndexer(d=_rx, grid=myg)
         D_yint = patch.ArrayIndexer(d=_ry, grid=myg)
@@ -629,12 +650,10 @@ class Simulation(NullSimulation):
                                              myg.dx, myg.dy, self.dt,
                                              Dh.d, u_MAC.d, v_MAC.d,
                                              ldelta_ex, ldelta_ey)
-        # FIXME: change limiters , Dh back to base state ones
         _, _e0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
-                                             #Dh0.d2d(), u_MAC.d, v_MAC.d,
-                                             Dh.d, u_MAC.d, v_MAC.d,
-                                             ldelta_ex, ldelta_ey)
+                                             Dh0.d2df(myg.qx), u_MAC.d, v_MAC.d,
+                                             ldelta_e0x, ldelta_e0y)
 
         Dh_xint = patch.ArrayIndexer(d=_ex, grid=myg)
         Dh_yint = patch.ArrayIndexer(d=_ey, grid=myg)
@@ -747,6 +766,7 @@ class Simulation(NullSimulation):
             print("min/max v   = {}, {}".format(self.cc_data.min("y-velocity"), self.cc_data.max("y-velocity")))
 
         # TODO: react state?
+        self.react_state()
 
 
         #---------------------------------------------------------------------
