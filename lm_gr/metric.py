@@ -7,7 +7,7 @@ from __future__ import print_function
 import numpy as np
 import sys
 from util import msg
-from lm_atm.problems import *
+from lm_gr.problems import *
 
 
 class Metric:

@@ -11,7 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from lm_gr.problems import *
-import lm_gr.LM_atm_interface_f as lm_interface_f
+import lm_gr.LM_gr_interface_f as lm_interface_f
 import mesh.reconstruction_f as reconstruction_f
 import mesh.patch as patch
 from simulation_null import NullSimulation, grid_setup, bc_setup

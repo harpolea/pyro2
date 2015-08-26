@@ -1,0 +1,7 @@
+[sine]
+dens_base = 1.e8            ; density at the base of the atmosphere
+scale_height = 20.0          ; scale height of the isothermal atmosphere
+pert_amplitude_factor = 0.1
+dens_cutoff  = 0.01
+initial-xvel = 1.
+period = 0.5              ; period as fraction of x-domain size

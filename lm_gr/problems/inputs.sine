@@ -1,0 +1,53 @@
+# simple inputs files for the unsplit CTU hydro scheme
+
+[driver]
+max_steps = 1000
+tmax = 1000000000.0
+cfl = 0.8
+
+
+[lm-gr]
+
+limiter = 2               ; limiter (0 = none, 1 = 2nd order, 2 = 4th order)
+proj_type = 2             ; what are we projecting? 1 includes -Gp term in U*
+grav = 1.e16                ; GM/R = magnitude of Newtonian surface potential
+c = 3.e8                     ; speed of light
+radius = 1.4e4               ; radius of NS
+
+
+[io]
+basename = ../../Work/pyro/results/lm_sine_64_   ; basename for output files
+dt_out = 0.1               ; simulation time between writing output files
+n_out = 20                 ; number of timesteps between writing output files
+do_io = 1                  ; do we output at all?
+
+[vis]
+
+dovis = 1                  ; runtime visualization? (1=yes, 0=no)
+store_images = 0           ; store vis images to files (1=yes, 0=no)
+
+
+[mesh]
+nx = 64
+ny = 64
+xmax = 1.0
+ymin = 0.0
+ymax = 1.0
+
+xlboundary = periodic
+xrboundary = periodic
+ylboundary = reflect
+yrboundary = outflow
+
+
+[sine]
+dens_base = 1.e8            ; density at the base of the atmosphere
+scale_height = 20.0          ; scale height of the isothermal atmosphere
+pert_amplitude_factor = 0.5
+dens_cutoff  = 0.01
+initial-xvel = 1.
+period = 0.5              ; period as fraction of x-domain size
+
+
+[eos]
+gamma = 1.4    ; pres = rho ener (gamma - 1)
