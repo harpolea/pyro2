@@ -178,7 +178,7 @@ class Simulation(NullSimulation):
         dt_buoy = np.sqrt(2.0*myg.dx/F_buoy)
 
         self.dt = min(dt, dt_buoy)
-        if self.verbose > 0: print("timestep is {}".format(dt))
+        if self.verbose > 0: print("timestep is {}".format(self.dt))
 
 
     def preevolve(self):
@@ -546,6 +546,8 @@ class Simulation(NullSimulation):
         rhoprime = self.make_prime(rho_half, rho0)
         source.d[:,:] = (rhoprime*g/rho_half).d
         self.aux_data.fill_BC("source_y")
+
+        print('dt: ', self.dt, 'sourceee: ', self.dt * source.d[60:70, 60:70])
 
         v.d[:,:] += self.dt*source.d
 

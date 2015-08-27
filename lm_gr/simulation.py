@@ -2,6 +2,8 @@
 TODO: updateZeta?? What is zeta actually supposed to be? How is it calculated?
 
 TODO: D ln u0/Dt term in momentum equation?
+
+TODO: find out where the slow parts are and speed them up
 """
 
 
@@ -495,20 +497,17 @@ class Simulation(NullSimulation):
 
         # We need an alternate timestep that accounts for buoyancy, to
         # handle the case where the velocity is initially zero.
-        D = self.cc_data.get_var("density")
-        D0 = self.base["D0"]
-        Dprime = self.make_prime(D, D0)
-
-        g = self.rp.get_param("lm-gr.grav")
-        c = self.rp.get_param("lm-gr.c")
-        R = self.rp.get_param("lm-gr.radius")
+        Dh0 = Dh0 = self.base["Dh0"]
+        u0 = self.metric.calcu0()
 
         # FIXME: do this properly for gr case
-        F_buoy = np.max([g / (R * c**2), 1.e-20])
+        drp0 = self.drp0()
+        u01d = Basestate(myg.ny, ng=myg.ng)
+        u01d.d[:] = self.lateral_average(u0.d)
+
+        F_buoy = np.max(drp0.v() / (Dh0.v() * u01d.v()))
 
         dt_buoy = np.sqrt(2.0 * myg.dx / F_buoy)
-        # FIXME: delete
-        dt_buoy = 1e50
 
         self.dt = min(dt, dt_buoy)
         if self.verbose > 0:
@@ -743,6 +742,7 @@ class Simulation(NullSimulation):
         # this is problematic in the gr case as this source term is a vector:
         # in Newtonian case, it's a scalar (times the radial normal vector)
         # FIXME: for now, shall just calculate radial component and wish for the # best.
+        # FIXME: not sure this is the right source term for the elliptic?
         mom_source = myg.scratch_array()
 
         # TODO: slicing rather than looping
@@ -767,7 +767,7 @@ class Simulation(NullSimulation):
                                            ldelta_uy, ldelta_vy,
                                            coeff.d*gradp_x.d,
                                            coeff.d*gradp_y.d,
-                                           mom_source.d)
+                                           S.d)
 
         u_MAC = patch.ArrayIndexer(d=_um, grid=myg)
         v_MAC = patch.ArrayIndexer(d=_vm, grid=myg)
@@ -819,10 +819,9 @@ class Simulation(NullSimulation):
         mg.init_RHS(div_zeta_U.d - constraint.v(buf=1))
         mg.solve(rtol=1.e-12)
 
-
         # update the normal velocities with the pressure gradient -- these
         # constitute our advective velocities.  Note that what we actually
-        # solved for here is phi/beta_0
+        # solved for here is phi/zeta
         phi_MAC = self.cc_data.get_var("phi-MAC")
         phi_MAC.d[:,:] = mg.get_solution(grid=myg).d
         # this is zero and shouldn't be
@@ -841,7 +840,7 @@ class Simulation(NullSimulation):
         coeff_y.v(buf=b)[:,:] = 0.5 * (coeff.jp(-1, buf=b) + coeff.v(buf=b))
 
         # we need the MAC velocities on all edges of the computational domain
-        # here we do U = U - (beta_0/D) grad (phi/beta_0)
+        # here we do U = U - (zeta/Dh u0) grad (phi/zeta)
         b = (0, 1, 0, 0)
         u_MAC.v(buf=b)[:,:] -= \
                 coeff_x.v(buf=b) * (phi_MAC.v(buf=b) - phi_MAC.ip(-1, buf=b)) / myg.dx
@@ -988,7 +987,7 @@ class Simulation(NullSimulation):
                                      ldelta_ux, ldelta_vx,
                                      ldelta_uy, ldelta_vy,
                                      coeff.d*gradp_x.d, coeff.d*gradp_y.d,
-                                     mom_source.d,
+                                     S.d,
                                      u_MAC.d, v_MAC.d)
 
         u_xint = patch.ArrayIndexer(d=_ux, grid=myg)
@@ -1037,7 +1036,17 @@ class Simulation(NullSimulation):
         #source.d[:,:] = (Dprime * g / D_half).d
         #self.aux_data.fill_BC("source_y")
 
-        #v.d[:,:] += self.dt * source.d
+        # TODO: slicing rather than looping
+        for i in range(myg.qx):
+            for j in range(myg.qy):
+                chrls = self.metric.christoffels([self.cc_data.t, i,j])
+                mom_source.d[i,j] = -(chrls[0,0,2] +
+                (chrls[1,0,2] + chrls[0,1,2]) * u.d[i,j] +
+                (chrls[2,0,2] + chrls[0,2,2]) * v.d[i,j] +
+                chrls[1,1,2] * u.d[i,j]**2 + chrls[2,2,2] * v.d[i,j]**2 +
+                (chrls[2,1,2] + chrls[1,2,2]) * u.d[i,j] * v.d[i,j])
+
+        v.d[:,:] += self.dt * mom_source.d
 
         self.cc_data.fill_BC("x-velocity")
         self.cc_data.fill_BC("y-velocity")
