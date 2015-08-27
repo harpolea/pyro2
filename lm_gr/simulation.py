@@ -746,14 +746,14 @@ class Simulation(NullSimulation):
         mom_source = myg.scratch_array()
 
         # TODO: slicing rather than looping
-        for i in range(myg.qx):
-            for j in range(myg.qy):
-                chrls = self.metric.christoffels([self.cc_data.t, i,j])
-                mom_source.d[i,j] = -(chrls[0,0,2] +
-                (chrls[1,0,2] + chrls[0,1,2]) * u.d[i,j] +
-                (chrls[2,0,2] + chrls[0,2,2]) * v.d[i,j] +
-                chrls[1,1,2] * u.d[i,j]**2 + chrls[2,2,2] * v.d[i,j]**2 +
-                (chrls[2,1,2] + chrls[1,2,2]) * u.d[i,j] * v.d[i,j])
+        #for i in range(myg.qx):
+        #    for j in range(myg.qy):
+        #        chrls = self.metric.christoffels([self.cc_data.t, i,j])
+        #        mom_source.d[i,j] = -(chrls[0,0,2] +
+        #        (chrls[1,0,2] + chrls[0,1,2]) * u.d[i,j] +
+        #        (chrls[2,0,2] + chrls[0,2,2]) * v.d[i,j] +
+        #        chrls[1,1,2] * u.d[i,j]**2 + chrls[2,2,2] * v.d[i,j]**2 +
+        #        (chrls[2,1,2] + chrls[1,2,2]) * u.d[i,j] * v.d[i,j])
 
 
         g = self.rp.get_param("lm-gr.grav")
@@ -966,15 +966,15 @@ class Simulation(NullSimulation):
         # create source term
         # have used MAC velocities here?
         # TODO: slicing rather than looping
-        for i in range(myg.qx):
-            for j in range(myg.qy):
-                chrls = self.metric.christoffels([self.cc_data.t, i,j])
-                mom_source.d[i,j] = -(chrls[0,0,2] +
-                (chrls[1,0,2] + chrls[0,1,2]) * u_MAC.d[i,j] +
-                (chrls[2,0,2] + chrls[0,2,2]) * v_MAC.d[i,j] +
-                chrls[1,1,2] * u_MAC.d[i,j]**2 +
-                chrls[2,2,2] * v_MAC.d[i,j]**2 +
-                (chrls[2,1,2] + chrls[1,2,2]) * u_MAC.d[i,j] * v_MAC.d[i,j])
+        #for i in range(myg.qx):
+        #    for j in range(myg.qy):
+        #        chrls = self.metric.christoffels([self.cc_data.t, i,j])
+        #        mom_source.d[i,j] = -(chrls[0,0,2] +
+        #        (chrls[1,0,2] + chrls[0,1,2]) * u_MAC.d[i,j] +
+        #        (chrls[2,0,2] + chrls[0,2,2]) * v_MAC.d[i,j] +
+        #        chrls[1,1,2] * u_MAC.d[i,j]**2 +
+        #        chrls[2,2,2] * v_MAC.d[i,j]**2 +
+        #        (chrls[2,1,2] + chrls[1,2,2]) * u_MAC.d[i,j] * v_MAC.d[i,j])
 
         coeff = self.aux_data.get_var("coeff")
         coeff.v()[:,:] = 2.0 / ((Dh.v() + Dh_old.v()) * u0.v())
@@ -1040,7 +1040,7 @@ class Simulation(NullSimulation):
         for i in range(myg.qx):
             for j in range(myg.qy):
                 chrls = self.metric.christoffels([self.cc_data.t, i,j])
-                mom_source.d[i,j] = -(chrls[0,0,2] +
+                mom_source.d[i,j] = (chrls[0,0,2] +
                 (chrls[1,0,2] + chrls[0,1,2]) * u.d[i,j] +
                 (chrls[2,0,2] + chrls[0,2,2]) * v.d[i,j] +
                 chrls[1,1,2] * u.d[i,j]**2 + chrls[2,2,2] * v.d[i,j]**2 +
@@ -1254,13 +1254,13 @@ class Simulation(NullSimulation):
         dv = 0.5 * (v.ip(1) - v.ip(-1))/myg.dx
         du = 0.5 * (u.jp(1) - u.jp(-1))/myg.dy
 
-        vort.v()[:,:] = dv - du
+        #vort.v()[:,:] = dv - du
 
         fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.25)
 
-        fields = [D, magvel, vort, Dprime]
-        field_names = [r"$D$", r"$|U|$", r"$\nabla \times U$", r"$D'$"]
+        fields = [D, magvel, v, Dprime]
+        field_names = [r"$D$", r"$|U|$", r"$V$", r"$D'$"]
 
         for n in range(len(fields)):
             ax = axes.flat[n]
