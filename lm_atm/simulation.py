@@ -24,7 +24,7 @@ class Basestate(object):
 
         self.jlo = ng
         self.jhi = ng+ny-1
-                        
+
     def v(self, buf=0):
         return self.d[self.jlo-buf:self.jhi+1+buf]
 
@@ -33,10 +33,10 @@ class Basestate(object):
 
     def v2dp(self, shift, buf=0):
         return self.d[np.newaxis,self.jlo+shift-buf:self.jhi+1+shift+buf]
-    
+
     def jp(self, shift, buf=0):
-        return self.d[self.jlo-buf+shift:self.jhi+1+buf+shift]    
-    
+        return self.d[self.jlo-buf+shift:self.jhi+1+buf+shift]
+
 
 class Simulation(NullSimulation):
 
@@ -47,7 +47,7 @@ class Simulation(NullSimulation):
         self.base = {}
         self.aux_data = None
 
-    
+
     def initialize(self):
         """
         Initialize the grid and variables for low Mach atmospheric flow
@@ -133,7 +133,7 @@ class Simulation(NullSimulation):
             0.5*(self.base["beta0"].v() + self.base["beta0"].jp(1))
         self.base["beta0-edges"].d[myg.jlo] = self.base["beta0"].d[myg.jlo]
         self.base["beta0-edges"].d[myg.jhi+1] = self.base["beta0"].d[myg.jhi]
-        
+
 
     def make_prime(self, a, a0):
         return a - a0.v2d(buf=a0.ng)
@@ -198,7 +198,7 @@ class Simulation(NullSimulation):
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
 
-        self.cc_data.fill_BC("density")        
+        self.cc_data.fill_BC("density")
         self.cc_data.fill_BC("x-velocity")
         self.cc_data.fill_BC("y-velocity")
 
@@ -236,8 +236,8 @@ class Simulation(NullSimulation):
         # set the RHS to divU and solve
         mg.init_RHS(div_beta_U.d)
         mg.solve(rtol=1.e-10)
-        
-        
+
+
         # store the solution in our self.cc_data object -- include a single
         # ghostcell
         phi = self.cc_data.get_var("phi")
@@ -248,7 +248,6 @@ class Simulation(NullSimulation):
         # FIXME: this update only needs to be done on the interior
         # cells -- not ghost cells
         gradp_x, gradp_y = mg.get_solution_gradient(grid=myg)
-
 
         coeff = 1.0/rho
         coeff.v()[:,:] = coeff.v()*beta0.v2d()
@@ -301,7 +300,7 @@ class Simulation(NullSimulation):
 
         gradp_x = self.cc_data.get_var("gradp_x")
         gradp_y = self.cc_data.get_var("gradp_y")
-        
+
         # note: the base state quantities do not have valid ghost cells
         beta0 = self.base["beta0"]
         beta0_edges = self.base["beta0-edges"]
@@ -330,7 +329,7 @@ class Simulation(NullSimulation):
         ldelta_uy = limitFunc(2, u.d, myg.qx, myg.qy, myg.ng)
         ldelta_vy = limitFunc(2, v.d, myg.qx, myg.qy, myg.ng)
 
-        
+
         #---------------------------------------------------------------------
         # get the advective velocities
         #---------------------------------------------------------------------
@@ -381,10 +380,10 @@ class Simulation(NullSimulation):
                                            ldelta_uy, ldelta_vy,
                                            coeff.d*gradp_x.d, coeff.d*gradp_y.d,
                                            source.d)
-
+        print('source: ', source.d[20:30, 20:30]*1.e5)
 
         u_MAC = patch.ArrayIndexer(d=_um, grid=myg)
-        v_MAC = patch.ArrayIndexer(d=_vm, grid=myg)        
+        v_MAC = patch.ArrayIndexer(d=_vm, grid=myg)
 
 
         #---------------------------------------------------------------------
@@ -447,7 +446,7 @@ class Simulation(NullSimulation):
         coeff_y = myg.scratch_array()
         b = (0, 0, 3, 1)
         coeff_y.v(buf=b)[:,:] = 0.5*(coeff.jp(-1, buf=b) + coeff.v(buf=b))
-        
+
         # we need the MAC velocities on all edges of the computational domain
         # here we do U = U - (beta_0/rho) grad (phi/beta_0)
         b = (0, 1, 0, 0)
@@ -482,10 +481,10 @@ class Simulation(NullSimulation):
 
         # update eint as a diagnostic
         eint = self.cc_data.get_var("eint")
-        gamma = self.rp.get_param("eos.gamma")        
+        gamma = self.rp.get_param("eos.gamma")
         eint.v()[:,:] = self.base["p0"].v2d()/(gamma - 1.0)/rho.v()
-        
-        
+
+
         #---------------------------------------------------------------------
         # recompute the interface states, using the advective velocity
         # from above
@@ -532,7 +531,6 @@ class Simulation(NullSimulation):
             0.5*(u_MAC.v() + u_MAC.ip(1))*(v_xint.ip(1) - v_xint.v())/myg.dx +\
             0.5*(v_MAC.v() + v_MAC.jp(1))*(v_yint.jp(1) - v_yint.v())/myg.dy
 
-
         proj_type = self.rp.get_param("lm-atmosphere.proj_type")
 
         if proj_type == 1:
@@ -542,7 +540,6 @@ class Simulation(NullSimulation):
         elif proj_type == 2:
             u.v()[:,:] -= self.dt*advect_x.v()
             v.v()[:,:] -= self.dt*advect_y.v()
-
 
         # add the gravitational source
         rho_half = 0.5*(rho + rho_old)
@@ -651,7 +648,7 @@ class Simulation(NullSimulation):
         rho = self.cc_data.get_var("density")
         rho0 = self.base["rho0"]
         rhoprime = self.make_prime(rho, rho0)
-        
+
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
 
@@ -663,7 +660,7 @@ class Simulation(NullSimulation):
 
         dv = 0.5*(v.ip(1) - v.ip(-1))/myg.dx
         du = 0.5*(u.jp(1) - u.jp(-1))/myg.dy
-        
+
         vort.v()[:,:] = dv - du
 
         fig, axes = plt.subplots(nrows=2, ncols=2, num=1)

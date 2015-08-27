@@ -11,7 +11,7 @@ u(x,y,t=0) = <
 
 v(x,y,t=0) = delta_s sin(2 pi x)
 
-
+FIXME: add metric stuff back in
 """
 
 from __future__ import print_function
@@ -21,7 +21,7 @@ import mesh.patch as patch
 from util import msg
 
 
-def init_data(my_data, base_data, rp, metric):
+def init_data(my_data, base_data, rp):
     """
     initialize the incompressible shear problem
 
@@ -92,24 +92,27 @@ def init_data(my_data, base_data, rp, metric):
 
     print("extrema: ", np.min(u.d.flat), np.max(u.d.flat))
 
-    u0 = metric.calcu0()
+    #u0 = metric.calcu0()
+    u0 = myg.scratch_array()
+    u0.d[:,:] = 1.
     u0flat = np.mean(u0.d, axis=0)
 
     # do the base state by laterally averaging
-    D0 = base_data.get_var("D0")
-    Dh0 = base_data.get_var("Dh0")
+    D0 = base_data["D0"]
+    Dh0 = base_data["Dh0"]
 
     D0.d[:] = np.mean(dens.d * u0.d, axis=0)
     Dh0.d[:] = np.mean(enth.d * u0.d * dens.d, axis=0)
 
     # base pressure
-    p0 = base_data.get_var("p0")
+    p0 = base_data["p0"]
     p0.d[:] = (D0.d / u0flat[:])**gamma
-    base_data.fill_BC("p0")
+    #base_data.fill_BC("p0")
 
     for i in range(myg.jlo, myg.jhi+1):
         p0.d[i] = p0.d[i-1] - myg.dy * grav * Dh0.d[i] / \
-            (u0flat[i] * c**2 * metric.alpha.d[i]**2 * R)
+            (u0flat[i] * c**2 * R)
+            #(u0flat[i] * c**2 * metric.alpha.d[i]**2 * R)
 
     if (myg.xmin != 0 or myg.xmax != 1 or
             myg.ymin != 0 or myg.ymax != 1):
@@ -125,9 +128,9 @@ def init_data(my_data, base_data, rp, metric):
     my_data.fill_BC("density")
     my_data.fill_BC("enthalpy")
     my_data.fill_BC("eint")
-    base_data.fill_BC("D0")
-    base_data.fill_BC("Dh0")
-    base_data.fill_BC("p0")
+    #base_data.fill_BC("D0")
+    #base_data.fill_BC("Dh0")
+    #base_data.fill_BC("p0")
 
 
 def finalize():

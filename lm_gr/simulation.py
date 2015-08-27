@@ -1,5 +1,7 @@
 """
 TODO: updateZeta?? What is zeta actually supposed to be? How is it calculated?
+
+TODO: D ln u0/Dt term in momentum equation?
 """
 
 
@@ -185,7 +187,6 @@ class Simulation(NullSimulation):
 
         self.cc_data = my_data
 
-
         # some auxillary data that we'll need to fill GC in, but isn't
         # really part of the main solution
         aux_data = patch.CellCenterData2d(myg)
@@ -208,19 +209,6 @@ class Simulation(NullSimulation):
         # now set the initial conditions for the problem
         exec(self.problem_name + '.init_data(self.cc_data, self.base, self.rp)')
 
-        # Construct beta_0
-        gamma = self.rp.get_param("eos.gamma")
-        self.base["zeta"] = Basestate(myg.ny, ng=myg.ng)
-        self.base["zeta"].d[:] = self.base["p0"].d**(1.0/gamma)
-
-        # we'll also need beta_0 on vertical edges -- on the domain edges,
-        # just do piecewise constant
-        self.base["zeta-edges"] = Basestate(myg.ny, ng=myg.ng)
-        self.base["zeta-edges"].jp(1)[:] = \
-            0.5*(self.base["zeta"].v() + self.base["zeta"].jp(1))
-        self.base["zeta-edges"].d[myg.jlo] = self.base["zeta"].d[myg.jlo]
-        self.base["zeta-edges"].d[myg.jhi+1] = self.base["zeta"].d[myg.jhi]
-
         # add metric
         g = self.rp.get_param("lm-gr.grav")
         c = self.rp.get_param("lm-gr.c")
@@ -231,11 +219,35 @@ class Simulation(NullSimulation):
         beta = [0., 0.]
         gamma_matrix = np.sqrt(1. + 2. * g / c**2) * np.eye(2)
         self.metric = metric.Metric(self.cc_data, self.rp, alpha, beta, gamma_matrix)
+        u0 = self.metric.calcu0()
+
+        # Construct zeta
+        # FIXME: what is zeta supposed to be???
+        gamma = self.rp.get_param("eos.gamma")
+        self.base["zeta"] = Basestate(myg.ny, ng=myg.ng)
+        #self.base["zeta"].d[:] = self.base["p0"].d**(1.0/gamma)
+        D0 = self.base["D0"]
+        self.base["zeta"].d[:] = D0.d / self.lateral_average(u0.d)
+
+        # we'll also need zeta on vertical edges -- on the domain edges,
+        # just do piecewise constant
+        self.base["zeta-edges"] = Basestate(myg.ny, ng=myg.ng)
+        self.base["zeta-edges"].jp(1)[:] = \
+            0.5*(self.base["zeta"].v() + self.base["zeta"].jp(1))
+        self.base["zeta-edges"].d[myg.jlo] = self.base["zeta"].d[myg.jlo]
+        self.base["zeta-edges"].d[myg.jhi+1] = self.base["zeta"].d[myg.jhi]
+
+        # initialise source
+        S = self.aux_data.get_var("source_y")
+        S = self.compute_S()
+        oldS = self.aux_data.get_var("old_source_y")
+        oldS = S.copy()
 
 
     @staticmethod
     def make_prime(a, a0):
         return a - a0.v2d(buf=a0.ng)
+
 
     @staticmethod
     def lateral_average(a):
@@ -254,6 +266,7 @@ class Simulation(NullSimulation):
         """
         return np.mean(a, axis=0)
 
+
     def update_zeta(self):
         """
         Updates zeta in the interior and on the edges. Assumes all other variables are up to date.
@@ -266,6 +279,7 @@ class Simulation(NullSimulation):
         zeta = self.base["zeta"]
         zeta_edges = self.base["zeta-edges"]
 
+        # FIXME: how do you calculate zeta??
         try:
             zeta.d[:] = D0.d / self.lateral_average(u0.d)
         except FloatingPointError:
@@ -277,24 +291,28 @@ class Simulation(NullSimulation):
         zeta_edges.d[myg.jlo] = zeta.d[myg.jlo]
         zeta_edges.d[myg.jhi+1] = zeta.d[myg.jhi]
 
+
     def compute_S(self):
         """
-        S = -Gamma^mu_(mu nu) U^nu   (see eq 6.34, 6.37 in LowMachGR)
+        S = -Gamma^mu_(mu nu) U^nu   (see eq 6.34, 6.37 in LowMachGR).
+        base["source-y"] is not updated here as it's sometimes necessary to
+        calculate projections and not S^n
         """
         myg = self.cc_data.grid
-        # TODO: slicing
         S = myg.scratch_array()
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
 
+        # TODO: slicing rather than looping
         for i in range(myg.qx):
             for j in range(myg.qy):
                 chrls = self.metric.christoffels([self.cc_data.t, i,j])
-                S.d[i,j] = - (chrls[0,0,0] + chrls[1,1,0] + chrls[2,2,0] +
+                S.d[i,j] = -(chrls[0,0,0] + chrls[1,1,0] + chrls[2,2,0] +
                     (chrls[0,0,1] + chrls[1,1,1] + chrls[2,2,1]) * u.d[i,j] +
                     (chrls[0,0,2] + chrls[1,1,2] + chrls[2,2,2]) * v.d[i,j])
 
         return S
+
 
     def constraint_source(self):
         """
@@ -313,7 +331,7 @@ class Simulation(NullSimulation):
         gamma = self.rp.get_param("eos.gamma")
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
-
+        zeta = self.base["zeta"]
         S = self.aux_data.get_var("source_y")
 
         p0 = self.base["p0"]
@@ -322,10 +340,10 @@ class Simulation(NullSimulation):
         # FIXME: assumed it's 0 for now
 
         constraint = myg.scratch_array()
-        zeta = self.base["zeta"]
         constraint.d[:,:] = zeta.d2df(myg.qx) * (S.d - dp0dt.d2df(myg.qx) / (gamma * p0.d2df(myg.qx)))
 
         return constraint
+
 
     def react_state(self):
         """
@@ -339,19 +357,16 @@ class Simulation(NullSimulation):
         v = self.cc_data.get_var("y-velocity")
         u0 = self.metric.calcu0()
         drp0 = self.drp0()
-
         S = self.aux_data.get_var("source_y")
 
-        # TODO: slicing rather than looping
-        #for i in range(myg.qx):
-        #    for j in range(myg.qy):
-        #        chrls = self.metric.christoffels([self.cc_data.t, i,j])
-        #        S.d[i,j] = -(chrls[0,0,0] + chrls[1,1,0] + chrls[2,2,0] + (chrls[0,0,1] + chrls[1,1,1] + chrls[2,2,1]) * u.d[i,j] + (chrls[0,0,2] + chrls[1,1,2] + chrls[2,2,2]) * v.d[i,j])
+        # source is always zero?
+        #print('source: ', S.d[0:10, 0:10])
 
         Dh.v()[:,:] += 0.5 * self.dt * (S.v() * Dh.v() +
                                         u0.v() * v.v() * drp0.v())
 
         D.v()[:,:] += 0.5 * self.dt * (S.v() * D.v())
+
 
     def advect_base_density(self, D0=None, U0=None):
         """
@@ -382,6 +397,7 @@ class Simulation(NullSimulation):
         p0.jp(1, buf=1)[:] = p0.v(buf=1) + 0.5 * self.cc_data.grid.dy * \
                              (drp0.jp(1, buf=1) + drp0.v(buf=1))
 
+
     def drp0(self):
         """
         Calculate drp0 as it's messy using eq 6.135
@@ -404,6 +420,7 @@ class Simulation(NullSimulation):
 
         return drp0
 
+
     def advect_base_enthalpy(self, Dh0=None, U0=None):
         """
         updates base state enthalpy throung one timestep.
@@ -420,6 +437,7 @@ class Simulation(NullSimulation):
 
         Dh0.v()[:] += -(Dh0.jp(1) * U0.jp(1) - Dh.v() * U0.v()) * dt / dr + \
                       dt * U0.v() * self.drp0().v()
+
 
     def compute_base_velocity(self, p0=None, S=None):
         """
@@ -468,9 +486,9 @@ class Simulation(NullSimulation):
 
         # the timestep is min(dx/|u|, dy|v|)
         xtmp = ytmp = 1.e33
-        if not abs(u).max() < 1e-12:
+        if not abs(u).max() < 1e-25:
             xtmp = myg.dx / abs(u.v()).max()
-        if not abs(v).max() < 1e-12:
+        if not abs(v).max() < 1e-25:
             ytmp = myg.dy / abs(v.v()).max()
 
         dt = cfl * min(xtmp, ytmp)
@@ -485,11 +503,14 @@ class Simulation(NullSimulation):
         c = self.rp.get_param("lm-gr.c")
         R = self.rp.get_param("lm-gr.radius")
 
+        # FIXME: do this properly for gr case
         F_buoy = np.max([g / (R * c**2), 1.e-20])
 
         dt_buoy = np.sqrt(2.0 * myg.dx / F_buoy)
+        # FIXME: delete
+        dt_buoy = 1e50
 
-        self.dt = min(dt, dt_buoy, 1.e7)
+        self.dt = min(dt, dt_buoy)
         if self.verbose > 0:
             print("timestep is {}".format(self.dt))
 
@@ -520,8 +541,10 @@ class Simulation(NullSimulation):
         oldS = self.aux_data.get_var("old_source_y")
         oldS = self.aux_data.get_var("source_y").copy()
 
-        # 1. do the initial projection.  This makes sure that our original
+        # a,b. do the initial projection.  This makes sure that our original
         # velocity field satisties div U = 0
+
+        self.react_state()
 
         # the coefficent for the elliptic equation is zeta^2/Dh u0
         u0 = self.metric.calcu0()
@@ -559,7 +582,6 @@ class Simulation(NullSimulation):
         # set the RHS to divU and solve
         mg.init_RHS(div_zeta_U.v(buf=1) - constraint.v(buf=1))
         mg.solve(rtol=1.e-10)
-
 
         # store the solution in our self.cc_data object -- include a single
         # ghostcell
@@ -678,7 +700,6 @@ class Simulation(NullSimulation):
         else:
             S_t_centred.d[:,:] = S.d + self.dt * 0.5 * (S.d - oldS.d) / self.old_dt
 
-
         self.compute_base_velocity(S=S_t_centred)
 
         #---------------------------------------------------------------------
@@ -718,30 +739,40 @@ class Simulation(NullSimulation):
         coeff.d[:,:] *= zeta.d2d()
         self.aux_data.fill_BC("coeff")
 
-        # create the source term
-        source = self.aux_data.get_var("source_y")
+        # create source term
+        # this is problematic in the gr case as this source term is a vector:
+        # in Newtonian case, it's a scalar (times the radial normal vector)
+        # FIXME: for now, shall just calculate radial component and wish for the # best.
+        mom_source = myg.scratch_array()
+
+        # TODO: slicing rather than looping
+        for i in range(myg.qx):
+            for j in range(myg.qy):
+                chrls = self.metric.christoffels([self.cc_data.t, i,j])
+                mom_source.d[i,j] = -(chrls[0,0,2] +
+                (chrls[1,0,2] + chrls[0,1,2]) * u.d[i,j] +
+                (chrls[2,0,2] + chrls[0,2,2]) * v.d[i,j] +
+                chrls[1,1,2] * u.d[i,j]**2 + chrls[2,2,2] * v.d[i,j]**2 +
+                (chrls[2,1,2] + chrls[1,2,2]) * u.d[i,j] * v.d[i,j])
+
 
         g = self.rp.get_param("lm-gr.grav")
         #c = self.rp.get_param("lm-gr.c")
         #R = self.rp.get_param("lm-gr.radius")
         Dprime = self.make_prime(D, D0)
-        # TODO: source term?
-        # source.v()[:,:] =
-        self.aux_data.fill_BC("source_y")
-        # FIXME: gradp_x.d needs to be multiplied by coeff.d
         _um, _vm = lm_interface_f.mac_vels(myg.qx, myg.qy, myg.ng,
                                            myg.dx, myg.dy, self.dt,
                                            u.d, v.d,
                                            ldelta_ux, ldelta_vx,
                                            ldelta_uy, ldelta_vy,
-                                           gradp_x.d,
-                                           gradp_y.d,
-                                           source.d)
-
+                                           coeff.d*gradp_x.d,
+                                           coeff.d*gradp_y.d,
+                                           mom_source.d)
 
         u_MAC = patch.ArrayIndexer(d=_um, grid=myg)
         v_MAC = patch.ArrayIndexer(d=_vm, grid=myg)
-
+        # v_MAC is very small here but at least it's non-zero
+        # entire thing sourced by Gamma^t_tr
 
         #---------------------------------------------------------------------
         # do a MAC projection to make the advective velocities divergence
@@ -794,7 +825,7 @@ class Simulation(NullSimulation):
         # solved for here is phi/beta_0
         phi_MAC = self.cc_data.get_var("phi-MAC")
         phi_MAC.d[:,:] = mg.get_solution(grid=myg).d
-        #phi_MAC.d[:,:] = 1. #FIXME: un-one
+        # this is zero and shouldn't be
 
         coeff = self.aux_data.get_var("coeff")
         coeff.d[:,:] = 1.0 / (Dh.d * u0.d)
@@ -860,6 +891,7 @@ class Simulation(NullSimulation):
 
         #---------------------------------------------------------------------
         # predict Dh to the edges and do its conservative update
+        # see 4H - need to include a pressure source term here?
         #---------------------------------------------------------------------
         _ex, _ey = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
@@ -874,12 +906,17 @@ class Simulation(NullSimulation):
         Dh_yint = patch.ArrayIndexer(d=_ey, grid=myg)
 
         Dh_old = Dh.copy()
+        drp0 = self.drp0()
 
-        Dh.v()[:,:] -= self.dt*(
+        # 4Hii.
+        # FIXME: need to add on psi term.
+        Dh.v()[:,:] += -self.dt*(
             #  (D u)_x
             (Dh_xint.ip(1)*u_MAC.ip(1) - Dh_xint.v()*u_MAC.v())/myg.dx +
             #  (D v)_y
-            (Dh_yint.jp(1)*v_MAC.jp(1) - Dh_yint.v()*v_MAC.v())/myg.dy )
+            (Dh_yint.jp(1)*v_MAC.jp(1) - Dh_yint.v()*v_MAC.v())/myg.dy ) + \
+            self.dt * u0.v() * v_MAC.v() * drp0.v2d()
+
 
         self.cc_data.fill_BC("enthalpy")
 
@@ -887,6 +924,7 @@ class Simulation(NullSimulation):
 
         #Dh0_old = Dh0.copy()
 
+        # FIXME: need a u0 psi term here
         Dh02d = myg.scratch_array()
         Dh02d.d[:,:] = Dh0.d2d()
         Dh02d.v()[:,:] -= self.dt*(
@@ -926,19 +964,31 @@ class Simulation(NullSimulation):
         if self.verbose > 0:
             print("  making u, v edge states")
 
+        # create source term
+        # have used MAC velocities here?
+        # TODO: slicing rather than looping
+        for i in range(myg.qx):
+            for j in range(myg.qy):
+                chrls = self.metric.christoffels([self.cc_data.t, i,j])
+                mom_source.d[i,j] = -(chrls[0,0,2] +
+                (chrls[1,0,2] + chrls[0,1,2]) * u_MAC.d[i,j] +
+                (chrls[2,0,2] + chrls[0,2,2]) * v_MAC.d[i,j] +
+                chrls[1,1,2] * u_MAC.d[i,j]**2 +
+                chrls[2,2,2] * v_MAC.d[i,j]**2 +
+                (chrls[2,1,2] + chrls[1,2,2]) * u_MAC.d[i,j] * v_MAC.d[i,j])
+
         coeff = self.aux_data.get_var("coeff")
         coeff.v()[:,:] = 2.0 / ((Dh.v() + Dh_old.v()) * u0.v())
         coeff.v()[:,:] *= zeta.v2d()
         self.aux_data.fill_BC("coeff")
-        # FIXME: add coeff.d * back in
         _ux, _vx, _uy, _vy = \
                lm_interface_f.states(myg.qx, myg.qy, myg.ng,
                                      myg.dx, myg.dy, self.dt,
                                      u.d, v.d,
                                      ldelta_ux, ldelta_vx,
                                      ldelta_uy, ldelta_vy,
-                                     gradp_x.d, gradp_y.d,
-                                     source.d,
+                                     coeff.d*gradp_x.d, coeff.d*gradp_y.d,
+                                     mom_source.d,
                                      u_MAC.d, v_MAC.d)
 
         u_xint = patch.ArrayIndexer(d=_ux, grid=myg)
@@ -966,7 +1016,7 @@ class Simulation(NullSimulation):
         advect_y.v()[:,:] = \
             0.5*(u_MAC.v() + u_MAC.ip(1))*(v_xint.ip(1) - v_xint.v())/myg.dx +\
             0.5*(v_MAC.v() + v_MAC.jp(1))*(v_yint.jp(1) - v_yint.v())/myg.dy
-
+        #print(v_yint.d[20:30, 20:30])
 
         proj_type = self.rp.get_param("lm-gr.proj_type")
 
@@ -994,6 +1044,7 @@ class Simulation(NullSimulation):
 
         if self.verbose > 0:
             print("min/max D = {}, {}".format(self.cc_data.min("density"), self.cc_data.max("density")))
+            print("min/max Dh = {}, {}".format(self.cc_data.min("enthalpy"), self.cc_data.max("enthalpy")))
             print("min/max u   = {}, {}".format(self.cc_data.min("x-velocity"), self.cc_data.max("x-velocity")))
             print("min/max v   = {}, {}".format(self.cc_data.min("y-velocity"), self.cc_data.max("y-velocity")))
 
@@ -1084,18 +1135,13 @@ class Simulation(NullSimulation):
         #---------------------------------------------------------------------
         # 10. Define the new time expansion S and Gamma1
         #---------------------------------------------------------------------
-        oldS = self.aux_data.get_var("source_y").copy()
+        oldS = S.copy()
 
-        # TODO: slicing rather than looping
-        for i in range(myg.qx):
-            for j in range(myg.qy):
-                chrls = self.metric.christoffels([self.cc_data.t, i,j])
-                S.d[i,j] = -(chrls[0,0,0] + chrls[1,1,0] + chrls[2,2,0] + (chrls[0,0,1] + chrls[1,1,1] + chrls[2,2,1]) * u.d[i,j] + (chrls[0,0,2] + chrls[1,1,2] + chrls[2,2,2]) * v.d[i,j])
+        S = self.compute_S()
 
         #---------------------------------------------------------------------
         # 11. project the final velocity
         #---------------------------------------------------------------------
-
         # now we solve L phi = D (U* /dt)
         if self.verbose > 0:
             print("  final projection")
@@ -1123,6 +1169,7 @@ class Simulation(NullSimulation):
         div_zeta_U.v()[:,:] = \
             0.5 * zeta.v2d() * (u.ip(1) - u.ip(-1))/myg.dx + \
             0.5 * (zeta.v2dp(1)*v.jp(1) - zeta.v2dp(-1)*v.jp(-1))/myg.dy
+        # FIXME: this is zero always as u, v are zero
 
         constraint = self.constraint_source()
         mg.init_RHS(div_zeta_U.v(buf=1)/self.dt - constraint.v(buf=1)/self.dt)
@@ -1135,15 +1182,15 @@ class Simulation(NullSimulation):
         # solve
         mg.solve(rtol=1.e-12)
 
-
         # store the solution in our self.cc_data object -- include a single
         # ghostcell
         phi.d[:,:] = mg.get_solution(grid=myg).d
+        # FIXME: this is always zero at the moment?
+        #print(phi.d[0:10, 0:10])
 
         # get the cell-centered gradient of p and update the velocities
         # this differs depending on what we projected.
         gradphi_x, gradphi_y = mg.get_solution_gradient(grid=myg)
-
 
         # U = U - (zeta/Dh u0) grad (phi)
         coeff = 1.0 / (Dh * u0)
@@ -1195,8 +1242,8 @@ class Simulation(NullSimulation):
 
         vort = myg.scratch_array()
 
-        dv = 0.5*(v.ip(1) - v.ip(-1))/myg.dx
-        du = 0.5*(u.jp(1) - u.jp(-1))/myg.dy
+        dv = 0.5 * (v.ip(1) - v.ip(-1))/myg.dx
+        du = 0.5 * (u.jp(1) - u.jp(-1))/myg.dy
 
         vort.v()[:,:] = dv - du
 
@@ -1204,7 +1251,7 @@ class Simulation(NullSimulation):
         plt.subplots_adjust(hspace=0.25)
 
         fields = [D, magvel, vort, Dprime]
-        field_names = [r"$D$", r"|U|", r"$\nabla \times U$", r"$D'$"]
+        field_names = [r"$D$", r"$|U|$", r"$\nabla \times U$", r"$D'$"]
 
         for n in range(len(fields)):
             ax = axes.flat[n]
@@ -1215,13 +1262,13 @@ class Simulation(NullSimulation):
                             interpolation="nearest", origin="lower",
                             extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax])
 
-            ax.set_xlabel("x")
-            ax.set_ylabel("y")
+            ax.set_xlabel(r"$x$")
+            ax.set_ylabel(r"$y$")
             ax.set_title(field_names[n])
 
-            #plt.colorbar(img, ax=ax)
+            plt.colorbar(img, ax=ax)
 
 
-        plt.figtext(0.05,0.0125, "t = %10.5f" % self.cc_data.t)
+        plt.figtext(0.05,0.0125, "n: %4d,   t = %10.5f" % (self.n, self.cc_data.t))
 
         plt.draw()

@@ -10,9 +10,9 @@ cfl = 0.5
 
 limiter = 1               ; limiter (0 = none, 1 = 2nd order, 2 = 4th order)
 proj_type = 2             ; what are we projecting? 1 includes -Gp term in U*
-grav = 0.                ; GM/R = magnitude of Newtonian surface potential
-c = 3.e8                     ; speed of light
-radius = 1.4e4               ; radius of NS
+grav = 2.0e-5                ; GM/R = magnitude of Newtonian surface potential
+c = 1.0                     ; speed of light
+radius = 1.0             ; radius of NS
 
 
 [io]
@@ -41,9 +41,9 @@ yrboundary = outflow
 
 [shear]
 rho_s = 42.0   ; shear layer width
-delta_s = 0.01 ; perturbuation amplitude
-dens_cutoff  = 0.1
-dens_base = 1.e5            ; density at the base of the atmosphere
+delta_s = 0.05 ; perturbuation amplitude
+dens_cutoff  = 0.001
+dens_base = 1.0            ; density at the base of the atmosphere
 
 [eos]
 gamma = 1.4    ; pres = rho ener (gamma - 1)

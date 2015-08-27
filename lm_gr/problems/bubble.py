@@ -2,7 +2,7 @@ from __future__ import print_function
 
 import sys
 import mesh.patch as patch
-import numpy
+import numpy as np
 from util import msg
 
 def init_data(my_data, base, rp):
@@ -23,7 +23,9 @@ def init_data(my_data, base, rp):
     yvel = my_data.get_var("y-velocity")
     eint = my_data.get_var("eint")
 
-    grav = rp.get_param("lm-gr.grav")
+    g = rp.get_param("lm-gr.grav")
+    c = rp.get_param("lm-gr.c")
+    R = rp.get_param("lm-gr.radius")
 
     gamma = rp.get_param("eos.gamma")
 
@@ -46,21 +48,27 @@ def init_data(my_data, base, rp):
     myg = my_data.grid
     pres = myg.scratch_array()
 
+    # FIXME: do this properly for gr case, add alpha back in
     j = myg.jlo
-    for j in range(myg.jlo, myg.jhi+1):
-        dens.d[:,j] = max(dens_base*numpy.exp(-myg.y[j]/scale_height),
-                          dens_cutoff)
+    #for j in range(myg.jlo, myg.jhi+1):
+    #    dens.d[:,j] = max(dens_base*np.exp(-myg.y[j]/scale_height),
+    #                      dens_cutoff)
+    dens.v()[:, :] = dens_base * \
+        np.exp(-g * myg.y[np.newaxis, myg.jlo:myg.jhi+1] /
+                (gamma * c**2 * R))
+               #(gamma * c**2 * R * metric.alpha.v2d()**2))
 
-    cs2 = scale_height * abs(grav)
+    #cs2 = scale_height * abs(g)
 
     # set the pressure (P = cs2*dens)
-    pres = cs2 * dens
+    #pres = cs2 * dens
+    pres.d[:,:] = dens.d**gamma
     eint.d[:,:] = pres.d/(gamma - 1.0)/dens.d
     enth.d[:, :] = eint.d + pres.d / dens.d # Newtonian
 
     # boost the specific internal energy, keeping the pressure
     # constant, by dropping the density
-    r = numpy.sqrt((myg.x2d - x_pert)**2  + (myg.y2d - y_pert)**2)
+    r = np.sqrt((myg.x2d - x_pert)**2  + (myg.y2d - y_pert)**2)
 
     idx = r <= r_pert
     eint.d[idx] = eint.d[idx]*pert_amplitude_factor
@@ -68,13 +76,29 @@ def init_data(my_data, base, rp):
     enth.d[idx] = eint.d[idx] + pres.d[idx]/dens.d[idx]
 
     # do the base state
-    base["D0"].d[:] = numpy.mean(dens.d, axis=0)
-    base["p0"].d[:] = numpy.mean(pres.d, axis=0)
+    p0 = base["p0"]
+    D0 = base["D0"]
+    Dh0 = base["Dh0"]
+    D0.d[:] = np.mean(dens.d, axis=0)
+    Dh0.d[:] = np.mean(enth.d, axis=0)
+    p0.d[:] = np.mean(pres.d, axis=0)
 
-    # redo the pressure via HSE
-    for j in range(myg.jlo+1, myg.jhi):
-        base["p0"].d[j] = base["p0"].d[j-1] + 0.5*myg.dy*(base["D0"].d[j] + base["D0"].d[j-1]) * grav
+    # redo the pressure via TOV
+    #for j in range(myg.jlo+1, myg.jhi):
+    #    base["p0"].d[j] = base["p0"].d[j-1] + 0.5*myg.dy*(base["D0"].d[j] + base["D0"].d[j-1]) * grav
+    # FIXME: do this properly
+    u01d = p0.copy()
+    u01d.d[:] = 1.
+    alpha = u01d.copy()
+    drp0 = u01d.copy()
 
+    drp0.d[:] = g * (Dh0.d / u01d.d + 2. * p0.d * (1. - alpha.d**4)) / \
+          (R * c**2 * alpha.d**2)
+
+    p0.jp(1, buf=1)[:] = p0.v(buf=1) + 0.5 * myg.dy * \
+                             (drp0.jp(1, buf=1) + drp0.v(buf=1))
+
+    # FIXME: uncomment
     # multiply by correct u0s
     #dens.d[:, :] *= u0.d  # rho * u0
     #enth.d[:, :] *= u0.d * dens.d  # rho * h * u0

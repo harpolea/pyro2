@@ -4,7 +4,7 @@ from util import profile
 def grid_setup(rp, ng=1):
     nx = rp.get_param("mesh.nx")
     ny = rp.get_param("mesh.ny")
-    
+
     xmin = rp.get_param("mesh.xmin")
     xmax = rp.get_param("mesh.xmax")
     ymin = rp.get_param("mesh.ymin")
@@ -14,7 +14,7 @@ def grid_setup(rp, ng=1):
                            xmin=xmin, xmax=xmax,
                            ymin=ymin, ymax=ymax, ng=ng)
     return my_grid
-    
+
 
 def bc_setup(rp):
 
@@ -23,7 +23,7 @@ def bc_setup(rp):
     xrb_type = rp.get_param("mesh.xrboundary")
     ylb_type = rp.get_param("mesh.ylboundary")
     yrb_type = rp.get_param("mesh.yrboundary")
-        
+
     bc = patch.BCObject(xlb=xlb_type, xrb=xrb_type,
                         ylb=ylb_type, yrb=yrb_type)
 
@@ -38,7 +38,7 @@ def bc_setup(rp):
                              odd_reflect_dir="y")
 
     return bc, bc_xodd, bc_yodd
-    
+
 
 class NullSimulation(object):
 
@@ -60,20 +60,22 @@ class NullSimulation(object):
         self.n = 0
         self.dt = -1.e33
 
-        try: self.tmax = rp.get_param("driver.tmax")
+        try:
+            self.tmax = rp.get_param("driver.tmax")
         except:
             self.tmax = None
-            
-        try: self.max_steps = rp.get_param("driver.max_steps")            
+
+        try:
+            self.max_steps = rp.get_param("driver.max_steps")            
         except:
             self.max_steps = None
-            
+
         self.rp = rp
         self.cc_data = None
 
         self.SMALL = 1.e-12
 
-        self.solver_name = solver_name        
+        self.solver_name = solver_name
         self.problem_name = problem_name
 
         if timers == None:
@@ -81,13 +83,14 @@ class NullSimulation(object):
         else:
             self.tc = timers
 
-        try: self.verbose = self.rp.get_param("driver.verbose")
+        try:
+            self.verbose = self.rp.get_param("driver.verbose")
         except:
             self.verbose = None
 
         self.n_num_out = 0
 
-            
+
     def finished(self):
         """
         is the simulation finished based on time or the number of steps
@@ -102,7 +105,7 @@ class NullSimulation(object):
         dt_out = self.rp.get_param("io.dt_out")
         n_out = self.rp.get_param("io.n_out")
         do_io = self.rp.get_param("io.do_io")
-        
+
         is_time = self.cc_data.t >= (self.n_num_out + 1)*dt_out or self.n%n_out == 0
         if is_time and do_io == 1:
             self.n_num_out += 1
@@ -110,15 +113,15 @@ class NullSimulation(object):
         else:
             return False
 
-    
+
     def initialize(self):
         pass
 
-    
+
     def compute_timestep(self):
         pass
 
-    
+
     def preevolve(self):
         """
         Do any necessary evolution before the main evolve loop.  This
@@ -126,18 +129,18 @@ class NullSimulation(object):
         """
         pass
 
-    
+
     def evolve(self):
 
         # increment the time
         self.cc_data.t += sim.dt
         self.n += 1
 
-    
+
     def dovis(self):
         pass
 
-    
+
     def finalize(self):
         """
         Do any final clean-ups for the simulation and call the problem's

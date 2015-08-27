@@ -10,15 +10,21 @@ cfl = 0.8
 
 
 [io]
-basename = lm_bubble_128_
-n_out = 1
+basename = lm_gr/results/bubble_128_   ; basename for output files
+n_out = 1                   ; number of timesteps between writing output files
+do_io = 1                   ; do we output at all?
+
+[vis]
+
+dovis = 1                  ; runtime visualization? (1=yes, 0=no)
+store_images = 0           ; store vis images to files (1=yes, 0=no)
 
 
 [mesh]
 nx = 128
 ny = 128
-xmax = 1.0
-ymax = 1.0
+xmax = 10.0
+ymax = 10.0
 
 xlboundary = periodic
 xrboundary = periodic

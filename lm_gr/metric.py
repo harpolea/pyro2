@@ -53,7 +53,7 @@ class Metric:
         sgamma = myg.scratch_array()
 
         # calculate metric at point then take square roots of determinants.
-        sg.d[:, :] = [[np.sqrt(-1.*np.linalg.det(self.g([0, i, j])))
+        sg.d[:, :] = [[np.sqrt(-1. * np.linalg.det(self.g([0, i, j])))
                       for j in range(0, myg.qy)] for i in range(0, myg.qx)]
 
         sgamma.d[:, :] = [[np.sqrt(np.linalg.det((self.g([0, i, j]))[1:, 1:]))
@@ -93,6 +93,7 @@ class Metric:
             print('Tried to take the square root of a negative Lorentz \
                   factor! \nTry checking your velocities?\n')
             print((u.d[-10:, -10:]**2 + v.d[-10:, -10:]**2)/c**2)
+            print(u.d.min, v.d.min)
             sys.exit()
 
         return W
@@ -162,12 +163,19 @@ class Metric:
         c = self.rp.get_param("lm-gr.c")
 
         # For simple time-lagged metric, only have 7 non-zero (3 unique) christoffels.
-        christls[0, 0, 2] = g/(self.alpha.d[x[2]]**2 * c**2 * R)
+        # t_tr
+        christls[0, 0, 2] = g / (self.alpha.d[x[2]]**2 * c**2 * R)
+        # t_rt
         christls[0, 2, 0] = christls[0, 0, 2]
-        christls[2, 0, 0] = g/(self.alpha.d[x[2]]**2 * c**2 * R)
-        christls[2, 1, 1] = christls[2, 0, 0]
-        christls[2, 2, 2] = -christls[2, 0, 0]
+        # r_tt
+        christls[2, 0, 0] = g * self.alpha.d[x[2]]**2 / (c**2 * R)
+        # r_xx
+        christls[2, 1, 1] = g / (c**2 * R * self.alpha.d[x[2]]**2)
+        # r_rr
+        christls[2, 2, 2] = -christls[2, 1, 1]
+        # x_xr
         christls[1, 1, 2] = christls[2, 2, 2]
+        # x_rx
         christls[1, 2, 1] = christls[2, 2, 2]
 
         # For non-simple, we have to do more icky stuff including time and
