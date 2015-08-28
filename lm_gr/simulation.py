@@ -229,9 +229,8 @@ class Simulation(NullSimulation):
         # FIXME: what is zeta supposed to be???
         gamma = self.rp.get_param("eos.gamma")
         self.base["zeta"] = Basestate(myg.ny, ng=myg.ng)
-        #self.base["zeta"].d[:] = self.base["p0"].d**(1.0/gamma)
         D0 = self.base["D0"]
-        self.base["zeta"].d[:] = D0.d / self.lateral_average(u0.d)
+        self.base["zeta"].d[:] = D0.d
 
         # we'll also need zeta on vertical edges -- on the domain edges,
         # just do piecewise constant
@@ -283,9 +282,8 @@ class Simulation(NullSimulation):
         zeta = self.base["zeta"]
         zeta_edges = self.base["zeta-edges"]
 
-        # FIXME: how do you calculate zeta??
         try:
-            zeta.d[:] = D0.d / self.lateral_average(u0.d)
+            zeta.d[:] = D0.d
         except FloatingPointError:
             print('D0: ', np.max(D0.d))
             print('u0: ', np.max(u0.d))
@@ -296,7 +294,7 @@ class Simulation(NullSimulation):
         zeta_edges.d[myg.jhi+1] = zeta.d[myg.jhi]
 
 
-    def compute_S(self):
+    def compute_S(self, u=None, v=None):
         """
         S = -Gamma^mu_(mu nu) U^nu   (see eq 6.34, 6.37 in LowMachGR).
         base["source-y"] is not updated here as it's sometimes necessary to
@@ -304,8 +302,10 @@ class Simulation(NullSimulation):
         """
         myg = self.cc_data.grid
         S = myg.scratch_array()
-        u = self.cc_data.get_var("x-velocity")
-        v = self.cc_data.get_var("y-velocity")
+        if u is None:
+            u = self.cc_data.get_var("x-velocity")
+        if v is None:
+            v = self.cc_data.get_var("y-velocity")
 
         # TODO: slicing rather than looping
         for i in range(myg.qx):
@@ -349,7 +349,7 @@ class Simulation(NullSimulation):
         return constraint
 
 
-    def react_state(self):
+    def react_state(self, S=None):
         """
         gravitational source terms in the continuity equation (called react state to mirror MAESTRO as here they just have source terms from the reactions)
         """
@@ -361,10 +361,8 @@ class Simulation(NullSimulation):
         v = self.cc_data.get_var("y-velocity")
         u0 = self.metric.calcu0()
         drp0 = self.drp0()
-        S = self.aux_data.get_var("source_y")
-
-        # source is always zero?
-        #print('source: ', S.d[0:10, 0:10])
+        if S is None:
+            S = self.aux_data.get_var("source_y")
 
         Dh.v()[:,:] += 0.5 * self.dt * (S.v() * Dh.v() +
                                         u0.v() * v.v() * drp0.v())
@@ -419,7 +417,7 @@ class Simulation(NullSimulation):
 
         drp0 = Basestate(myg.ny, ng=myg.ng)
 
-        drp0.d[:] = g * (Dh0.d / u01d.d + 2. * p0.d * (1. - alpha.d**4)) / \
+        drp0.d[:] = g * (2. * p0.d * (1. - alpha.d**4) - Dh0.d / u01d.d) / \
               (R * c**2 * alpha.d**2)
 
         return drp0
@@ -439,7 +437,7 @@ class Simulation(NullSimulation):
 
         # FIXME: calculate U_0, find out how to find the time-centred edge states and use them here.
 
-        Dh0.v()[:] += -(Dh0.jp(1) * U0.jp(1) - Dh.v() * U0.v()) * dt / dr + \
+        Dh0.v()[:] += -(Dh0.jp(1) * U0.jp(1) - Dh0.v() * U0.v()) * dt / dr + \
                       dt * U0.v() * self.drp0().v()
 
 
@@ -502,12 +500,11 @@ class Simulation(NullSimulation):
         Dh0 = Dh0 = self.base["Dh0"]
         u0 = self.metric.calcu0()
 
-        # FIXME: do this properly for gr case
         drp0 = self.drp0()
         u01d = Basestate(myg.ny, ng=myg.ng)
         u01d.d[:] = self.lateral_average(u0.d)
 
-        F_buoy = np.max(drp0.v() / (Dh0.v() * u01d.v()))
+        F_buoy = np.max(np.abs(drp0.v() / (Dh0.v() * u01d.v()) ))
 
         dt_buoy = np.sqrt(2.0 * myg.dx / F_buoy)
 
@@ -664,7 +661,7 @@ class Simulation(NullSimulation):
         oldS = self.aux_data.get_var("old_source_y")
 
         #---------------------------------------------------------------------
-        # create the limited slopes of D, u and v (in both directions)
+        # create the limited slopes of D, Dh, u and v (in both directions)
         #---------------------------------------------------------------------
         limiter = self.rp.get_param("lm-gr.limiter")
         if limiter == 0: limitFunc = reconstruction_f.nolimit
@@ -695,13 +692,15 @@ class Simulation(NullSimulation):
         #---------------------------------------------------------------------
         S = self.aux_data.get_var("source_y")
         S_t_centred = myg.scratch_array()
-        S = self.aux_data.get_var("source_y")
+
         if self.cc_data.t == 0:
             S_t_centred.d[:,:] = 0.5 * (oldS.d + S.d)
         else:
             S_t_centred.d[:,:] = S.d + self.dt * 0.5 * (S.d - oldS.d) / self.old_dt
 
         self.compute_base_velocity(S=S_t_centred)
+
+        # FIXME: base state forcing?
 
         #---------------------------------------------------------------------
         # 3. get the advective velocities
@@ -740,27 +739,8 @@ class Simulation(NullSimulation):
         coeff.d[:,:] *= zeta.d2d()
         self.aux_data.fill_BC("coeff")
 
-        # create source term
-        # this is problematic in the gr case as this source term is a vector:
-        # in Newtonian case, it's a scalar (times the radial normal vector)
-        # FIXME: for now, shall just calculate radial component and wish for the # best.
-        # FIXME: not sure this is the right source term for the elliptic?
-        mom_source = myg.scratch_array()
-
-        # TODO: slicing rather than looping
-        #for i in range(myg.qx):
-        #    for j in range(myg.qy):
-        #        chrls = self.metric.christoffels([self.cc_data.t, i,j])
-        #        mom_source.d[i,j] = -(chrls[0,0,2] +
-        #        (chrls[1,0,2] + chrls[0,1,2]) * u.d[i,j] +
-        #        (chrls[2,0,2] + chrls[0,2,2]) * v.d[i,j] +
-        #        chrls[1,1,2] * u.d[i,j]**2 + chrls[2,2,2] * v.d[i,j]**2 +
-        #        (chrls[2,1,2] + chrls[1,2,2]) * u.d[i,j] * v.d[i,j])
-
-
         g = self.rp.get_param("lm-gr.grav")
-        #c = self.rp.get_param("lm-gr.c")
-        #R = self.rp.get_param("lm-gr.radius")
+
         Dprime = self.make_prime(D, D0)
         _um, _vm = lm_interface_f.mac_vels(myg.qx, myg.qy, myg.ng,
                                            myg.dx, myg.dy, self.dt,
@@ -769,7 +749,7 @@ class Simulation(NullSimulation):
                                            ldelta_uy, ldelta_vy,
                                            coeff.d*gradp_x.d,
                                            coeff.d*gradp_y.d,
-                                           S.d)
+                                           S_t_centred.d)
 
         u_MAC = patch.ArrayIndexer(d=_um, grid=myg)
         v_MAC = patch.ArrayIndexer(d=_vm, grid=myg)
@@ -851,7 +831,6 @@ class Simulation(NullSimulation):
         v_MAC.v(buf=b)[:,:] -= \
                 coeff_y.v(buf=b) * (phi_MAC.v(buf=b) - phi_MAC.jp(-1, buf=b)) / myg.dy
 
-
         #---------------------------------------------------------------------
         # 4. predict D to the edges and do its conservative update
         #---------------------------------------------------------------------
@@ -878,8 +857,6 @@ class Simulation(NullSimulation):
         self.cc_data.fill_BC("density")
 
         D0_yint = patch.ArrayIndexer(d=_r0y, grid=myg)
-
-        #D0_old = D0.copy()
 
         D02d = myg.scratch_array()
         D02d.d[:,:] = D0.d2d()
@@ -942,13 +919,13 @@ class Simulation(NullSimulation):
         #---------------------------------------------------------------------
         # 5. React state through dt/2
         #---------------------------------------------------------------------
-        self.react_state()
+        self.react_state(S=self.compute_S(u=u_MAC, v=v_MAC))
 
         #---------------------------------------------------------------------
         # 6. Compute time-centred expasion S, base state velocity U0 and
         # base state forcing
         #---------------------------------------------------------------------
-        S_star = self.compute_S()
+        S_star = self.compute_S(u=u_MAC, v=v_MAC)
 
         S_half_star = 0.5 * (S + S_star)
 
@@ -958,6 +935,8 @@ class Simulation(NullSimulation):
 
         self.compute_base_velocity(p0=p0_half_star, S=S_half_star)
 
+        # FIXME: need base state forcing
+
         #---------------------------------------------------------------------
         # 7. recompute the interface states, using the advective velocity
         # from above
@@ -965,18 +944,6 @@ class Simulation(NullSimulation):
         if self.verbose > 0:
             print("  making u, v edge states")
 
-        # create source term
-        # have used MAC velocities here?
-        # TODO: slicing rather than looping
-        #for i in range(myg.qx):
-        #    for j in range(myg.qy):
-        #        chrls = self.metric.christoffels([self.cc_data.t, i,j])
-        #        mom_source.d[i,j] = -(chrls[0,0,2] +
-        #        (chrls[1,0,2] + chrls[0,1,2]) * u_MAC.d[i,j] +
-        #        (chrls[2,0,2] + chrls[0,2,2]) * v_MAC.d[i,j] +
-        #        chrls[1,1,2] * u_MAC.d[i,j]**2 +
-        #        chrls[2,2,2] * v_MAC.d[i,j]**2 +
-        #        (chrls[2,1,2] + chrls[1,2,2]) * u_MAC.d[i,j] * v_MAC.d[i,j])
 
         coeff = self.aux_data.get_var("coeff")
         coeff.v()[:,:] = 2.0 / ((Dh.v() + Dh_old.v()) * u0.v())
@@ -989,7 +956,7 @@ class Simulation(NullSimulation):
                                      ldelta_ux, ldelta_vx,
                                      ldelta_uy, ldelta_vy,
                                      coeff.d*gradp_x.d, coeff.d*gradp_y.d,
-                                     S.d,
+                                     S_half_star.d,
                                      u_MAC.d, v_MAC.d)
 
         u_xint = patch.ArrayIndexer(d=_ux, grid=myg)
@@ -1017,7 +984,6 @@ class Simulation(NullSimulation):
         advect_y.v()[:,:] = \
             0.5*(u_MAC.v() + u_MAC.ip(1))*(v_xint.ip(1) - v_xint.v())/myg.dx +\
             0.5*(v_MAC.v() + v_MAC.jp(1))*(v_yint.jp(1) - v_yint.v())/myg.dy
-        #print(v_yint.d[20:30, 20:30])
 
         proj_type = self.rp.get_param("lm-gr.proj_type")
 
@@ -1031,13 +997,6 @@ class Simulation(NullSimulation):
 
 
         # add the gravitational source
-        # TODO: check this for gr case
-        #u0 = self.metric.calcu0()
-        #D_half = 0.5 * (D + D_old)
-        #Dprime = self.make_prime(D_half, D0)
-        #source.d[:,:] = (Dprime * g / D_half).d
-        #self.aux_data.fill_BC("source_y")
-
         # TODO: slicing rather than looping
         for i in range(myg.qx):
             for j in range(myg.qy):
@@ -1141,7 +1100,7 @@ class Simulation(NullSimulation):
         #---------------------------------------------------------------------
         # 9. React state through dt/2
         #---------------------------------------------------------------------
-        self.react_state()
+        self.react_state(S=self.compute_S())
 
         #---------------------------------------------------------------------
         # 10. Define the new time expansion S and Gamma1
@@ -1180,7 +1139,6 @@ class Simulation(NullSimulation):
         div_zeta_U.v()[:,:] = \
             0.5 * zeta.v2d() * (u.ip(1) - u.ip(-1))/myg.dx + \
             0.5 * (zeta.v2dp(1)*v.jp(1) - zeta.v2dp(-1)*v.jp(-1))/myg.dy
-        # FIXME: this is zero always as u, v are zero
 
         constraint = self.constraint_source()
         mg.init_RHS(div_zeta_U.v(buf=1)/self.dt - constraint.v(buf=1)/self.dt)
@@ -1196,8 +1154,6 @@ class Simulation(NullSimulation):
         # store the solution in our self.cc_data object -- include a single
         # ghostcell
         phi.d[:,:] = mg.get_solution(grid=myg).d
-        # FIXME: this is always zero at the moment?
-        #print(phi.d[0:10, 0:10])
 
         # get the cell-centered gradient of p and update the velocities
         # this differs depending on what we projected.

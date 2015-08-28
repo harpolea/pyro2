@@ -91,15 +91,13 @@ def init_data(my_data, base, rp, metric):
     enth.d[idx] = eint.d[idx] + pres.d[idx] / dens.d[idx]
 
     # redo the pressure via TOV
-    #for j in range(myg.jlo+1, myg.jhi):
-    #    base["p0"].d[j] = base["p0"].d[j-1] + 0.5*myg.dy*(base["D0"].d[j] + base["D0"].d[j-1]) * grav
-    # FIXME: do this properly
     u0 = metric.calcu0()
     p0.d[:] = (D0.d / u0.d1d())**gamma
 
     for i in range(myg.jlo, myg.jhi+1):
-        p0.d[i] = p0.d[i-1] - myg.dy * g * Dh0.d[i] / \
-            (u0.d1d()[i] * c**2 * metric.alpha.d[i]**2 * R)
+        p0.d[i] = p0.d[i-1] + \
+                  myg.dy * g * (2. * p0.d[i-1] * (1. + metric.alpha.d[i]**4) -
+                  Dh0.d[i] / u0.d1d()[i]) / (c**2 * metric.alpha.d[i]**2 * R)
 
     # multiply by correct u0s
     dens.d[:, :] *= u0.d  # rho * u0
