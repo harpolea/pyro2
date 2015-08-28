@@ -89,7 +89,7 @@ def doit(solver_name, problem_name, param_file,
 
     dovis = rp.get_param("vis.dovis")
     if dovis:
-        plt.figure(num=1, figsize=(8,6), dpi=100, facecolor='w')
+        plt.figure(num=1, figsize=(10,7), dpi=100, facecolor='w')
         plt.show(block=False)
         sim.dovis()
 

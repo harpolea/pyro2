@@ -1,3 +1,9 @@
+"""
+Make resulting png plot output into a gif with:
+    convert -delay 20 -loop 0 lm_gr/results/bubble*.png  lm_gr/results/bubble_128.gif
+
+"""
+
 from __future__ import print_function
 
 import sys
@@ -5,7 +11,7 @@ import mesh.patch as patch
 import numpy as np
 from util import msg
 
-def init_data(my_data, base, rp):
+def init_data(my_data, base, rp, metric):
     """ initialize the bubble problem """
 
     msg.bold("initializing the bubble problem...")
@@ -55,25 +61,17 @@ def init_data(my_data, base, rp):
     #                      dens_cutoff)
     dens.v()[:, :] = dens_base * \
         np.exp(-g * myg.y[np.newaxis, myg.jlo:myg.jhi+1] /
-                (gamma * c**2 * R))
-               #(gamma * c**2 * R * metric.alpha.v2d()**2))
+                (gamma * c**2 * R * metric.alpha.v2d()**2))
 
     #cs2 = scale_height * abs(g)
 
     # set the pressure (P = cs2*dens)
     #pres = cs2 * dens
     pres.d[:,:] = dens.d**gamma
-    eint.d[:,:] = pres.d/(gamma - 1.0)/dens.d
+    eint.d[:,:] = pres.d / (gamma - 1.0) / dens.d
     enth.d[:, :] = eint.d + pres.d / dens.d # Newtonian
 
-    # boost the specific internal energy, keeping the pressure
-    # constant, by dropping the density
-    r = np.sqrt((myg.x2d - x_pert)**2  + (myg.y2d - y_pert)**2)
-
-    idx = r <= r_pert
-    eint.d[idx] = eint.d[idx]*pert_amplitude_factor
-    dens.d[idx] = pres.d[idx]/(eint.d[idx]*(gamma - 1.0))
-    enth.d[idx] = eint.d[idx] + pres.d[idx]/dens.d[idx]
+    my_data.fill_BC_all()
 
     # do the base state
     p0 = base["p0"]
@@ -83,25 +81,31 @@ def init_data(my_data, base, rp):
     Dh0.d[:] = np.mean(enth.d, axis=0)
     p0.d[:] = np.mean(pres.d, axis=0)
 
+    # boost the specific internal energy, keeping the pressure
+    # constant, by dropping the density
+    r = np.sqrt((myg.x2d - x_pert)**2  + (myg.y2d - y_pert)**2)
+
+    idx = r <= r_pert
+    eint.d[idx] = eint.d[idx] * pert_amplitude_factor
+    dens.d[idx] = pres.d[idx] / (eint.d[idx] * (gamma - 1.0))
+    enth.d[idx] = eint.d[idx] + pres.d[idx] / dens.d[idx]
+
     # redo the pressure via TOV
     #for j in range(myg.jlo+1, myg.jhi):
     #    base["p0"].d[j] = base["p0"].d[j-1] + 0.5*myg.dy*(base["D0"].d[j] + base["D0"].d[j-1]) * grav
     # FIXME: do this properly
-    u01d = p0.copy()
-    u01d.d[:] = 1.
-    alpha = u01d.copy()
-    drp0 = u01d.copy()
+    u0 = metric.calcu0()
+    p0.d[:] = (D0.d / u0.d1d())**gamma
 
-    drp0.d[:] = g * (Dh0.d / u01d.d + 2. * p0.d * (1. - alpha.d**4)) / \
-          (R * c**2 * alpha.d**2)
+    for i in range(myg.jlo, myg.jhi+1):
+        p0.d[i] = p0.d[i-1] - myg.dy * g * Dh0.d[i] / \
+            (u0.d1d()[i] * c**2 * metric.alpha.d[i]**2 * R)
 
-    p0.jp(1, buf=1)[:] = p0.v(buf=1) + 0.5 * myg.dy * \
-                             (drp0.jp(1, buf=1) + drp0.v(buf=1))
-
-    # FIXME: uncomment
     # multiply by correct u0s
-    #dens.d[:, :] *= u0.d  # rho * u0
-    #enth.d[:, :] *= u0.d * dens.d  # rho * h * u0
+    dens.d[:, :] *= u0.d  # rho * u0
+    enth.d[:, :] *= dens.d  # rho * h * u0
+    D0.d[:] *= u0.d1d()
+    Dh0.d[:] *= D0.d
 
     my_data.fill_BC_all()
 

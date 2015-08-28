@@ -4,6 +4,8 @@ TODO: updateZeta?? What is zeta actually supposed to be? How is it calculated?
 TODO: D ln u0/Dt term in momentum equation?
 
 TODO: find out where the slow parts are and speed them up
+
+FIXME: base state boundary conditions
 """
 
 
@@ -208,9 +210,6 @@ class Simulation(NullSimulation):
         self.base["old_p0"] = Basestate(myg.ny, ng=myg.ng)
         self.base["U0"] = Basestate(myg.ny, ng=myg.ng)
 
-        # now set the initial conditions for the problem
-        exec(self.problem_name + '.init_data(self.cc_data, self.base, self.rp)')
-
         # add metric
         g = self.rp.get_param("lm-gr.grav")
         c = self.rp.get_param("lm-gr.c")
@@ -222,6 +221,9 @@ class Simulation(NullSimulation):
         gamma_matrix = np.sqrt(1. + 2. * g / c**2) * np.eye(2)
         self.metric = metric.Metric(self.cc_data, self.rp, alpha, beta, gamma_matrix)
         u0 = self.metric.calcu0()
+
+        # now set the initial conditions for the problem
+        exec(self.problem_name + '.init_data(self.cc_data, self.base, self.rp, self.metric)')
 
         # Construct zeta
         # FIXME: what is zeta supposed to be???
@@ -1040,7 +1042,7 @@ class Simulation(NullSimulation):
         for i in range(myg.qx):
             for j in range(myg.qy):
                 chrls = self.metric.christoffels([self.cc_data.t, i,j])
-                mom_source.d[i,j] = (chrls[0,0,2] +
+                mom_source.d[i,j] = -(chrls[0,0,2] +
                 (chrls[1,0,2] + chrls[0,1,2]) * u.d[i,j] +
                 (chrls[2,0,2] + chrls[0,2,2]) * v.d[i,j] +
                 chrls[1,1,2] * u.d[i,j]**2 + chrls[2,2,2] * v.d[i,j]**2 +
@@ -1257,7 +1259,7 @@ class Simulation(NullSimulation):
         #vort.v()[:,:] = dv - du
 
         fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
-        plt.subplots_adjust(hspace=0.25)
+        plt.subplots_adjust(hspace=0.3)
 
         fields = [D, magvel, v, Dprime]
         field_names = [r"$D$", r"$|U|$", r"$V$", r"$D'$"]

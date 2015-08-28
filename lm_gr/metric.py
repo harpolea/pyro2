@@ -162,7 +162,7 @@ class Metric:
         R = self.rp.get_param("lm-gr.radius")
         c = self.rp.get_param("lm-gr.c")
 
-        # For simple time-lagged metric, only have 7 non-zero (3 unique) christoffels.
+        # For simple time-lagged metric, only have 7 non-zero (4 unique) christoffels.
         # t_tr
         christls[0, 0, 2] = g / (self.alpha.d[x[2]]**2 * c**2 * R)
         # t_rt
