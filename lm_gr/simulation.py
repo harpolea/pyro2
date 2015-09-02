@@ -16,6 +16,7 @@ import sys
 
 import numpy as np
 import matplotlib.pyplot as plt
+import pdb
 
 from lm_gr.problems import *
 import lm_gr.LM_gr_interface_f as lm_interface_f
@@ -174,6 +175,7 @@ class Simulation(NullSimulation):
         # = 0) -- this ensures that we do not introduce any tangental
         # acceleration.
         bcs = []
+        # CHANGED: I think the neumann/dirichlet thing here was the wrong way around?
         for bc in [self.rp.get_param("mesh.xlboundary"),
                    self.rp.get_param("mesh.xrboundary"),
                    self.rp.get_param("mesh.ylboundary"),
@@ -181,9 +183,11 @@ class Simulation(NullSimulation):
             if bc == "periodic":
                 bctype = "periodic"
             elif bc in ["reflect", "slipwall"]:
-                bctype = "neumann"
+        #        bctype = "neumann"
+                 bctype = "dirichlet"
             elif bc in ["outflow"]:
-                bctype = "dirichlet"
+        #        bctype = "dirichlet"
+                 bctype = "neumann"
             bcs.append(bctype)
 
         bc_phi = patch.BCObject(xlb=bcs[0], xrb=bcs[1], ylb=bcs[2], yrb=bcs[3])
@@ -226,16 +230,19 @@ class Simulation(NullSimulation):
         R = self.rp.get_param("lm-gr.radius")
 
         alpha = Basestate(myg.ny, ng=myg.ng)
+
         # r = y + R, where r is measured from the centre of the star,
         # R is the star's radius and y is measured from the surface
         alpha.d[:] = np.sqrt(1. - 2. * g * (1. - myg.y[:]/R) / (R* c**2))
+
         beta = [0., 0.]
-        # FIXME: get rid of for loops
-        gamma_matrix = np.zeros((myg.qx, myg.qy, 2, 2))
-        for i in range(myg.qx):
-            for j in range(myg.qy):
-                gamma_matrix[i, j, :,:] = 1. + 2. * g * (1. - myg.y[j]/R) / (R * c**2) * np.eye(2)
+
+        gamma_matrix = np.zeros((myg.qx, myg.qy, 2, 2), dtype=np.float64)
+        gamma_matrix[:, :, :,:] = 1. + 2. * g * \
+            (1. - myg.y[np.newaxis, :, np.newaxis, np.newaxis] / R) / \
+            (R * c**2) * np.eye(2)[np.newaxis, np.newaxis, :, :]
         self.metric = metric.Metric(self.cc_data, self.rp, alpha, beta, gamma_matrix)
+
         u0 = self.metric.calcu0()
 
         # now set the initial conditions for the problem
@@ -380,8 +387,6 @@ class Simulation(NullSimulation):
         drp0 = self.drp0()
         if S is None:
             S = self.aux_data.get_var("source_y")
-
-        # CHANGED: see what happens if apply source terms to the whole grid,  not just the interior cells
 
         Dh.d[:,:] += 0.5 * self.dt * (S.d * Dh.d +
                                         u0.d * v.d * drp0.d)
@@ -719,6 +724,8 @@ class Simulation(NullSimulation):
 
         self.compute_base_velocity(S=S_t_centred)
 
+        #pdb.set_trace()
+
         # FIXME: base state forcing?
 
         #---------------------------------------------------------------------
@@ -955,6 +962,8 @@ class Simulation(NullSimulation):
 
         # FIXME: need base state forcing
 
+        #pdb.set_trace()
+
         #---------------------------------------------------------------------
         # 7. recompute the interface states, using the advective velocity
         # from above
@@ -1027,6 +1036,8 @@ class Simulation(NullSimulation):
                 (chrls[2,1,2] + chrls[1,2,2]) * u.d[i,j] * v.d[i,j])
 
         v.d[:,:] += self.dt * mom_source.d
+
+        #pdb.set_trace()
 
         self.cc_data.fill_BC("x-velocity")
         self.cc_data.fill_BC("y-velocity")
@@ -1128,6 +1139,8 @@ class Simulation(NullSimulation):
 
         S = self.compute_S()
 
+        #pdb.set_trace()
+
         #---------------------------------------------------------------------
         # 11. project the final velocity
         #---------------------------------------------------------------------
@@ -1204,8 +1217,11 @@ class Simulation(NullSimulation):
         # FIXME: bcs for base state data
         for var in self.base.values():
             for gz in range(1,myg.ng):
-                var.d[myg.jlo-gz] = var.d[myg.jlo]
+                #var.d[myg.jlo-gz] = var.d[myg.jlo]
                 var.d[myg.jhi+gz] = var.d[myg.jhi]
+
+                # reflect lower boundary, outflow upper
+                var.d[myg.jlo-gz] = var.d[myg.jlo + gz - 1]
 
         # increment the time
         if not self.in_preevolve:
