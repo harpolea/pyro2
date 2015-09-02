@@ -56,6 +56,8 @@ class Metric:
         sg.d[:, :] = [[np.sqrt(-1. * np.linalg.det(self.g([0, i, j])))
                       for j in range(0, myg.qy)] for i in range(0, myg.qx)]
 
+        # TODO: check that this is equal to alpha * sgamma
+
         sgamma.d[:, :] = [[np.sqrt(np.linalg.det((self.g([0, i, j]))[1:, 1:]))
                            for j in range(0, myg.qy)]
                           for i in range(0, myg.qx)]
@@ -65,6 +67,12 @@ class Metric:
     def calcW(self):
         """
         Calculates the Lorentz factor and returns it.
+
+        u, v are x, r components of U^i, where U^i = u^i / u^0
+
+        V^i = (U^i + beta^i) / alpha
+
+        W = (1 - V^i*V_i)^(-1/2)
 
         Returns
         -------
@@ -83,8 +91,10 @@ class Metric:
         for i in range(self.cc_data.grid.qx):
             for j in range(self.cc_data.grid.qy):
                 V = np.array([u.d[i,j], v.d[i,j]]) + self.beta
-                W.d[i,j] = (np.mat(V) * np.mat(self.gamma) * np.mat(V).T).item()
-        W.d[:,:] = 1. - W.d / self.alpha.d2d()**2 * c**2
+                # set W = V^i*V_i = V^i * gamma_ij * V^j
+                # TODO: do this with numpy einsum
+                W.d[i,j] = (np.mat(V) * np.mat(self.gamma[i,j,:,:]) * np.mat(V).T).item()
+        W.d[:,:] = 1. - W.d / (self.alpha.d2d()**2 * c**2)
 
         try:
             W.d[:, :] = 1. / np.sqrt(W.d)
@@ -118,7 +128,7 @@ class Metric:
 
     def g(self, x):
         """
-        Calculates the 2+1-metric at the coordinate x.
+        Calculates the 2+1 downstairs metric at the coordinate x.
         Currently only alpha has any x-dependence (in radial direction only)
 
         Parameters
@@ -136,13 +146,15 @@ class Metric:
         met[0, 0] = -self.alpha.d[x[2]]**2 + np.dot(self.beta, self.beta)
         met[0, 1:] = np.transpose(self.beta)
         met[1:, 0] = self.beta
-        met[1:, 1:] = self.gamma
+        met[1:, 1:] = self.gamma[x[1], x[2], :, :]
 
         return met
 
     def christoffels(self, x):
         """
         Calculates the Christoffel symbols of the metric at the given point.
+
+        TODO: un-hardcode these
 
         Parameters
         ----------

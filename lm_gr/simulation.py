@@ -6,8 +6,9 @@ TODO: D ln u0/Dt term in momentum equation?
 TODO: find out where the slow parts are and speed them up
 
 FIXME: base state boundary conditions
-"""
 
+FIXME: check edge/cell-centred/time-centred quantities used correctly
+"""
 
 from __future__ import print_function
 
@@ -50,6 +51,9 @@ class Basestate(object):
         return np.array([self.d, ] * qx)
 
     def v(self, buf=0):
+        """
+        array without the ghost cells
+        """
         return self.d[self.jlo-buf:self.jhi+1+buf]
 
     def v2d(self, buf=0):
@@ -62,6 +66,9 @@ class Basestate(object):
         return np.array(self.d[self.jlo-buf:self.jhi+1+buf, ] * qx)
 
     def v2dp(self, shift, buf=0):
+        """
+        2d shifted without ghost cells
+        """
         return self.d[np.newaxis,self.jlo+shift-buf:self.jhi+1+shift+buf]
 
     def v2dpf(self, qx, shift, buf=0):
@@ -71,6 +78,9 @@ class Basestate(object):
         return np.array(self.d[self.jlo+shift-buf:self.jhi+1+shift+buf, ] * qx)
 
     def jp(self, shift, buf=0):
+        """
+        1d shifted without ghost cells
+        """
         return self.d[self.jlo-buf+shift:self.jhi+1+buf+shift]
 
     def copy(self):
@@ -216,9 +226,15 @@ class Simulation(NullSimulation):
         R = self.rp.get_param("lm-gr.radius")
 
         alpha = Basestate(myg.ny, ng=myg.ng)
-        alpha.d[:] = np.sqrt(1. - 2. * g * (1. - myg.y[:]/R) / c**2)
+        # r = y + R, where r is measured from the centre of the star,
+        # R is the star's radius and y is measured from the surface
+        alpha.d[:] = np.sqrt(1. - 2. * g * (1. - myg.y[:]/R) / (R* c**2))
         beta = [0., 0.]
-        gamma_matrix = np.sqrt(1. + 2. * g / c**2) * np.eye(2)
+        # FIXME: get rid of for loops
+        gamma_matrix = np.zeros((myg.qx, myg.qy, 2, 2))
+        for i in range(myg.qx):
+            for j in range(myg.qy):
+                gamma_matrix[i, j, :,:] = 1. + 2. * g * (1. - myg.y[j]/R) / (R * c**2) * np.eye(2)
         self.metric = metric.Metric(self.cc_data, self.rp, alpha, beta, gamma_matrix)
         u0 = self.metric.calcu0()
 
@@ -226,10 +242,10 @@ class Simulation(NullSimulation):
         exec(self.problem_name + '.init_data(self.cc_data, self.base, self.rp, self.metric)')
 
         # Construct zeta
-        # FIXME: what is zeta supposed to be???
         gamma = self.rp.get_param("eos.gamma")
         self.base["zeta"] = Basestate(myg.ny, ng=myg.ng)
         D0 = self.base["D0"]
+        # FIXME: check whether this is D or rho
         self.base["zeta"].d[:] = D0.d
 
         # we'll also need zeta on vertical edges -- on the domain edges,
@@ -344,6 +360,7 @@ class Simulation(NullSimulation):
         # FIXME: assumed it's 0 for now
 
         constraint = myg.scratch_array()
+        # assumed adiabatic EoS so that Gamma_1 = gamma
         constraint.d[:,:] = zeta.d2df(myg.qx) * (S.d - dp0dt.d2df(myg.qx) / (gamma * p0.d2df(myg.qx)))
 
         return constraint
@@ -364,15 +381,17 @@ class Simulation(NullSimulation):
         if S is None:
             S = self.aux_data.get_var("source_y")
 
-        Dh.v()[:,:] += 0.5 * self.dt * (S.v() * Dh.v() +
-                                        u0.v() * v.v() * drp0.v())
+        # CHANGED: see what happens if apply source terms to the whole grid,  not just the interior cells
 
-        D.v()[:,:] += 0.5 * self.dt * (S.v() * D.v())
+        Dh.d[:,:] += 0.5 * self.dt * (S.d * Dh.d +
+                                        u0.d * v.d * drp0.d)
+
+        D.d[:,:] += 0.5 * self.dt * (S.d * D.d)
 
 
     def advect_base_density(self, D0=None, U0=None):
         """
-        Updates the base state density through one timestep. Eq. 6.130.
+        Updates the base state density through one timestep. Eq. 6.131.
         """
         myg = self.cc_data.grid
         if D0 is None:
@@ -402,7 +421,7 @@ class Simulation(NullSimulation):
 
     def drp0(self):
         """
-        Calculate drp0 as it's messy using eq 6.135
+        Calculate drp0 as it's messy using eq 6.136
         """
         myg = self.cc_data.grid
         p0 = self.base["p0"]
@@ -443,7 +462,7 @@ class Simulation(NullSimulation):
 
     def compute_base_velocity(self, p0=None, S=None):
         """
-        Caclulates the base velocity using eq. 6.137
+        Caclulates the base velocity using eq. 6.138
         """
         myg = self.cc_data.grid
         if p0 is None:
@@ -741,7 +760,6 @@ class Simulation(NullSimulation):
 
         g = self.rp.get_param("lm-gr.grav")
 
-        Dprime = self.make_prime(D, D0)
         _um, _vm = lm_interface_f.mac_vels(myg.qx, myg.qy, myg.ng,
                                            myg.dx, myg.dy, self.dt,
                                            u.d, v.d,
@@ -995,6 +1013,7 @@ class Simulation(NullSimulation):
             u.v()[:,:] -= self.dt * advect_x.v()
             v.v()[:,:] -= self.dt * advect_y.v()
 
+        mom_source = myg.scratch_array()
 
         # add the gravitational source
         # TODO: slicing rather than looping
@@ -1181,6 +1200,12 @@ class Simulation(NullSimulation):
 
         self.cc_data.fill_BC("gradp_x")
         self.cc_data.fill_BC("gradp_y")
+
+        # FIXME: bcs for base state data
+        for var in self.base.values():
+            for gz in range(1,myg.ng):
+                var.d[myg.jlo-gz] = var.d[myg.jlo]
+                var.d[myg.jhi+gz] = var.d[myg.jhi]
 
         # increment the time
         if not self.in_preevolve:
