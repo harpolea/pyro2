@@ -95,9 +95,10 @@ def init_data(my_data, base, rp, metric):
     p0.d[:] = (D0.d / u0.d1d())**gamma
 
     for i in range(myg.jlo, myg.jhi+1):
-        p0.d[i] = p0.d[i-1] + \
-                  myg.dy * g * (2. * p0.d[i-1] * (1. + metric.alpha.d[i]**4) -
-                  Dh0.d[i] / u0.d1d()[i]) / (c**2 * metric.alpha.d[i]**2 * R)
+        p0.d[i] = p0.d[i-1] - \
+                  myg.dy * Dh0.d[i] * g / (R * c**2 * metric.alpha.d[i] **2 * u0.d1d()[i])
+                  #myg.dy * g * (2. * p0.d[i-1] * (1. + metric.alpha.d[i]**4) -
+                  #Dh0.d[i] / u0.d1d()[i]) / (c**2 * metric.alpha.d[i]**2 * R)
 
     # multiply by correct u0s
     dens.d[:, :] *= u0.d  # rho * u0

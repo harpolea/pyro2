@@ -270,6 +270,7 @@ class Simulation(NullSimulation):
         oldS = S.copy()
 
 
+    # This is basically unused now.
     @staticmethod
     def make_prime(a, a0):
         return a - a0.v2d(buf=a0.ng)
@@ -441,8 +442,9 @@ class Simulation(NullSimulation):
 
         drp0 = Basestate(myg.ny, ng=myg.ng)
 
-        drp0.d[:] = g * (2. * p0.d * (1. - alpha.d**4) - Dh0.d / u01d.d) / \
-              (R * c**2 * alpha.d**2)
+        #drp0.d[:] = g * (2. * p0.d * (1. - alpha.d**4) - Dh0.d / u01d.d) / \
+        #      (R * c**2 * alpha.d**2)
+        drp0.d[:] = -Dh0.d * g / (R * c**2 * alpha.d **2 * u01d.d)
 
         return drp0
 
@@ -1026,10 +1028,11 @@ class Simulation(NullSimulation):
 
         # add the gravitational source
         # TODO: slicing rather than looping
+        # I think this term should be positive, but when it is the system crashes?
         for i in range(myg.qx):
             for j in range(myg.qy):
                 chrls = self.metric.christoffels([self.cc_data.t, i,j])
-                mom_source.d[i,j] = -(chrls[0,0,2] +
+                mom_source.d[i,j] = (chrls[0,0,2] +
                 (chrls[1,0,2] + chrls[0,1,2]) * u.d[i,j] +
                 (chrls[2,0,2] + chrls[0,2,2]) * v.d[i,j] +
                 chrls[1,1,2] * u.d[i,j]**2 + chrls[2,2,2] * v.d[i,j]**2 +
