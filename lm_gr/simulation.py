@@ -241,7 +241,9 @@ class Simulation(NullSimulation):
         gamma_matrix[:, :, :,:] = 1. + 2. * g * \
             (1. - myg.y[np.newaxis, :, np.newaxis, np.newaxis] / R) / \
             (R * c**2) * np.eye(2)[np.newaxis, np.newaxis, :, :]
-        self.metric = metric.Metric(self.cc_data, self.rp, alpha, beta, gamma_matrix)
+
+        self.metric = metric.Metric(self.cc_data, self.rp, alpha, beta,
+                                    gamma_matrix)
 
         u0 = self.metric.calcu0()
 
@@ -372,6 +374,40 @@ class Simulation(NullSimulation):
         constraint.d[:,:] = zeta.d2df(myg.qx) * (S.d - dp0dt.d2df(myg.qx) / (gamma * p0.d2df(myg.qx)))
 
         return constraint
+
+    def mom_source(self, u=None, v=None):
+        """
+        calculate the source terms in the momentum equation
+
+        FIXME: need the D_t ln u0 term?
+
+        Returns
+        -------
+        mom_source :
+            Gamma_rho nu j U^nu rho - djp0 / Dh u0
+        """
+        myg = self.cc_data.grid
+        if u is None:
+            u = self.cc_data.get_var("x-velocity")
+        if v is None:
+            v = self.cc_data.get_var("y-velocity")
+        Dh = self.cc_data.get_var("enthalpy")
+        u0 = self.metric.calcu0()
+        mom_source = myg.scratch_array()
+        drp0 = self.drp0()
+
+        for j in range(myg.qy):
+            for i in range(myg.qx):
+                chrls = self.metric.christoffels([self.cc_data.t, i, j])
+                mom_source.d[i, j] = (chrls[0,0,2] +
+                    (chrls[1,0,2] + chrls[0,1,2]) * u.d[i,j] +
+                    (chrls[2,0,2] + chrls[0,2,2]) * v.d[i,j] +
+                    chrls[1,1,2] * u.d[i,j]**2 + chrls[2,2,2] * v.d[i,j]**2 +
+                    (chrls[2,1,2] + chrls[1,2,2]) * u.d[i,j] * v.d[i,j])
+        mom_source.d[:,:] -= drp0.d[np.newaxis,:] / \
+                    (Dh.d[:,:]*u0.d[:,:])
+
+        return mom_source
 
 
     def react_state(self, S=None):
@@ -769,6 +805,10 @@ class Simulation(NullSimulation):
 
         g = self.rp.get_param("lm-gr.grav")
 
+        # FIXME: put this in a function
+
+        mom_source = self.mom_source()
+
         _um, _vm = lm_interface_f.mac_vels(myg.qx, myg.qy, myg.ng,
                                            myg.dx, myg.dy, self.dt,
                                            u.d, v.d,
@@ -776,7 +816,7 @@ class Simulation(NullSimulation):
                                            ldelta_uy, ldelta_vy,
                                            coeff.d*gradp_x.d,
                                            coeff.d*gradp_y.d,
-                                           S_t_centred.d)
+                                           mom_source.d)
 
         u_MAC = patch.ArrayIndexer(d=_um, grid=myg)
         v_MAC = patch.ArrayIndexer(d=_vm, grid=myg)
@@ -973,7 +1013,7 @@ class Simulation(NullSimulation):
         if self.verbose > 0:
             print("  making u, v edge states")
 
-
+        mom_source = self.mom_source(u=u_MAC, v=v_MAC)
         coeff = self.aux_data.get_var("coeff")
         coeff.v()[:,:] = 2.0 / ((Dh.v() + Dh_old.v()) * u0.v())
         coeff.v()[:,:] *= zeta.v2d()
@@ -985,7 +1025,7 @@ class Simulation(NullSimulation):
                                      ldelta_ux, ldelta_vx,
                                      ldelta_uy, ldelta_vy,
                                      coeff.d*gradp_x.d, coeff.d*gradp_y.d,
-                                     S_half_star.d,
+                                     mom_source.d,
                                      u_MAC.d, v_MAC.d)
 
         u_xint = patch.ArrayIndexer(d=_ux, grid=myg)
@@ -1024,20 +1064,8 @@ class Simulation(NullSimulation):
             u.v()[:,:] -= self.dt * advect_x.v()
             v.v()[:,:] -= self.dt * advect_y.v()
 
-        mom_source = myg.scratch_array()
-
-        # add the gravitational source
-        # TODO: slicing rather than looping
-        # I think this term should be positive, but when it is the system crashes?
-        for i in range(myg.qx):
-            for j in range(myg.qy):
-                chrls = self.metric.christoffels([self.cc_data.t, i,j])
-                mom_source.d[i,j] = (chrls[0,0,2] +
-                (chrls[1,0,2] + chrls[0,1,2]) * u.d[i,j] +
-                (chrls[2,0,2] + chrls[0,2,2]) * v.d[i,j] +
-                chrls[1,1,2] * u.d[i,j]**2 + chrls[2,2,2] * v.d[i,j]**2 +
-                (chrls[2,1,2] + chrls[1,2,2]) * u.d[i,j] * v.d[i,j])
-
+        # add on source term
+        mom_source = self.mom_source()
         v.d[:,:] += self.dt * mom_source.d
 
         #pdb.set_trace()

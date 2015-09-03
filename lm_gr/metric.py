@@ -14,7 +14,7 @@ class Metric:
 
     def __init__(self, cellData, rp, alpha, beta, gamma):
         """
-        Initialize the Metric object. This is a standard 3+1 metric.
+        Initialize the Metric object. This is a standard 2+1 metric
 
         Parameters
         ----------
@@ -27,7 +27,7 @@ class Metric:
         beta : float array
             shift vector
         gamma : float array
-            spatial 3-metric
+            spatial 2-metric
         """
 
         self.cc_data = cellData
@@ -40,13 +40,13 @@ class Metric:
 
     def dets(self):
         """
-        Calculates the square roots of the 3- and 4-metric determinants and
+        Calculates the square roots of the 2- and 2+1-metric determinants and
         returns them.
 
         Returns
         -------
         sg, sgamma : float array
-            square roots of the 3- and 4-metric determinants on grid
+            square roots of the 2- and 2+1-metric determinants on grid
         """
         myg = self.cc_data.grid
         sg = myg.scratch_array()
@@ -68,11 +68,20 @@ class Metric:
         """
         Calculates the Lorentz factor and returns it.
 
-        u, v are x, r components of U^i, where U^i = u^i / u^0
+        Variables
+        ---------
 
-        V^i = (U^i + beta^i) / alpha
+        u, v :  x, r components of :math:`U^i`, where :math:`U^i = u^i / u^0`
 
-        W = (1 - V^i*V_i)^(-1/2)
+        V :     contravariant components of the 3-velocity,
+                ..math::
+
+                    V^i = (U^i + beta^i) / alpha
+
+        W :     Lorentz factor
+                ..math::
+
+                    W =  (1 - V^i*V_i)^(-1/2)
 
         Returns
         -------
@@ -110,7 +119,7 @@ class Metric:
 
     def calcu0(self):
         """
-        Calculates the timelike coordinate of the 4-velocity using the Lorentz
+        Calculates the timelike coordinate of the 2+1-velocity using the Lorentz
         factor and alpha, so W = alpha * u0
 
         Returns
