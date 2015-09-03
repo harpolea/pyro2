@@ -24,7 +24,9 @@ def bc_setup(rp):
     ylb_type = rp.get_param("mesh.ylboundary")
     yrb_type = rp.get_param("mesh.yrboundary")
 
+    # CHANGED: density lower bc
     bc = patch.BCObject(xlb=xlb_type, xrb=xrb_type,
+                        #ylb="outflow", yrb=yrb_type)
                         ylb=ylb_type, yrb=yrb_type)
 
     # if we are reflecting, we need odd reflection in the normal
@@ -66,7 +68,7 @@ class NullSimulation(object):
             self.tmax = None
 
         try:
-            self.max_steps = rp.get_param("driver.max_steps")            
+            self.max_steps = rp.get_param("driver.max_steps")
         except:
             self.max_steps = None
 

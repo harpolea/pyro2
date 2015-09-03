@@ -192,9 +192,11 @@ class Simulation(NullSimulation):
 
         bc_phi = patch.BCObject(xlb=bcs[0], xrb=bcs[1], ylb=bcs[2], yrb=bcs[3])
 
-        my_data.register_var("phi-MAC", bc_phi)
-        my_data.register_var("phi", bc_phi)
-
+        # CHANGED: tried setting phi BCs to same as density?
+        #my_data.register_var("phi-MAC", bc_phi)
+        #my_data.register_var("phi", bc_phi)
+        my_data.register_var("phi-MAC", bc_dens)
+        my_data.register_var("phi", bc_dens)
 
         # gradp -- used in the projection and interface states.  We'll do the
         # same BCs as density
@@ -324,7 +326,7 @@ class Simulation(NullSimulation):
         """
         S = -Gamma^mu_(mu nu) U^nu   (see eq 6.34, 6.37 in LowMachGR).
         base["source-y"] is not updated here as it's sometimes necessary to
-        calculate projections and not S^n
+        calculate projections of S (e.g. S^n*) and not S^n
         """
         myg = self.cc_data.grid
         S = myg.scratch_array()
@@ -344,7 +346,7 @@ class Simulation(NullSimulation):
         return S
 
 
-    def constraint_source(self):
+    def constraint_source(self, u=None, v=None, S=None):
         """
         calculate the source terms in the constraint, zeta(S - dpdt/ Gamma1 p)
 
@@ -359,10 +361,13 @@ class Simulation(NullSimulation):
         c = self.rp.get_param("lm-gr.c")
         R = self.rp.get_param("lm-gr.radius")
         gamma = self.rp.get_param("eos.gamma")
-        u = self.cc_data.get_var("x-velocity")
-        v = self.cc_data.get_var("y-velocity")
+        if u is None:
+            u = self.cc_data.get_var("x-velocity")
+        if v is None:
+            v = self.cc_data.get_var("y-velocity")
         zeta = self.base["zeta"]
-        S = self.aux_data.get_var("source_y")
+        if S is None:
+            S = self.aux_data.get_var("source_y")
 
         p0 = self.base["p0"]
         dp0dt = Basestate(myg.ny, ng=myg.ng)
@@ -375,7 +380,7 @@ class Simulation(NullSimulation):
 
         return constraint
 
-    def mom_source(self, u=None, v=None):
+    def calc_mom_source(self, u=None, v=None):
         """
         calculate the source terms in the momentum equation
 
@@ -404,10 +409,30 @@ class Simulation(NullSimulation):
                     (chrls[2,0,2] + chrls[0,2,2]) * v.d[i,j] +
                     chrls[1,1,2] * u.d[i,j]**2 + chrls[2,2,2] * v.d[i,j]**2 +
                     (chrls[2,1,2] + chrls[1,2,2]) * u.d[i,j] * v.d[i,j])
-        mom_source.d[:,:] -= drp0.d[np.newaxis,:] / \
-                    (Dh.d[:,:]*u0.d[:,:])
+        mom_source.d[:,:] -= drp0.d[np.newaxis,:] / (Dh.d[:,:]*u0.d[:,:])
 
         return mom_source
+
+    def calc_psi(self, S=None, U0=None):
+        """
+        calculate psi
+        """
+        myg = self.cc_data.grid
+        if S is None:
+            S = self.aux_data.get_var("source_y")
+        if U0 is None:
+            U0 = self.base["U0"]
+        gamma = self.rp.get_param("eos.gamma")
+        p0 = self.base["p0"]
+        old_p0 = self.base["old_p0"]
+
+        psi = Basestate(myg.ny, ng=myg.ng)
+
+        psi.v(buf=myg.ng-1)[:] = gamma * 0.5 * \
+            (p0.v(buf=myg.ng-1) + old_p0.v(buf=myg.ng-1)) * \
+            (self.lateral_average(S.v(buf=myg.ng-1)) - (U0.jp(1, buf=myg.ng-1) - U0.v(buf=myg.ng-1)))
+
+        return psi
 
 
     def react_state(self, S=None):
@@ -425,8 +450,7 @@ class Simulation(NullSimulation):
         if S is None:
             S = self.aux_data.get_var("source_y")
 
-        Dh.d[:,:] += 0.5 * self.dt * (S.d * Dh.d +
-                                        u0.d * v.d * drp0.d)
+        Dh.d[:,:] += 0.5 * self.dt * (S.d * Dh.d + u0.d * v.d * drp0.d)
 
         D.d[:,:] += 0.5 * self.dt * (S.d * D.d)
 
@@ -451,14 +475,16 @@ class Simulation(NullSimulation):
         """
         enforces the TOV equation. This is the GR equivalent of enforce_hse. Eq. 6.132.
         """
+        myg = self.cc_data.grid
         if p0 is None:
             p0 = self.base["p0"]
         old_p0 = self.base["old_p0"]
         old_p0 = p0.copy()
         drp0 = self.drp0()
 
-        p0.jp(1, buf=1)[:] = p0.v(buf=1) + 0.5 * self.cc_data.grid.dy * \
-                             (drp0.jp(1, buf=1) + drp0.v(buf=1))
+        p0.jp(1, buf=myg.ng-1)[:] = p0.v(buf=myg.ng-1) + 0.5 * \
+            self.cc_data.grid.dy * \
+            (drp0.jp(1, buf=myg.ng-1) + drp0.v(buf=myg.ng-1))
 
 
     def drp0(self):
@@ -498,6 +524,7 @@ class Simulation(NullSimulation):
             U0 = self.base["U0"]
 
         # FIXME: calculate U_0, find out how to find the time-centred edge states and use them here.
+        # FIXME: add psi
 
         Dh0.v()[:] += -(Dh0.jp(1) * U0.jp(1) - Dh0.v() * U0.v()) * dt / dr + \
                       dt * U0.v() * self.drp0().v()
@@ -633,9 +660,9 @@ class Simulation(NullSimulation):
 
         # u/v are cell-centered, divU is cell-centered
         div_zeta_U.v()[:,:] = \
-            0.5*zeta.v2df(myg.qx)*(u.ip(1) - u.ip(-1))/myg.dx + \
-            0.5*(zeta.v2dpf(myg.qx, 1)*v.jp(1) - \
-            zeta.v2dpf(myg.qx, -1)*v.jp(-1))/myg.dy
+            0.5 * zeta.v2df(myg.qx) * (u.ip(1) - u.ip(-1)) / myg.dx + \
+            0.5 * (zeta.v2dpf(myg.qx, 1) * v.jp(1) - \
+            zeta.v2dpf(myg.qx, -1) * v.jp(-1)) / myg.dy
 
         # solve D (zeta^2/Dh u0) G (phi/zeta) = D( zeta U )
         constraint = self.constraint_source()
@@ -805,9 +832,7 @@ class Simulation(NullSimulation):
 
         g = self.rp.get_param("lm-gr.grav")
 
-        # FIXME: put this in a function
-
-        mom_source = self.mom_source()
+        mom_source = self.calc_mom_source()
 
         _um, _vm = lm_interface_f.mac_vels(myg.qx, myg.qy, myg.ng,
                                            myg.dx, myg.dy, self.dt,
@@ -835,7 +860,7 @@ class Simulation(NullSimulation):
         if self.verbose > 0:
             print("  MAC projection")
 
-        # create the coefficient array: zeta**2/D
+        # create the coefficient array: zeta**2/Dh u0
         # MZ!!!! probably don't need the buf here
         # TODO: are zeta, u0 functions of MAC velocities?
         coeff.v(buf=1)[:,:] = 1. / (Dh.v(buf=1) * u0.v(buf=1))
@@ -862,7 +887,7 @@ class Simulation(NullSimulation):
             (zeta_edges.v2dp(1) * v_MAC.jp(1) -
              zeta_edges.v2d() * v_MAC.v()) / myg.dy
 
-        constraint = self.constraint_source()
+        constraint = self.constraint_source(u=u_MAC, v=v_MAC, S=S_t_centred)
 
         # solve the Poisson problem
         mg.init_RHS(div_zeta_U.d - constraint.v(buf=1))
@@ -934,6 +959,10 @@ class Simulation(NullSimulation):
 
         self.enforce_tov()
 
+        # 4F: compute psi^n+1/2,*
+        psi = self.calc_psi(S=S_t_centred)
+
+
         #---------------------------------------------------------------------
         # predict Dh to the edges and do its conservative update
         # see 4H - need to include a pressure source term here?
@@ -954,14 +983,13 @@ class Simulation(NullSimulation):
         drp0 = self.drp0()
 
         # 4Hii.
-        # FIXME: need to add on psi term.
         Dh.v()[:,:] += -self.dt*(
             #  (D u)_x
             (Dh_xint.ip(1)*u_MAC.ip(1) - Dh_xint.v()*u_MAC.v())/myg.dx +
             #  (D v)_y
             (Dh_yint.jp(1)*v_MAC.jp(1) - Dh_yint.v()*v_MAC.v())/myg.dy ) + \
-            self.dt * u0.v() * v_MAC.v() * drp0.v2d()
-
+            self.dt * u0.v() * v_MAC.v() * drp0.v2d() + \
+            self.dt * u0.v() * psi.v()
 
         self.cc_data.fill_BC("enthalpy")
 
@@ -972,9 +1000,10 @@ class Simulation(NullSimulation):
         # FIXME: need a u0 psi term here
         Dh02d = myg.scratch_array()
         Dh02d.d[:,:] = Dh0.d2d()
-        Dh02d.v()[:,:] -= self.dt*(
+        Dh02d.v()[:,:] += -self.dt * (
             #  (D v)_y
-            (Dh0_yint.jp(1)*v_MAC.jp(1) - Dh0_yint.v()*v_MAC.v())/myg.dy)
+            (Dh0_yint.jp(1)*v_MAC.jp(1) - Dh0_yint.v()*v_MAC.v())/myg.dy) + \
+            self.dt * u0.v() * psi.v()
         Dh0.d[:] = self.lateral_average(Dh02d.d)
 
         # update eint as a diagnostic
@@ -1013,7 +1042,7 @@ class Simulation(NullSimulation):
         if self.verbose > 0:
             print("  making u, v edge states")
 
-        mom_source = self.mom_source(u=u_MAC, v=v_MAC)
+        mom_source = self.calc_mom_source(u=u_MAC, v=v_MAC)
         coeff = self.aux_data.get_var("coeff")
         coeff.v()[:,:] = 2.0 / ((Dh.v() + Dh_old.v()) * u0.v())
         coeff.v()[:,:] *= zeta.v2d()
@@ -1065,7 +1094,7 @@ class Simulation(NullSimulation):
             v.v()[:,:] -= self.dt * advect_y.v()
 
         # add on source term
-        mom_source = self.mom_source()
+        mom_source = self.calc_mom_source()
         v.d[:,:] += self.dt * mom_source.d
 
         #pdb.set_trace()
@@ -1117,6 +1146,8 @@ class Simulation(NullSimulation):
 
         self.enforce_tov()
 
+        psi = self.calc_psi(S=S_half_star)
+
         #---------------------------------------------------------------------
         # predict Dh to the edges and do its conservative update
         #---------------------------------------------------------------------
@@ -1134,11 +1165,13 @@ class Simulation(NullSimulation):
 
         Dh_old = Dh.copy()
 
-        Dh.v()[:,:] -= self.dt*(
+        Dh.v()[:,:] += -self.dt*(
             #  (D u)_x
             (Dh_xint.ip(1)*u_MAC.ip(1) - Dh_xint.v()*u_MAC.v())/myg.dx +
             #  (D v)_y
-            (Dh_yint.jp(1)*v_MAC.jp(1) - Dh_yint.v()*v_MAC.v())/myg.dy )
+            (Dh_yint.jp(1)*v_MAC.jp(1) - Dh_yint.v()*v_MAC.v())/myg.dy ) + \
+            self.dt * u0.v() * v_MAC.v() * drp0.v2d() + \
+            self.dt * u0.v() * psi.v()
 
         self.cc_data.fill_BC("enthalpy")
 
@@ -1148,9 +1181,10 @@ class Simulation(NullSimulation):
 
         Dh02d = myg.scratch_array()
         Dh02d.d[:,:] = Dh0.d2d()
-        Dh02d.v()[:,:] -= self.dt*(
+        Dh02d.v()[:,:] += -self.dt*(
             #  (D v)_y
-            (Dh0_yint.jp(1)*v_MAC.jp(1) - Dh0_yint.v()*v_MAC.v())/myg.dy)
+            (Dh0_yint.jp(1)*v_MAC.jp(1) - Dh0_yint.v()*v_MAC.v())/myg.dy) + \
+            self.dt * u0.v() * psi.v()
         Dh0.d[:] = self.lateral_average(Dh02d.d)
 
         # update eint as a diagnostic
@@ -1239,6 +1273,8 @@ class Simulation(NullSimulation):
             gradp_x.v()[:,:] = gradphi_x.v()
             gradp_y.v()[:,:] = gradphi_y.v()
 
+        # enforce boundary conditions
+
         self.cc_data.fill_BC("x-velocity")
         self.cc_data.fill_BC("y-velocity")
 
@@ -1248,11 +1284,11 @@ class Simulation(NullSimulation):
         # FIXME: bcs for base state data
         for var in self.base.values():
             for gz in range(1,myg.ng):
-                #var.d[myg.jlo-gz] = var.d[myg.jlo]
+                var.d[myg.jlo-gz] = var.d[myg.jlo]
                 var.d[myg.jhi+gz] = var.d[myg.jhi]
 
                 # reflect lower boundary, outflow upper
-                var.d[myg.jlo-gz] = var.d[myg.jlo + gz - 1]
+                # var.d[myg.jlo-gz] = var.d[myg.jlo + gz - 1]
 
         # increment the time
         if not self.in_preevolve:
@@ -1291,6 +1327,8 @@ class Simulation(NullSimulation):
 
         fields = [D, magvel, v, Dprime]
         field_names = [r"$D$", r"$|U|$", r"$V$", r"$D'$"]
+        vmins = [98., 0., 0., 0.]
+        vmaxes = [101., 0.06, 0.06, 150.]
 
         for n in range(len(fields)):
             ax = axes.flat[n]
@@ -1299,7 +1337,8 @@ class Simulation(NullSimulation):
 
             img = ax.imshow(np.transpose(f.v()),
                             interpolation="nearest", origin="lower",
-                            extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax])
+                            extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax],
+                            vmin=vmins[n], vmax=vmaxes[n])
 
             ax.set_xlabel(r"$x$")
             ax.set_ylabel(r"$y$")
