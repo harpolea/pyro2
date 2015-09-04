@@ -12,6 +12,8 @@ FIXME: check edge/cell-centred/time-centred quantities used correctly
 FIXME: add mom_source_x to momentum equation evolution. In pyro, only have this in the y direction do will need to change the fortran to allow sourcing in the x direction.
 
 CHANGED: moved tov update in steps 4 and 8 to after the Dh0 update as it is a function of Dh0
+
+All the keyword arguments of functions default to None as their default values will be member variables which cannot be accessed in the function's argument list.
 """
 
 from __future__ import print_function
@@ -554,7 +556,6 @@ class Simulation(NullSimulation):
         Calculate drp0 as it's messy using eq 6.136
         """
         myg = self.cc_data.grid
-        p0 = self.base["p0"]
         if Dh0 is None:
             Dh0 = self.base["Dh0"]
         u0 = self.metric.calcu0()
@@ -897,13 +898,13 @@ class Simulation(NullSimulation):
         # FIXME: Dh or Dh_1 here??
         u0 = self.metric.calcu0()
         coeff = self.aux_data.get_var("coeff")
-        coeff.d[:,:] = 1.0 / (Dh_1.d * u0.d)
+        coeff.d[:,:] = 1.0 / (Dh.d * u0.d)
         coeff.d[:,:] *= zeta.d2d()
         self.aux_data.fill_BC("coeff")
 
         g = self.rp.get_param("lm-gr.grav")
 
-        mom_source_x, mom_source_r = self.calc_mom_source(Dh=Dh_1)
+        mom_source_x, mom_source_r = self.calc_mom_source(Dh=Dh)
 
         _um, _vm = lm_interface_f.mac_vels(myg.qx, myg.qy, myg.ng,
                                            myg.dx, myg.dy, self.dt,
@@ -934,7 +935,7 @@ class Simulation(NullSimulation):
         # create the coefficient array: zeta**2/Dh u0
         # MZ!!!! probably don't need the buf here
         # TODO: are zeta, u0 functions of MAC velocities?
-        coeff.v(buf=1)[:,:] = 1. / (Dh_1.v(buf=1) * u0.v(buf=1))
+        coeff.v(buf=1)[:,:] = 1. / (Dh.v(buf=1) * u0.v(buf=1))
         coeff.v(buf=1)[:,:] *= zeta.v2d(buf=1)**2
 
         # create the multigrid object
@@ -972,7 +973,7 @@ class Simulation(NullSimulation):
         # this is zero and shouldn't be
 
         coeff = self.aux_data.get_var("coeff")
-        coeff.d[:,:] = 1.0 / (Dh_1.d * u0.d)
+        coeff.d[:,:] = 1.0 / (Dh.d * u0.d)
         coeff.d[:,:] *= zeta.d2d()
         self.aux_data.fill_BC("coeff")
 
@@ -1006,21 +1007,6 @@ class Simulation(NullSimulation):
                                              D0.d2df(myg.qx), u_MAC.d, v_MAC.d,
                                              ldelta_r0x, ldelta_r0y)
 
-        D_xint = patch.ArrayIndexer(d=_rx, grid=myg)
-        D_yint = patch.ArrayIndexer(d=_ry, grid=myg)
-
-        D_old = D.copy()
-        D_2_star = D_1.copy()
-
-        # This gives D2_star
-        D_2_star.v()[:,:] -= self.dt*(
-            #  (D u)_x
-            (D_xint.ip(1)*u_MAC.ip(1) - D_xint.v()*u_MAC.v())/myg.dx +
-            #  (D v)_y
-            (D_yint.jp(1)*v_MAC.jp(1) - D_yint.v()*v_MAC.v())/myg.dy )
-
-        self.cc_data.fill_BC("density")
-
         D0_yint = patch.ArrayIndexer(d=_r0y, grid=myg)
 
         D02d = myg.scratch_array()
@@ -1030,6 +1016,21 @@ class Simulation(NullSimulation):
             (D0_yint.jp(1)*v_MAC.jp(1) - D0_yint.v()*v_MAC.v())/myg.dy)
         D0_2a_star = Basestate(myg.ny, ng=myg.ng)
         D0_2a_star.d[:] = self.lateral_average(D02d.d)
+
+        D_xint = patch.ArrayIndexer(d=_rx, grid=myg)
+        D_yint = patch.ArrayIndexer(d=_ry, grid=myg)
+
+        D_old = D.copy()
+        D_2_star = D_1.copy()
+
+        # FIXME: isn't there supposed to be a U0 term here?
+        D_2_star.v()[:,:] -= self.dt*(
+            #  (D u)_x
+            (D_xint.ip(1)*u_MAC.ip(1) - D_xint.v()*u_MAC.v())/myg.dx +
+            #  (D v)_y
+            (D_yint.jp(1)*v_MAC.jp(1) - D_yint.v()*v_MAC.v())/myg.dy )
+
+        self.cc_data.fill_BC("density")
 
         # 4D Correct D0
         D0_star = Basestate(myg.ny, ng=myg.ng)
@@ -1052,6 +1053,22 @@ class Simulation(NullSimulation):
                                              Dh0.d2df(myg.qx), u_MAC.d, v_MAC.d,
                                              ldelta_e0x, ldelta_e0y)
 
+        Dh0_yint = patch.ArrayIndexer(d=_e0y, grid=myg)
+
+        #Dh0_old = Dh0.copy()
+
+        # FIXME: need a u0 psi term here
+        # FIXME: I think supposed to use U0 here rather than U_MAC?
+        Dh0.d[:] = self.lateral_average(Dh_1.d)
+        Dh02d = myg.scratch_array()
+        Dh02d.d[:,:] = Dh0.d2d()
+        Dh02d.v()[:,:] += -self.dt * (
+            #  (D v)_y
+            (Dh0_yint.jp(1)*v_MAC.jp(1) - Dh0_yint.v()*v_MAC.v())/myg.dy) + \
+            self.dt * u0.v() * psi.v()
+        Dh0_star = Basestate(myg.ny, ng=myg.ng)
+        Dh0_star.d[:] = self.lateral_average(Dh02d.d)
+
         Dh_xint = patch.ArrayIndexer(d=_ex, grid=myg)
         Dh_yint = patch.ArrayIndexer(d=_ey, grid=myg)
 
@@ -1070,22 +1087,7 @@ class Simulation(NullSimulation):
 
         self.cc_data.fill_BC("enthalpy")
 
-        Dh0_yint = patch.ArrayIndexer(d=_e0y, grid=myg)
-
-        #Dh0_old = Dh0.copy()
-
-        # FIXME: need a u0 psi term here
-        # FIXME: I think supposed to use U0 here rather than U_MAC?
-        Dh0.d[:] = self.lateral_average(Dh_1.d)
-        Dh02d = myg.scratch_array()
-        Dh02d.d[:,:] = Dh0.d2d()
-        Dh02d.v()[:,:] += -self.dt * (
-            #  (D v)_y
-            (Dh0_yint.jp(1)*v_MAC.jp(1) - Dh0_yint.v()*v_MAC.v())/myg.dy) + \
-            self.dt * u0.v() * psi.v()
-        Dh0_star = Basestate(myg.ny, ng=myg.ng)
-        Dh0_star.d[:] = self.lateral_average(Dh02d.d)
-
+        # this makes p0 -> p0_star. May not want to update self.base[p0] here.
         self.enforce_tov(Dh0=Dh0_star)
 
         # update eint as a diagnostic
@@ -1198,26 +1200,12 @@ class Simulation(NullSimulation):
         #---------------------------------------------------------------------
         _rx, _ry = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
-                                             D.d, u_MAC.d, v_MAC.d,
+                                             D_1.d, u_MAC.d, v_MAC.d,
                                              ldelta_rx, ldelta_ry)
         _, _r0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
                                              D0.d2df(myg.qx), u_MAC.d, v_MAC.d,
                                              ldelta_r0x, ldelta_r0y)
-
-        D_xint = patch.ArrayIndexer(d=_rx, grid=myg)
-        D_yint = patch.ArrayIndexer(d=_ry, grid=myg)
-
-        D_old = D.copy()
-        D_2 = D.copy()
-
-        D_2.v()[:,:] -= self.dt*(
-            #  (D u)_x
-            (D_xint.ip(1)*u_MAC.ip(1) - D_xint.v()*u_MAC.v())/myg.dx +
-            #  (D v)_y
-            (D_yint.jp(1)*v_MAC.jp(1) - D_yint.v()*v_MAC.v())/myg.dy )
-
-        self.cc_data.fill_BC("density")
 
         D0_yint = patch.ArrayIndexer(d=_r0y, grid=myg)
 
@@ -1231,6 +1219,20 @@ class Simulation(NullSimulation):
         D0_2a = Basestate(myg.ny, ng=myg.ng)
         D0_2a.d[:] = self.lateral_average(D02d.d)
 
+        D_xint = patch.ArrayIndexer(d=_rx, grid=myg)
+        D_yint = patch.ArrayIndexer(d=_ry, grid=myg)
+
+        D_old = D.copy()
+        D_2 = D_1.copy()
+
+        D_2.v()[:,:] -= self.dt*(
+            #  (D u)_x
+            (D_xint.ip(1)*u_MAC.ip(1) - D_xint.v()*u_MAC.v())/myg.dx +
+            #  (D v)_y
+            (D_yint.jp(1)*v_MAC.jp(1) - D_yint.v()*v_MAC.v())/myg.dy )
+
+        self.cc_data.fill_BC("density")
+
         # 8D
         D0.d[:] = self.lateral_average(D_2.d)
 
@@ -1241,28 +1243,12 @@ class Simulation(NullSimulation):
         #---------------------------------------------------------------------
         _ex, _ey = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
-                                             Dh.d, u_MAC.d, v_MAC.d,
+                                             Dh_1.d, u_MAC.d, v_MAC.d,
                                              ldelta_ex, ldelta_ey)
         _, _e0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
                                              Dh0.d2df(myg.qx), u_MAC.d, v_MAC.d,
                                              ldelta_e0x, ldelta_e0y)
-
-        Dh_xint = patch.ArrayIndexer(d=_ex, grid=myg)
-        Dh_yint = patch.ArrayIndexer(d=_ey, grid=myg)
-
-        Dh_old = Dh.copy()
-        Dh_2 = Dh.copy()
-
-        Dh_2.v()[:,:] += -self.dt*(
-            #  (D u)_x
-            (Dh_xint.ip(1)*u_MAC.ip(1) - Dh_xint.v()*u_MAC.v())/myg.dx +
-            #  (D v)_y
-            (Dh_yint.jp(1)*v_MAC.jp(1) - Dh_yint.v()*v_MAC.v())/myg.dy ) + \
-            self.dt * u0.v() * v_MAC.v() * drp0.v2d() + \
-            self.dt * u0.v() * psi.v()
-
-        self.cc_data.fill_BC("enthalpy")
 
         Dh0_yint = patch.ArrayIndexer(d=_e0y, grid=myg)
 
@@ -1275,6 +1261,22 @@ class Simulation(NullSimulation):
             (Dh0_yint.jp(1)*v_MAC.jp(1) - Dh0_yint.v()*v_MAC.v())/myg.dy) + \
             self.dt * u0.v() * psi.v()
         Dh0.d[:] = self.lateral_average(Dh02d.d)
+
+        Dh_xint = patch.ArrayIndexer(d=_ex, grid=myg)
+        Dh_yint = patch.ArrayIndexer(d=_ey, grid=myg)
+
+        Dh_old = Dh.copy()
+        Dh_2 = Dh_1.copy()
+
+        Dh_2.v()[:,:] += -self.dt*(
+            #  (D u)_x
+            (Dh_xint.ip(1)*u_MAC.ip(1) - Dh_xint.v()*u_MAC.v())/myg.dx +
+            #  (D v)_y
+            (Dh_yint.jp(1)*v_MAC.jp(1) - Dh_yint.v()*v_MAC.v())/myg.dy ) + \
+            self.dt * u0.v() * v_MAC.v() * drp0.v2d() + \
+            self.dt * u0.v() * psi.v()
+
+        self.cc_data.fill_BC("enthalpy")
 
         self.enforce_tov()
 
