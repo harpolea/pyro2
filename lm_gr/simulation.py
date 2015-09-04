@@ -8,6 +8,8 @@ TODO: find out where the slow parts are and speed them up
 FIXME: base state boundary conditions
 
 FIXME: check edge/cell-centred/time-centred quantities used correctly
+
+FIXME: add mom_source_x to momentum equation evolution. In pyro, only have this in the y direction do will need to change the fortran to allow sourcing in the x direction.
 """
 
 from __future__ import print_function
@@ -335,13 +337,11 @@ class Simulation(NullSimulation):
         if v is None:
             v = self.cc_data.get_var("y-velocity")
 
-        # TODO: slicing rather than looping
-        for i in range(myg.qx):
-            for j in range(myg.qy):
-                chrls = self.metric.christoffels([self.cc_data.t, i,j])
-                S.d[i,j] = -(chrls[0,0,0] + chrls[1,1,0] + chrls[2,2,0] +
-                    (chrls[0,0,1] + chrls[1,1,1] + chrls[2,2,1]) * u.d[i,j] +
-                    (chrls[0,0,2] + chrls[1,1,2] + chrls[2,2,2]) * v.d[i,j])
+        chrls = np.array([[self.metric.christoffels([self.cc_data.t, i, j]) for j in range(myg.qy)] for i in range(myg.qx)])
+
+        S.d[:,:] = -(chrls[:,:,0,0,0] + chrls[:,:,1,1,0] + chrls[:,:,2,2,0] +
+            (chrls[:,:,0,0,1] + chrls[:,:,1,1,1] + chrls[:,:,2,2,1]) * u.d +
+            (chrls[:,:,0,0,2] + chrls[:,:,1,1,2] + chrls[:,:,2,2,2]) * v.d)
 
         return S
 
@@ -382,11 +382,13 @@ class Simulation(NullSimulation):
 
     def calc_mom_source(self, u=None, v=None):
         """
-        calculate the source terms in the momentum equation
+        calculate the source terms in the momentum equation. This works only for the metric ds^2 = -a^2 dt^2 + 1/a^2 (dx^2 + dr^2)
 
         FIXME: need the D_t ln u0 term?
 
         CHANGED: lowered first index of christoffels
+
+        TODO: make this more general. This definitely needs to be done with einsum or something rather than by hand
 
         Returns
         -------
@@ -407,20 +409,20 @@ class Simulation(NullSimulation):
         grr = gxx
         drp0 = self.drp0()
 
-        # this works only for the metric ds^2 = -a^2 dt^2 + 1/a^2 (dx^2 + dr^2)
-        for j in range(myg.qy):
-            for i in range(myg.qx):
-                chrls = self.metric.christoffels([self.cc_data.t, i, j])
-                mom_source_x.d[i, j] = (gtt[np.newaxis,j] * chrls[0,0,1] +
-                    (gxx[np.newaxis,j] * chrls[1,0,1] + gtt[np.newaxis,j] * chrls[0,1,1]) * u.d[i,j] +
-                    (grr[np.newaxis,j] * chrls[2,0,1] + gtt[np.newaxis,j] * chrls[0,2,1]) * v.d[i,j] +
-                    gxx[np.newaxis,j] * chrls[1,1,1] * u.d[i,j]**2 + grr[np.newaxis,j] * chrls[2,2,1] * v.d[i,j]**2 +
-                    (grr[np.newaxis,j] * chrls[2,1,1] + gxx[np.newaxis,j] * chrls[1,2,1]) * u.d[i,j] * v.d[i,j])
-                mom_source_r.d[i, j] = (gtt[np.newaxis,j] * chrls[0,0,2] +
-                    (gxx[np.newaxis,j] * chrls[1,0,2] + gtt[np.newaxis,j] * chrls[0,1,2]) * u.d[i,j] +
-                    (grr[np.newaxis,j] * chrls[2,0,2] + gtt[np.newaxis,j] * chrls[0,2,2]) * v.d[i,j] +
-                    gxx[np.newaxis,j] * chrls[1,1,2] * u.d[i,j]**2 + grr[np.newaxis,j] * chrls[2,2,2] * v.d[i,j]**2 +
-                    (grr[np.newaxis,j] * chrls[2,1,2] + gxx[np.newaxis,j] * chrls[1,2,2]) * u.d[i,j] * v.d[i,j])
+        chrls = np.array([[self.metric.christoffels([self.cc_data.t, i, j]) for j in range(myg.qy)] for i in range(myg.qx)])
+
+        # note metric components needed to lower the christoffel symbols
+        mom_source_x.d[:,:] = (gtt[np.newaxis,:] * chrls[:,:,0,0,1] +
+            (gxx[np.newaxis,:] * chrls[:,:,1,0,1] + gtt[np.newaxis,:] * chrls[:,:,0,1,1]) * u.d +
+            (grr[np.newaxis,:] * chrls[:,:,2,0,1] + gtt[np.newaxis,:] * chrls[:,:,0,2,1]) * v.d +
+            gxx[np.newaxis,:] * chrls[:,:,1,1,1] * u.d**2 + grr[np.newaxis,:] * chrls[:,:,2,2,1] * v.d**2 +
+            (grr[np.newaxis,:] * chrls[:,:,2,1,1] + gxx[np.newaxis,:] * chrls[:,:,1,2,1]) * u.d * v.d)
+        mom_source_r.d[:,:] = (gtt[np.newaxis,:] * chrls[:,:,0,0,2] +
+            (gxx[np.newaxis,:] * chrls[:,:,1,0,2] + gtt[np.newaxis,:] * chrls[:,:,0,1,2]) * u.d +
+            (grr[np.newaxis,:] * chrls[:,:,2,0,2] + gtt[np.newaxis,:] * chrls[:,:,0,2,2]) * v.d +
+            gxx[np.newaxis,:] * chrls[:,:,1,1,2] * u.d**2 + grr[np.newaxis,:] * chrls[:,:,2,2,2] * v.d**2 +
+            (grr[np.newaxis,:] * chrls[:,:,2,1,2] + gxx[np.newaxis,:] * chrls[:,:,1,2,2]) * u.d * v.d)
+
         mom_source_r.d[:,:] -= drp0.d[np.newaxis,:] / (Dh.d[:,:]*u0.d[:,:])
 
         return mom_source_x, mom_source_r
@@ -569,9 +571,8 @@ class Simulation(NullSimulation):
         Sbar = self.lateral_average(S.d)
         U0.d[0] = 0.
         # FIXME: fix cell-centred / edge-centred indexing.
-        for i in range(myg.qy-1):
-            U0.d[i+1] = U0.d[i] + dr * (Sbar[i] - U0.d[i] * drp0.d[i] /
-                                        (gamma * p0.d[i]))
+        U0.d[1:] = U0.d[:-1] + dr * (Sbar[:-1] - U0.d[:-1] * drp0.d[:-1] /
+                                    (gamma * p0.d[:-1]))
 
 
     def compute_timestep(self):
@@ -1332,6 +1333,11 @@ class Simulation(NullSimulation):
 
         myg = self.cc_data.grid
 
+        # make D0 2d
+        temp = myg.scratch_array()
+        temp.d[:,:] = D0.d[np.newaxis, :]
+        D0 = temp
+
         magvel = np.sqrt(u**2 + v**2)
 
         vort = myg.scratch_array()
@@ -1344,10 +1350,10 @@ class Simulation(NullSimulation):
         fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.3)
 
-        fields = [D, magvel, v, Dprime]
-        field_names = [r"$D$", r"$|U|$", r"$V$", r"$D'$"]
-        vmins = [98., 0., 0., 0.]
-        vmaxes = [101., 0.06, 0.06, 150.]
+        fields = [D, magvel, v, D0]
+        field_names = [r"$D$", r"$|U|$", r"$V$", r"$D_0$"]
+        vmins = [98., 0., 0., 98.]
+        vmaxes = [101., 0.06, 0.06, 101.]
 
         for n in range(len(fields)):
             ax = axes.flat[n]
