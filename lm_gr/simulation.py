@@ -386,10 +386,12 @@ class Simulation(NullSimulation):
 
         FIXME: need the D_t ln u0 term?
 
+        CHANGED: lowered first index of christoffels
+
         Returns
         -------
         mom_source :
-            Gamma_rho nu j U^nu rho - djp0 / Dh u0
+            :math:`Gamma_{\rho \nu j} U^\nu U^\rho - \frac{\partial_j p_0}{Dh u_0}`
         """
         myg = self.cc_data.grid
         if u is None:
@@ -398,20 +400,30 @@ class Simulation(NullSimulation):
             v = self.cc_data.get_var("y-velocity")
         Dh = self.cc_data.get_var("enthalpy")
         u0 = self.metric.calcu0()
-        mom_source = myg.scratch_array()
+        mom_source_r = myg.scratch_array()
+        mom_source_x = myg.scratch_array()
+        gtt = -(self.metric.alpha.d)**2
+        gxx = 1. / self.metric.alpha.d**2
+        grr = gxx
         drp0 = self.drp0()
 
+        # this works only for the metric ds^2 = -a^2 dt^2 + 1/a^2 (dx^2 + dr^2)
         for j in range(myg.qy):
             for i in range(myg.qx):
                 chrls = self.metric.christoffels([self.cc_data.t, i, j])
-                mom_source.d[i, j] = (chrls[0,0,2] +
-                    (chrls[1,0,2] + chrls[0,1,2]) * u.d[i,j] +
-                    (chrls[2,0,2] + chrls[0,2,2]) * v.d[i,j] +
-                    chrls[1,1,2] * u.d[i,j]**2 + chrls[2,2,2] * v.d[i,j]**2 +
-                    (chrls[2,1,2] + chrls[1,2,2]) * u.d[i,j] * v.d[i,j])
-        mom_source.d[:,:] -= drp0.d[np.newaxis,:] / (Dh.d[:,:]*u0.d[:,:])
+                mom_source_x.d[i, j] = (gtt[np.newaxis,j] * chrls[0,0,1] +
+                    (gxx[np.newaxis,j] * chrls[1,0,1] + gtt[np.newaxis,j] * chrls[0,1,1]) * u.d[i,j] +
+                    (grr[np.newaxis,j] * chrls[2,0,1] + gtt[np.newaxis,j] * chrls[0,2,1]) * v.d[i,j] +
+                    gxx[np.newaxis,j] * chrls[1,1,1] * u.d[i,j]**2 + grr[np.newaxis,j] * chrls[2,2,1] * v.d[i,j]**2 +
+                    (grr[np.newaxis,j] * chrls[2,1,1] + gxx[np.newaxis,j] * chrls[1,2,1]) * u.d[i,j] * v.d[i,j])
+                mom_source_r.d[i, j] = (gtt[np.newaxis,j] * chrls[0,0,2] +
+                    (gxx[np.newaxis,j] * chrls[1,0,2] + gtt[np.newaxis,j] * chrls[0,1,2]) * u.d[i,j] +
+                    (grr[np.newaxis,j] * chrls[2,0,2] + gtt[np.newaxis,j] * chrls[0,2,2]) * v.d[i,j] +
+                    gxx[np.newaxis,j] * chrls[1,1,2] * u.d[i,j]**2 + grr[np.newaxis,j] * chrls[2,2,2] * v.d[i,j]**2 +
+                    (grr[np.newaxis,j] * chrls[2,1,2] + gxx[np.newaxis,j] * chrls[1,2,2]) * u.d[i,j] * v.d[i,j])
+        mom_source_r.d[:,:] -= drp0.d[np.newaxis,:] / (Dh.d[:,:]*u0.d[:,:])
 
-        return mom_source
+        return mom_source_x, mom_source_r
 
     def calc_psi(self, S=None, U0=None):
         """
@@ -511,7 +523,7 @@ class Simulation(NullSimulation):
         return drp0
 
 
-    def advect_base_enthalpy(self, Dh0=None, U0=None):
+    def advect_base_enthalpy(self, Dh0=None, S=None, U0=None):
         """
         updates base state enthalpy throung one timestep.
         """
@@ -522,12 +534,18 @@ class Simulation(NullSimulation):
         dr = myg.dy
         if U0 is None:
             U0 = self.base["U0"]
+        if S is None:
+            S = self.aux_data.get_var("source_y")
+        psi = self.calc_psi(U0=U0, S=S)
+        u0 = self.metric.calcu0()
+
 
         # FIXME: calculate U_0, find out how to find the time-centred edge states and use them here.
         # FIXME: add psi
 
         Dh0.v()[:] += -(Dh0.jp(1) * U0.jp(1) - Dh0.v() * U0.v()) * dt / dr + \
-                      dt * U0.v() * self.drp0().v()
+                      dt * self.lateral_average(u0.v()) * psi.v()
+                      # dt * U0.v() * self.drp0().v() + \
 
 
     def compute_base_velocity(self, p0=None, S=None):
@@ -832,7 +850,7 @@ class Simulation(NullSimulation):
 
         g = self.rp.get_param("lm-gr.grav")
 
-        mom_source = self.calc_mom_source()
+        mom_source_x, mom_source_r = self.calc_mom_source()
 
         _um, _vm = lm_interface_f.mac_vels(myg.qx, myg.qy, myg.ng,
                                            myg.dx, myg.dy, self.dt,
@@ -841,7 +859,7 @@ class Simulation(NullSimulation):
                                            ldelta_uy, ldelta_vy,
                                            coeff.d*gradp_x.d,
                                            coeff.d*gradp_y.d,
-                                           mom_source.d)
+                                           mom_source_r.d)
 
         u_MAC = patch.ArrayIndexer(d=_um, grid=myg)
         v_MAC = patch.ArrayIndexer(d=_vm, grid=myg)
@@ -1042,7 +1060,7 @@ class Simulation(NullSimulation):
         if self.verbose > 0:
             print("  making u, v edge states")
 
-        mom_source = self.calc_mom_source(u=u_MAC, v=v_MAC)
+        mom_source_x, mom_source_r = self.calc_mom_source(u=u_MAC, v=v_MAC)
         coeff = self.aux_data.get_var("coeff")
         coeff.v()[:,:] = 2.0 / ((Dh.v() + Dh_old.v()) * u0.v())
         coeff.v()[:,:] *= zeta.v2d()
@@ -1054,7 +1072,7 @@ class Simulation(NullSimulation):
                                      ldelta_ux, ldelta_vx,
                                      ldelta_uy, ldelta_vy,
                                      coeff.d*gradp_x.d, coeff.d*gradp_y.d,
-                                     mom_source.d,
+                                     mom_source_r.d,
                                      u_MAC.d, v_MAC.d)
 
         u_xint = patch.ArrayIndexer(d=_ux, grid=myg)
@@ -1094,8 +1112,9 @@ class Simulation(NullSimulation):
             v.v()[:,:] -= self.dt * advect_y.v()
 
         # add on source term
-        mom_source = self.calc_mom_source()
-        v.d[:,:] += self.dt * mom_source.d
+        mom_source_x, mom_source_r = self.calc_mom_source()
+        u.d[:,:] += self.dt * mom_source_x.d
+        v.d[:,:] += self.dt * mom_source_r.d
 
         #pdb.set_trace()
 
