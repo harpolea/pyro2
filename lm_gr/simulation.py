@@ -9,11 +9,16 @@ FIXME: base state boundary conditions
 
 FIXME: check edge/cell-centred/time-centred quantities used correctly
 
-FIXME: add mom_source_x to momentum equation evolution. In pyro, only have this in the y direction do will need to change the fortran to allow sourcing in the x direction.
+FIXME: add mom_source_x to momentum equation evolution.
+In pyro, only have this in the y direction do will need to change the fortran
+to allow sourcing in the x direction.
 
-CHANGED: moved tov update in steps 4 and 8 to after the Dh0 update as it is a function of Dh0
+CHANGED: moved tov update in steps 4 and 8 to after the Dh0 update as it is a
+function of Dh0
 
-All the keyword arguments of functions default to None as their default values will be member variables which cannot be accessed in the function's argument list.
+All the keyword arguments of functions default to None as their default values
+will be member variables which cannot be accessed in the function's argument
+list.
 """
 
 from __future__ import print_function
@@ -289,7 +294,8 @@ class Simulation(NullSimulation):
     @staticmethod
     def lateral_average(a):
         """
-        Calculates and returns the lateral average of a, assuming that stuff is to be averaged in the x direction.
+        Calculates and returns the lateral average of a, assuming that stuff is
+        to be averaged in the x direction.
 
         Parameters
         ----------
@@ -306,7 +312,8 @@ class Simulation(NullSimulation):
 
     def update_zeta(self):
         """
-        Updates zeta in the interior and on the edges. Assumes all other variables are up to date.
+        Updates zeta in the interior and on the edges.
+        Assumes all other variables are up to date.
         """
 
         myg = self.cc_data.grid
@@ -341,7 +348,8 @@ class Simulation(NullSimulation):
         if v is None:
             v = self.cc_data.get_var("y-velocity")
 
-        chrls = np.array([[self.metric.christoffels([self.cc_data.t, i, j]) for j in range(myg.qy)] for i in range(myg.qx)])
+        chrls = np.array([[self.metric.christoffels([self.cc_data.t, i, j])
+                           for j in range(myg.qy)] for i in range(myg.qx)])
 
         S.d[:,:] = -(chrls[:,:,0,0,0] + chrls[:,:,1,1,0] + chrls[:,:,2,2,0] +
             (chrls[:,:,0,0,1] + chrls[:,:,1,1,1] + chrls[:,:,2,2,1]) * u.d +
@@ -380,24 +388,28 @@ class Simulation(NullSimulation):
 
         constraint = myg.scratch_array()
         # assumed adiabatic EoS so that Gamma_1 = gamma
-        constraint.d[:,:] = zeta.d2df(myg.qx) * (S.d - dp0dt.d2df(myg.qx) / (gamma * p0.d2df(myg.qx)))
+        constraint.d[:,:] = zeta.d2df(myg.qx) * \
+            (S.d - dp0dt.d2df(myg.qx) / (gamma * p0.d2df(myg.qx)))
 
         return constraint
 
     def calc_mom_source(self, u=None, v=None, Dh=None):
         """
-        calculate the source terms in the momentum equation. This works only for the metric ds^2 = -a^2 dt^2 + 1/a^2 (dx^2 + dr^2)
+        calculate the source terms in the momentum equation.
+        This works only for the metric ds^2 = -a^2 dt^2 + 1/a^2 (dx^2 + dr^2)
 
         FIXME: need the D_t ln u0 term?
 
         CHANGED: lowered first index of christoffels
 
-        TODO: make this more general. This definitely needs to be done with einsum or something rather than by hand
+        TODO: make this more general. This definitely needs to be done with
+        einsum or something rather than by hand
 
         Returns
         -------
         mom_source :
-            :math:`Gamma_{\rho \nu j} U^\nu U^\rho - \frac{\partial_j p_0}{Dh u_0}`
+            :math:`Gamma_{\rho \nu j} U^\nu U^\rho -
+                    \frac{\partial_j p_0}{Dh u_0}`
         """
         myg = self.cc_data.grid
         if u is None:
@@ -414,19 +426,28 @@ class Simulation(NullSimulation):
         grr = gxx
         drp0 = self.drp0()
 
-        chrls = np.array([[self.metric.christoffels([self.cc_data.t, i, j]) for j in range(myg.qy)] for i in range(myg.qx)])
+        chrls = np.array([[self.metric.christoffels([self.cc_data.t, i, j])
+                           for j in range(myg.qy)] for i in range(myg.qx)])
 
         # note metric components needed to lower the christoffel symbols
         mom_source_x.d[:,:] = (gtt[np.newaxis,:] * chrls[:,:,0,0,1] +
-            (gxx[np.newaxis,:] * chrls[:,:,1,0,1] + gtt[np.newaxis,:] * chrls[:,:,0,1,1]) * u.d +
-            (grr[np.newaxis,:] * chrls[:,:,2,0,1] + gtt[np.newaxis,:] * chrls[:,:,0,2,1]) * v.d +
-            gxx[np.newaxis,:] * chrls[:,:,1,1,1] * u.d**2 + grr[np.newaxis,:] * chrls[:,:,2,2,1] * v.d**2 +
-            (grr[np.newaxis,:] * chrls[:,:,2,1,1] + gxx[np.newaxis,:] * chrls[:,:,1,2,1]) * u.d * v.d)
+            (gxx[np.newaxis,:] * chrls[:,:,1,0,1] +
+             gtt[np.newaxis,:] * chrls[:,:,0,1,1]) * u.d +
+            (grr[np.newaxis,:] * chrls[:,:,2,0,1] +
+             gtt[np.newaxis,:] * chrls[:,:,0,2,1]) * v.d +
+            gxx[np.newaxis,:] * chrls[:,:,1,1,1] * u.d**2 +
+            grr[np.newaxis,:] * chrls[:,:,2,2,1] * v.d**2 +
+            (grr[np.newaxis,:] * chrls[:,:,2,1,1] +
+             gxx[np.newaxis,:] * chrls[:,:,1,2,1]) * u.d * v.d)
         mom_source_r.d[:,:] = (gtt[np.newaxis,:] * chrls[:,:,0,0,2] +
-            (gxx[np.newaxis,:] * chrls[:,:,1,0,2] + gtt[np.newaxis,:] * chrls[:,:,0,1,2]) * u.d +
-            (grr[np.newaxis,:] * chrls[:,:,2,0,2] + gtt[np.newaxis,:] * chrls[:,:,0,2,2]) * v.d +
-            gxx[np.newaxis,:] * chrls[:,:,1,1,2] * u.d**2 + grr[np.newaxis,:] * chrls[:,:,2,2,2] * v.d**2 +
-            (grr[np.newaxis,:] * chrls[:,:,2,1,2] + gxx[np.newaxis,:] * chrls[:,:,1,2,2]) * u.d * v.d)
+            (gxx[np.newaxis,:] * chrls[:,:,1,0,2] +
+             gtt[np.newaxis,:] * chrls[:,:,0,1,2]) * u.d +
+            (grr[np.newaxis,:] * chrls[:,:,2,0,2] +
+             gtt[np.newaxis,:] * chrls[:,:,0,2,2]) * v.d +
+            gxx[np.newaxis,:] * chrls[:,:,1,1,2] * u.d**2 +
+            grr[np.newaxis,:] * chrls[:,:,2,2,2] * v.d**2 +
+            (grr[np.newaxis,:] * chrls[:,:,2,1,2] +
+             gxx[np.newaxis,:] * chrls[:,:,1,2,2]) * u.d * v.d)
 
         mom_source_r.d[:,:] -= drp0.d[np.newaxis,:] / (Dh.d[:,:]*u0.d[:,:])
 
@@ -449,7 +470,8 @@ class Simulation(NullSimulation):
 
         psi.v(buf=myg.ng-1)[:] = gamma * 0.5 * \
             (p0.v(buf=myg.ng-1) + old_p0.v(buf=myg.ng-1)) * \
-            (self.lateral_average(S.v(buf=myg.ng-1)) - (U0.jp(1, buf=myg.ng-1) - U0.v(buf=myg.ng-1)))
+            (self.lateral_average(S.v(buf=myg.ng-1)) -
+             (U0.jp(1, buf=myg.ng-1) - U0.v(buf=myg.ng-1)))
 
         return psi
 
@@ -468,7 +490,8 @@ class Simulation(NullSimulation):
         u0 = self.metric.calcu0()
         grr = 1. / self.metric.alpha.d**2
 
-        chrls = np.array([[self.metric.christoffels([self.cc_data.t, i, j]) for j in range(myg.qy)] for i in range(myg.qx)])
+        chrls = np.array([[self.metric.christoffels([self.cc_data.t, i, j])
+                           for j in range(myg.qy)] for i in range(myg.qx)])
 
         U0_star = Basestate(myg.ny, ng=myg.ng)
         U0_star.d[:] = (self.dt * U0_old_half.d +
@@ -490,14 +513,19 @@ class Simulation(NullSimulation):
         # don't have an old p0 atm - just ignore for now
         drp0_star.d[:] = drp0.d
 
-        drpi.d[:,:] = -0.5 * (U0_half_star.d2d - U0_old_half.d2d) / (self.dt + self.dt_old) - U0_star.d2d * drU0_star.d2d - drp0_star.d2d / (Dh0.d * u0.d) + grr * chrls[:,:,2,2,0] * U0_star.d2d**2
+        drpi.d[:,:] = \
+            -0.5*(U0_half_star.d2d - U0_old_half.d2d)/(self.dt + self.dt_old) -\
+            U0_star.d2d * drU0_star.d2d - drp0_star.d2d / (Dh0.d * u0.d) + \
+            grr * chrls[:,:,2,2,0] * U0_star.d2d**2
 
         return drpi
 
 
     def react_state(self, S=None, D=None, Dh=None):
         """
-        gravitational source terms in the continuity equation (called react state to mirror MAESTRO as here they just have source terms from the reactions)
+        gravitational source terms in the continuity equation (called react
+        state to mirror MAESTRO as here they just have source terms from the
+        reactions)
         """
         myg = self.cc_data.grid
 
@@ -535,7 +563,8 @@ class Simulation(NullSimulation):
 
     def enforce_tov(self, p0=None, Dh0=None):
         """
-        enforces the TOV equation. This is the GR equivalent of enforce_hse. Eq. 6.132.
+        enforces the TOV equation. This is the GR equivalent of enforce_hse.
+        Eq. 6.132.
         """
         myg = self.cc_data.grid
         if p0 is None:
@@ -546,9 +575,8 @@ class Simulation(NullSimulation):
             Dh0 = self.base["Dh0"]
         drp0 = self.drp0(Dh0=Dh0)
 
-        p0.jp(1, buf=myg.ng-1)[:] = p0.v(buf=myg.ng-1) + 0.5 * \
-            self.cc_data.grid.dy * \
-            (drp0.jp(1, buf=myg.ng-1) + drp0.v(buf=myg.ng-1))
+        p0.d[1:] = p0.d[:-1] + 0.5 * self.cc_data.grid.dy * \
+                   (drp0.d[1:] + drp0.d[:-1])
 
 
     def drp0(self, Dh0=None):
@@ -591,8 +619,8 @@ class Simulation(NullSimulation):
         psi = self.calc_psi(U0=U0, S=S)
         u0 = self.metric.calcu0()
 
-
-        # FIXME: calculate U_0, find out how to find the time-centred edge states and use them here.
+        # FIXME: calculate U_0, find out how to find the time-centred edge
+        # states and use them here.
         # FIXME: add psi
 
         Dh0.v()[:] += -(Dh0.jp(1) * U0.jp(1) - Dh0.v() * U0.v()) * dt / dr + \
@@ -622,7 +650,7 @@ class Simulation(NullSimulation):
         U0.d[0] = 0.
         # FIXME: fix cell-centred / edge-centred indexing.
         U0.d[1:] = U0.d[:-1] + dr * (Sbar[:-1] - U0.d[:-1] * drp0.d[:-1] /
-                                    (gamma * p0.d[:-1]))
+                                     (gamma * p0.d[:-1]))
 
 
     def compute_timestep(self):
@@ -856,7 +884,8 @@ class Simulation(NullSimulation):
         if self.cc_data.t == 0:
             S_t_centred.d[:,:] = 0.5 * (oldS.d + S.d)
         else:
-            S_t_centred.d[:,:] = S.d + self.dt * 0.5 * (S.d - oldS.d) / self.old_dt
+            S_t_centred.d[:,:] = S.d + \
+                self.dt * 0.5 * (S.d - oldS.d) / self.old_dt
 
         self.compute_base_velocity(S=S_t_centred)
 
@@ -992,8 +1021,8 @@ class Simulation(NullSimulation):
                 coeff_x.v(buf=b) * (phi_MAC.v(buf=b) - phi_MAC.ip(-1, buf=b)) / myg.dx
 
         b = (0, 0, 0, 1)
-        v_MAC.v(buf=b)[:,:] -= \
-                coeff_y.v(buf=b) * (phi_MAC.v(buf=b) - phi_MAC.jp(-1, buf=b)) / myg.dy
+        v_MAC.v(buf=b)[:,:] -= coeff_y.v(buf=b) * \
+            (phi_MAC.v(buf=b) - phi_MAC.jp(-1, buf=b)) / myg.dy
 
         #---------------------------------------------------------------------
         # 4. predict D to the edges and do its conservative update
@@ -1038,7 +1067,6 @@ class Simulation(NullSimulation):
 
         # 4F: compute psi^n+1/2,*
         psi = self.calc_psi(S=S_t_centred)
-
 
         #---------------------------------------------------------------------
         # predict Dh to the edges and do its conservative update
@@ -1101,7 +1129,8 @@ class Simulation(NullSimulation):
         #---------------------------------------------------------------------
         D_star = D_2_star.copy()
         Dh_star = Dh_2_star.copy()
-        self.react_state(S=self.compute_S(u=u_MAC, v=v_MAC), D=D_star, Dh=Dh_star)
+        self.react_state(S=self.compute_S(u=u_MAC, v=v_MAC),
+                         D=D_star, Dh=Dh_star)
 
         #---------------------------------------------------------------------
         # 6. Compute time-centred expasion S, base state velocity U0 and
@@ -1447,6 +1476,7 @@ class Simulation(NullSimulation):
             plt.colorbar(img, ax=ax)
 
 
-        plt.figtext(0.05,0.0125, "n: %4d,   t = %10.5f" % (self.n, self.cc_data.t))
+        plt.figtext(0.05,0.0125,
+                    "n: %4d,   t = %10.5f" % (self.n, self.cc_data.t))
 
         plt.draw()

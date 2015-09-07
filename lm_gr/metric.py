@@ -96,7 +96,7 @@ class Metric:
         c = self.rp.get_param("lm-gr.c")
 
         # for loop here as otherwise my brain hurts
-        # TODO: do this with slicing
+        # FIXME: I think the for-loop here might be seriously slowing stuff down as u0 is calculated quite a lot. Do this with slicing.
         for i in range(self.cc_data.grid.qx):
             for j in range(self.cc_data.grid.qy):
                 V = np.array([u.d[i,j], v.d[i,j]]) + self.beta

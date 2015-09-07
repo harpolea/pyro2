@@ -5,6 +5,6 @@ scale_height = 2.0          ; scale height of the isothermal atmosphere
 x_pert = 2.0
 y_pert = 2.0
 r_pert = 0.25
-pert_amplitude_factor = 20.0
+pert_amplitude_factor = 1.01
 
 dens_cutoff  = 0.01
