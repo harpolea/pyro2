@@ -43,7 +43,7 @@ class Basestate(object):
     def __init__(self, ny, ng=0, d=None):
         self.ny = ny
         self.ng = ng
-        self.qy = ny + 2*ng
+        self.qy = ny + 2 * ng
 
         if d is None:
             self.d = np.zeros((self.qy), dtype=np.float64)
@@ -51,7 +51,7 @@ class Basestate(object):
             self.d = d
 
         self.jlo = ng
-        self.jhi = ng+ny-1
+        self.jhi = ng + ny - 1
 
     def d2d(self):
         return self.d[np.newaxis, :]
@@ -236,6 +236,7 @@ class Simulation(NullSimulation):
         self.base["p0"] = Basestate(myg.ny, ng=myg.ng)
         self.base["old_p0"] = Basestate(myg.ny, ng=myg.ng)
         self.base["U0"] = Basestate(myg.ny, ng=myg.ng)
+        # U0(t=0) = 0 as an initial approximation
 
         # add metric
         g = self.rp.get_param("lm-gr.grav")
@@ -246,7 +247,7 @@ class Simulation(NullSimulation):
 
         # r = y + R, where r is measured from the centre of the star,
         # R is the star's radius and y is measured from the surface
-        alpha.d[:] = np.sqrt(1. - 2. * g * (1. - myg.y[:]/R) / (R* c**2))
+        alpha.d[:] = np.sqrt(1. - 2. * g * (1. - myg.y[:]/R) / (R * c**2))
 
         beta = [0., 0.]
 
@@ -274,7 +275,7 @@ class Simulation(NullSimulation):
         # just do piecewise constant
         self.base["zeta-edges"] = Basestate(myg.ny, ng=myg.ng)
         self.base["zeta-edges"].jp(1)[:] = \
-            0.5*(self.base["zeta"].v() + self.base["zeta"].jp(1))
+            0.5 * (self.base["zeta"].v() + self.base["zeta"].jp(1))
         self.base["zeta-edges"].d[myg.jlo] = self.base["zeta"].d[myg.jlo]
         self.base["zeta-edges"].d[myg.jhi+1] = self.base["zeta"].d[myg.jhi]
 
@@ -310,17 +311,18 @@ class Simulation(NullSimulation):
         return np.mean(a, axis=0)
 
 
-    def update_zeta(self):
+    def update_zeta(self, D0=None, zeta=None):
         """
         Updates zeta in the interior and on the edges.
         Assumes all other variables are up to date.
         """
 
         myg = self.cc_data.grid
-        D0 = self.base["D0"]
+        if D0 is None:
+            D0 = self.base["D0"]
         u0 = self.metric.calcu0()
-
-        zeta = self.base["zeta"]
+        if zeta is None:
+            zeta = self.base["zeta"]
         zeta_edges = self.base["zeta-edges"]
 
         try:
@@ -393,7 +395,7 @@ class Simulation(NullSimulation):
 
         return constraint
 
-    def calc_mom_source(self, u=None, v=None, Dh=None):
+    def calc_mom_source(self, u=None, v=None, Dh=None, Dh0=None):
         """
         calculate the source terms in the momentum equation.
         This works only for the metric ds^2 = -a^2 dt^2 + 1/a^2 (dx^2 + dr^2)
@@ -424,7 +426,9 @@ class Simulation(NullSimulation):
         gtt = -(self.metric.alpha.d)**2
         gxx = 1. / self.metric.alpha.d**2
         grr = gxx
-        drp0 = self.drp0()
+        if Dh0 is None:
+            Dh0 = self.base["Dh0"]
+        drp0 = self.drp0(Dh0=Dh0)
 
         chrls = np.array([[self.metric.christoffels([self.cc_data.t, i, j])
                            for j in range(myg.qy)] for i in range(myg.qx)])
@@ -476,7 +480,7 @@ class Simulation(NullSimulation):
         return psi
 
 
-    def base_state_forcing(self, U0_half_star, U0_old_half=None):
+    def base_state_forcing(self, U0_half_star, U0_old_half=None, Dh0=None):
         """
         calculate the base state velocity forcing term from 2C
         This works only for the metric ds^2 = -a^2 dt^2 + 1/a^2 (dx^2 + dr^2)
@@ -485,8 +489,9 @@ class Simulation(NullSimulation):
         drpi = myg.scratch_array()
         if U0_old_half is None:
             U0_old_half = self.base["U0"]
-        drp0 = self.drp0()
-        Dh0 = self.base["Dh0"]
+        if Dh0 is None:
+            Dh0 = self.base["Dh0"]
+        drp0 = self.drp0(Dh0=Dh0)
         u0 = self.metric.calcu0()
         grr = 1. / self.metric.alpha.d**2
 
@@ -521,7 +526,7 @@ class Simulation(NullSimulation):
         return drpi
 
 
-    def react_state(self, S=None, D=None, Dh=None):
+    def react_state(self, S=None, D=None, Dh=None, Dh0=None):
         """
         gravitational source terms in the continuity equation (called react
         state to mirror MAESTRO as here they just have source terms from the
@@ -533,10 +538,12 @@ class Simulation(NullSimulation):
             D = self.cc_data.get_var("density")
         if Dh is None:
             Dh = self.cc_data.get_var("enthalpy")
+        if Dh0 is None:
+            Dh0 = self.base["Dh0"]
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
         u0 = self.metric.calcu0()
-        drp0 = self.drp0()
+        drp0 = self.drp0(Dh0=Dh0)
         if S is None:
             S = self.aux_data.get_var("source_y")
 
@@ -586,6 +593,8 @@ class Simulation(NullSimulation):
         myg = self.cc_data.grid
         if Dh0 is None:
             Dh0 = self.base["Dh0"]
+        # TODO: maybe instead of averaging u0, should calculate it
+        # based on U0?
         u0 = self.metric.calcu0()
         u01d = Basestate(myg.ny, ng=myg.ng)
         u01d.d[:] = self.lateral_average(u0.d)
@@ -598,7 +607,7 @@ class Simulation(NullSimulation):
 
         #drp0.d[:] = g * (2. * p0.d * (1. - alpha.d**4) - Dh0.d / u01d.d) / \
         #      (R * c**2 * alpha.d**2)
-        drp0.d[:] = -Dh0.d * g / (R * c**2 * alpha.d **2 * u01d.d)
+        drp0.d[:] = -Dh0.d * g / (R * c**2 * alpha.d**2 * u01d.d)
 
         return drp0
 
@@ -628,18 +637,21 @@ class Simulation(NullSimulation):
                       # dt * U0.v() * self.drp0().v() + \
 
 
-    def compute_base_velocity(self, p0=None, S=None):
+    def compute_base_velocity(self, U0=None, p0=None, S=None, Dh0=None):
         """
         Caclulates the base velocity using eq. 6.138
         """
         myg = self.cc_data.grid
         if p0 is None:
             p0 = self.base["p0"]
+        if Dh0 is None:
+            Dh0 = self.base["Dh0"]
         dt = self.dt
         dr = myg.dy
-        U0 = self.base["U0"]
+        if U0 is None:
+            U0 = self.base["U0"]
         gamma = self.rp.get_param("eos.gamma")
-        drp0 = self.drp0()
+        drp0 = self.drp0(Dh0=Dh0)
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
         if S is None:
@@ -674,9 +686,9 @@ class Simulation(NullSimulation):
 
         # the timestep is min(dx/|u|, dy|v|)
         xtmp = ytmp = 1.e33
-        if not abs(u).max() < 1e-25:
+        if not abs(u).max() < 1.e-25:
             xtmp = myg.dx / abs(u.v()).max()
-        if not abs(v).max() < 1e-25:
+        if not abs(v).max() < 1.e-25:
             ytmp = myg.dy / abs(v.v()).max()
 
         dt = cfl * min(xtmp, ytmp)
@@ -789,7 +801,7 @@ class Simulation(NullSimulation):
         self.cc_data.fill_BC("y-velocity")
 
 
-        # 2. now get an approximation to gradp at n-1/2 by going through the
+        # c. now get an approximation to gradp at n-1/2 by going through the
         # evolution.
 
         # store the current solution -- we'll restore it in a bit
@@ -839,6 +851,7 @@ class Simulation(NullSimulation):
 
         D0 = self.base["D0"]
         Dh0 = self.base["Dh0"]
+        U0 = self.base["U0"]
 
         phi = self.cc_data.get_var("phi")
 
@@ -850,9 +863,12 @@ class Simulation(NullSimulation):
         # create the limited slopes of D, Dh, u and v (in both directions)
         #---------------------------------------------------------------------
         limiter = self.rp.get_param("lm-gr.limiter")
-        if limiter == 0: limitFunc = reconstruction_f.nolimit
-        elif limiter == 1: limitFunc = reconstruction_f.limit2
-        else: limitFunc = reconstruction_f.limit4
+        if limiter == 0:
+            limitFunc = reconstruction_f.nolimit
+        elif limiter == 1:
+            limitFunc = reconstruction_f.limit2
+        else:
+            limitFunc = reconstruction_f.limit4
 
         ldelta_rx = limitFunc(1, D.d, myg.qx, myg.qy, myg.ng)
         ldelta_r0x = limitFunc(1, D0.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
@@ -887,7 +903,8 @@ class Simulation(NullSimulation):
             S_t_centred.d[:,:] = S.d + \
                 self.dt * 0.5 * (S.d - oldS.d) / self.old_dt
 
-        self.compute_base_velocity(S=S_t_centred)
+        U0_half_star = U0.copy()
+        self.compute_base_velocity(U0=U0_half_star, S=S_t_centred)
 
         #pdb.set_trace()
 
@@ -928,6 +945,7 @@ class Simulation(NullSimulation):
         u0 = self.metric.calcu0()
         coeff = self.aux_data.get_var("coeff")
         coeff.d[:,:] = 1.0 / (Dh.d * u0.d)
+        # zeta here function of D0^n
         coeff.d[:,:] *= zeta.d2d()
         self.aux_data.fill_BC("coeff")
 
@@ -1031,18 +1049,24 @@ class Simulation(NullSimulation):
                                              myg.dx, myg.dy, self.dt,
                                              D_1.d, u_MAC.d, v_MAC.d,
                                              ldelta_rx, ldelta_ry)
+        # x component of U0 is zero
+        U0_x = myg.scratch_array()
         _, _r0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
-                                             myg.dx, myg.dy, self.dt,
-                                             D0.d2df(myg.qx), u_MAC.d, v_MAC.d,
-                                             ldelta_r0x, ldelta_r0y)
+                                            myg.dx, myg.dy, self.dt,
+                                            D0.d2df(myg.qx), U0_x.d, U0_half_star.d2df(myg.qx),
+                                            ldelta_r0x, ldelta_r0y)
+                                            #D0.d2df(myg.qx), u_MAC.d, v_MAC.d,
+
 
         D0_yint = patch.ArrayIndexer(d=_r0y, grid=myg)
 
         D02d = myg.scratch_array()
-        D02d.d[:,:] = D0.d2d()
+        D02d.d[:,:] = D0.d2d()[:,:]
         D02d.v()[:,:] -= self.dt*(
             #  (D v)_y
-            (D0_yint.jp(1)*v_MAC.jp(1) - D0_yint.v()*v_MAC.v())/myg.dy)
+            #(D0_yint.jp(1)*v_MAC.jp(1) - D0_yint.v()*v_MAC.v())/myg.dy)
+            (D0_yint.jp(1) * U0_half_star.jp(1)[np.newaxis,:] - \
+             D0_yint.v() * U0_half_star.v2d())/myg.dy)
         D0_2a_star = Basestate(myg.ny, ng=myg.ng)
         D0_2a_star.d[:] = self.lateral_average(D02d.d)
 
@@ -1066,7 +1090,7 @@ class Simulation(NullSimulation):
         D0_star.d[:] = self.lateral_average(D_2_star.d)
 
         # 4F: compute psi^n+1/2,*
-        psi = self.calc_psi(S=S_t_centred)
+        psi = self.calc_psi(S=S_t_centred, U0=U0_half_star)
 
         #---------------------------------------------------------------------
         # predict Dh to the edges and do its conservative update
@@ -1078,8 +1102,10 @@ class Simulation(NullSimulation):
                                              ldelta_ex, ldelta_ey)
         _, _e0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
-                                             Dh0.d2df(myg.qx), u_MAC.d, v_MAC.d,
+                                             Dh0.d2df(myg.qx), U0_x.d, U0_half_star.d2df(myg.qx),
                                              ldelta_e0x, ldelta_e0y)
+                                             #Dh0.d2df(myg.qx), u_MAC.d, v_MAC.d,
+                                             #ldelta_e0x, ldelta_e0y)
 
         Dh0_yint = patch.ArrayIndexer(d=_e0y, grid=myg)
 
@@ -1092,9 +1118,12 @@ class Simulation(NullSimulation):
         Dh02d.d[:,:] = Dh0.d2d()
         Dh02d.v()[:,:] += -self.dt * (
             #  (D v)_y
-            (Dh0_yint.jp(1)*v_MAC.jp(1) - Dh0_yint.v()*v_MAC.v())/myg.dy) + \
+            (Dh0_yint.jp(1) * U0_half_star.jp(1)[np.newaxis,:] - \
+             Dh0_yint.v() * U0_half_star.v2d())/myg.dy) + \
             self.dt * u0.v() * psi.v()
-        Dh0_star = Basestate(myg.ny, ng=myg.ng)
+            #(Dh0_yint.jp(1)*v_MAC.jp(1) - Dh0_yint.v()*v_MAC.v())/myg.dy) + \
+            #self.dt * u0.v() * psi.v()
+        Dh0_star = Dh0.copy()
         Dh0_star.d[:] = self.lateral_average(Dh02d.d)
 
         Dh_xint = patch.ArrayIndexer(d=_ex, grid=myg)
@@ -1102,6 +1131,7 @@ class Simulation(NullSimulation):
 
         Dh_old = Dh_1.copy()
         Dh_2_star = Dh_1.copy()
+        # should you use Dh0 or Dh0_star here??
         drp0 = self.drp0()
 
         # 4Hii.
@@ -1130,7 +1160,7 @@ class Simulation(NullSimulation):
         D_star = D_2_star.copy()
         Dh_star = Dh_2_star.copy()
         self.react_state(S=self.compute_S(u=u_MAC, v=v_MAC),
-                         D=D_star, Dh=Dh_star)
+                         D=D_star, Dh=Dh_star, Dh0=Dh0_star)
 
         #---------------------------------------------------------------------
         # 6. Compute time-centred expasion S, base state velocity U0 and
@@ -1144,7 +1174,8 @@ class Simulation(NullSimulation):
         p0 = self.base["p0"]
         p0_half_star = 0.5 * (p0 + old_p0)
 
-        self.compute_base_velocity(p0=p0_half_star, S=S_half_star)
+        U0_half = U0_half_star.copy()
+        self.compute_base_velocity(U0=U0_half, p0=p0_half_star, S=S_half_star, Dh0=Dh0_star)
 
         # FIXME: need base state forcing
 
@@ -1160,8 +1191,14 @@ class Simulation(NullSimulation):
         mom_source_x, mom_source_r = self.calc_mom_source(u=u_MAC, v=v_MAC)
         coeff = self.aux_data.get_var("coeff")
         coeff.v()[:,:] = 2.0 / ((Dh.v() + Dh_old.v()) * u0.v())
-        coeff.v()[:,:] *= zeta.v2d()
+
+        zeta_star = zeta.copy()
+        self.update_zeta(D0=D0_star, zeta=zeta_star)
+        zeta_half_star = 0.5 * (zeta + zeta_star)
+        coeff.v()[:,:] *= zeta_half_star.v2d()
+
         self.aux_data.fill_BC("coeff")
+
         _ux, _vx, _uy, _vy = \
                lm_interface_f.states(myg.qx, myg.qy, myg.ng,
                                      myg.dx, myg.dy, self.dt,
@@ -1209,7 +1246,8 @@ class Simulation(NullSimulation):
             v.v()[:,:] -= self.dt * advect_y.v()
 
         # add on source term
-        mom_source_x, mom_source_r = self.calc_mom_source()
+        # do we want to use Dh half star here maybe?
+        mom_source_x, mom_source_r = self.calc_mom_source(Dh0=Dh0_star)
         u.d[:,:] += self.dt * mom_source_x.d
         v.d[:,:] += self.dt * mom_source_r.d
 
@@ -1233,7 +1271,8 @@ class Simulation(NullSimulation):
                                              ldelta_rx, ldelta_ry)
         _, _r0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
-                                             D0.d2df(myg.qx), u_MAC.d, v_MAC.d,
+                                             D0.d2df(myg.qx), U0_x.d,
+                                             U0_half.d2df(myg.qx),
                                              ldelta_r0x, ldelta_r0y)
 
         D0_yint = patch.ArrayIndexer(d=_r0y, grid=myg)
@@ -1242,9 +1281,10 @@ class Simulation(NullSimulation):
 
         D02d = myg.scratch_array()
         D02d.d[:,:] = D0.d2d()
-        D02d.v()[:,:] -= self.dt*(
+        D02d.v()[:,:] -= self.dt * (
             #  (D v)_y
-            (D0_yint.jp(1)*v_MAC.jp(1) - D0_yint.v()*v_MAC.v())/myg.dy)
+            (D0_yint.jp(1) * U0_half.jp(1)[np.newaxis,:] -
+             D0_yint.v() * U0_half.v2d())/myg.dy)
         D0_2a = Basestate(myg.ny, ng=myg.ng)
         D0_2a.d[:] = self.lateral_average(D02d.d)
 
@@ -1254,7 +1294,7 @@ class Simulation(NullSimulation):
         D_old = D.copy()
         D_2 = D_1.copy()
 
-        D_2.v()[:,:] -= self.dt*(
+        D_2.v()[:,:] -= self.dt * (
             #  (D u)_x
             (D_xint.ip(1)*u_MAC.ip(1) - D_xint.v()*u_MAC.v())/myg.dx +
             #  (D v)_y
@@ -1265,7 +1305,7 @@ class Simulation(NullSimulation):
         # 8D
         D0.d[:] = self.lateral_average(D_2.d)
 
-        psi = self.calc_psi(S=S_half_star)
+        psi = self.calc_psi(S=S_half_star, U0=U0_half)
 
         #---------------------------------------------------------------------
         # predict Dh to the edges and do its conservative update
@@ -1276,7 +1316,7 @@ class Simulation(NullSimulation):
                                              ldelta_ex, ldelta_ey)
         _, _e0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
-                                             Dh0.d2df(myg.qx), u_MAC.d, v_MAC.d,
+                                             Dh0.d2df(myg.qx), U0_x.d, U0_half.d2df(myg.qx),
                                              ldelta_e0x, ldelta_e0y)
 
         Dh0_yint = patch.ArrayIndexer(d=_e0y, grid=myg)
@@ -1285,9 +1325,10 @@ class Simulation(NullSimulation):
 
         Dh02d = myg.scratch_array()
         Dh02d.d[:,:] = Dh0.d2d()
-        Dh02d.v()[:,:] += -self.dt*(
+        Dh02d.v()[:,:] += -self.dt * (
             #  (D v)_y
-            (Dh0_yint.jp(1)*v_MAC.jp(1) - Dh0_yint.v()*v_MAC.v())/myg.dy) + \
+            (Dh0_yint.jp(1) * U0_half.jp(1)[np.newaxis,:] -
+             Dh0_yint.v() * U0_half.v2d())/myg.dy) + \
             self.dt * u0.v() * psi.v()
         Dh0.d[:] = self.lateral_average(Dh02d.d)
 
@@ -1296,8 +1337,9 @@ class Simulation(NullSimulation):
 
         Dh_old = Dh.copy()
         Dh_2 = Dh_1.copy()
+        drp0 = self.drp0(Dh0=Dh0)
 
-        Dh_2.v()[:,:] += -self.dt*(
+        Dh_2.v()[:,:] += -self.dt * (
             #  (D u)_x
             (Dh_xint.ip(1)*u_MAC.ip(1) - Dh_xint.v()*u_MAC.v())/myg.dx +
             #  (D v)_y
@@ -1338,9 +1380,13 @@ class Simulation(NullSimulation):
             print("  final projection")
 
         # create the coefficient array: zeta**2 / Dh u0
-        coeff = 1.0 / (Dh * u0)
+        Dh_half = 0.5 * (Dh_old + Dh)
+        coeff = 1.0 / (Dh_half * u0)
+        zeta_old = zeta.copy()
         self.update_zeta()
-        coeff.v()[:,:] *= zeta.v2d()**2
+        zeta_half = 0.5 * (zeta_old + zeta)
+        # TODO: I think the zeta here needs to be time-centred
+        coeff.v()[:,:] *= zeta_half.v2d()**2
 
         # create the multigrid object
         mg = vcMG.VarCoeffCCMG2d(myg.nx, myg.ny,
@@ -1358,9 +1404,10 @@ class Simulation(NullSimulation):
 
         # u/v are cell-centered, divU is cell-centered
         div_zeta_U.v()[:,:] = \
-            0.5 * zeta.v2d() * (u.ip(1) - u.ip(-1))/myg.dx + \
-            0.5 * (zeta.v2dp(1)*v.jp(1) - zeta.v2dp(-1)*v.jp(-1))/myg.dy
+            0.5 * zeta_half.v2d() * (u.ip(1) - u.ip(-1))/myg.dx + \
+            0.5 * (zeta_half.v2dp(1)*v.jp(1) - zeta_half.v2dp(-1)*v.jp(-1))/myg.dy
 
+        # check this is using the correct S - might need to be time-centred
         constraint = self.constraint_source()
         mg.init_RHS(div_zeta_U.v(buf=1)/self.dt - constraint.v(buf=1)/self.dt)
 
@@ -1381,8 +1428,8 @@ class Simulation(NullSimulation):
         gradphi_x, gradphi_y = mg.get_solution_gradient(grid=myg)
 
         # U = U - (zeta/Dh u0) grad (phi)
-        coeff = 1.0 / (Dh * u0)
-        coeff.v()[:,:] *= zeta.v2d()
+        coeff = 1.0 / (Dh_half * u0)
+        coeff.v()[:,:] *= zeta_half.v2d()
 
         u.v()[:,:] -= self.dt * coeff.v() * gradphi_x.v()
         v.v()[:,:] -= self.dt * coeff.v() * gradphi_y.v()
@@ -1446,8 +1493,8 @@ class Simulation(NullSimulation):
 
         vort = myg.scratch_array()
 
-        dv = 0.5 * (v.ip(1) - v.ip(-1))/myg.dx
-        du = 0.5 * (u.jp(1) - u.jp(-1))/myg.dy
+        dv = 0.5 * (v.ip(1) - v.ip(-1)) / myg.dx
+        du = 0.5 * (u.jp(1) - u.jp(-1)) / myg.dy
 
         #vort.v()[:,:] = dv - du
 
