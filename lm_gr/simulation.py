@@ -453,7 +453,11 @@ class Simulation(NullSimulation):
             (grr[np.newaxis,:] * chrls[:,:,2,1,2] +
              gxx[np.newaxis,:] * chrls[:,:,1,2,2]) * u.d * v.d)
 
-        mom_source_r.d[:,:] -= drp0.d[np.newaxis,:] / (Dh.d[:,:]*u0.d[:,:])
+        mom_source_r.d[:,:] -=  drp0.d[np.newaxis,:] / (Dh.d[:,:]*u0.d[:,:])
+
+        mom_source_x.d[:,:] *=  self.metric.alpha.d2d()**2
+        mom_source_r.d[:,:] *=  self.metric.alpha.d2d()**2
+        #pdb.set_trace()
 
         return mom_source_x, mom_source_r
 
@@ -781,6 +785,7 @@ class Simulation(NullSimulation):
         # FIXME: this update only needs to be done on the interior
         # cells -- not ghost cells
         gradp_x, gradp_y = mg.get_solution_gradient(grid=myg)
+        #pdb.set_trace()
 
         coeff = 1. / (Dh * u0)
         coeff.v()[:,:] *= zeta.v2d()
@@ -974,8 +979,8 @@ class Simulation(NullSimulation):
         # create the coefficient array: zeta**2/Dh u0
         # MZ!!!! probably don't need the buf here
         # TODO: are zeta, u0 functions of MAC velocities?
+        u0 = self.metric.calcu0(u=u_MAC, v=v_MAC)
         coeff.v(buf=1)[:,:] = 1. / (Dh.v(buf=1) * u0.v(buf=1))
-        # FIXME: update zeta to use MAC velocities?
         coeff.v(buf=1)[:,:] *= zeta.v2d(buf=1)**2
 
         # create the multigrid object
@@ -1013,7 +1018,7 @@ class Simulation(NullSimulation):
         # this is zero and shouldn't be
 
         coeff = self.aux_data.get_var("coeff")
-        coeff.d[:,:] = 1.0 / (Dh.d * u0.d)
+        coeff.d[:,:] = self.metric.alpha.d2d()**2 / (Dh.d * u0.d)
         coeff.d[:,:] *= zeta.d2d()
         self.aux_data.fill_BC("coeff")
 
@@ -1297,8 +1302,6 @@ class Simulation(NullSimulation):
             (D_yint.jp(1)*(v_MAC.jp(1) + U0_half.jp(1)[np.newaxis,:]) -\
              D_yint.v() * (v_MAC.v() + U0_half.v2d())) / myg.dy )
 
-        self.cc_data.fill_BC("density")
-
         # 8D
         D0.d[:] = self.lateral_average(D_2.d)
 
@@ -1341,11 +1344,9 @@ class Simulation(NullSimulation):
             (Dh_xint.ip(1)*u_MAC.ip(1) - Dh_xint.v()*u_MAC.v())/myg.dx +
             #  (D v)_y
             (Dh_yint.jp(1)*(v_MAC.jp(1) + U0_half.jp(1)[np.newaxis,:]) -\
-             Dh_yint.v() * (v_MAC.v() + U0_half.v2d())) / myg.dy ) + \
+             Dh_yint.v() * (v_MAC.v() + U0_half.v2d())) / myg.dy) + \
             self.dt * u0.v() * v_MAC.v() * drp0.v2d() + \
             self.dt * u0.v() * psi.v()
-
-        self.cc_data.fill_BC("enthalpy")
 
         self.enforce_tov(u=u_MAC, v=v_MAC)
 
@@ -1360,6 +1361,9 @@ class Simulation(NullSimulation):
         D = D_2.copy()
         Dh = Dh_2.copy()
         self.react_state(S=self.compute_S(u=u_MAC, v=v_MAC), D=D, Dh=Dh, u=u_MAC, v=v_MAC)
+
+        self.cc_data.fill_BC("density")
+        self.cc_data.fill_BC("enthalpy")
 
         #---------------------------------------------------------------------
         # 10. Define the new time expansion S and Gamma1
@@ -1383,7 +1387,6 @@ class Simulation(NullSimulation):
         zeta_old = zeta.copy()
         self.update_zeta(u=u_MAC, v=v_MAC)
         zeta_half = 0.5 * (zeta_old + zeta)
-        # TODO: I think the zeta here needs to be time-centred
         coeff.v()[:,:] *= zeta_half.v2d()**2
 
         # create the multigrid object
@@ -1406,7 +1409,8 @@ class Simulation(NullSimulation):
             0.5 * zeta_half.v2d() * (u.ip(1) - u.ip(-1))/myg.dx + \
             0.5 * (zeta_half.v2dp(1)*v.jp(1) - zeta_half.v2dp(-1)*v.jp(-1))/myg.dy
 
-        # check this is using the correct S - might need to be time-centred
+        # FIXME: check this is using the correct S - might need to be time-centred
+        # U or U_MAC??
         constraint = self.constraint_source(zeta=zeta_half)
         mg.init_RHS(div_zeta_U.v(buf=1)/self.dt - constraint.v(buf=1)/self.dt)
 
@@ -1427,7 +1431,9 @@ class Simulation(NullSimulation):
         gradphi_x, gradphi_y = mg.get_solution_gradient(grid=myg)
 
         # U = U - (zeta/Dh u0) grad (phi)
+        # alpha^2 as need to raise grad.
         coeff = 1.0 / (Dh_half * u0)
+        coeff.d[:,:] *=  self.metric.alpha.d2d()**2
         coeff.v()[:,:] *= zeta_half.v2d()
 
         u.v()[:,:] -= self.dt * coeff.v() * gradphi_x.v()
