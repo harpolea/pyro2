@@ -64,7 +64,7 @@ class Metric:
 
         return sg, sgamma
 
-    def calcW(self):
+    def calcW(self, u=None, v=None):
         """
         Calculates the Lorentz factor and returns it.
 
@@ -90,9 +90,10 @@ class Metric:
         """
         myg = self.cc_data.grid
         W = myg.scratch_array()
-
-        u = self.cc_data.get_var("x-velocity")
-        v = self.cc_data.get_var("y-velocity")
+        if u is None:
+            u = self.cc_data.get_var("x-velocity")
+        if v is None:
+            v = self.cc_data.get_var("y-velocity")
         c = self.rp.get_param("lm-gr.c")
 
         # for loop here as otherwise my brain hurts
@@ -117,7 +118,7 @@ class Metric:
 
         return W
 
-    def calcu0(self):
+    def calcu0(self, u=None, v=None):
         """
         Calculates the timelike coordinate of the 2+1-velocity using the Lorentz
         factor and alpha, so W = alpha * u0
@@ -128,7 +129,7 @@ class Metric:
             u0 on grid
         """
 
-        W = self.calcW()
+        W = self.calcW(u=u, v=v)
         myg = self.cc_data.grid
         u0 = myg.scratch_array()
         u0.d[:,:] = W.d / self.alpha.d2d()

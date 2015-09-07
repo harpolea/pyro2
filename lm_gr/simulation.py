@@ -311,7 +311,7 @@ class Simulation(NullSimulation):
         return np.mean(a, axis=0)
 
 
-    def update_zeta(self, D0=None, zeta=None):
+    def update_zeta(self, D0=None, zeta=None, u=None, v=None):
         """
         Updates zeta in the interior and on the edges.
         Assumes all other variables are up to date.
@@ -320,7 +320,7 @@ class Simulation(NullSimulation):
         myg = self.cc_data.grid
         if D0 is None:
             D0 = self.base["D0"]
-        u0 = self.metric.calcu0()
+        u0 = self.metric.calcu0(u=u, v=v)
         if zeta is None:
             zeta = self.base["zeta"]
         zeta_edges = self.base["zeta-edges"]
@@ -360,7 +360,7 @@ class Simulation(NullSimulation):
         return S
 
 
-    def constraint_source(self, u=None, v=None, S=None):
+    def constraint_source(self, u=None, v=None, S=None, zeta=None):
         """
         calculate the source terms in the constraint, zeta(S - dpdt/ Gamma1 p)
 
@@ -375,11 +375,12 @@ class Simulation(NullSimulation):
         c = self.rp.get_param("lm-gr.c")
         R = self.rp.get_param("lm-gr.radius")
         gamma = self.rp.get_param("eos.gamma")
-        if u is None:
-            u = self.cc_data.get_var("x-velocity")
-        if v is None:
-            v = self.cc_data.get_var("y-velocity")
-        zeta = self.base["zeta"]
+        #if u is None:
+        #    u = self.cc_data.get_var("x-velocity")
+        #if v is None:
+        #    v = self.cc_data.get_var("y-velocity")
+        if zeta is None:
+            zeta = self.base["zeta"]
         if S is None:
             S = self.aux_data.get_var("source_y")
 
@@ -394,6 +395,7 @@ class Simulation(NullSimulation):
             (S.d - dp0dt.d2df(myg.qx) / (gamma * p0.d2df(myg.qx)))
 
         return constraint
+
 
     def calc_mom_source(self, u=None, v=None, Dh=None, Dh0=None):
         """
@@ -420,15 +422,13 @@ class Simulation(NullSimulation):
             v = self.cc_data.get_var("y-velocity")
         if Dh is None:
             Dh = self.cc_data.get_var("enthalpy")
-        u0 = self.metric.calcu0()
+        u0 = self.metric.calcu0(u=u, v=v)
         mom_source_r = myg.scratch_array()
         mom_source_x = myg.scratch_array()
         gtt = -(self.metric.alpha.d)**2
         gxx = 1. / self.metric.alpha.d**2
         grr = gxx
-        if Dh0 is None:
-            Dh0 = self.base["Dh0"]
-        drp0 = self.drp0(Dh0=Dh0)
+        drp0 = self.drp0(Dh0=Dh0, u=u, v=v)
 
         chrls = np.array([[self.metric.christoffels([self.cc_data.t, i, j])
                            for j in range(myg.qy)] for i in range(myg.qx)])
@@ -457,6 +457,7 @@ class Simulation(NullSimulation):
 
         return mom_source_x, mom_source_r
 
+
     def calc_psi(self, S=None, U0=None):
         """
         calculate psi
@@ -480,7 +481,7 @@ class Simulation(NullSimulation):
         return psi
 
 
-    def base_state_forcing(self, U0_half_star, U0_old_half=None, Dh0=None):
+    def base_state_forcing(self, U0_half_star, U0_old_half=None, Dh0=None, u=None, v=None):
         """
         calculate the base state velocity forcing term from 2C
         This works only for the metric ds^2 = -a^2 dt^2 + 1/a^2 (dx^2 + dr^2)
@@ -491,8 +492,8 @@ class Simulation(NullSimulation):
             U0_old_half = self.base["U0"]
         if Dh0 is None:
             Dh0 = self.base["Dh0"]
-        drp0 = self.drp0(Dh0=Dh0)
-        u0 = self.metric.calcu0()
+        drp0 = self.drp0(Dh0=Dh0, u=u, v=v)
+        u0 = self.metric.calcu0(u=u, v=v)
         grr = 1. / self.metric.alpha.d**2
 
         chrls = np.array([[self.metric.christoffels([self.cc_data.t, i, j])
@@ -526,7 +527,7 @@ class Simulation(NullSimulation):
         return drpi
 
 
-    def react_state(self, S=None, D=None, Dh=None, Dh0=None):
+    def react_state(self, S=None, D=None, Dh=None, Dh0=None, u=None, v=None):
         """
         gravitational source terms in the continuity equation (called react
         state to mirror MAESTRO as here they just have source terms from the
@@ -538,12 +539,10 @@ class Simulation(NullSimulation):
             D = self.cc_data.get_var("density")
         if Dh is None:
             Dh = self.cc_data.get_var("enthalpy")
-        if Dh0 is None:
-            Dh0 = self.base["Dh0"]
-        u = self.cc_data.get_var("x-velocity")
-        v = self.cc_data.get_var("y-velocity")
-        u0 = self.metric.calcu0()
-        drp0 = self.drp0(Dh0=Dh0)
+        if v is None:
+            v = self.cc_data.get_var("y-velocity")
+        u0 = self.metric.calcu0(u=u, v=v)
+        drp0 = self.drp0(Dh0=Dh0, u=u, v=v)
         if S is None:
             S = self.aux_data.get_var("source_y")
 
@@ -563,12 +562,13 @@ class Simulation(NullSimulation):
         dr = myg.dy
         if U0 is None:
             U0 = self.base["U0"]
-        # FIXME: use proper U_0 and time-centred edge states.
+        # CHANGED: use proper U_0
+        # FIXME: time-centred edge states?
 
         D0.v()[:] += -(D0.jp(1) * U0.jp(1) - D0.v() * U0.v()) * dt / dr
 
 
-    def enforce_tov(self, p0=None, Dh0=None):
+    def enforce_tov(self, p0=None, Dh0=None, u=None, v=None):
         """
         enforces the TOV equation. This is the GR equivalent of enforce_hse.
         Eq. 6.132.
@@ -578,15 +578,13 @@ class Simulation(NullSimulation):
             p0 = self.base["p0"]
         old_p0 = self.base["old_p0"]
         old_p0 = p0.copy()
-        if Dh0 is None:
-            Dh0 = self.base["Dh0"]
-        drp0 = self.drp0(Dh0=Dh0)
+        drp0 = self.drp0(Dh0=Dh0, u=u, v=v)
 
         p0.d[1:] = p0.d[:-1] + 0.5 * self.cc_data.grid.dy * \
                    (drp0.d[1:] + drp0.d[:-1])
 
 
-    def drp0(self, Dh0=None):
+    def drp0(self, Dh0=None, u=None, v=None):
         """
         Calculate drp0 as it's messy using eq 6.136
         """
@@ -595,7 +593,7 @@ class Simulation(NullSimulation):
             Dh0 = self.base["Dh0"]
         # TODO: maybe instead of averaging u0, should calculate it
         # based on U0?
-        u0 = self.metric.calcu0()
+        u0 = self.metric.calcu0(u=u, v=v)
         u01d = Basestate(myg.ny, ng=myg.ng)
         u01d.d[:] = self.lateral_average(u0.d)
         alpha = self.metric.alpha
@@ -605,14 +603,12 @@ class Simulation(NullSimulation):
 
         drp0 = Basestate(myg.ny, ng=myg.ng)
 
-        #drp0.d[:] = g * (2. * p0.d * (1. - alpha.d**4) - Dh0.d / u01d.d) / \
-        #      (R * c**2 * alpha.d**2)
         drp0.d[:] = -Dh0.d * g / (R * c**2 * alpha.d**2 * u01d.d)
 
         return drp0
 
 
-    def advect_base_enthalpy(self, Dh0=None, S=None, U0=None):
+    def advect_base_enthalpy(self, Dh0=None, S=None, U0=None, u=None, v=None):
         """
         updates base state enthalpy throung one timestep.
         """
@@ -626,34 +622,30 @@ class Simulation(NullSimulation):
         if S is None:
             S = self.aux_data.get_var("source_y")
         psi = self.calc_psi(U0=U0, S=S)
-        u0 = self.metric.calcu0()
+        u0 = self.metric.calcu0(u=u, v=v)
 
-        # FIXME: calculate U_0, find out how to find the time-centred edge
-        # states and use them here.
-        # FIXME: add psi
+        # FIXME: find out how to find the time-centred edge
+        # states and use them here?
+        # CHANGED: add psi
 
         Dh0.v()[:] += -(Dh0.jp(1) * U0.jp(1) - Dh0.v() * U0.v()) * dt / dr + \
                       dt * self.lateral_average(u0.v()) * psi.v()
                       # dt * U0.v() * self.drp0().v() + \
 
 
-    def compute_base_velocity(self, U0=None, p0=None, S=None, Dh0=None):
+    def compute_base_velocity(self, U0=None, p0=None, S=None, Dh0=None, u=None, v=None):
         """
         Caclulates the base velocity using eq. 6.138
         """
         myg = self.cc_data.grid
         if p0 is None:
             p0 = self.base["p0"]
-        if Dh0 is None:
-            Dh0 = self.base["Dh0"]
         dt = self.dt
         dr = myg.dy
         if U0 is None:
             U0 = self.base["U0"]
         gamma = self.rp.get_param("eos.gamma")
-        drp0 = self.drp0(Dh0=Dh0)
-        u = self.cc_data.get_var("x-velocity")
-        v = self.cc_data.get_var("y-velocity")
+        drp0 = self.drp0(Dh0=Dh0, u=u, v=v)
         if S is None:
             S = self.aux_data.get_var("source_y")
 
@@ -695,10 +687,10 @@ class Simulation(NullSimulation):
 
         # We need an alternate timestep that accounts for buoyancy, to
         # handle the case where the velocity is initially zero.
-        Dh0 = Dh0 = self.base["Dh0"]
-        u0 = self.metric.calcu0()
+        Dh0 = self.base["Dh0"]
+        u0 = self.metric.calcu0(u=u, v=v)
 
-        drp0 = self.drp0()
+        drp0 = self.drp0(Dh0=Dh0, u=u, v=v)
         u01d = Basestate(myg.ny, ng=myg.ng)
         u01d.d[:] = self.lateral_average(u0.d)
 
@@ -983,6 +975,7 @@ class Simulation(NullSimulation):
         # MZ!!!! probably don't need the buf here
         # TODO: are zeta, u0 functions of MAC velocities?
         coeff.v(buf=1)[:,:] = 1. / (Dh.v(buf=1) * u0.v(buf=1))
+        # FIXME: update zeta to use MAC velocities?
         coeff.v(buf=1)[:,:] *= zeta.v2d(buf=1)**2
 
         # create the multigrid object
@@ -1076,12 +1069,13 @@ class Simulation(NullSimulation):
         D_old = D.copy()
         D_2_star = D_1.copy()
 
-        # FIXME: isn't there supposed to be a U0 term here?
-        D_2_star.v()[:,:] -= self.dt*(
+        # CHANGED: isn't there supposed to be a U0 term here?
+        D_2_star.v()[:,:] -= self.dt * (
             #  (D u)_x
-            (D_xint.ip(1)*u_MAC.ip(1) - D_xint.v()*u_MAC.v())/myg.dx +
+            (D_xint.ip(1) * u_MAC.ip(1) - D_xint.v() * u_MAC.v())/myg.dx +
             #  (D v)_y
-            (D_yint.jp(1)*v_MAC.jp(1) - D_yint.v()*v_MAC.v())/myg.dy )
+            (D_yint.jp(1)*(v_MAC.jp(1) + U0_half_star.jp(1)[np.newaxis,:]) -\
+             D_yint.v() * (v_MAC.v() + U0_half_star.v2d())) / myg.dy )
 
         self.cc_data.fill_BC("density")
 
@@ -1132,21 +1126,22 @@ class Simulation(NullSimulation):
         Dh_old = Dh_1.copy()
         Dh_2_star = Dh_1.copy()
         # should you use Dh0 or Dh0_star here??
-        drp0 = self.drp0()
+        drp0 = self.drp0(u=u_MAC, v=v_MAC)
 
         # 4Hii.
         Dh_2_star.v()[:,:] += -self.dt*(
             #  (D u)_x
             (Dh_xint.ip(1)*u_MAC.ip(1) - Dh_xint.v()*u_MAC.v())/myg.dx +
             #  (D v)_y
-            (Dh_yint.jp(1)*v_MAC.jp(1) - Dh_yint.v()*v_MAC.v())/myg.dy ) + \
+            (Dh_yint.jp(1)*(v_MAC.jp(1) + U0_half_star.jp(1)[np.newaxis,:]) -\
+             Dh_yint.v() * (v_MAC.v() + U0_half_star.v2d())) / myg.dy ) + \
             self.dt * u0.v() * v_MAC.v() * drp0.v2d() + \
             self.dt * u0.v() * psi.v()
 
         self.cc_data.fill_BC("enthalpy")
 
         # this makes p0 -> p0_star. May not want to update self.base[p0] here.
-        self.enforce_tov(Dh0=Dh0_star)
+        self.enforce_tov(Dh0=Dh0_star, u=u_MAC, v=v_MAC)
 
         # update eint as a diagnostic
         eint = self.cc_data.get_var("eint")
@@ -1160,7 +1155,7 @@ class Simulation(NullSimulation):
         D_star = D_2_star.copy()
         Dh_star = Dh_2_star.copy()
         self.react_state(S=self.compute_S(u=u_MAC, v=v_MAC),
-                         D=D_star, Dh=Dh_star, Dh0=Dh0_star)
+                         D=D_star, Dh=Dh_star, Dh0=Dh0_star, u=u_MAC, v=v_MAC)
 
         #---------------------------------------------------------------------
         # 6. Compute time-centred expasion S, base state velocity U0 and
@@ -1175,7 +1170,7 @@ class Simulation(NullSimulation):
         p0_half_star = 0.5 * (p0 + old_p0)
 
         U0_half = U0_half_star.copy()
-        self.compute_base_velocity(U0=U0_half, p0=p0_half_star, S=S_half_star, Dh0=Dh0_star)
+        self.compute_base_velocity(U0=U0_half, p0=p0_half_star, S=S_half_star, Dh0=Dh0_star, u=u_MAC, v=v_MAC)
 
         # FIXME: need base state forcing
 
@@ -1193,7 +1188,7 @@ class Simulation(NullSimulation):
         coeff.v()[:,:] = 2.0 / ((Dh.v() + Dh_old.v()) * u0.v())
 
         zeta_star = zeta.copy()
-        self.update_zeta(D0=D0_star, zeta=zeta_star)
+        self.update_zeta(D0=D0_star, zeta=zeta_star, u=u_MAC, v=v_MAC)
         zeta_half_star = 0.5 * (zeta + zeta_star)
         coeff.v()[:,:] *= zeta_half_star.v2d()
 
@@ -1247,7 +1242,8 @@ class Simulation(NullSimulation):
 
         # add on source term
         # do we want to use Dh half star here maybe?
-        mom_source_x, mom_source_r = self.calc_mom_source(Dh0=Dh0_star)
+        # FIXME: u_MAC, v_MAC in source??
+        mom_source_x, mom_source_r = self.calc_mom_source(Dh0=Dh0_star, u=u_MAC, v=v_MAC)
         u.d[:,:] += self.dt * mom_source_x.d
         v.d[:,:] += self.dt * mom_source_r.d
 
@@ -1298,7 +1294,8 @@ class Simulation(NullSimulation):
             #  (D u)_x
             (D_xint.ip(1)*u_MAC.ip(1) - D_xint.v()*u_MAC.v())/myg.dx +
             #  (D v)_y
-            (D_yint.jp(1)*v_MAC.jp(1) - D_yint.v()*v_MAC.v())/myg.dy )
+            (D_yint.jp(1)*(v_MAC.jp(1) + U0_half.jp(1)[np.newaxis,:]) -\
+             D_yint.v() * (v_MAC.v() + U0_half.v2d())) / myg.dy )
 
         self.cc_data.fill_BC("density")
 
@@ -1337,19 +1334,20 @@ class Simulation(NullSimulation):
 
         Dh_old = Dh.copy()
         Dh_2 = Dh_1.copy()
-        drp0 = self.drp0(Dh0=Dh0)
+        drp0 = self.drp0(Dh0=Dh0, u=u_MAC, v=v_MAC)
 
         Dh_2.v()[:,:] += -self.dt * (
             #  (D u)_x
             (Dh_xint.ip(1)*u_MAC.ip(1) - Dh_xint.v()*u_MAC.v())/myg.dx +
             #  (D v)_y
-            (Dh_yint.jp(1)*v_MAC.jp(1) - Dh_yint.v()*v_MAC.v())/myg.dy ) + \
+            (Dh_yint.jp(1)*(v_MAC.jp(1) + U0_half.jp(1)[np.newaxis,:]) -\
+             Dh_yint.v() * (v_MAC.v() + U0_half.v2d())) / myg.dy ) + \
             self.dt * u0.v() * v_MAC.v() * drp0.v2d() + \
             self.dt * u0.v() * psi.v()
 
         self.cc_data.fill_BC("enthalpy")
 
-        self.enforce_tov()
+        self.enforce_tov(u=u_MAC, v=v_MAC)
 
         # update eint as a diagnostic
         eint = self.cc_data.get_var("eint")
@@ -1361,14 +1359,14 @@ class Simulation(NullSimulation):
         #---------------------------------------------------------------------
         D = D_2.copy()
         Dh = Dh_2.copy()
-        self.react_state(S=self.compute_S(), D=D, Dh=Dh)
+        self.react_state(S=self.compute_S(u=u_MAC, v=v_MAC), D=D, Dh=Dh, u=u_MAC, v=v_MAC)
 
         #---------------------------------------------------------------------
         # 10. Define the new time expansion S and Gamma1
         #---------------------------------------------------------------------
         oldS = S.copy()
 
-        S = self.compute_S()
+        S = self.compute_S(u=u_MAC, v=v_MAC)
 
         #pdb.set_trace()
 
@@ -1383,7 +1381,7 @@ class Simulation(NullSimulation):
         Dh_half = 0.5 * (Dh_old + Dh)
         coeff = 1.0 / (Dh_half * u0)
         zeta_old = zeta.copy()
-        self.update_zeta()
+        self.update_zeta(u=u_MAC, v=v_MAC)
         zeta_half = 0.5 * (zeta_old + zeta)
         # TODO: I think the zeta here needs to be time-centred
         coeff.v()[:,:] *= zeta_half.v2d()**2
@@ -1403,12 +1401,13 @@ class Simulation(NullSimulation):
         # first compute div{zeta U}
 
         # u/v are cell-centered, divU is cell-centered
+        # this bit seems to use U^n+1 rather than U_MAC
         div_zeta_U.v()[:,:] = \
             0.5 * zeta_half.v2d() * (u.ip(1) - u.ip(-1))/myg.dx + \
             0.5 * (zeta_half.v2dp(1)*v.jp(1) - zeta_half.v2dp(-1)*v.jp(-1))/myg.dy
 
         # check this is using the correct S - might need to be time-centred
-        constraint = self.constraint_source()
+        constraint = self.constraint_source(zeta=zeta_half)
         mg.init_RHS(div_zeta_U.v(buf=1)/self.dt - constraint.v(buf=1)/self.dt)
 
         # use the old phi as our initial guess

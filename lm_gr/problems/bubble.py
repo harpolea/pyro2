@@ -75,6 +75,7 @@ def init_data(my_data, base, rp, metric):
 
     # do the base state
     p0 = base["p0"]
+    old_p0 = base["old_p0"]
     D0 = base["D0"]
     Dh0 = base["Dh0"]
     D0.d[:] = np.mean(dens.d, axis=0)
@@ -105,6 +106,7 @@ def init_data(my_data, base, rp, metric):
     enth.d[:, :] *= dens.d  # rho * h * u0
     D0.d[:] *= u0.d1d()
     Dh0.d[:] *= D0.d
+    old_p0 = p0.copy()
 
     my_data.fill_BC_all()
 
