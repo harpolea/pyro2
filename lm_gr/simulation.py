@@ -425,6 +425,8 @@ class Simulation(NullSimulation):
             v = self.cc_data.get_var("y-velocity")
         if Dh is None:
             Dh = self.cc_data.get_var("enthalpy")
+        if Dh0 is None:
+            Dh0 = self.base["Dh0"]
         u0 = self.metric.calcu0(u=u, v=v)
         mom_source_r = myg.scratch_array()
         mom_source_x = myg.scratch_array()
@@ -437,6 +439,7 @@ class Simulation(NullSimulation):
                            for j in range(myg.qy)] for i in range(myg.qx)])
 
         # note metric components needed to lower the christoffel symbols
+        # NOTE: tried putting D'/D factor in here to see if could drive some movement upwards but it did not do so as desired.
         mom_source_x.d[:,:] = (gtt[np.newaxis,:] * chrls[:,:,0,0,1] +
             (gxx[np.newaxis,:] * chrls[:,:,1,0,1] +
              gtt[np.newaxis,:] * chrls[:,:,0,1,1]) * u.d +
@@ -458,8 +461,10 @@ class Simulation(NullSimulation):
 
         mom_source_r.d[:,:] -=  drp0.d[np.newaxis,:] / (Dh.d[:,:]*u0.d[:,:])
 
-        mom_source_x.d[:,:] *=  self.metric.alpha.d2d()**2
-        mom_source_r.d[:,:] *=  self.metric.alpha.d2d()**2
+        mom_source_x.d[:,:] *=  self.metric.alpha.d2d()**2 * \
+       (Dh0.d2d() - Dh.d) / Dh.d
+        mom_source_r.d[:,:] *=  self.metric.alpha.d2d()**2 * \
+       (Dh0.d2d() - Dh.d) / Dh.d
         #pdb.set_trace()
 
         return mom_source_x, mom_source_r
@@ -1098,6 +1103,9 @@ class Simulation(NullSimulation):
             (D_yint.jp(1)*(v_MAC.jp(1) + U0_half_star.jp(1)[np.newaxis,:]) -\
              D_yint.v() * (v_MAC.v() + U0_half_star.v2d())) / myg.dy )
 
+
+        #print(D_2_star.d[60:70, 60:70])
+
         self.cc_data.fill_BC("density")
 
         # 4D Correct D0
@@ -1259,7 +1267,7 @@ class Simulation(NullSimulation):
         # add on source term
         # do we want to use Dh half star here maybe?
         # FIXME: u_MAC, v_MAC in source??
-        mom_source_x, mom_source_r = self.calc_mom_source(Dh0=Dh0_star, u=u_MAC, v=v_MAC)
+        mom_source_x, mom_source_r = self.calc_mom_source(Dh=Dh_star, Dh0=Dh0_star, u=u_MAC, v=v_MAC)
         u.d[:,:] += self.dt * mom_source_x.d
         v.d[:,:] += self.dt * mom_source_r.d
 
@@ -1505,6 +1513,7 @@ class Simulation(NullSimulation):
         #plt.rc("font", size=10)
 
         D = self.cc_data.get_var("density")
+        Dh = self.cc_data.get_var("enthalpy")
         D0 = self.base["D0"]
         Dprime = self.make_prime(D, D0)
 
