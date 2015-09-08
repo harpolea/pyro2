@@ -462,9 +462,9 @@ class Simulation(NullSimulation):
         mom_source_r.d[:,:] -=  drp0.d[np.newaxis,:] / (Dh.d[:,:]*u0.d[:,:])
 
         mom_source_x.d[:,:] *=  self.metric.alpha.d2d()**2 * \
-       (Dh0.d2d() - Dh.d) / Dh.d
+       -(Dh0.d2d() - Dh.d) / Dh.d
         mom_source_r.d[:,:] *=  self.metric.alpha.d2d()**2 * \
-       (Dh0.d2d() - Dh.d) / Dh.d
+       -(Dh0.d2d() - Dh.d) / Dh.d
         #pdb.set_trace()
 
         return mom_source_x, mom_source_r
