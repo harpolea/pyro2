@@ -5,6 +5,8 @@ TODO: D ln u0/Dt term in momentum equation?
 
 TODO: find out where the slow parts are and speed them up
 
+TODO: u0 takes a while to calculate. Try and identify places where it is calculated multiple times and doesn't need to be.
+
 FIXME: base state boundary conditions
 
 FIXME: check edge/cell-centred/time-centred quantities used correctly
@@ -156,7 +158,7 @@ class Simulation(NullSimulation):
         self.base = {}
         self.aux_data = None
         self.metric = None
-        self.old_dt = 1.
+        self.dt_old = 1.
 
 
     def initialize(self):
@@ -236,6 +238,7 @@ class Simulation(NullSimulation):
         self.base["p0"] = Basestate(myg.ny, ng=myg.ng)
         self.base["old_p0"] = Basestate(myg.ny, ng=myg.ng)
         self.base["U0"] = Basestate(myg.ny, ng=myg.ng)
+        self.base["U0_old_half"] = Basestate(myg.ny, ng=myg.ng)
         # U0(t=0) = 0 as an initial approximation
 
         # add metric
@@ -462,7 +465,7 @@ class Simulation(NullSimulation):
         return mom_source_x, mom_source_r
 
 
-    def calc_psi(self, S=None, U0=None):
+    def calc_psi(self, S=None, U0=None, p0=None, old_p0=None):
         """
         calculate psi
         """
@@ -472,8 +475,10 @@ class Simulation(NullSimulation):
         if U0 is None:
             U0 = self.base["U0"]
         gamma = self.rp.get_param("eos.gamma")
-        p0 = self.base["p0"]
-        old_p0 = self.base["old_p0"]
+        if p0 is None:
+            p0 = self.base["p0"]
+        if old_p0 is None:
+            old_p0 = self.base["old_p0"]
 
         psi = Basestate(myg.ny, ng=myg.ng)
 
@@ -485,18 +490,25 @@ class Simulation(NullSimulation):
         return psi
 
 
-    def base_state_forcing(self, U0_half_star, U0_old_half=None, Dh0=None, u=None, v=None):
+    def base_state_forcing(self, U0_half=None, U0_old_half=None, Dh0_old=None, Dh0=None, u=None, v=None):
         """
         calculate the base state velocity forcing term from 2C
         This works only for the metric ds^2 = -a^2 dt^2 + 1/a^2 (dx^2 + dr^2)
         """
         myg = self.cc_data.grid
         drpi = myg.scratch_array()
+        if U0_half is None:
+            U0_half = self.base["U0"]
         if U0_old_half is None:
             U0_old_half = self.base["U0"]
         if Dh0 is None:
             Dh0 = self.base["Dh0"]
-        drp0 = self.drp0(Dh0=Dh0, u=u, v=v)
+        if Dh0_old is None:
+            Dh0_old = self.base["Dh0"]
+
+        Dh0_half = 0.5 * (Dh0_old + Dh0)
+
+        drp0 = self.drp0(Dh0=Dh0_half, u=u, v=v)
         u0 = self.metric.calcu0(u=u, v=v)
         grr = 1. / self.metric.alpha.d**2
 
@@ -505,28 +517,28 @@ class Simulation(NullSimulation):
 
         U0_star = Basestate(myg.ny, ng=myg.ng)
         U0_star.d[:] = (self.dt * U0_old_half.d +
-                        self.old_dt * U0_half_star.d) / (self.dt + self.dt_old)
+                        self.dt_old * U0_half.d) / (self.dt + self.dt_old)
 
         drU0_old_half = Basestate(myg.ny, ng=myg.ng)
-        drU0_half_star = Basestate(myg.ny, ng=myg.ng)
+        drU0_half = Basestate(myg.ny, ng=myg.ng)
         drU0_star = Basestate(myg.ny, ng=myg.ng)
         drU0_old_half.d[1:-1] = (U0_old_half.d[2:] -
                                  U0_old_half.d[:-2]) / (2. * myg.dy)
-        drU0_half_star.d[1:-1] = (U0_half_star.d[2:] -
-                                 U0_half_star.d[:-2]) / (2. * myg.dy)
-        drU0_star.d[:] = (self.dt * drU0_half_star.d +
-                    self.old_dt * drU0_half_star.d) / (self.dt + self.dt_old)
+        drU0_half.d[1:-1] = (U0_half.d[2:] -
+                                 U0_half.d[:-2]) / (2. * myg.dy)
+        drU0_star.d[:] = (self.dt * drU0_half.d +
+                    self.dt_old * drU0_half.d) / (self.dt + self.dt_old)
 
         drp0_old_half = Basestate(myg.ny, ng=myg.ng)
-        drp0_half_star = Basestate(myg.ny, ng=myg.ng)
+        drp0_half = Basestate(myg.ny, ng=myg.ng)
         drp0_star = Basestate(myg.ny, ng=myg.ng)
         # don't have an old p0 atm - just ignore for now
         drp0_star.d[:] = drp0.d
 
         drpi.d[:,:] = \
-            -0.5*(U0_half_star.d2d - U0_old_half.d2d)/(self.dt + self.dt_old) -\
-            U0_star.d2d * drU0_star.d2d - drp0_star.d2d / (Dh0.d * u0.d) + \
-            grr * chrls[:,:,2,2,0] * U0_star.d2d**2
+            -0.5*(U0_half.d2d() - U0_old_half.d2d())/(self.dt + self.dt_old) -\
+            U0_star.d2d() * drU0_star.d2d() - drp0_star.d2d() / (Dh0_half.d * u0.d) + \
+            grr * chrls[:,:,2,2,0] * U0_star.d2d()**2
 
         return drpi
 
@@ -558,6 +570,8 @@ class Simulation(NullSimulation):
     def advect_base_density(self, D0=None, U0=None):
         """
         Updates the base state density through one timestep. Eq. 6.131.
+        This is incorrect as need to use edge based D, as found in the
+        evolve funciton.
         """
         myg = self.cc_data.grid
         if D0 is None:
@@ -567,7 +581,7 @@ class Simulation(NullSimulation):
         if U0 is None:
             U0 = self.base["U0"]
         # CHANGED: use proper U_0
-        # FIXME: time-centred edge states?
+        # FIXME: time-centred edge states
 
         D0.v()[:] += -(D0.jp(1) * U0.jp(1) - D0.v() * U0.v()) * dt / dr
 
@@ -671,7 +685,7 @@ class Simulation(NullSimulation):
         step we actually take.
         """
 
-        self.old_dt = self.dt
+        self.dt_old = self.dt
 
         myg = self.cc_data.grid
 
@@ -898,7 +912,7 @@ class Simulation(NullSimulation):
             S_t_centred.d[:,:] = 0.5 * (oldS.d + S.d)
         else:
             S_t_centred.d[:,:] = S.d + \
-                self.dt * 0.5 * (S.d - oldS.d) / self.old_dt
+                self.dt * 0.5 * (S.d - oldS.d) / self.dt_old
 
         U0_half_star = U0.copy()
         self.compute_base_velocity(U0=U0_half_star, S=S_t_centred)
@@ -978,9 +992,11 @@ class Simulation(NullSimulation):
 
         # create the coefficient array: zeta**2/Dh u0
         # MZ!!!! probably don't need the buf here
-        # TODO: are zeta, u0 functions of MAC velocities?
-        u0 = self.metric.calcu0(u=u_MAC, v=v_MAC)
+        # use u0^n, so use U
+        u0 = self.metric.calcu0(u=u, v=v)
+        # Dh^n, not Dh^1
         coeff.v(buf=1)[:,:] = 1. / (Dh.v(buf=1) * u0.v(buf=1))
+        # use zeta^n here, so use U
         coeff.v(buf=1)[:,:] *= zeta.v2d(buf=1)**2
 
         # create the multigrid object
@@ -1108,10 +1124,7 @@ class Simulation(NullSimulation):
 
         Dh0_yint = patch.ArrayIndexer(d=_e0y, grid=myg)
 
-        #Dh0_old = Dh0.copy()
-
-        # FIXME: need a u0 psi term here
-        # FIXME: I think supposed to use U0 here rather than U_MAC?
+        # FIXME: is this is the correct u0?
         Dh0.d[:] = self.lateral_average(Dh_1.d)
         Dh02d = myg.scratch_array()
         Dh02d.d[:,:] = Dh0.d2d()
@@ -1134,7 +1147,7 @@ class Simulation(NullSimulation):
         drp0 = self.drp0(u=u_MAC, v=v_MAC)
 
         # 4Hii.
-        Dh_2_star.v()[:,:] += -self.dt*(
+        Dh_2_star.v()[:,:] += -self.dt * (
             #  (D u)_x
             (Dh_xint.ip(1)*u_MAC.ip(1) - Dh_xint.v()*u_MAC.v())/myg.dx +
             #  (D v)_y
@@ -1146,7 +1159,9 @@ class Simulation(NullSimulation):
         self.cc_data.fill_BC("enthalpy")
 
         # this makes p0 -> p0_star. May not want to update self.base[p0] here.
-        self.enforce_tov(Dh0=Dh0_star, u=u_MAC, v=v_MAC)
+        p0 = self.base["p0"]
+        p0_star = p0.copy()
+        self.enforce_tov(p0=p0_star, Dh0=Dh0_star, u=u_MAC, v=v_MAC)
 
         # update eint as a diagnostic
         eint = self.cc_data.get_var("eint")
@@ -1170,14 +1185,10 @@ class Simulation(NullSimulation):
 
         S_half_star = 0.5 * (S + S_star)
 
-        old_p0 = self.base["old_p0"]
-        p0 = self.base["p0"]
-        p0_half_star = 0.5 * (p0 + old_p0)
+        p0_half_star = 0.5 * (p0 + p0_star)
 
         U0_half = U0_half_star.copy()
         self.compute_base_velocity(U0=U0_half, p0=p0_half_star, S=S_half_star, Dh0=Dh0_star, u=u_MAC, v=v_MAC)
-
-        # FIXME: need base state forcing
 
         #pdb.set_trace()
 
@@ -1304,8 +1315,9 @@ class Simulation(NullSimulation):
 
         # 8D
         D0.d[:] = self.lateral_average(D_2.d)
-
-        psi = self.calc_psi(S=S_half_star, U0=U0_half)
+        # FIXME: as enforce tov after this, have to use p0_star rather than p0^n+1 here, which seems dodgey?
+        # FIXME: also asks for S_half rather than S_half_star, despite this not being calculated?
+        psi = self.calc_psi(S=S_half_star, U0=U0_half, old_p0=p0, p0=p0_star)
 
         #---------------------------------------------------------------------
         # predict Dh to the edges and do its conservative update
@@ -1321,7 +1333,9 @@ class Simulation(NullSimulation):
 
         Dh0_yint = patch.ArrayIndexer(d=_e0y, grid=myg)
 
-        #Dh0_old = Dh0.copy()
+        # FIXME: using the correct u0s here?
+
+        Dh0_old = Dh0.copy()
 
         Dh02d = myg.scratch_array()
         Dh02d.d[:,:] = Dh0.d2d()
@@ -1371,6 +1385,14 @@ class Simulation(NullSimulation):
         oldS = S.copy()
 
         S = self.compute_S(u=u_MAC, v=v_MAC)
+
+        # moved this here as want to use Dh0^n+1
+
+        #U0_old_half = self.base["U0_old_half"]
+
+        #base_forcing = self.base_state_forcing(U0_half=U0_half, U0_old_half=U0_old_half, Dh0_old=Dh0_old, Dh0=Dh0, u=u, v=v)
+
+        #U0_old_half.d[:] = U0_half.d
 
         #pdb.set_trace()
 
@@ -1436,8 +1458,10 @@ class Simulation(NullSimulation):
         coeff.d[:,:] *=  self.metric.alpha.d2d()**2
         coeff.v()[:,:] *= zeta_half.v2d()
 
-        u.v()[:,:] -= self.dt * coeff.v() * gradphi_x.v()
-        v.v()[:,:] -= self.dt * coeff.v() * gradphi_y.v()
+        # FIXME: need base state forcing here!
+        # However, it doesn't actually work: it just causes the atmosphere to rise up?
+        u.v()[:,:] += self.dt * (-coeff.v() * gradphi_x.v())
+        v.v()[:,:] += self.dt * (-coeff.v() * gradphi_y.v())# + base_forcing.v())
 
         # store gradp for the next step
 
