@@ -227,6 +227,7 @@ class Simulation(NullSimulation):
         aux_data.register_var("coeff", bc_dens)
         aux_data.register_var("source_y", bc_yodd)
         aux_data.register_var("old_source_y", bc_yodd)
+        aux_data.register_var("plot_me", bc_yodd) # somewhere to store data for plotting
 
         aux_data.create()
         self.aux_data = aux_data
@@ -461,10 +462,8 @@ class Simulation(NullSimulation):
 
         mom_source_r.d[:,:] -=  drp0.d[np.newaxis,:] / (Dh.d[:,:]*u0.d[:,:])
 
-        mom_source_x.d[:,:] *=  self.metric.alpha.d2d()**2 * \
-       -(Dh0.d2d() - Dh.d) / Dh.d
-        mom_source_r.d[:,:] *=  self.metric.alpha.d2d()**2 * \
-       -(Dh0.d2d() - Dh.d) / Dh.d
+        mom_source_x.d[:,:] *=  self.metric.alpha.d2d()**2
+        mom_source_r.d[:,:] *=  self.metric.alpha.d2d()**2
         #pdb.set_trace()
 
         return mom_source_x, mom_source_r
@@ -720,7 +719,6 @@ class Simulation(NullSimulation):
         F_buoy = np.max(np.abs(drp0.v() / (Dh0.v() * u01d.v()) ))
 
         dt_buoy = np.sqrt(2.0 * myg.dx / F_buoy)
-
         self.dt = min(dt, dt_buoy)
         if self.verbose > 0:
             print("timestep is {}".format(self.dt))
@@ -874,6 +872,7 @@ class Simulation(NullSimulation):
         myg = self.cc_data.grid
 
         oldS = self.aux_data.get_var("old_source_y")
+        plot_me = self.aux_data.get_var("plot_me")
 
         #---------------------------------------------------------------------
         # create the limited slopes of D, Dh, u and v (in both directions)
@@ -1092,6 +1091,7 @@ class Simulation(NullSimulation):
         D_xint = patch.ArrayIndexer(d=_rx, grid=myg)
         D_yint = patch.ArrayIndexer(d=_ry, grid=myg)
 
+
         D_old = D.copy()
         D_2_star = D_1.copy()
 
@@ -1271,6 +1271,8 @@ class Simulation(NullSimulation):
         u.d[:,:] += self.dt * mom_source_x.d
         v.d[:,:] += self.dt * mom_source_r.d
 
+        plot_me.d[:,:] =  self.dt * mom_source_r.d
+
         #pdb.set_trace()
 
         self.cc_data.fill_BC("x-velocity")
@@ -1313,7 +1315,6 @@ class Simulation(NullSimulation):
 
         D_old = D.copy()
         D_2 = D_1.copy()
-
         D_2.v()[:,:] -= self.dt * (
             #  (D u)_x
             (D_xint.ip(1)*u_MAC.ip(1) - D_xint.v()*u_MAC.v())/myg.dx +
@@ -1520,6 +1521,8 @@ class Simulation(NullSimulation):
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
 
+        plot_me = self.aux_data.get_var("plot_me")
+
         myg = self.cc_data.grid
 
         # make D0 2d
@@ -1539,10 +1542,10 @@ class Simulation(NullSimulation):
         fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.3)
 
-        fields = [D, magvel, v, D0]
-        field_names = [r"$D$", r"$|U|$", r"$V$", r"$D_0$"]
-        vmins = [98., 0., 0., 98.]
-        vmaxes = [101., 0.06, 0.06, 101.]
+        fields = [D, magvel, v, plot_me]
+        field_names = [r"$D$", r"$|U|$", r"$V$", r"$mom_source$"]
+        vmins = [98., None, None, None]
+        vmaxes = [100.1, None, None, None]
 
         for n in range(len(fields)):
             ax = axes.flat[n]

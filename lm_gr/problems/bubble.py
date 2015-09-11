@@ -69,7 +69,7 @@ def init_data(my_data, base, rp, metric):
     #pres = cs2 * dens
     pres.d[:,:] = dens.d**gamma
     eint.d[:,:] = pres.d / (gamma - 1.0) / dens.d
-    enth.d[:, :] = eint.d + pres.d / dens.d # Newtonian
+    enth.d[:, :] = 1. + eint.d + pres.d / dens.d # Newtonian
 
     my_data.fill_BC_all()
 
@@ -89,7 +89,7 @@ def init_data(my_data, base, rp, metric):
     idx = r <= r_pert
     eint.d[idx] = eint.d[idx] * pert_amplitude_factor
     dens.d[idx] = pres.d[idx] / (eint.d[idx] * (gamma - 1.0))
-    enth.d[idx] = eint.d[idx] + pres.d[idx] / dens.d[idx]
+    enth.d[idx] = 1. + eint.d[idx] + pres.d[idx] / dens.d[idx]
 
     # redo the pressure via TOV
     u0 = metric.calcu0()

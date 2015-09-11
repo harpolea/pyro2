@@ -4,7 +4,7 @@ limiter = 2               ; limiter (0 = none, 1 = 2nd order, 2 = 4th order)
 proj_type = 2             ; what are we projecting? 1 includes -Gp term in U*
 grav = 5.0
 c = 10.0
-radius = 10.0
+radius = 1000.0
 
 
 [eos]
