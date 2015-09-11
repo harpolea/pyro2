@@ -1524,20 +1524,20 @@ class Simulation(NullSimulation):
 
         D = self.cc_data.get_var("density")
         Dh = self.cc_data.get_var("enthalpy")
-        D0 = self.base["D0"]
-        Dprime = self.make_prime(D, D0)
+        #D0 = self.base["D0"]
+        #Dprime = self.make_prime(D, D0)
 
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
 
-        plot_me = self.aux_data.get_var("plot_me")
+        #plot_me = self.aux_data.get_var("plot_me")
 
         myg = self.cc_data.grid
 
         # make D0 2d
-        temp = myg.scratch_array()
-        temp.d[:,:] = D0.d[np.newaxis, :]
-        D0 = temp
+        #temp = myg.scratch_array()
+        #temp.d[:,:] = D0.d[np.newaxis, :]
+        #D0 = temp
 
         magvel = np.sqrt(u**2 + v**2)
 
@@ -1551,10 +1551,10 @@ class Simulation(NullSimulation):
         fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.3)
 
-        fields = [D, magvel, v, plot_me]
-        field_names = [r"$D$", r"$|U|$", r"$V$", r"$D_{new}-D_{old}$"]
-        vmins = [None, None, None, None]
-        vmaxes = [None, None, None, None]
+        fields = [D, magvel, v, vort]
+        field_names = [r"$D$", r"$|U|$", r"$V$", r"$\nabla\times U$"]
+        vmins = [55., 0., -0.0015, -0.01]
+        vmaxes = [105., 0.0045, 0.004, 0.01]
 
         for n in range(len(fields)):
             ax = axes.flat[n]
