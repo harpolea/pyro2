@@ -9,6 +9,8 @@ import sys
 from util import msg
 from lm_gr.problems import *
 
+from numba import jit
+
 
 class Metric:
 
@@ -64,6 +66,7 @@ class Metric:
 
         return sg, sgamma
 
+    #@jit
     def calcW(self, u=None, v=None):
         """
         Calculates the Lorentz factor and returns it.

@@ -18,6 +18,10 @@ to allow sourcing in the x direction.
 CHANGED: moved tov update in steps 4 and 8 to after the Dh0 update as it is a
 function of Dh0
 
+TODO: not entirely sure about the lateral averaging of D, Dh to get the base states in steps 4 and 8
+
+TODO: make python3 compliable
+
 All the keyword arguments of functions default to None as their default values
 will be member variables which cannot be accessed in the function's argument
 list.
@@ -39,6 +43,8 @@ from simulation_null import NullSimulation, grid_setup, bc_setup
 import multigrid.variable_coeff_MG as vcMG
 from util import profile
 import metric
+
+from numba import jit
 
 
 class Basestate(object):
@@ -716,10 +722,12 @@ class Simulation(NullSimulation):
         u01d = Basestate(myg.ny, ng=myg.ng)
         u01d.d[:] = self.lateral_average(u0.d)
 
-        F_buoy = np.max(np.abs(drp0.v() / (Dh0.v() * u01d.v()) ))
+        F_buoy = np.max(np.abs(self.calc_mom_source()))
 
-        dt_buoy = np.sqrt(2.0 * myg.dx / F_buoy)
+        dt_buoy = np.sqrt(2.0 * myg.dx / max(F_buoy, 1.e-12))
         self.dt = min(dt, dt_buoy)
+        if self.dt > 1.e30:
+            self.dt = 100.
         if self.verbose > 0:
             print("timestep is {}".format(self.dt))
 
@@ -1271,8 +1279,6 @@ class Simulation(NullSimulation):
         u.d[:,:] += self.dt * mom_source_x.d
         v.d[:,:] += self.dt * mom_source_r.d
 
-        plot_me.d[:,:] =  self.dt * mom_source_r.d
-
         #pdb.set_trace()
 
         self.cc_data.fill_BC("x-velocity")
@@ -1381,8 +1387,9 @@ class Simulation(NullSimulation):
         #---------------------------------------------------------------------
         # 9. React state through dt/2
         #---------------------------------------------------------------------
-        D = D_2.copy()
-        Dh = Dh_2.copy()
+        # CHANGED: I do not trust python
+        D.d[:,:] = D_2.d[:,:]
+        Dh.d[:,:] = Dh_2.d[:,:]
         self.react_state(S=self.compute_S(u=u_MAC, v=v_MAC), D=D, Dh=Dh, u=u_MAC, v=v_MAC)
 
         self.cc_data.fill_BC("density")
@@ -1499,6 +1506,8 @@ class Simulation(NullSimulation):
                 # reflect lower boundary, outflow upper
                 # var.d[myg.jlo-gz] = var.d[myg.jlo + gz - 1]
 
+        plot_me.d[:,:] =  D.d - D_old.d
+
         # increment the time
         if not self.in_preevolve:
             self.cc_data.t += self.dt
@@ -1543,9 +1552,9 @@ class Simulation(NullSimulation):
         plt.subplots_adjust(hspace=0.3)
 
         fields = [D, magvel, v, plot_me]
-        field_names = [r"$D$", r"$|U|$", r"$V$", r"$mom_source$"]
-        vmins = [98., None, None, None]
-        vmaxes = [100.1, None, None, None]
+        field_names = [r"$D$", r"$|U|$", r"$V$", r"$D_{new}-D_{old}$"]
+        vmins = [None, None, None, None]
+        vmaxes = [None, None, None, None]
 
         for n in range(len(fields)):
             ax = axes.flat[n]
