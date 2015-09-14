@@ -17,6 +17,8 @@ import matplotlib.pyplot as plt
 import multigrid.MG as MG
 import multigrid.edge_coeffs as ec
 
+#from numba import jit
+
 np.set_printoptions(precision=3, linewidth=128)
 
 
@@ -97,7 +99,7 @@ class VarCoeffCCMG2d(MG.CellCenterMG2d):
             n -= 1
 
 
-
+    #@jit
     def smooth(self, level, nsmooth):
         """
         Use red-black Gauss-Seidel iterations to smooth the solution
@@ -152,6 +154,9 @@ class VarCoeffCCMG2d(MG.CellCenterMG2d):
 
             for n, (ix, iy) in enumerate([(0,0), (1,1), (1,0), (0,1)]):
 
+                """
+                CHANGED: This has been running slow, so have gone back to old style indexing
+
                 denom = (eta_x.ip_jp(1+ix, iy, s=2) + eta_x.ip_jp(ix, iy, s=2) +
                          eta_y.ip_jp(ix, 1+iy, s=2) + eta_y.ip_jp(ix, iy, s=2) )
 
@@ -163,11 +168,46 @@ class VarCoeffCCMG2d(MG.CellCenterMG2d):
                     # eta_{i,j+1/2} phi_{i,j+1}
                     eta_y.ip_jp(ix, 1+iy, s=2) * v.ip_jp(ix, 1+iy, s=2) +
                     # eta_{i,j-1/2} phi_{i,j-1}
-                    eta_y.ip_jp(ix, iy, s=2) * v.ip_jp(ix, -1+iy, s=2) ) / denom
+                    eta_y.ip_jp(ix, iy, s=2) * v.ip_jp(ix, -1+iy, s=2) ) / denom"""
+
+                denom = (
+                    eta_x.d[myg.ilo+1+ix:myg.ihi+2:2,
+                          myg.jlo+iy  :myg.jhi+1:2] +
+                    #
+                    eta_x.d[myg.ilo+ix  :myg.ihi+1:2,
+                          myg.jlo+iy  :myg.jhi+1:2] +
+                    #
+                    eta_y.d[myg.ilo+ix  :myg.ihi+1:2,
+                          myg.jlo+1+iy:myg.jhi+2:2] +
+                    #
+                    eta_y.d[myg.ilo+ix  :myg.ihi+1:2,
+                          myg.jlo+iy  :myg.jhi+1:2])
+
+                v.d[myg.ilo+ix:myg.ihi+1:2,myg.jlo+iy:myg.jhi+1:2] = (
+                    -f.d[myg.ilo+ix:myg.ihi+1:2,myg.jlo+iy:myg.jhi+1:2] +
+                    # eta_{i+1/2,j} phi_{i+1,j}
+                    eta_x.d[myg.ilo+1+ix:myg.ihi+2:2,
+                          myg.jlo+iy  :myg.jhi+1:2] *
+                    v.d[myg.ilo+1+ix:myg.ihi+2:2,
+                      myg.jlo+iy  :myg.jhi+1:2] +
+                    # eta_{i-1/2,j} phi_{i-1,j}
+                    eta_x.d[myg.ilo+ix:myg.ihi+1:2,
+                          myg.jlo+iy:myg.jhi+1:2]*
+                    v.d[myg.ilo-1+ix:myg.ihi  :2,
+                      myg.jlo+iy  :myg.jhi+1:2] +
+                    # eta_{i,j+1/2} phi_{i,j+1}
+                    eta_y.d[myg.ilo+ix:myg.ihi+1:2,
+                          myg.jlo+1+iy:myg.jhi+2:2]*
+                    v.d[myg.ilo+ix  :myg.ihi+1:2,
+                      myg.jlo+1+iy:myg.jhi+2:2] +
+                    # eta_{i,j-1/2} phi_{i,j-1}
+                    eta_y.d[myg.ilo+ix:myg.ihi+1:2,
+                          myg.jlo+iy:myg.jhi+1:2]*
+                    v.d[myg.ilo+ix  :myg.ihi+1:2,
+                      myg.jlo-1+iy:myg.jhi  :2]) / denom
 
                 if n == 1 or n == 3:
                     self.grids[level].fill_BC("v")
-
 
             if self.vis == 1:
                 plt.clf()

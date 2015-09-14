@@ -31,6 +31,8 @@ Typical usage:
 
      data.fill_BC("density")
 
+CHANGED: tried to do the BCS with slicing to speed things up. There are likely to be some errors here.
+
 """
 from __future__ import print_function
 
@@ -38,6 +40,8 @@ import numpy as np
 import pickle
 
 from util import msg
+
+#from numba import jit
 
 valid = ["outflow", "periodic",
          "reflect", "reflect-even", "reflect-odd",
@@ -215,11 +219,12 @@ class BCObject(object):
 
         return string
 
-
 def _buf_split(b):
-    try: bxlo, bxhi, bylo, byhi = b
+    try:
+        bxlo, bxhi, bylo, byhi = b
     except:
-        try: blo, bhi = b
+        try:
+            blo, bhi = b
         except:
             blo = b
             bhi = b
@@ -298,27 +303,48 @@ class ArrayIndexer(object):
     def __abs__(self):
         return ArrayIndexer(d=np.abs(self.d), grid=self.g)
 
+    #@jit
     def v(self, buf=0, n=0, s=1):
-        return self.ip_jp(0, 0, buf=buf, n=n, s=s)
+        bxlo, bxhi, bylo, byhi = _buf_split(buf)
 
+        return self.d[self.g.ilo-bxlo:self.g.ihi+1+bxhi:s,
+                         self.g.jlo-bylo:self.g.jhi+1+byhi:s]
+        #return self.ip_jp(0, 0, buf=buf, n=n, s=s)
+
+    #@jit
     def ip(self, shift, buf=0, n=0, s=1):
-        return self.ip_jp(shift, 0, buf=buf, n=n, s=s)
+        bxlo, bxhi, bylo, byhi = _buf_split(buf)
 
+        return self.d[self.g.ilo-bxlo+shift:self.g.ihi+1+bxhi+shift:s,
+                         self.g.jlo-bylo:self.g.jhi+1+byhi:s]
+
+        #return self.ip_jp(shift, 0, buf=buf, n=n, s=s)
+
+    #@jit
     def jp(self, shift, buf=0, n=0, s=1):
-        return self.ip_jp(0, shift, buf=buf, n=n, s=s)
+        bxlo, bxhi, bylo, byhi = _buf_split(buf)
 
+        return self.d[self.g.ilo-bxlo:self.g.ihi+1+bxhi:s,
+                         self.g.jlo-bylo+shift:self.g.jhi+1+byhi+shift:s]
+        #return self.ip_jp(0, shift, buf=buf, n=n, s=s)
+
+    #@jit
     def ip_jp(self, ishift, jshift, buf=0, n=0, s=1):
         bxlo, bxhi, bylo, byhi = _buf_split(buf)
 
-        if self.c == 2:
-            return self.d[self.g.ilo-bxlo+ishift:self.g.ihi+1+bxhi+ishift:s,
-                          self.g.jlo-bylo+jshift:self.g.jhi+1+byhi+jshift:s]
-        else:
-            return self.d[self.g.ilo-bxlo+ishift:self.g.ihi+1+bxhi+ishift:s,
-                          self.g.jlo-bylo+jshift:self.g.jhi+1+byhi+jshift:s,n]
+        # don't need if statement for now so have got rid of it
+        #if self.c == 2:
+        return self.d[self.g.ilo-bxlo+ishift:self.g.ihi+1+bxhi+ishift:s,
+                         self.g.jlo-bylo+jshift:self.g.jhi+1+byhi+jshift:s]
+        #else:
+        #    return self.d[self.g.ilo-bxlo+ishift:self.g.ihi+1+bxhi+ishift:s,
+        #                  self.g.jlo-bylo+jshift:self.g.jhi+1+byhi+jshift:s,n]
+
+    #@jit
     def d1d(self):
         return np.mean(self.d, axis=0)
-    
+
+    #@jit
     def v1d(self, buf=0, n=0, s=1):
         return np.mean(self.v(buf=buf, n=n, s=s), axis=0)
 
@@ -817,7 +843,6 @@ class CellCenterData2d():
         for name in self.vars:
             self.fill_BC(name)
 
-
     def fill_BC(self, name):
         """
         Fill the boundary conditions.  This operates on a single state
@@ -849,96 +874,110 @@ class CellCenterData2d():
         if self.BCs[name].xlb in ["outflow", "neumann"]:
 
             if self.BCs[name].xl_value == None:
-                for i in range(self.grid.ilo):
-                    self.data[n,i,:] = self.data[n,self.grid.ilo,:]
+                # TODO: faster way of doing this other than transpose?
+                # FIXME: not sure this is correct - copied over from y direction
+                #for i in range(self.grid.ilo):
+                #    self.data[n,i,:] = self.data[n,self.grid.ilo,:]
+                self.data[n,:self.grid.ilo,:] = np.transpose(np.tile(self.data[n,self.grid.ilo,:], (self.grid.ng,1)))
             else:
                 self.data[n,self.grid.ilo-1,:] = \
                     self.data[n,self.grid.ilo,:] - self.grid.dx*self.BCs[name].xl_value[:]
 
         elif self.BCs[name].xlb == "reflect-even":
 
-            for i in range(self.grid.ilo):
-                self.data[n,i,:] = self.data[n,2*self.grid.ng-i-1,:]
+            #for i in range(self.grid.ilo):
+            #    self.data[n,i,:] = self.data[n,2*self.grid.ng-i-1,:]
+            self.data[n,:self.grid.ilo,:] = self.data[n,2*self.grid.ng-1:2*self.grid.ng-self.grid.ilo-1:-1,:]
 
         elif self.BCs[name].xlb in ["reflect-odd", "dirichlet"]:
 
             if self.BCs[name].xl_value == None:
-                for i in range(self.grid.ilo):
-                    self.data[n,i,:] = -self.data[n,2*self.grid.ng-i-1,:]
+                #for i in range(self.grid.ilo):
+                #    self.data[n,i,:] = -self.data[n,2*self.grid.ng-i-1,:]
+                self.data[n,:self.grid.ilo,:] = -self.data[n,2*self.grid.ng-1:2*self.grid.ng-self.grid.ilo-1:-1,:]
             else:
                 self.data[n,self.grid.ilo-1,:] = \
                     2*self.BCs[name].xl_value[:] - self.data[n,self.grid.ilo,:]
 
         elif self.BCs[name].xlb == "periodic":
 
-            for i in range(self.grid.ilo):
-                self.data[n,i,:] = self.data[n,self.grid.ihi-self.grid.ng+i+1,:]
+            #for i in range(self.grid.ilo):
+            #    self.data[n,i,:] = self.data[n,self.grid.ihi-self.grid.ng+i+1,:]
+            self.data[n, :self.grid.ilo,:] = self.data[n,self.grid.ihi-self.grid.ng+1:self.grid.ihi+1,:]
 
 
         # +x boundary
         if self.BCs[name].xrb in ["outflow", "neumann"]:
 
             if self.BCs[name].xr_value == None:
-                for i in range(self.grid.ihi+1, self.grid.nx+2*self.grid.ng):
-                    self.data[n,i,:] = self.data[n,self.grid.ihi,:]
+                #for i in range(self.grid.ihi+1, self.grid.nx+2*self.grid.ng):
+                #    self.data[n,i,:] = self.data[n,self.grid.ihi,:]
+                self.data[n,self.grid.ihi+1:,:] = np.transpose(np.tile(self.data[n,self.grid.ihi,:], (self.grid.ng,1)))
             else:
                 self.data[n,self.grid.ihi+1,:] = \
                     self.data[n,self.grid.ihi,:] + self.grid.dx*self.BCs[name].xr_value[:]
 
         elif self.BCs[name].xrb == "reflect-even":
 
-            for i in range(self.grid.ng):
-                i_bnd = self.grid.ihi+1+i
-                i_src = self.grid.ihi-i
+            #for i in range(self.grid.ng):
+            #    i_bnd = self.grid.ihi+1+i
+            #    i_src = self.grid.ihi-i
 
-                self.data[n,i_bnd,:] = self.data[n,i_src,:]
+            #    self.data[n,i_bnd,:] = self.data[n,i_src,:]
+            self.data[n,self.grid.ihi+1:,:] = self.data[n,self.grid.ihi:self.grid.ihi-self.grid.ng:-1,:]
 
         elif self.BCs[name].xrb in ["reflect-odd", "dirichlet"]:
 
             if self.BCs[name].xr_value == None:
-                for i in range(self.grid.ng):
-                    i_bnd = self.grid.ihi+1+i
-                    i_src = self.grid.ihi-i
+                #for i in range(self.grid.ng):
+                #    i_bnd = self.grid.ihi+1+i
+                #    i_src = self.grid.ihi-i
 
-                    self.data[n,i_bnd,:] = -self.data[n,i_src,:]
+                #    self.data[n,i_bnd,:] = -self.data[n,i_src,:]
+                self.data[n,self.grid.ihi+1:,:] = -self.data[n,self.grid.ihi:self.grid.ihi-self.grid.ng:-1,:]
             else:
                 self.data[n,self.grid.ihi+1,:] = \
                     2*self.BCs[name].xr_value[:] - self.data[n,self.grid.ihi,:]
 
         elif self.BCs[name].xrb == "periodic":
 
-            for i in range(self.grid.ihi+1, 2*self.grid.ng + self.grid.nx):
-                self.data[n,i,:] = self.data[n,i-self.grid.ihi-1+self.grid.ng,:]
+            #for i in range(self.grid.ihi+1, 2*self.grid.ng + self.grid.nx):
+            #    self.data[n,i,:] = self.data[n,i-self.grid.ihi-1+self.grid.ng,:]
+            self.data[n,self.grid.ihi+1:,:] = self.data[n,self.grid.ng:2*self.grid.ng,:]
 
 
         # -y boundary
         if self.BCs[name].ylb in ["outflow", "neumann"]:
 
             if self.BCs[name].yl_value == None:
-                for j in range(self.grid.jlo):
-                    self.data[n,:,j] = self.data[n,:,self.grid.jlo]
+                #for j in range(self.grid.jlo):
+                #    self.data[n,:,j] = self.data[n,:,self.grid.jlo]
+                self.data[n,:,:self.grid.jlo] = np.transpose(np.tile(self.data[n,:,self.grid.jlo], (self.grid.ng,1)))
             else:
                 self.data[n,:,self.grid.jlo-1] = \
                     self.data[n,:,self.grid.jlo] - self.grid.dy*self.BCs[name].yl_value[:]
 
         elif self.BCs[name].ylb == "reflect-even":
 
-            for j in range(self.grid.jlo):
-                self.data[n,:,j] = self.data[n,:,2*self.grid.ng-j-1]
+            #for j in range(self.grid.jlo):
+            #    self.data[n,:,j] = self.data[n,:,2*self.grid.ng-j-1]
+            self.data[n,:,:self.grid.jlo] = self.data[n,:,2*self.grid.ng-1:2*self.grid.ng-self.grid.jlo-1:-1]
 
         elif self.BCs[name].ylb in ["reflect-odd", "dirichlet"]:
 
             if self.BCs[name].yl_value == None:
-                for j in range(self.grid.jlo):
-                    self.data[n,:,j] = -self.data[n,:,2*self.grid.ng-j-1]
+                #for j in range(self.grid.jlo):
+                #    self.data[n,:,j] = -self.data[n,:,2*self.grid.ng-j-1]
+                self.data[n,:,:self.grid.jlo] = -self.data[n,:,2*self.grid.ng-1:2*self.grid.ng-self.grid.jlo-1:-1]
             else:
                 self.data[n,:,self.grid.jlo-1] = \
                     2*self.BCs[name].yl_value[:] - self.data[n,:,self.grid.jlo]
 
         elif self.BCs[name].ylb == "periodic":
 
-            for j in range(self.grid.jlo):
-                self.data[n,:,j] = self.data[n,:,self.grid.jhi-self.grid.ng+j+1]
+            #for j in range(self.grid.jlo):
+            #    self.data[n,:,j] = self.data[n,:,self.grid.jhi-self.grid.ng+j+1]
+            self.data[n,:,:self.grid.jlo] = self.data[n,:,self.grid.jhi-self.grid.ng+1:self.grid.jhi+1]
 
         else:
             if self.BCs[name].ylb in extBCs.keys():
@@ -950,36 +989,40 @@ class CellCenterData2d():
         if self.BCs[name].yrb in ["outflow", "neumann"]:
 
             if self.BCs[name].yr_value == None:
-                for j in range(self.grid.jhi+1, self.grid.ny+2*self.grid.ng):
-                    self.data[n,:,j] = self.data[n,:,self.grid.jhi]
+                #for j in range(self.grid.jhi+1, self.grid.ny+2*self.grid.ng):
+                #    self.data[n,:,j] = self.data[n,:,self.grid.jhi]
+                self.data[n,:,self.grid.jhi+1:] = np.transpose(np.tile(self.data[n,:,self.grid.jhi], (self.grid.ng,1)))
             else:
                 self.data[n,:,self.grid.jhi+1] = \
                     self.data[n,:,self.grid.jhi] + self.grid.dy*self.BCs[name].yr_value[:]
 
         elif self.BCs[name].yrb == "reflect-even":
 
-            for j in range(self.grid.ng):
-                j_bnd = self.grid.jhi+1+j
-                j_src = self.grid.jhi-j
+            #for j in range(self.grid.ng):
+            #    j_bnd = self.grid.jhi+1+j
+            #    j_src = self.grid.jhi-j
 
-                self.data[n,:,j_bnd] = self.data[n,:,j_src]
+            #    self.data[n,:,j_bnd] = self.data[n,:,j_src]
+            self.data[n,:,self.grid.jhi+1:] = self.data[n,:,self.grid.jhi-self.grid.ng+1:self.grid.jhi+1]
 
         elif self.BCs[name].yrb in ["reflect-odd", "dirichlet"]:
 
             if self.BCs[name].yr_value == None:
-                for j in range(self.grid.ng):
-                    j_bnd = self.grid.jhi+1+j
-                    j_src = self.grid.jhi-j
+                #for j in range(self.grid.ng):
+                #    j_bnd = self.grid.jhi+1+j
+                #    j_src = self.grid.jhi-j
 
-                    self.data[n,:,j_bnd] = -self.data[n,:,j_src]
+                #    self.data[n,:,j_bnd] = -self.data[n,:,j_src]
+                self.data[n,:,self.grid.jhi+1:] = -self.data[n,:,self.grid.jhi-self.grid.ng+1:self.grid.jhi+1]
             else:
                 self.data[n,:,self.grid.jhi+1] = \
                     2*self.BCs[name].yr_value[:] - self.data[n,:,self.grid.jhi]
 
         elif self.BCs[name].yrb == "periodic":
 
-            for j in range(self.grid.jhi+1, 2*self.grid.ng + self.grid.ny):
-                self.data[n,:,j] = self.data[n,:,j-self.grid.jhi-1+self.grid.ng]
+            #for j in range(self.grid.jhi+1, 2*self.grid.ng + self.grid.ny):
+            #    self.data[n,:,j] = self.data[n,:,j-self.grid.jhi-1+self.grid.ng]
+            self.dat[n,:,self.grid.jhi+1:] = self.data[n,:,:self.jlo+1]
 
         else:
             if self.BCs[name].yrb in extBCs.keys():

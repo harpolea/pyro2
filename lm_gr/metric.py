@@ -9,7 +9,7 @@ import sys
 from util import msg
 from lm_gr.problems import *
 
-from numba import jit
+#from numba import jit
 
 
 class Metric:
@@ -66,7 +66,7 @@ class Metric:
 
         return sg, sgamma
 
-    #@jit
+    # cannot use numba here as it doesn't support list comprehensions :(
     def calcW(self, u=None, v=None):
         """
         Calculates the Lorentz factor and returns it.
@@ -101,12 +101,19 @@ class Metric:
 
         # for loop here as otherwise my brain hurts
         # FIXME: I think the for-loop here might be seriously slowing stuff down as u0 is calculated quite a lot. Do this with slicing.
-        for i in range(self.cc_data.grid.qx):
-            for j in range(self.cc_data.grid.qy):
-                V = np.array([u.d[i,j], v.d[i,j]]) + self.beta
-                # set W = V^i*V_i = V^i * gamma_ij * V^j
-                # TODO: do this with numpy einsum
-                W.d[i,j] = (np.mat(V) * np.mat(self.gamma[i,j,:,:]) * np.mat(V).T).item()
+        Vs = np.array([[np.array([u.d[i,j], v.d[i,j]]) + self.beta
+            for j in range(myg.qy)] for i in range(myg.qx)])
+
+        W.d[:,:] = np.array([[ (np.mat(Vs[i,j,:]) *
+            np.mat(self.gamma[i,j,:,:]) * np.mat(Vs[i,j,:]).T).item()
+            for j in range(myg.qy)] for i in range(myg.qx)])
+
+        #for i in range(self.cc_data.grid.qx):
+        #    for j in range(self.cc_data.grid.qy):
+        #        V = np.array([u.d[i,j], v.d[i,j]]) + self.beta
+        #        # set W = V^i*V_i = V^i * gamma_ij * V^j
+        #        # TODO: do this with numpy einsum
+        #        W.d[i,j] = (np.mat(V) * np.mat(self.gamma[i,j,:,:]) * np.mat(V).T).item()
         W.d[:,:] = 1. - W.d / (self.alpha.d2d()**2 * c**2)
 
         try:
@@ -163,6 +170,7 @@ class Metric:
 
         return met
 
+    #@jit
     def christoffels(self, x):
         """
         Calculates the Christoffel symbols of the metric at the given point.

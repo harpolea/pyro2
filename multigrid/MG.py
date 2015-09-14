@@ -214,7 +214,7 @@ class CellCenterMG2d(object):
                             ylb=yl_BC_type, yrb=yr_BC_type)
 
         nx_t = ny_t = 2
-            
+
         for i in range(self.nlevels):
 
             # create the grid
@@ -231,12 +231,12 @@ class CellCenterMG2d(object):
                                   ylb=yl_BC_type, yrb=yr_BC_type,
                                   xl_func=xl_BC, xr_func=xr_BC,
                                   yl_func=yl_BC, yr_func=yr_BC, grid=my_grid)
-            
+
             if i == self.nlevels-1:
                 self.grids[i].register_var("v", bc_p)
             else:
                 self.grids[i].register_var("v", bc)
-                
+
             self.grids[i].register_var("f", bc)
             self.grids[i].register_var("r", bc)
 
@@ -251,10 +251,9 @@ class CellCenterMG2d(object):
             nx_t = nx_t*2
             ny_t = ny_t*2
 
-
         # provide coordinate and indexing information for the solution mesh
         soln_grid = self.grids[self.nlevels-1].grid
-        
+
         self.ilo = soln_grid.ilo
         self.ihi = soln_grid.ihi
         self.jlo = soln_grid.jlo
@@ -403,7 +402,7 @@ class CellCenterMG2d(object):
         """
         Return the solution after doing the MG solve
 
-        If a grid object is passed in, then the solution is put on that 
+        If a grid object is passed in, then the solution is put on that
         grid -- not the passed in grid must have the same dx and dy
 
         Returns
@@ -585,7 +584,7 @@ class CellCenterMG2d(object):
 
             for n, (ix, iy) in enumerate([(0,0), (1,1), (1,0), (0,1)]):
 
-                v.ip_jp(ix, iy, s=2)[:,:] = (f.ip_jp(ix, iy, s=2) + 
+                v.ip_jp(ix, iy, s=2)[:,:] = (f.ip_jp(ix, iy, s=2) +
                       xcoeff*(v.ip_jp(1+ix, iy, s=2) + v.ip_jp(-1+ix, iy, s=2)) +
                       ycoeff*(v.ip_jp(ix, 1+iy, s=2) + v.ip_jp(ix, -1+iy, s=2)) )/ \
                     (self.alpha + 2.0*xcoeff + 2.0*ycoeff)

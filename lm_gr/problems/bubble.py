@@ -1,6 +1,9 @@
 """
 Make resulting png plot output into a gif with:
-    convert -delay 20 -loop 0 lm_gr/results/bubble*.png  lm_gr/results/bubble_128.gif
+    convert -delay 20 -loop 0 ../../Work/pyro/results/bubble*.png  lm_gr/results/bubble_128.gif
+
+Make into mpeg:
+    ffmpeg -framerate 10 -i bubble_256_%04d.png -c:v png -r 10 bubble_256.mp4
 
 """
 
