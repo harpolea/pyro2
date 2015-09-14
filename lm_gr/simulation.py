@@ -361,8 +361,10 @@ class Simulation(NullSimulation):
         if v is None:
             v = self.cc_data.get_var("y-velocity")
 
-        chrls = np.array([[self.metric.christoffels([self.cc_data.t, i, j])
-                           for j in range(myg.qy)] for i in range(myg.qx)])
+        #chrls = np.array([[self.metric.christoffels([self.cc_data.t, i, j])
+        #                   for j in range(myg.qy)] for i in range(myg.qx)])
+        # time-independent metric
+        chrls = self.metric.chrls
 
         S.d[:,:] = -(chrls[:,:,0,0,0] + chrls[:,:,1,1,0] + chrls[:,:,2,2,0] +
             (chrls[:,:,0,0,1] + chrls[:,:,1,1,1] + chrls[:,:,2,2,1]) * u.d +
@@ -444,8 +446,10 @@ class Simulation(NullSimulation):
         grr = gxx
         drp0 = self.drp0(Dh0=Dh0, u=u, v=v, u0=u0)
 
-        chrls = np.array([[self.metric.christoffels([self.cc_data.t, i, j])
-                           for j in range(myg.qy)] for i in range(myg.qx)])
+        #chrls = np.array([[self.metric.christoffels([self.cc_data.t, i, j])
+        #                   for j in range(myg.qy)] for i in range(myg.qx)])
+        # time-independent metric
+        chrls = self.metric.chrls
 
         # note metric components needed to lower the christoffel symbols
         # NOTE: tried putting D'/D factor in here to see if could drive some movement upwards but it did not do so as desired.
@@ -524,8 +528,10 @@ class Simulation(NullSimulation):
         drp0 = self.drp0(Dh0=Dh0_half, u=u, v=v, u0=u0)
         grr = 1. / self.metric.alpha.d**2
 
-        chrls = np.array([[self.metric.christoffels([self.cc_data.t, i, j])
-                           for j in range(myg.qy)] for i in range(myg.qx)])
+        #chrls = np.array([[self.metric.christoffels([self.cc_data.t, i, j])
+        #                   for j in range(myg.qy)] for i in range(myg.qx)])
+        # time-independent metric
+        chrls = self.metric.chrls
 
         U0_star = Basestate(myg.ny, ng=myg.ng)
         U0_star.d[:] = (self.dt * U0_old_half.d +

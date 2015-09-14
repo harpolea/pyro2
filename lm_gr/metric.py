@@ -38,6 +38,12 @@ class Metric:
         self.beta = beta
         self.W = 1.  # Lorentz factor.
         self.gamma = gamma
+
+        # store christoffels here as for time-independent metric these shall not change.
+        myg = self.cc_data.grid
+        self.chrls = np.array([[self.christoffels([0, i, j])
+                           for j in range(myg.qy)] for i in range(myg.qx)])
+
         np.seterr(invalid='raise')  # raise numpy warnings as errors
 
     def dets(self):
@@ -104,8 +110,11 @@ class Metric:
         Vs = np.array([[np.array([u.d[i,j], v.d[i,j]]) + self.beta
             for j in range(myg.qy)] for i in range(myg.qx)])
 
-        W.d[:,:] = np.array([[ (np.mat(Vs[i,j,:]) *
-            np.mat(self.gamma[i,j,:,:]) * np.mat(Vs[i,j,:]).T).item()
+        #W.d[:,:] = np.array([[ (np.mat(Vs[i,j,:]) *
+        #    np.mat(self.gamma[i,j,:,:]) * np.mat(Vs[i,j,:]).T).item()
+        #    for j in range(myg.qy)] for i in range(myg.qx)])
+        W.d[:,:] = np.array([[ np.dot(np.dot(Vs[i,j,:],
+            self.gamma[i,j,:,:]), np.transpose(Vs[i,j,:]))
             for j in range(myg.qy)] for i in range(myg.qx)])
 
         #for i in range(self.cc_data.grid.qx):

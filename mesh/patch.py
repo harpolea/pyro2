@@ -874,11 +874,10 @@ class CellCenterData2d():
         if self.BCs[name].xlb in ["outflow", "neumann"]:
 
             if self.BCs[name].xl_value == None:
-                # TODO: faster way of doing this other than transpose?
                 # FIXME: not sure this is correct - copied over from y direction
                 #for i in range(self.grid.ilo):
                 #    self.data[n,i,:] = self.data[n,self.grid.ilo,:]
-                self.data[n,:self.grid.ilo,:] = np.transpose(np.tile(self.data[n,self.grid.ilo,:], (self.grid.ng,1)))
+                self.data[n,:self.grid.ilo,:] = self.data[np.newaxis,n,self.grid.ilo,:] #np.transpose(np.tile(self.data[n,self.grid.ilo,:], (self.grid.ng,1)))
             else:
                 self.data[n,self.grid.ilo-1,:] = \
                     self.data[n,self.grid.ilo,:] - self.grid.dx*self.BCs[name].xl_value[:]
@@ -912,7 +911,7 @@ class CellCenterData2d():
             if self.BCs[name].xr_value == None:
                 #for i in range(self.grid.ihi+1, self.grid.nx+2*self.grid.ng):
                 #    self.data[n,i,:] = self.data[n,self.grid.ihi,:]
-                self.data[n,self.grid.ihi+1:,:] = np.transpose(np.tile(self.data[n,self.grid.ihi,:], (self.grid.ng,1)))
+                self.data[n,self.grid.ihi+1:,:] = self.data[np.newaxis,n,self.grid.ihi,:] #np.transpose(np.tile(self.data[n,self.grid.ihi,:], (self.grid.ng,1)))
             else:
                 self.data[n,self.grid.ihi+1,:] = \
                     self.data[n,self.grid.ihi,:] + self.grid.dx*self.BCs[name].xr_value[:]
@@ -952,7 +951,7 @@ class CellCenterData2d():
             if self.BCs[name].yl_value == None:
                 #for j in range(self.grid.jlo):
                 #    self.data[n,:,j] = self.data[n,:,self.grid.jlo]
-                self.data[n,:,:self.grid.jlo] = np.transpose(np.tile(self.data[n,:,self.grid.jlo], (self.grid.ng,1)))
+                self.data[n,:,:self.grid.jlo] = self.data[n,:,self.grid.jlo,np.newaxis] #np.transpose(np.tile(self.data[n,:,self.grid.jlo], (self.grid.ng,1)))
             else:
                 self.data[n,:,self.grid.jlo-1] = \
                     self.data[n,:,self.grid.jlo] - self.grid.dy*self.BCs[name].yl_value[:]
@@ -991,7 +990,8 @@ class CellCenterData2d():
             if self.BCs[name].yr_value == None:
                 #for j in range(self.grid.jhi+1, self.grid.ny+2*self.grid.ng):
                 #    self.data[n,:,j] = self.data[n,:,self.grid.jhi]
-                self.data[n,:,self.grid.jhi+1:] = np.transpose(np.tile(self.data[n,:,self.grid.jhi], (self.grid.ng,1)))
+                self.data[n,:,self.grid.jhi+1:] = self.data[n,:,self.grid.jhi,np.newaxis]
+                # np.transpose(np.tile(self.data[n,:,self.grid.jhi], (self.grid.ng,1)))
             else:
                 self.data[n,:,self.grid.jhi+1] = \
                     self.data[n,:,self.grid.jhi] + self.grid.dy*self.BCs[name].yr_value[:]

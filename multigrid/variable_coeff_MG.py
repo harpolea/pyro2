@@ -123,8 +123,8 @@ class VarCoeffCCMG2d(MG.CellCenterMG2d):
 
         self.grids[level].fill_BC("v")
 
-        eta_x = self.edge_coeffs[level].x
-        eta_y = self.edge_coeffs[level].y
+        eta_x = self.edge_coeffs[level].x.d
+        eta_y = self.edge_coeffs[level].y.d
 
         # print( "min/max c: {}, {}".format(np.min(c), np.max(c)))
         # print( "min/max eta_x: {}, {}".format(np.min(eta_x), np.max(eta_x)))
@@ -171,37 +171,37 @@ class VarCoeffCCMG2d(MG.CellCenterMG2d):
                     eta_y.ip_jp(ix, iy, s=2) * v.ip_jp(ix, -1+iy, s=2) ) / denom"""
 
                 denom = (
-                    eta_x.d[myg.ilo+1+ix:myg.ihi+2:2,
+                    eta_x[myg.ilo+1+ix:myg.ihi+2:2,
                           myg.jlo+iy  :myg.jhi+1:2] +
                     #
-                    eta_x.d[myg.ilo+ix  :myg.ihi+1:2,
+                    eta_x[myg.ilo+ix  :myg.ihi+1:2,
                           myg.jlo+iy  :myg.jhi+1:2] +
                     #
-                    eta_y.d[myg.ilo+ix  :myg.ihi+1:2,
+                    eta_y[myg.ilo+ix  :myg.ihi+1:2,
                           myg.jlo+1+iy:myg.jhi+2:2] +
                     #
-                    eta_y.d[myg.ilo+ix  :myg.ihi+1:2,
+                    eta_y[myg.ilo+ix  :myg.ihi+1:2,
                           myg.jlo+iy  :myg.jhi+1:2])
 
                 v.d[myg.ilo+ix:myg.ihi+1:2,myg.jlo+iy:myg.jhi+1:2] = (
                     -f.d[myg.ilo+ix:myg.ihi+1:2,myg.jlo+iy:myg.jhi+1:2] +
                     # eta_{i+1/2,j} phi_{i+1,j}
-                    eta_x.d[myg.ilo+1+ix:myg.ihi+2:2,
+                    eta_x[myg.ilo+1+ix:myg.ihi+2:2,
                           myg.jlo+iy  :myg.jhi+1:2] *
                     v.d[myg.ilo+1+ix:myg.ihi+2:2,
                       myg.jlo+iy  :myg.jhi+1:2] +
                     # eta_{i-1/2,j} phi_{i-1,j}
-                    eta_x.d[myg.ilo+ix:myg.ihi+1:2,
+                    eta_x[myg.ilo+ix:myg.ihi+1:2,
                           myg.jlo+iy:myg.jhi+1:2]*
                     v.d[myg.ilo-1+ix:myg.ihi  :2,
                       myg.jlo+iy  :myg.jhi+1:2] +
                     # eta_{i,j+1/2} phi_{i,j+1}
-                    eta_y.d[myg.ilo+ix:myg.ihi+1:2,
+                    eta_y[myg.ilo+ix:myg.ihi+1:2,
                           myg.jlo+1+iy:myg.jhi+2:2]*
                     v.d[myg.ilo+ix  :myg.ihi+1:2,
                       myg.jlo+1+iy:myg.jhi+2:2] +
                     # eta_{i,j-1/2} phi_{i,j-1}
-                    eta_y.d[myg.ilo+ix:myg.ihi+1:2,
+                    eta_y[myg.ilo+ix:myg.ihi+1:2,
                           myg.jlo+iy:myg.jhi+1:2]*
                     v.d[myg.ilo+ix  :myg.ihi+1:2,
                       myg.jlo-1+iy:myg.jhi  :2]) / denom
@@ -234,18 +234,20 @@ class VarCoeffCCMG2d(MG.CellCenterMG2d):
     def _compute_residual(self, level):
         """ compute the residual and store it in the r variable"""
 
-        v = self.grids[level].get_var("v")
+        v = self.grids[level].get_var("v").d
         f = self.grids[level].get_var("f")
         r = self.grids[level].get_var("r")
 
         myg = self.grids[level].grid
 
-        eta_x = self.edge_coeffs[level].x
-        eta_y = self.edge_coeffs[level].y
+        eta_x = self.edge_coeffs[level].x.d
+        eta_y = self.edge_coeffs[level].y.d
 
 
         # compute the residual
         # r = f - L_eta phi
+        """
+        Gone back to old version as faster
         L_eta_phi = (
             # eta_{i+1/2,j} (phi_{i+1,j} - phi_{i,j})
             eta_x.ip(1)*(v.ip(1) - v.v()) - \
@@ -255,5 +257,24 @@ class VarCoeffCCMG2d(MG.CellCenterMG2d):
             eta_y.jp(1)*(v.jp(1) - v.v()) - \
             # eta_{i,j-1/2} (phi_{i,j} - phi_{i,j-1})
             eta_y.v()*(v.v() - v.jp(-1)) )
+        """
+
+        L_eta_phi = (
+            # eta_{i+1/2,j} (phi_{i+1,j} - phi_{i,j})
+            eta_x[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1]* \
+            (v[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
+             v[myg.ilo  :myg.ihi+1,myg.jlo:myg.jhi+1]) - \
+            # eta_{i-1/2,j} (phi_{i,j} - phi_{i-1,j})
+            eta_x[myg.ilo  :myg.ihi+1,myg.jlo:myg.jhi+1]* \
+            (v[myg.ilo  :myg.ihi+1,myg.jlo:myg.jhi+1] -
+             v[myg.ilo-1:myg.ihi  ,myg.jlo:myg.jhi+1]) + \
+            # eta_{i,j+1/2} (phi_{i,j+1} - phi_{i,j})
+            eta_y[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2]* \
+            (v[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] -  # y-diff
+             v[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1]) - \
+            # eta_{i,j-1/2} (phi_{i,j} - phi_{i,j-1})
+            eta_y[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1]* \
+            (v[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1] -
+             v[myg.ilo:myg.ihi+1,myg.jlo-1:myg.jhi  ]) )
 
         r.v()[:,:] = f.v() - L_eta_phi

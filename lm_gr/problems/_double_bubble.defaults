@@ -1,0 +1,13 @@
+[bubble]
+dens_base = 100.0            ; density at the base of the atmosphere
+scale_height = 2.0          ; scale height of the isothermal atmosphere
+
+x1_pert = 0.5
+y1_pert = 0.3
+r1_pert = 0.05
+x2_pert = 0.5
+y2_pert = 0.55
+r2_pert = 0.05
+pert_amplitude_factor = 2.0
+
+dens_cutoff  = 0.01
