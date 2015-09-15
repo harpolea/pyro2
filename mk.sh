@@ -13,6 +13,7 @@
 if [ "$1" == "clean" ]; then
 
     rm -rf mesh/*.so
+    rm -rf multigrid/*.so
     rm -rf incompressible/*.so
     rm -rf compressible/*.so
     rm -rf lm_atm/*.so
@@ -26,7 +27,7 @@ else
 	FFLAGS="-C"
     fi
 
-    for d in mesh incompressible compressible lm_atm lm_gr
+    for d in mesh multigrid incompressible compressible lm_atm lm_gr
     do
 	cd ${d}
 	${PYTHON} setup.py config_fc --f90flags "${FFLAGS}" build_ext --inplace

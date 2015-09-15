@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 
 import multigrid.MG as MG
 import multigrid.edge_coeffs as ec
+import multigrid.mg_utils_f as mg_f
 
 #from numba import jit
 
@@ -116,15 +117,39 @@ class VarCoeffCCMG2d(MG.CellCenterMG2d):
             The number of r-b Gauss-Seidel smoothing iterations to perform
 
         """
+
         v = self.grids[level].get_var("v")
         f = self.grids[level].get_var("f")
 
         myg = self.grids[level].grid
 
-        self.grids[level].fill_BC("v")
+        eta_x = np.asfortranarray(self.edge_coeffs[level].x.d)
+        eta_y = np.asfortranarray(self.edge_coeffs[level].y.d)
 
-        eta_x = self.edge_coeffs[level].x.d
-        eta_y = self.edge_coeffs[level].y.d
+
+        # convert bcs into fotran-compatible version
+        bcs = [self.grids[level].BCs["v"].xlb,
+               self.grids[level].BCs["v"].xrb,
+               self.grids[level].BCs["v"].ylb,
+               self.grids[level].BCs["v"].yrb]
+        bcints = 3 * np.ones(4, dtype=np.int)
+
+        for i in range(4):
+            if bcs[i] in ["outflow", "neumann"]:
+                bcints[i] = 0
+            elif bcs[i] == "reflect-even":
+                bcints[i] = 1
+            elif bcs[i] in ["reflect-odd", "dirichlet"]:
+                bcints[i] = 2
+            elif bcs[i] == "periodic":
+                bcints[i] = 3
+
+        v.d[:,:] = mg_f.smooth_f(myg.qx, myg.qy, myg.ng,
+                      nsmooth, np.asfortranarray(v.d), f.d, np.asfortranarray(bcints), eta_x, eta_y)
+
+
+        """
+        self.grids[level].fill_BC("v")
 
         # print( "min/max c: {}, {}".format(np.min(c), np.max(c)))
         # print( "min/max eta_x: {}, {}".format(np.min(eta_x), np.max(eta_x)))
@@ -154,21 +179,21 @@ class VarCoeffCCMG2d(MG.CellCenterMG2d):
 
             for n, (ix, iy) in enumerate([(0,0), (1,1), (1,0), (0,1)]):
 
-                """
-                CHANGED: This has been running slow, so have gone back to old style indexing
 
-                denom = (eta_x.ip_jp(1+ix, iy, s=2) + eta_x.ip_jp(ix, iy, s=2) +
-                         eta_y.ip_jp(ix, 1+iy, s=2) + eta_y.ip_jp(ix, iy, s=2) )
+                #CHANGED: This has been running slow, so have gone back to #old style indexing
 
-                v.ip_jp(ix, iy, s=2)[:,:] = ( -f.ip_jp(ix, iy, s=2) +
+                #denom = (eta_x.ip_jp(1+ix, iy, s=2) + eta_x.ip_jp(ix, iy, s=2) +
+                #         eta_y.ip_jp(ix, 1+iy, s=2) + eta_y.ip_jp(ix, iy, s=2) )
+
+                #v.ip_jp(ix, iy, s=2)[:,:] = ( -f.ip_jp(ix, iy, s=2) +
                     # eta_{i+1/2,j} phi_{i+1,j}
-                    eta_x.ip_jp(1+ix, iy, s=2) * v.ip_jp(1+ix, iy, s=2) +
+                #    eta_x.ip_jp(1+ix, iy, s=2) * v.ip_jp(1+ix, iy, s=2) +
                     # eta_{i-1/2,j} phi_{i-1,j}
-                    eta_x.ip_jp(ix, iy, s=2) * v.ip_jp(-1+ix, iy, s=2) +
+                #    eta_x.ip_jp(ix, iy, s=2) * v.ip_jp(-1+ix, iy, s=2) +
                     # eta_{i,j+1/2} phi_{i,j+1}
-                    eta_y.ip_jp(ix, 1+iy, s=2) * v.ip_jp(ix, 1+iy, s=2) +
+                #    eta_y.ip_jp(ix, 1+iy, s=2) * v.ip_jp(ix, 1+iy, s=2) +
                     # eta_{i,j-1/2} phi_{i,j-1}
-                    eta_y.ip_jp(ix, iy, s=2) * v.ip_jp(ix, -1+iy, s=2) ) / denom"""
+                #    eta_y.ip_jp(ix, iy, s=2) * v.ip_jp(ix, -1+iy, s=2) ) / denom
 
                 denom = (
                     eta_x[myg.ilo+1+ix:myg.ihi+2:2,
@@ -229,6 +254,7 @@ class VarCoeffCCMG2d(MG.CellCenterMG2d):
                 plt.draw()
                 plt.savefig("mg_%4.4d.png" % (self.frame))
                 self.frame += 1
+            """
 
 
     def _compute_residual(self, level):
