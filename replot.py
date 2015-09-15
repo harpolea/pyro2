@@ -9,12 +9,13 @@ import mesh.patch as patch
 
 # plot an output file using the solver's dovis script
 
-def makeplot(myd, solver_name, outfile, W, H):
+def makeplot(myd, solver_name, outfile, W, H, n):
 
     exec 'import ' + solver_name + ' as solver'
 
     sim = solver.Simulation(solver_name, None, None)
     sim.cc_data = myd
+    sim.n = n
 
     plt.figure(num=1, figsize=(W,H), dpi=100, facecolor='w')
 
@@ -45,10 +46,10 @@ optional arguments:
 if __name__== "__main__":
 
     for i in range(1, 501):
-        outfile = "../../Work/pyro/results/bubble_256_" +  format(i, '04') + ".png"
+        outfile = "../../Work/pyro/results/double_bubble_512_" +  format(i, '04') + ".png"
         my_dpi = 96.
-        W = 1280/my_dpi
-        H = 720/my_dpi
+        W = 1920/my_dpi
+        H = 1080/my_dpi
 
         try:
             solver = 'lm_gr'
@@ -56,10 +57,10 @@ if __name__== "__main__":
             usage()
 
         try:
-            file = "../../Work/pyro/results/bubble_256_" +  format(i, '04') + ".pyro"
+            file = "../../Work/pyro/results/double_bubble_512_" +  format(i, '04') + ".pyro"
         except:
             usage()
 
         myg, myd = patch.read(file)
 
-        makeplot(myd, solver, outfile, W, H)
+        makeplot(myd, solver, outfile, W, H, i)

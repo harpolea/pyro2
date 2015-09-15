@@ -6,7 +6,7 @@ x1_pert = 0.5
 y1_pert = 0.3
 r1_pert = 0.05
 x2_pert = 0.5
-y2_pert = 0.55
+y2_pert = 0.45
 r2_pert = 0.05
 pert_amplitude_factor = 2.0
 
