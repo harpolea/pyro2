@@ -72,7 +72,7 @@ def init_data(my_data, base, rp, metric):
     #pres = cs2 * dens
     pres.d[:,:] = dens.d**gamma
     eint.d[:,:] = pres.d / (gamma - 1.0) / dens.d
-    enth.d[:, :] = 1. + eint.d + pres.d / dens.d # Newtonian
+    enth.d[:, :] = 1. + eint.d + pres.d / dens.d
 
     my_data.fill_BC_all()
 

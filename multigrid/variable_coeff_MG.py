@@ -18,8 +18,6 @@ import multigrid.MG as MG
 import multigrid.edge_coeffs as ec
 import multigrid.mg_utils_f as mg_f
 
-#from numba import jit
-
 np.set_printoptions(precision=3, linewidth=128)
 
 
@@ -100,7 +98,6 @@ class VarCoeffCCMG2d(MG.CellCenterMG2d):
             n -= 1
 
 
-    #@jit
     def smooth(self, level, nsmooth):
         """
         Use red-black Gauss-Seidel iterations to smooth the solution
@@ -123,8 +120,8 @@ class VarCoeffCCMG2d(MG.CellCenterMG2d):
 
         myg = self.grids[level].grid
 
-        eta_x = np.asfortranarray(self.edge_coeffs[level].x.d)
-        eta_y = np.asfortranarray(self.edge_coeffs[level].y.d)
+        eta_x = self.edge_coeffs[level].x.d
+        eta_y = self.edge_coeffs[level].y.d
 
 
         # convert bcs into fotran-compatible version
@@ -145,7 +142,7 @@ class VarCoeffCCMG2d(MG.CellCenterMG2d):
                 bcints[i] = 3
 
         v.d[:,:] = mg_f.smooth_f(myg.qx, myg.qy, myg.ng,
-                      nsmooth, np.asfortranarray(v.d), f.d, np.asfortranarray(bcints), eta_x, eta_y)
+                      nsmooth, np.asfortranarray(v.d), np.asfortranarray(f.d), bcints, np.asfortranarray(eta_x), np.asfortranarray(eta_y))
 
 
         """
@@ -184,7 +181,7 @@ class VarCoeffCCMG2d(MG.CellCenterMG2d):
 
                 #denom = (eta_x.ip_jp(1+ix, iy, s=2) + eta_x.ip_jp(ix, iy, s=2) +
                 #         eta_y.ip_jp(ix, 1+iy, s=2) + eta_y.ip_jp(ix, iy, s=2) )
-
+19
                 #v.ip_jp(ix, iy, s=2)[:,:] = ( -f.ip_jp(ix, iy, s=2) +
                     # eta_{i+1/2,j} phi_{i+1,j}
                 #    eta_x.ip_jp(1+ix, iy, s=2) * v.ip_jp(1+ix, iy, s=2) +

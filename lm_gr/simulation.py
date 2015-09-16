@@ -22,7 +22,10 @@ TODO: not entirely sure about the lateral averaging of D, Dh to get the base sta
 
 TODO: make python3 compliable
 
-Run with a profiler using python -m cProfile -o pyro.prof pyro.py
+Run with a profiler using
+    python -m cProfile -o pyro.prof pyro.py
+then view using
+    snakeviz pyro.prof
 
 All the keyword arguments of functions default to None as their default values
 will be member variables which cannot be accessed in the function's argument
@@ -731,8 +734,6 @@ class Simulation(NullSimulation):
             u0 = self.metric.calcu0(u=u, v=v)
 
         drp0 = self.drp0(Dh0=Dh0, u=u, v=v, u0=u0)
-        u01d = Basestate(myg.ny, ng=myg.ng)
-        u01d.d[:] = self.lateral_average(u0.d)
 
         F_buoy = np.max(np.abs(self.calc_mom_source(u0=u0)))
 
@@ -1091,13 +1092,14 @@ class Simulation(NullSimulation):
                                              ldelta_rx, ldelta_ry)
         # x component of U0 is zero
         U0_x = myg.scratch_array()
-        _, _r0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
+        _r0x, _r0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
                                             myg.dx, myg.dy, self.dt,
                                             D0.d2df(myg.qx), U0_x.d, U0_half_star.d2df(myg.qx),
                                             ldelta_r0x, ldelta_r0y)
                                             #D0.d2df(myg.qx), u_MAC.d, v_MAC.d,
 
 
+        D0_xint = patch.ArrayIndexer(d=_r0x, grid=myg)
         D0_yint = patch.ArrayIndexer(d=_r0y, grid=myg)
 
         D02d = myg.scratch_array()
@@ -1107,12 +1109,25 @@ class Simulation(NullSimulation):
             #(D0_yint.jp(1)*v_MAC.jp(1) - D0_yint.v()*v_MAC.v())/myg.dy)
             (D0_yint.jp(1) * U0_half_star.jp(1)[np.newaxis,:] - \
              D0_yint.v() * U0_half_star.v2d())/myg.dy)
+
+        # predict to edges
+        ldelta_r0x = limitFunc(1, D02d.d, myg.qx, myg.qy, myg.ng)
+        ldelta_r0y = limitFunc(2, D02d.d, myg.qx, myg.qy, myg.ng)
+
         D0_2a_star = Basestate(myg.ny, ng=myg.ng)
         D0_2a_star.d[:] = self.lateral_average(D02d.d)
+        _r0x, _r0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
+                                            myg.dx, myg.dy, self.dt,
+                                            D0_2a_star.d2df(myg.qx), U0_x.d, U0_half_star.d2df(myg.qx),
+                                            ldelta_r0x, ldelta_r0y)
+        D0_2a_xint = patch.ArrayIndexer(d=_r0x, grid=myg)
+        D0_2a_yint = patch.ArrayIndexer(d=_r0y, grid=myg)
 
         D_xint = patch.ArrayIndexer(d=_rx, grid=myg)
         D_yint = patch.ArrayIndexer(d=_ry, grid=myg)
 
+        D_xint.d[:,:] += 0.5 * (D0_xint.d + D0_2a_xint.d)
+        D_yint.d[:,:] += 0.5 * (D0_yint.d + D0_2a_yint.d)
 
         D_old = D.copy()
         D_2_star = D_1.copy()
@@ -1145,7 +1160,7 @@ class Simulation(NullSimulation):
                                              myg.dx, myg.dy, self.dt,
                                              Dh_1.d, u_MAC.d, v_MAC.d,
                                              ldelta_ex, ldelta_ey)
-        _, _e0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
+        _e0x, _e0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
                                              Dh0.d2df(myg.qx), U0_x.d, U0_half_star.d2df(myg.qx),
                                              ldelta_e0x, ldelta_e0y)
@@ -1153,8 +1168,8 @@ class Simulation(NullSimulation):
                                              #ldelta_e0x, ldelta_e0y)
 
         Dh0_yint = patch.ArrayIndexer(d=_e0y, grid=myg)
+        Dh0_xint = patch.ArrayIndexer(d=_e0x, grid=myg)
 
-        # FIXME: is this is the correct u0?
         Dh0.d[:] = self.lateral_average(Dh_1.d)
         Dh02d = myg.scratch_array()
         Dh02d.d[:,:] = Dh0.d2d()
@@ -1165,11 +1180,25 @@ class Simulation(NullSimulation):
             self.dt * u0_MAC.v() * psi.v()
             #(Dh0_yint.jp(1)*v_MAC.jp(1) - Dh0_yint.v()*v_MAC.v())/myg.dy) + \
             #self.dt * u0.v() * psi.v()
-        Dh0_star = Dh0.copy()
-        Dh0_star.d[:] = self.lateral_average(Dh02d.d)
 
-        Dh_xint = patch.ArrayIndexer(d=_ex, grid=myg)
-        Dh_yint = patch.ArrayIndexer(d=_ey, grid=myg)
+        # predict to edges
+        ldelta_e0x = limitFunc(1, Dh02d.d, myg.qx, myg.qy, myg.ng)
+        ldelta_e0y = limitFunc(2, Dh02d.d, myg.qx, myg.qy, myg.ng)
+
+        Dh0_star = Basestate(myg.ny, ng=myg.ng)
+        Dh0_star.d[:] = self.lateral_average(Dh02d.d)
+        _e0x, _e0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
+                                            myg.dx, myg.dy, self.dt,
+                                            Dh0_star.d2df(myg.qx), U0_x.d, U0_half_star.d2df(myg.qx),
+                                            ldelta_e0x, ldelta_e0y)
+        Dh0_star_xint = patch.ArrayIndexer(d=_r0x, grid=myg)
+        Dh0_star_yint = patch.ArrayIndexer(d=_r0y, grid=myg)
+
+        Dh_xint = patch.ArrayIndexer(d=_rx, grid=myg)
+        Dh_yint = patch.ArrayIndexer(d=_ry, grid=myg)
+
+        Dh_xint.d[:,:] += 0.5 * (Dh0_xint.d + Dh0_star_xint.d)
+        Dh_yint.d[:,:] += 0.5 * (Dh0_yint.d + Dh0_star_yint.d)
 
         Dh_old = Dh_1.copy()
         Dh_2_star = Dh_1.copy()
@@ -1309,16 +1338,29 @@ class Simulation(NullSimulation):
         #---------------------------------------------------------------------
         # 8. predict D to the edges and do update
         #---------------------------------------------------------------------
+
+        ldelta_rx = limitFunc(1, D_1.d, myg.qx, myg.qy, myg.ng)
+        ldelta_r0x = limitFunc(1, D0.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
+        ldelta_ex = limitFunc(1, Dh_1.d,myg.qx, myg.qy, myg.ng)
+        ldelta_e0x = limitFunc(1, Dh0.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
+
+        ldelta_ry = limitFunc(2, D_1.d, myg.qx, myg.qy, myg.ng)
+        ldelta_r0y = limitFunc(2, D0.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
+        ldelta_ey = limitFunc(2, Dh_1.d,myg.qx, myg.qy, myg.ng)
+        ldelta_e0y = limitFunc(2, Dh0.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
+
+
         _rx, _ry = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
                                              D_1.d, u_MAC.d, v_MAC.d,
                                              ldelta_rx, ldelta_ry)
-        _, _r0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
+        _r0x, _r0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
                                              D0.d2df(myg.qx), U0_x.d,
                                              U0_half.d2df(myg.qx),
                                              ldelta_r0x, ldelta_r0y)
 
+        D0_xint = patch.ArrayIndexer(d=_r0x, grid=myg)
         D0_yint = patch.ArrayIndexer(d=_r0y, grid=myg)
 
         #D0_old = D0.copy()
@@ -1329,11 +1371,25 @@ class Simulation(NullSimulation):
             #  (D v)_y
             (D0_yint.jp(1) * U0_half.jp(1)[np.newaxis,:] -
              D0_yint.v() * U0_half.v2d())/myg.dy)
+
+        # predict to edges
+        ldelta_r0x = limitFunc(1, D02d.d, myg.qx, myg.qy, myg.ng)
+        ldelta_r0y = limitFunc(2, D02d.d, myg.qx, myg.qy, myg.ng)
+
         D0_2a = Basestate(myg.ny, ng=myg.ng)
         D0_2a.d[:] = self.lateral_average(D02d.d)
+        _r0x, _r0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
+                                            myg.dx, myg.dy, self.dt,
+                                            D0_2a.d2df(myg.qx), U0_x.d, U0_half_star.d2df(myg.qx),
+                                            ldelta_r0x, ldelta_r0y)
+        D0_2a_xint = patch.ArrayIndexer(d=_r0x, grid=myg)
+        D0_2a_yint = patch.ArrayIndexer(d=_r0y, grid=myg)
 
         D_xint = patch.ArrayIndexer(d=_rx, grid=myg)
         D_yint = patch.ArrayIndexer(d=_ry, grid=myg)
+
+        D_xint.d[:,:] += 0.5 * (D0_xint.d + D0_2a_xint.d)
+        D_yint.d[:,:] += 0.5 * (D0_yint.d + D0_2a_yint.d)
 
         D_old = D.copy()
         D_2 = D_1.copy()
@@ -1357,14 +1413,16 @@ class Simulation(NullSimulation):
                                              myg.dx, myg.dy, self.dt,
                                              Dh_1.d, u_MAC.d, v_MAC.d,
                                              ldelta_ex, ldelta_ey)
-        _, _e0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
+        _e0x, _e0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
                                              Dh0.d2df(myg.qx), U0_x.d, U0_half.d2df(myg.qx),
                                              ldelta_e0x, ldelta_e0y)
 
+        Dh0_xint = patch.ArrayIndexer(d=_e0x, grid=myg)
         Dh0_yint = patch.ArrayIndexer(d=_e0y, grid=myg)
 
         # FIXME: using the correct u0s here?
+        # FIXME: 8G does not include the lateral averaging of Dh found in 4G.
 
         Dh0_old = Dh0.copy()
 
@@ -1375,10 +1433,24 @@ class Simulation(NullSimulation):
             (Dh0_yint.jp(1) * U0_half.jp(1)[np.newaxis,:] -
              Dh0_yint.v() * U0_half.v2d())/myg.dy) + \
             self.dt * u0.v() * psi.v()
-        Dh0.d[:] = self.lateral_average(Dh02d.d)
 
-        Dh_xint = patch.ArrayIndexer(d=_ex, grid=myg)
-        Dh_yint = patch.ArrayIndexer(d=_ey, grid=myg)
+        # predict to edges
+        ldelta_e0x = limitFunc(1, Dh02d.d, myg.qx, myg.qy, myg.ng)
+        ldelta_e0y = limitFunc(2, Dh02d.d, myg.qx, myg.qy, myg.ng)
+
+        Dh0.d[:] = self.lateral_average(Dh02d.d)
+        _e0x, _e0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
+                                            myg.dx, myg.dy, self.dt,
+                                            Dh0.d2df(myg.qx), U0_x.d, U0_half_star.d2df(myg.qx),
+                                            ldelta_e0x, ldelta_e0y)
+        Dh0_n1_xint = patch.ArrayIndexer(d=_r0x, grid=myg)
+        Dh0_n1_yint = patch.ArrayIndexer(d=_r0y, grid=myg)
+
+        Dh_xint = patch.ArrayIndexer(d=_rx, grid=myg)
+        Dh_yint = patch.ArrayIndexer(d=_ry, grid=myg)
+
+        Dh_xint.d[:,:] += 0.5 * (Dh0_xint.d + Dh0_n1_xint.d)
+        Dh_yint.d[:,:] += 0.5 * (Dh0_yint.d + Dh0_n1_yint.d)
 
         Dh_old = Dh.copy()
         Dh_2 = Dh_1.copy()
@@ -1530,7 +1602,7 @@ class Simulation(NullSimulation):
             self.n += 1
 
 
-    def dovis(self):
+    def dovis(self, vmins=[None, None, None, None], vmaxes=[None, None, None, None]):
         """
         Do runtime visualization
         """
@@ -1569,18 +1641,21 @@ class Simulation(NullSimulation):
 
         fields = [D, magvel, v, vort]
         field_names = [r"$D$", r"$|U|$", r"$U_y$", r"$\nabla\times U$"]
-        vmins = [55., 0., -0.0015, -0.25]
-        vmaxes = [105., 0.0045, 0.004, 0.25]
 
         for n in range(len(fields)):
             ax = axes.flat[n]
 
             f = fields[n]
 
+            if n < 3:
+                cmap = plt.cm.jet
+            else:
+                cmap = plt.cm.seismic
+
             img = ax.imshow(np.transpose(f.v()),
                             interpolation="nearest", origin="lower",
                             extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax],
-                            vmin=vmins[n], vmax=vmaxes[n])
+                            vmin=vmins[n], vmax=vmaxes[n], cmap=cmap)
 
             ax.set_xlabel(r"$x$")
             ax.set_ylabel(r"$y$")

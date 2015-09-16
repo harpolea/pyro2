@@ -219,6 +219,7 @@ class BCObject(object):
 
         return string
 
+# FIXME: this is pretty slow - see if there is a faster way.
 def _buf_split(b):
     try:
         bxlo, bxhi, bylo, byhi = b

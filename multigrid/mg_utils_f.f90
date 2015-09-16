@@ -1,3 +1,6 @@
+! build with
+! python setup.py build_ext --inplace
+
 subroutine smooth_f(qx, qy, ng, nsmooth, v, f, bcs, eta_x, eta_y, v_out)
 
     implicit none
@@ -28,7 +31,7 @@ subroutine smooth_f(qx, qy, ng, nsmooth, v, f, bcs, eta_x, eta_y, v_out)
 
     call fill_BCS_f(qx, qy, ng, v, bcs, v_out)
     ixs = (/ 0, 1, 1, 0 /)
-    iys = (/0, 1, 0, 1/)
+    iys = (/ 0, 1, 0, 1 /)
 
     v_out(:,:) = v(:,:)
 
@@ -37,23 +40,23 @@ subroutine smooth_f(qx, qy, ng, nsmooth, v, f, bcs, eta_x, eta_y, v_out)
             ix = ixs(j)
             iy = iys(j)
 
-            denom(ilo+ix:ihi:2,jlo+iy:jhi:2) = &
-                eta_x(ilo+1+ix:ihi+1:2,jlo+iy:jhi:2) + &
-                eta_x(ilo+ix:ihi:2,jlo+iy:jhi:2) + &
-                eta_y(ilo+ix:ihi:2,jlo+1+iy:jhi+1:2) + &
-                eta_y(ilo+ix:ihi:2,jlo+iy:jhi:2)
+            denom(ilo+ix:ihi:2, jlo+iy:jhi:2) = &
+                eta_x(ilo+1+ix:ihi+1:2, jlo+iy:jhi:2) + &
+                eta_x(ilo+ix:ihi:2, jlo+iy:jhi:2) + &
+                eta_y(ilo+ix:ihi:2, jlo+1+iy:jhi+1:2) + &
+                eta_y(ilo+ix:ihi:2, jlo+iy:jhi:2)
 
-            v_out(ilo+ix:ihi:2,jlo+iy:jhi:2) = &
-                (-f(ilo+ix:ihi:2,jlo+iy:jhi:2) + &
-                eta_x(ilo+1+ix:ihi+1:2,jlo+iy:jhi:2) * &
-                v_out(ilo+1+ix:ihi+1:2,jlo+iy:jhi:2) + &
-                eta_x(ilo+ix:ihi:2,jlo+iy:jhi:2) * &
-                v_out(ilo-1+ix:ihi-1:2,jlo+iy:jhi:2) + &
-                eta_y(ilo+ix:ihi:2,jlo+1+iy:jhi+1:2) * &
-                v_out(ilo+ix:ihi:2,jlo+1+iy:jhi+1:2) + &
-                eta_y(ilo+ix:ihi:2,jlo+iy:jhi:2) * &
-                v_out(ilo+ix:ihi:2,jlo-1+iy:jhi-1:2)) / &
-                denom(ilo+ix:ihi:2,jlo+iy:jhi:2)
+            v_out(ilo+ix:ihi:2, jlo+iy:jhi:2) = &
+                (-f(ilo+ix:ihi:2, jlo+iy:jhi:2) + &
+                eta_x(ilo+1+ix:ihi+1:2, jlo+iy:jhi:2) * &
+                v_out(ilo+1+ix:ihi+1:2, jlo+iy:jhi:2) + &
+                eta_x(ilo+ix:ihi:2, jlo+iy:jhi:2) * &
+                v_out(ilo-1+ix:ihi-1:2, jlo+iy:jhi:2) + &
+                eta_y(ilo+ix:ihi:2, jlo+1+iy:jhi+1:2) * &
+                v_out(ilo+ix:ihi:2, jlo+1+iy:jhi+1:2) + &
+                eta_y(ilo+ix:ihi:2, jlo+iy:jhi:2) * &
+                v_out(ilo+ix:ihi:2, jlo-1+iy:jhi-1:2)) / &
+                denom(ilo+ix:ihi:2, jlo+iy:jhi:2)
 
             if (i == 1 .or. i == 3) then
                 call fill_BCS_f(qx, qy, ng, v_out, bcs, v_out)
@@ -116,7 +119,7 @@ subroutine fill_BCs_f(qx, qy, ng, g, bcs, g_out)
     ! +x boundary
     ! outflow, neumann
     if (bcs(1) == 0) then
-        do  i = ihi+1, qx-1
+        do  i = ihi+1, 2*ng+nx-1
             g_out(i,:) = g_out(ihi,:)
         end do
 
@@ -168,7 +171,7 @@ subroutine fill_BCs_f(qx, qy, ng, g, bcs, g_out)
     ! +y boundary
     ! outflow, neumann
     if (bcs(3) == 0) then
-        do j = jhi+1, qy-1
+        do j = jhi+1, ny+2*ng-1
             g_out(:,j) = g_out(:,jhi)
         end do
 
