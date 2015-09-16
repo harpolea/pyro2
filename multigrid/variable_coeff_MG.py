@@ -97,8 +97,8 @@ class VarCoeffCCMG2d(MG.CellCenterMG2d):
 
             n -= 1
 
-
-    def smooth(self, level, nsmooth):
+    # FIXME: get rid of fortran testing stuff
+    def smooth(self, level, nsmooth, fortran=True):
         """
         Use red-black Gauss-Seidel iterations to smooth the solution
         at a given level.  This is used at each stage of the V-cycle
@@ -123,135 +123,133 @@ class VarCoeffCCMG2d(MG.CellCenterMG2d):
         eta_x = self.edge_coeffs[level].x.d
         eta_y = self.edge_coeffs[level].y.d
 
+        if fortran:
+            # convert bcs into fotran-compatible version
+            bcs = [self.grids[level].BCs["v"].xlb,
+                   self.grids[level].BCs["v"].xrb,
+                   self.grids[level].BCs["v"].ylb,
+                   self.grids[level].BCs["v"].yrb]
+            bcints = 3 * np.ones(4, dtype=np.int)
 
-        # convert bcs into fotran-compatible version
-        bcs = [self.grids[level].BCs["v"].xlb,
-               self.grids[level].BCs["v"].xrb,
-               self.grids[level].BCs["v"].ylb,
-               self.grids[level].BCs["v"].yrb]
-        bcints = 3 * np.ones(4, dtype=np.int)
+            for i in range(4):
+                if bcs[i] in ["outflow", "neumann"]:
+                    bcints[i] = 0
+                elif bcs[i] == "reflect-even":
+                    bcints[i] = 1
+                elif bcs[i] in ["reflect-odd", "dirichlet"]:
+                    bcints[i] = 2
+                elif bcs[i] == "periodic":
+                    bcints[i] = 3
 
-        for i in range(4):
-            if bcs[i] in ["outflow", "neumann"]:
-                bcints[i] = 0
-            elif bcs[i] == "reflect-even":
-                bcints[i] = 1
-            elif bcs[i] in ["reflect-odd", "dirichlet"]:
-                bcints[i] = 2
-            elif bcs[i] == "periodic":
-                bcints[i] = 3
+            v.d[:,:] = mg_f.smooth_f(myg.qx, myg.qy, myg.ng,
+                          nsmooth, np.asfortranarray(v.d), np.asfortranarray(f.d), bcints, np.asfortranarray(eta_x), np.asfortranarray(eta_y))
+        else:
+            self.grids[level].fill_BC("v")
 
-        v.d[:,:] = mg_f.smooth_f(myg.qx, myg.qy, myg.ng,
-                      nsmooth, np.asfortranarray(v.d), np.asfortranarray(f.d), bcints, np.asfortranarray(eta_x), np.asfortranarray(eta_y))
-
-
-        """
-        self.grids[level].fill_BC("v")
-
-        # print( "min/max c: {}, {}".format(np.min(c), np.max(c)))
-        # print( "min/max eta_x: {}, {}".format(np.min(eta_x), np.max(eta_x)))
-        # print( "min/max eta_y: {}, {}".format(np.min(eta_y), np.max(eta_y)))
+            # print( "min/max c: {}, {}".format(np.min(c), np.max(c)))
+            # print( "min/max eta_x: {}, {}".format(np.min(eta_x), np.max(eta_x)))
+            # print( "min/max eta_y: {}, {}".format(np.min(eta_y), np.max(eta_y)))
 
 
-        # do red-black G-S
-        for i in range(nsmooth):
+            # do red-black G-S
+            for i in range(nsmooth):
 
-            # do the red black updating in four decoupled groups
-            #
-            #
-            #        |       |       |
-            #      --+-------+-------+--
-            #        |       |       |
-            #        |   4   |   3   |
-            #        |       |       |
-            #      --+-------+-------+--
-            #        |       |       |
-            #   jlo  |   1   |   2   |
-            #        |       |       |
-            #      --+-------+-------+--
-            #        |  ilo  |       |
-            #
-            # groups 1 and 3 are done together, then we need to
-            # fill ghost cells, and then groups 2 and 4
+                # do the red black updating in four decoupled groups
+                #
+                #
+                #        |       |       |
+                #      --+-------+-------+--
+                #        |       |       |
+                #        |   4   |   3   |
+                #        |       |       |
+                #      --+-------+-------+--
+                #        |       |       |
+                #   jlo  |   1   |   2   |
+                #        |       |       |
+                #      --+-------+-------+--
+                #        |  ilo  |       |
+                #
+                # groups 1 and 3 are done together, then we need to
+                # fill ghost cells, and then groups 2 and 4
 
-            for n, (ix, iy) in enumerate([(0,0), (1,1), (1,0), (0,1)]):
+                for n, (ix, iy) in enumerate([(0,0), (1,1), (1,0), (0,1)]):
 
 
-                #CHANGED: This has been running slow, so have gone back to #old style indexing
+                    #CHANGED: This has been running slow, so have gone back to #old style indexing
 
-                #denom = (eta_x.ip_jp(1+ix, iy, s=2) + eta_x.ip_jp(ix, iy, s=2) +
-                #         eta_y.ip_jp(ix, 1+iy, s=2) + eta_y.ip_jp(ix, iy, s=2) )
-19
-                #v.ip_jp(ix, iy, s=2)[:,:] = ( -f.ip_jp(ix, iy, s=2) +
-                    # eta_{i+1/2,j} phi_{i+1,j}
-                #    eta_x.ip_jp(1+ix, iy, s=2) * v.ip_jp(1+ix, iy, s=2) +
-                    # eta_{i-1/2,j} phi_{i-1,j}
-                #    eta_x.ip_jp(ix, iy, s=2) * v.ip_jp(-1+ix, iy, s=2) +
-                    # eta_{i,j+1/2} phi_{i,j+1}
-                #    eta_y.ip_jp(ix, 1+iy, s=2) * v.ip_jp(ix, 1+iy, s=2) +
-                    # eta_{i,j-1/2} phi_{i,j-1}
-                #    eta_y.ip_jp(ix, iy, s=2) * v.ip_jp(ix, -1+iy, s=2) ) / denom
+                    #denom = (eta_x.ip_jp(1+ix, iy, s=2) + eta_x.ip_jp(ix, iy, s=2) +
+                    #         eta_y.ip_jp(ix, 1+iy, s=2) + eta_y.ip_jp(ix, iy, s=2) )
 
-                denom = (
-                    eta_x[myg.ilo+1+ix:myg.ihi+2:2,
+                    #v.ip_jp(ix, iy, s=2)[:,:] = ( -f.ip_jp(ix, iy, s=2) +
+                        # eta_{i+1/2,j} phi_{i+1,j}
+                    #    eta_x.ip_jp(1+ix, iy, s=2) * v.ip_jp(1+ix, iy, s=2) +
+                        # eta_{i-1/2,j} phi_{i-1,j}
+                    #    eta_x.ip_jp(ix, iy, s=2) * v.ip_jp(-1+ix, iy, s=2) +
+                        # eta_{i,j+1/2} phi_{i,j+1}
+                    #    eta_y.ip_jp(ix, 1+iy, s=2) * v.ip_jp(ix, 1+iy, s=2) +
+                        # eta_{i,j-1/2} phi_{i,j-1}
+                    #    eta_y.ip_jp(ix, iy, s=2) * v.ip_jp(ix, -1+iy, s=2) ) / denom
+
+                    denom = (
+                        eta_x[myg.ilo+1+ix:myg.ihi+2:2,
+                              myg.jlo+iy  :myg.jhi+1:2] +
+                        #
+                        eta_x[myg.ilo+ix  :myg.ihi+1:2,
+                              myg.jlo+iy  :myg.jhi+1:2] +
+                        #
+                        eta_y[myg.ilo+ix  :myg.ihi+1:2,
+                              myg.jlo+1+iy:myg.jhi+2:2] +
+                        #
+                        eta_y[myg.ilo+ix  :myg.ihi+1:2,
+                              myg.jlo+iy  :myg.jhi+1:2])
+
+                    v.d[myg.ilo+ix:myg.ihi+1:2,myg.jlo+iy:myg.jhi+1:2] = (
+                        -f.d[myg.ilo+ix:myg.ihi+1:2,myg.jlo+iy:myg.jhi+1:2] +
+                        # eta_{i+1/2,j} phi_{i+1,j}
+                        eta_x[myg.ilo+1+ix:myg.ihi+2:2,
+                              myg.jlo+iy  :myg.jhi+1:2] *
+                        v.d[myg.ilo+1+ix:myg.ihi+2:2,
                           myg.jlo+iy  :myg.jhi+1:2] +
-                    #
-                    eta_x[myg.ilo+ix  :myg.ihi+1:2,
+                        # eta_{i-1/2,j} phi_{i-1,j}
+                        eta_x[myg.ilo+ix:myg.ihi+1:2,
+                              myg.jlo+iy:myg.jhi+1:2]*
+                        v.d[myg.ilo-1+ix:myg.ihi  :2,
                           myg.jlo+iy  :myg.jhi+1:2] +
-                    #
-                    eta_y[myg.ilo+ix  :myg.ihi+1:2,
+                        # eta_{i,j+1/2} phi_{i,j+1}
+                        eta_y[myg.ilo+ix:myg.ihi+1:2,
+                              myg.jlo+1+iy:myg.jhi+2:2]*
+                        v.d[myg.ilo+ix  :myg.ihi+1:2,
                           myg.jlo+1+iy:myg.jhi+2:2] +
-                    #
-                    eta_y[myg.ilo+ix  :myg.ihi+1:2,
-                          myg.jlo+iy  :myg.jhi+1:2])
+                        # eta_{i,j-1/2} phi_{i,j-1}
+                        eta_y[myg.ilo+ix:myg.ihi+1:2,
+                              myg.jlo+iy:myg.jhi+1:2]*
+                        v.d[myg.ilo+ix  :myg.ihi+1:2,
+                          myg.jlo-1+iy:myg.jhi  :2]) / denom
 
-                v.d[myg.ilo+ix:myg.ihi+1:2,myg.jlo+iy:myg.jhi+1:2] = (
-                    -f.d[myg.ilo+ix:myg.ihi+1:2,myg.jlo+iy:myg.jhi+1:2] +
-                    # eta_{i+1/2,j} phi_{i+1,j}
-                    eta_x[myg.ilo+1+ix:myg.ihi+2:2,
-                          myg.jlo+iy  :myg.jhi+1:2] *
-                    v.d[myg.ilo+1+ix:myg.ihi+2:2,
-                      myg.jlo+iy  :myg.jhi+1:2] +
-                    # eta_{i-1/2,j} phi_{i-1,j}
-                    eta_x[myg.ilo+ix:myg.ihi+1:2,
-                          myg.jlo+iy:myg.jhi+1:2]*
-                    v.d[myg.ilo-1+ix:myg.ihi  :2,
-                      myg.jlo+iy  :myg.jhi+1:2] +
-                    # eta_{i,j+1/2} phi_{i,j+1}
-                    eta_y[myg.ilo+ix:myg.ihi+1:2,
-                          myg.jlo+1+iy:myg.jhi+2:2]*
-                    v.d[myg.ilo+ix  :myg.ihi+1:2,
-                      myg.jlo+1+iy:myg.jhi+2:2] +
-                    # eta_{i,j-1/2} phi_{i,j-1}
-                    eta_y[myg.ilo+ix:myg.ihi+1:2,
-                          myg.jlo+iy:myg.jhi+1:2]*
-                    v.d[myg.ilo+ix  :myg.ihi+1:2,
-                      myg.jlo-1+iy:myg.jhi  :2]) / denom
+                    if n == 1 or n == 3:
+                        self.grids[level].fill_BC("v")
+                        
+                if self.vis == 1:
+                    plt.clf()
 
-                if n == 1 or n == 3:
-                    self.grids[level].fill_BC("v")
+                    plt.subplot(221)
+                    self._draw_solution()
 
-            if self.vis == 1:
-                plt.clf()
+                    plt.subplot(222)
+                    self._draw_V()
 
-                plt.subplot(221)
-                self._draw_solution()
+                    plt.subplot(223)
+                    self._draw_main_solution()
 
-                plt.subplot(222)
-                self._draw_V()
+                    plt.subplot(224)
+                    self._draw_main_error()
 
-                plt.subplot(223)
-                self._draw_main_solution()
+                    plt.suptitle(self.vis_title, fontsize=18)
 
-                plt.subplot(224)
-                self._draw_main_error()
+                    plt.draw()
+                    plt.savefig("mg_%4.4d.png" % (self.frame))
+                    self.frame += 1
 
-                plt.suptitle(self.vis_title, fontsize=18)
-
-                plt.draw()
-                plt.savefig("mg_%4.4d.png" % (self.frame))
-                self.frame += 1
-            """
 
 
     def _compute_residual(self, level):

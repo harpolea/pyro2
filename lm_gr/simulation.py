@@ -168,6 +168,7 @@ class Simulation(NullSimulation):
         self.aux_data = None
         self.metric = None
         self.dt_old = 1.
+        self.fortran = False
 
 
     def initialize(self):
@@ -811,7 +812,7 @@ class Simulation(NullSimulation):
         constraint = self.constraint_source()
         # set the RHS to divU and solve
         mg.init_RHS(div_zeta_U.v(buf=1) - constraint.v(buf=1))
-        mg.solve(rtol=1.e-10)
+        mg.solve(rtol=1.e-10, fortran=self.fortran)
 
         # store the solution in our self.cc_data object -- include a single
         # ghostcell
@@ -908,16 +909,16 @@ class Simulation(NullSimulation):
         else:
             limitFunc = reconstruction_f.limit4
 
-        ldelta_rx = limitFunc(1, D.d, myg.qx, myg.qy, myg.ng)
+        #ldelta_rx = limitFunc(1, D.d, myg.qx, myg.qy, myg.ng)
         ldelta_r0x = limitFunc(1, D0.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
-        ldelta_ex = limitFunc(1, Dh.d,myg.qx, myg.qy, myg.ng)
+        #ldelta_ex = limitFunc(1, Dh.d,myg.qx, myg.qy, myg.ng)
         ldelta_e0x = limitFunc(1, Dh0.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
         ldelta_ux = limitFunc(1, u.d, myg.qx, myg.qy, myg.ng)
         ldelta_vx = limitFunc(1, v.d, myg.qx, myg.qy, myg.ng)
 
-        ldelta_ry = limitFunc(2, D.d, myg.qx, myg.qy, myg.ng)
+        #ldelta_ry = limitFunc(2, D.d, myg.qx, myg.qy, myg.ng)
         ldelta_r0y = limitFunc(2, D0.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
-        ldelta_ey = limitFunc(2, Dh.d,myg.qx, myg.qy, myg.ng)
+        #ldelta_ey = limitFunc(2, Dh.d,myg.qx, myg.qy, myg.ng)
         ldelta_e0y = limitFunc(2, Dh0.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
         ldelta_uy = limitFunc(2, u.d, myg.qx, myg.qy, myg.ng)
         ldelta_vy = limitFunc(2, v.d, myg.qx, myg.qy, myg.ng)
@@ -1049,7 +1050,7 @@ class Simulation(NullSimulation):
 
         # solve the Poisson problem
         mg.init_RHS(div_zeta_U.d - constraint.v(buf=1))
-        mg.solve(rtol=1.e-12)
+        mg.solve(rtol=1.e-12, fortran=self.fortran)
 
         # update the normal velocities with the pressure gradient -- these
         # constitute our advective velocities.  Note that what we actually
@@ -1086,6 +1087,8 @@ class Simulation(NullSimulation):
         #---------------------------------------------------------------------
         # 4. predict D to the edges and do its conservative update
         #---------------------------------------------------------------------
+        ldelta_rx = limitFunc(1, D_1.d, myg.qx, myg.qy, myg.ng)
+        ldelta_ry = limitFunc(2, D_1.d, myg.qx, myg.qy, myg.ng)
         _rx, _ry = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
                                              D_1.d, u_MAC.d, v_MAC.d,
@@ -1111,11 +1114,12 @@ class Simulation(NullSimulation):
              D0_yint.v() * U0_half_star.v2d())/myg.dy)
 
         # predict to edges
-        ldelta_r0x = limitFunc(1, D02d.d, myg.qx, myg.qy, myg.ng)
-        ldelta_r0y = limitFunc(2, D02d.d, myg.qx, myg.qy, myg.ng)
+        D0_2a_star = D0.copy()
+        D0_2a_star.v()[:] = self.lateral_average(D02d.v())
 
-        D0_2a_star = Basestate(myg.ny, ng=myg.ng)
-        D0_2a_star.d[:] = self.lateral_average(D02d.d)
+        ldelta_r0x = limitFunc(1, D0_2a_star.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
+        ldelta_r0y = limitFunc(2, D0_2a_star.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
+
         _r0x, _r0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
                                             myg.dx, myg.dy, self.dt,
                                             D0_2a_star.d2df(myg.qx), U0_x.d, U0_half_star.d2df(myg.qx),
@@ -1146,8 +1150,8 @@ class Simulation(NullSimulation):
         self.cc_data.fill_BC("density")
 
         # 4D Correct D0
-        D0_star = Basestate(myg.ny, ng=myg.ng)
-        D0_star.d[:] = self.lateral_average(D_2_star.d)
+        D0_star = D0_2a_star.copy()
+        D0_star.v()[:] = self.lateral_average(D_2_star.v())
 
         # 4F: compute psi^n+1/2,*
         psi = self.calc_psi(S=S_t_centred, U0=U0_half_star)
@@ -1156,6 +1160,10 @@ class Simulation(NullSimulation):
         # predict Dh to the edges and do its conservative update
         # see 4H - need to include a pressure source term here?
         #---------------------------------------------------------------------
+        Dh0.v()[:] = self.lateral_average(Dh_1.v())
+        ldelta_ex = limitFunc(1, Dh_1.d, myg.qx, myg.qy, myg.ng)
+        ldelta_ey = limitFunc(2, Dh_1.d, myg.qx, myg.qy, myg.ng)
+
         _ex, _ey = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
                                              Dh_1.d, u_MAC.d, v_MAC.d,
@@ -1170,7 +1178,6 @@ class Simulation(NullSimulation):
         Dh0_yint = patch.ArrayIndexer(d=_e0y, grid=myg)
         Dh0_xint = patch.ArrayIndexer(d=_e0x, grid=myg)
 
-        Dh0.d[:] = self.lateral_average(Dh_1.d)
         Dh02d = myg.scratch_array()
         Dh02d.d[:,:] = Dh0.d2d()
         Dh02d.v()[:,:] += -self.dt * (
@@ -1182,11 +1189,12 @@ class Simulation(NullSimulation):
             #self.dt * u0.v() * psi.v()
 
         # predict to edges
-        ldelta_e0x = limitFunc(1, Dh02d.d, myg.qx, myg.qy, myg.ng)
-        ldelta_e0y = limitFunc(2, Dh02d.d, myg.qx, myg.qy, myg.ng)
+        Dh0_star = Dh0.copy()
+        Dh0_star.v()[:] = self.lateral_average(Dh02d.v())
 
-        Dh0_star = Basestate(myg.ny, ng=myg.ng)
-        Dh0_star.d[:] = self.lateral_average(Dh02d.d)
+        ldelta_e0x = limitFunc(1, Dh0_star.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
+        ldelta_e0y = limitFunc(2, Dh0_star.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
+
         _e0x, _e0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
                                             myg.dx, myg.dy, self.dt,
                                             Dh0_star.d2df(myg.qx), U0_x.d, U0_half_star.d2df(myg.qx),
@@ -1260,21 +1268,27 @@ class Simulation(NullSimulation):
         # FIXME: what Dh are we using here??
         mom_source_x, mom_source_r = self.calc_mom_source(u=u_MAC, v=v_MAC, u0=u0_MAC)
         coeff = self.aux_data.get_var("coeff")
-        coeff.v()[:,:] = 2.0 / ((Dh.v() + Dh_old.v()) * u0.v())
+        coeff.d[:,:] = 2.0 / ((Dh.d + Dh_old.d) * u0.d)
 
         zeta_star = zeta.copy()
         self.update_zeta(D0=D0_star, zeta=zeta_star, u=u_MAC, v=v_MAC, u0=u0_MAC)
         zeta_half_star = 0.5 * (zeta + zeta_star)
-        coeff.v()[:,:] *= zeta_half_star.v2d()
+        coeff.d[:,:] *= zeta_half_star.d2d()
 
         self.aux_data.fill_BC("coeff")
+
+        # calculate limited MAC velocities
+        ldelta_u_MACx = limitFunc(1, u_MAC.d, myg.qx, myg.qy, myg.ng)
+        ldelta_v_MACx = limitFunc(1, v_MAC.d, myg.qx, myg.qy, myg.ng)
+        ldelta_u_MACy = limitFunc(1, u_MAC.d, myg.qx, myg.qy, myg.ng)
+        ldelta_v_MACy = limitFunc(1, v_MAC.d, myg.qx, myg.qy, myg.ng)
 
         _ux, _vx, _uy, _vy = \
                lm_interface_f.states(myg.qx, myg.qy, myg.ng,
                                      myg.dx, myg.dy, self.dt,
                                      u.d, v.d,
-                                     ldelta_ux, ldelta_vx,
-                                     ldelta_uy, ldelta_vy,
+                                     ldelta_u_MACx, ldelta_v_MACx,
+                                     ldelta_u_MACy, ldelta_v_MACy,
                                      coeff.d*gradp_x.d, coeff.d*gradp_y.d,
                                      mom_source_r.d,
                                      u_MAC.d, v_MAC.d)
@@ -1329,6 +1343,9 @@ class Simulation(NullSimulation):
         self.cc_data.fill_BC("x-velocity")
         self.cc_data.fill_BC("y-velocity")
 
+        #print("min/max D = {}, {}".format(D.v().min(), D.v().max()))
+        #print("min/max Dh = {}, {}".format(Dh.v().min(), Dh.v().max()))
+
         if self.verbose > 0:
             print("min/max D = {}, {}".format(self.cc_data.min("density"), self.cc_data.max("density")))
             print("min/max Dh = {}, {}".format(self.cc_data.min("enthalpy"), self.cc_data.max("enthalpy")))
@@ -1348,7 +1365,6 @@ class Simulation(NullSimulation):
         ldelta_r0y = limitFunc(2, D0.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
         ldelta_ey = limitFunc(2, Dh_1.d,myg.qx, myg.qy, myg.ng)
         ldelta_e0y = limitFunc(2, Dh0.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
-
 
         _rx, _ry = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
@@ -1373,11 +1389,12 @@ class Simulation(NullSimulation):
              D0_yint.v() * U0_half.v2d())/myg.dy)
 
         # predict to edges
-        ldelta_r0x = limitFunc(1, D02d.d, myg.qx, myg.qy, myg.ng)
-        ldelta_r0y = limitFunc(2, D02d.d, myg.qx, myg.qy, myg.ng)
+        D0_2a = D0.copy()
+        D0_2a.v()[:] = self.lateral_average(D02d.v())
 
-        D0_2a = Basestate(myg.ny, ng=myg.ng)
-        D0_2a.d[:] = self.lateral_average(D02d.d)
+        ldelta_r0x = limitFunc(1, D0_2a.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
+        ldelta_r0y = limitFunc(2, D0_2a.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
+
         _r0x, _r0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
                                             myg.dx, myg.dy, self.dt,
                                             D0_2a.d2df(myg.qx), U0_x.d, U0_half_star.d2df(myg.qx),
@@ -1401,7 +1418,7 @@ class Simulation(NullSimulation):
              D_yint.v() * (v_MAC.v() + U0_half.v2d())) / myg.dy )
 
         # 8D
-        D0.d[:] = self.lateral_average(D_2.d)
+        D0.v()[:] = self.lateral_average(D_2.v())
         # FIXME: as enforce tov after this, have to use p0_star rather than p0^n+1 here, which seems dodgey?
         # FIXME: also asks for S_half rather than S_half_star, despite this not being calculated?
         psi = self.calc_psi(S=S_half_star, U0=U0_half, old_p0=p0, p0=p0_star)
@@ -1409,6 +1426,9 @@ class Simulation(NullSimulation):
         #---------------------------------------------------------------------
         # predict Dh to the edges and do its conservative update
         #---------------------------------------------------------------------
+        # FIXME: this step is in 4G but not 8G, so going to assume that this is a mistake?
+        Dh0.v()[:] = self.lateral_average(Dh_1.v())
+
         _ex, _ey = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
                                              Dh_1.d, u_MAC.d, v_MAC.d,
@@ -1422,8 +1442,6 @@ class Simulation(NullSimulation):
         Dh0_yint = patch.ArrayIndexer(d=_e0y, grid=myg)
 
         # FIXME: using the correct u0s here?
-        # FIXME: 8G does not include the lateral averaging of Dh found in 4G.
-
         Dh0_old = Dh0.copy()
 
         Dh02d = myg.scratch_array()
@@ -1433,12 +1451,12 @@ class Simulation(NullSimulation):
             (Dh0_yint.jp(1) * U0_half.jp(1)[np.newaxis,:] -
              Dh0_yint.v() * U0_half.v2d())/myg.dy) + \
             self.dt * u0.v() * psi.v()
+        Dh0.v()[:] = self.lateral_average(Dh02d.v())
 
         # predict to edges
-        ldelta_e0x = limitFunc(1, Dh02d.d, myg.qx, myg.qy, myg.ng)
-        ldelta_e0y = limitFunc(2, Dh02d.d, myg.qx, myg.qy, myg.ng)
+        ldelta_e0x = limitFunc(1, Dh0.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
+        ldelta_e0y = limitFunc(2, Dh0.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
 
-        Dh0.d[:] = self.lateral_average(Dh02d.d)
         _e0x, _e0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
                                             myg.dx, myg.dy, self.dt,
                                             Dh0.d2df(myg.qx), U0_x.d, U0_half_star.d2df(myg.qx),
@@ -1513,7 +1531,7 @@ class Simulation(NullSimulation):
         zeta_old = zeta.copy()
         self.update_zeta(u=u_MAC, v=v_MAC, u0=u0_MAC)
         zeta_half = 0.5 * (zeta_old + zeta)
-        coeff.v()[:,:] *= zeta_half.v2d()**2
+        coeff.d[:,:] *= zeta_half.d2d()**2
 
         # create the multigrid object
         mg = vcMG.VarCoeffCCMG2d(myg.nx, myg.ny,
@@ -1546,7 +1564,7 @@ class Simulation(NullSimulation):
         mg.init_solution(phiGuess.d)
 
         # solve
-        mg.solve(rtol=1.e-12)
+        mg.solve(rtol=1.e-12, fortran=self.fortran)
 
         # store the solution in our self.cc_data object -- include a single
         # ghostcell
@@ -1560,7 +1578,7 @@ class Simulation(NullSimulation):
         # alpha^2 as need to raise grad.
         coeff = 1.0 / (Dh_half * u0)
         coeff.d[:,:] *=  self.metric.alpha.d2d()**2
-        coeff.v()[:,:] *= zeta_half.v2d()
+        coeff.d[:,:] *= zeta_half.d2d()
 
         # FIXME: need base state forcing here!
         # However, it doesn't actually work: it just causes the atmosphere to rise up?

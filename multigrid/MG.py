@@ -535,7 +535,7 @@ class CellCenterMG2d(object):
                         (v.jp(-1) + v.jp(1) - 2*v.v())/myg.dy**2)
 
 
-    def smooth(self, level, nsmooth):
+    def smooth(self, level, nsmooth, fortran=True):
         """
         Use red-black Gauss-Seidel iterations to smooth the solution
         at a given level.  This is used at each stage of the V-cycle
@@ -615,8 +615,8 @@ class CellCenterMG2d(object):
                 plt.savefig("mg_%4.4d.png" % (self.frame))
                 self.frame += 1
 
-
-    def solve(self, rtol = 1.e-11):
+    # FIXME: hacked to test fortran code
+    def solve(self, rtol = 1.e-11, fortran=True):
         """
         The main driver for the multigrid solution of the Helmholtz
         equation.  This controls the V-cycles, smoothing at each
@@ -676,7 +676,7 @@ class CellCenterMG2d(object):
                     print("  before G-S, residual L2: {}".format(fP.get_var("r").norm() ))
 
                 # smooth on the current level
-                self.smooth(level, self.nsmooth)
+                self.smooth(level, self.nsmooth, fortran=fortran)
 
 
                 # compute the residual
@@ -706,7 +706,7 @@ class CellCenterMG2d(object):
                 print("  level = {}, nx = {}, ny = {}\n".format(
                     level, bP.grid.nx, bP.grid.ny))
 
-            self.smooth(0, self.nsmooth_bottom)
+            self.smooth(0, self.nsmooth_bottom, fortran=fortran)
 
             bP.fill_BC("v")
 
@@ -738,7 +738,7 @@ class CellCenterMG2d(object):
                     print("  before G-S, residual L2: {}".format(fP.get_var("r").norm() ))
 
                 # smooth
-                self.smooth(level, self.nsmooth)
+                self.smooth(level, self.nsmooth, fortran=fortran)
 
                 if self.verbose:
                     self._compute_residual(level)
