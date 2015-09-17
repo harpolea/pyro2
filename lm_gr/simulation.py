@@ -160,7 +160,7 @@ class Basestate(object):
 
 class Simulation(NullSimulation):
 
-    def __init__(self, solver_name, problem_name, rp, timers=None):
+    def __init__(self, solver_name, problem_name, rp, timers=None, fortran=True):
 
         NullSimulation.__init__(self, solver_name, problem_name, rp, timers=timers)
 
@@ -168,7 +168,7 @@ class Simulation(NullSimulation):
         self.aux_data = None
         self.metric = None
         self.dt_old = 1.
-        self.fortran = False
+        self.fortran = fortran
 
 
     def initialize(self):
@@ -322,7 +322,7 @@ class Simulation(NullSimulation):
         lateralAvg : float array
             lateral average of a
         """
-        return np.mean(a, axis=0)
+        return np.mean(a, axis=0, dtype=np.float64)
 
 
     def update_zeta(self, D0=None, zeta=None, u=None, v=None, u0=None):
@@ -812,7 +812,7 @@ class Simulation(NullSimulation):
         constraint = self.constraint_source()
         # set the RHS to divU and solve
         mg.init_RHS(div_zeta_U.v(buf=1) - constraint.v(buf=1))
-        mg.solve(rtol=1.e-10, fortran=self.fortran)
+        mg.solve(rtol=1.e-12, fortran=self.fortran)
 
         # store the solution in our self.cc_data object -- include a single
         # ghostcell
@@ -1045,6 +1045,7 @@ class Simulation(NullSimulation):
             zeta.v2d() * (u_MAC.ip(1) - u_MAC.v()) / myg.dx + \
             (zeta_edges.v2dp(1) * v_MAC.jp(1) -
              zeta_edges.v2d() * v_MAC.v()) / myg.dy
+        # careful: this makes u0_MAC edge-centred.
         u0_MAC = self.metric.calcu0(u=u_MAC, v=v_MAC)
         constraint = self.constraint_source(u=u_MAC, v=v_MAC, S=S_t_centred)
 
@@ -1095,6 +1096,7 @@ class Simulation(NullSimulation):
                                              ldelta_rx, ldelta_ry)
         # x component of U0 is zero
         U0_x = myg.scratch_array()
+        # is U0 edge-centred?
         _r0x, _r0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
                                             myg.dx, myg.dy, self.dt,
                                             D0.d2df(myg.qx), U0_x.d, U0_half_star.d2df(myg.qx),
@@ -1143,9 +1145,6 @@ class Simulation(NullSimulation):
             #  (D v)_y
             (D_yint.jp(1)*(v_MAC.jp(1) + U0_half_star.jp(1)[np.newaxis,:]) -\
              D_yint.v() * (v_MAC.v() + U0_half_star.v2d())) / myg.dy )
-
-
-        #print(D_2_star.d[60:70, 60:70])
 
         self.cc_data.fill_BC("density")
 
@@ -1210,8 +1209,8 @@ class Simulation(NullSimulation):
 
         Dh_old = Dh_1.copy()
         Dh_2_star = Dh_1.copy()
-        # should you use Dh0 or Dh0_star here??
-        drp0 = self.drp0(u=u_MAC, v=v_MAC, u0=u0_MAC)
+        # Dh0 is not edge based?
+        drp0 = self.drp0(Dh0=Dh0, u=u_MAC, v=v_MAC, u0=u0_MAC)
 
         # 4Hii.
         Dh_2_star.v()[:,:] += -self.dt * (
@@ -1277,18 +1276,12 @@ class Simulation(NullSimulation):
 
         self.aux_data.fill_BC("coeff")
 
-        # calculate limited MAC velocities
-        ldelta_u_MACx = limitFunc(1, u_MAC.d, myg.qx, myg.qy, myg.ng)
-        ldelta_v_MACx = limitFunc(1, v_MAC.d, myg.qx, myg.qy, myg.ng)
-        ldelta_u_MACy = limitFunc(1, u_MAC.d, myg.qx, myg.qy, myg.ng)
-        ldelta_v_MACy = limitFunc(1, v_MAC.d, myg.qx, myg.qy, myg.ng)
-
         _ux, _vx, _uy, _vy = \
                lm_interface_f.states(myg.qx, myg.qy, myg.ng,
                                      myg.dx, myg.dy, self.dt,
                                      u.d, v.d,
-                                     ldelta_u_MACx, ldelta_v_MACx,
-                                     ldelta_u_MACy, ldelta_v_MACy,
+                                     ldelta_ux, ldelta_vx,
+                                     ldelta_uy, ldelta_vy,
                                      coeff.d*gradp_x.d, coeff.d*gradp_y.d,
                                      mom_source_r.d,
                                      u_MAC.d, v_MAC.d)

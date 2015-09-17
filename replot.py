@@ -45,15 +45,15 @@ optional arguments:
 
 if __name__== "__main__":
 
-    for i in range(1, 501):
-        outfile = "../../Work/pyro/results/bubble_256_py_" +  format(i, '04') + ".png"
+    for i in range(111, 241):
+        outfile = "../../Work/pyro/results/bubble_256_" +  format(i, '04') + ".png"
         #outfile = "../../Work/pyro/results/kh_512_" +  format(i, '04') + ".png"
         my_dpi = 96.
         W = 1920/my_dpi
         H = 1080/my_dpi
 
         # bubble max and mins
-        vmins = [89., 0., -0.00075, -0.2]
+        vmins = [95., 0., -0.00075, -0.2]
         vmaxes = [101., 0.0015, 0.0015, 0.2]
 
         try:
@@ -64,7 +64,7 @@ if __name__== "__main__":
             usage()
 
         try:
-            file = "../../Work/pyro/results/bubble_256_py_" +  format(i, '04') + ".pyro"
+            file = "../../Work/pyro/results/bubble_256_" +  format(i, '04') + ".pyro"
             #file = "../../Work/pyro/results/kh_512_" +  format(i, '04') + ".pyro"
         except:
             usage()

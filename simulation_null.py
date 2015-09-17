@@ -44,7 +44,7 @@ def bc_setup(rp):
 
 class NullSimulation(object):
 
-    def __init__(self, solver_name, problem_name, rp, timers=None):
+    def __init__(self, solver_name, problem_name, rp, timers=None, fortran=True):
         """
         Initialize the Simulation object
 

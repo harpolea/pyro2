@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 import multigrid.MG as MG
 import multigrid.edge_coeffs as ec
 import multigrid.mg_utils_f as mg_f
+import mesh.patch as patch
 
 np.set_printoptions(precision=3, linewidth=128)
 
@@ -62,7 +63,7 @@ class VarCoeffCCMG2d(MG.CellCenterMG2d):
         # we only need to do this once.  We need to hold the original
         # coeffs in our grid so we can do a ghost cell fill.
         c = self.grids[self.nlevels-1].get_var("coeffs")
-        c.v()[:,:] = coeffs.v().copy()
+        c.v()[:,:] = coeffs.v()[:,:]
 
         self.grids[self.nlevels-1].fill_BC("coeffs")
 
@@ -141,8 +142,11 @@ class VarCoeffCCMG2d(MG.CellCenterMG2d):
                 elif bcs[i] == "periodic":
                     bcints[i] = 3
 
-            v.d[:,:] = mg_f.smooth_f(myg.qx, myg.qy, myg.ng,
+            _v = mg_f.smooth_f(myg.qx, myg.qy, myg.ng,
                           nsmooth, np.asfortranarray(v.d), np.asfortranarray(f.d), bcints, np.asfortranarray(eta_x), np.asfortranarray(eta_y))
+
+            v.d[:,:] = (patch.ArrayIndexer(d=_v, grid=myg)).d
+
         else:
             self.grids[level].fill_BC("v")
 
@@ -228,7 +232,7 @@ class VarCoeffCCMG2d(MG.CellCenterMG2d):
 
                     if n == 1 or n == 3:
                         self.grids[level].fill_BC("v")
-                        
+
                 if self.vis == 1:
                     plt.clf()
 

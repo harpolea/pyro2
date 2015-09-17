@@ -21,6 +21,7 @@ subroutine smooth_f(qx, qy, ng, nsmooth, v, f, bcs, eta_x, eta_y, v_out)
 !f2py intent(out) :: v_out
 
     double precision :: denom(0:qx-1, 0:qy-1)
+    double precision :: v_temp(0:qx-1, 0:qy-1)
 
     integer :: i, j, ix, iy
     integer :: nx, ny, ilo, ihi, jlo, jhi
@@ -58,8 +59,9 @@ subroutine smooth_f(qx, qy, ng, nsmooth, v, f, bcs, eta_x, eta_y, v_out)
                 v_out(ilo+ix:ihi:2, jlo-1+iy:jhi-1:2)) / &
                 denom(ilo+ix:ihi:2, jlo+iy:jhi:2)
 
-            if (i == 1 .or. i == 3) then
-                call fill_BCS_f(qx, qy, ng, v_out, bcs, v_out)
+            if (j == 1 .or. j == 3) then
+                call fill_BCS_f(qx, qy, ng, v_out, bcs, v_temp)
+                v_out(:,:) = v_temp(:,:)
             end if
 
         end do
