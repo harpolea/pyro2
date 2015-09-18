@@ -20,7 +20,7 @@ function of Dh0
 
 TODO: not entirely sure about the lateral averaging of D, Dh to get the base states in steps 4 and 8
 
-TODO: make python3 compliable
+CHANGED: made python3 compliable
 
 Run with a profiler using
     python -m cProfile -o pyro.prof pyro.py
@@ -47,7 +47,7 @@ import mesh.patch as patch
 from simulation_null import NullSimulation, grid_setup, bc_setup
 import multigrid.variable_coeff_MG as vcMG
 from util import profile
-import metric
+import lm_gr.metric as metric
 
 
 class Basestate(object):
@@ -736,7 +736,9 @@ class Simulation(NullSimulation):
 
         drp0 = self.drp0(Dh0=Dh0, u=u, v=v, u0=u0)
 
-        F_buoy = np.max(np.abs(self.calc_mom_source(u0=u0)))
+        _, mom_source_r = self.calc_mom_source(u0=u0)
+
+        F_buoy = np.max(np.abs(mom_source_r.d))
 
         dt_buoy = np.sqrt(2.0 * myg.dx / max(F_buoy, 1.e-12))
         self.dt = min(dt, dt_buoy)
@@ -1088,6 +1090,8 @@ class Simulation(NullSimulation):
         #---------------------------------------------------------------------
         # 4. predict D to the edges and do its conservative update
         #---------------------------------------------------------------------
+
+        # FIXME: this is not exactly 4B - be careful with perturbed density
         ldelta_rx = limitFunc(1, D_1.d, myg.qx, myg.qy, myg.ng)
         ldelta_ry = limitFunc(2, D_1.d, myg.qx, myg.qy, myg.ng)
         _rx, _ry = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,

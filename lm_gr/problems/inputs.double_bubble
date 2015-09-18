@@ -7,7 +7,9 @@ cfl = 0.8
 
 
 [lm-gr]
-
+grav = 40.0
+c = 100.0
+radius = 1000.0
 
 [io]
 basename = ../../Work/pyro/results/double_bubble_512_   ; basename for output files
@@ -16,8 +18,8 @@ do_io = 1                   ; do we output at all?
 
 [vis]
 
-dovis = 1                  ; runtime visualization? (1=yes, 0=no)
-store_images = 1           ; store vis images to files (1=yes, 0=no)
+dovis = 0                  ; runtime visualization? (1=yes, 0=no)
+store_images = 0           ; store vis images to files (1=yes, 0=no)
 
 
 [mesh]

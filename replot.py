@@ -11,7 +11,7 @@ import mesh.patch as patch
 
 def makeplot(myd, solver_name, problem_name, outfile, W, H, n=0, vmins=[None, None, None, None], vmaxes=[None, None, None, None]):
 
-    exec 'import ' + solver_name + ' as solver'
+    exec ('import ' + solver_name + ' as solver')
 
     sim = solver.Simulation(solver_name, problem_name, None)
     sim.cc_data = myd
@@ -39,22 +39,26 @@ optional arguments:
   -W width      width in inches
   -H height     height in inches
 """
-    print usage
+    print (usage)
     sys.exit()
 
 
 if __name__== "__main__":
 
-    for i in range(111, 241):
-        outfile = "../../Work/pyro/results/bubble_256_" +  format(i, '04') + ".png"
+    for i in range(130, 301):
+        outfile = "../../Work/pyro/results/bubble_512_grad_" +  format(i, '04') + ".png"
         #outfile = "../../Work/pyro/results/kh_512_" +  format(i, '04') + ".png"
         my_dpi = 96.
         W = 1920/my_dpi
         H = 1080/my_dpi
 
         # bubble max and mins
-        vmins = [95., 0., -0.00075, -0.2]
-        vmaxes = [101., 0.0015, 0.0015, 0.2]
+        vmins = [90., 0., -0.00075, -0.2]
+        vmaxes = [105., 0.0021, 0.0021, 0.2]
+
+        # double bubble max and mins
+        #vmins = [50., 0., -0.0002, -0.075]
+        #vmaxes = [105., 0.00025, 0.0003, 0.075]
 
         try:
             solver = 'lm_gr'
@@ -64,7 +68,7 @@ if __name__== "__main__":
             usage()
 
         try:
-            file = "../../Work/pyro/results/bubble_256_" +  format(i, '04') + ".pyro"
+            file = "../../Work/pyro/results/bubble_512_grad_" +  format(i, '04') + ".pyro"
             #file = "../../Work/pyro/results/kh_512_" +  format(i, '04') + ".pyro"
         except:
             usage()
