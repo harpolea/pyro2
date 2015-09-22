@@ -1,4 +1,7 @@
 """
+TODO: MAKE IT POSSIBLE TO START A PROGRAM FROM EXISTING OUTPUT FILE?
+e.g. maybe do a dump of EVERYTHING at the end of the program so that it's possible to read this in and set up the problem in the state it left off.
+
 TODO: updateZeta?? What is zeta actually supposed to be? How is it calculated?
 
 TODO: D ln u0/Dt term in momentum equation?
@@ -21,6 +24,8 @@ function of Dh0
 TODO: not entirely sure about the lateral averaging of D, Dh to get the base states in steps 4 and 8
 
 CHANGED: made python3 compliable
+
+TODO: nose testing!
 
 Run with a profiler using
     python -m cProfile -o pyro.prof pyro.py
@@ -51,6 +56,9 @@ import lm_gr.metric as metric
 
 
 class Basestate(object):
+    """
+    Basestate is a class for the 1d base states. It has much the same indexing functionality as the 2d Grid2d class, as well as functions that allow easy conversion of the 1d arrays to 2d.
+    """
     def __init__(self, ny, ng=0, d=None):
         self.ny = ny
         self.ng = ng
@@ -65,21 +73,28 @@ class Basestate(object):
         self.jhi = ng + ny - 1
 
     def d2d(self):
+        """
+        Returns 2d version of entire 1d data array
+        """
         return self.d[np.newaxis, :]
 
     def d2df(self, qx):
         """
         fortran compliable version
+        FIXME: is there any benefit to using the above version? Otherwise, just scrap that and keep this one?
         """
         return np.array([self.d, ] * qx)
 
     def v(self, buf=0):
         """
-        array without the ghost cells
+        Data array without the ghost cells (i.e. just the interior cells)
         """
         return self.d[self.jlo-buf:self.jhi+1+buf]
 
     def v2d(self, buf=0):
+        """
+        2d version of the interior data.
+        """
         return self.d[np.newaxis,self.jlo-buf:self.jhi+1+buf]
 
     def v2df(self, qx, buf=0):
@@ -90,7 +105,7 @@ class Basestate(object):
 
     def v2dp(self, shift, buf=0):
         """
-        2d shifted without ghost cells
+        2d version of the data array, shifted in the y direction and without ghost cells
         """
         return self.d[np.newaxis,self.jlo+shift-buf:self.jhi+1+shift+buf]
 
@@ -107,9 +122,15 @@ class Basestate(object):
         return self.d[self.jlo-buf+shift:self.jhi+1+buf+shift]
 
     def copy(self):
+        """
+        Return a deep (?) copy of the object.
+        """
         return Basestate(self.ny, ng=self.ng, d=self.d.copy())
 
     def __add__(self, other):
+        """
+        Overrides standard addition
+        """
         if isinstance(other, Basestate):
             return Basestate(self.ny, ng=self.ng, d=self.d + other.d)
         else:
@@ -173,7 +194,7 @@ class Simulation(NullSimulation):
 
     def initialize(self):
         """
-        Initialize the grid and variables for low Mach atmospheric flow
+        Initialize the grid and variables for low Mach general relativistic atmospheric flow
         and set the initial conditions for the chosen problem.
         """
 
@@ -303,6 +324,21 @@ class Simulation(NullSimulation):
     # This is basically unused now.
     @staticmethod
     def make_prime(a, a0):
+        """
+        Returns the perturbation to the base state.
+
+        Parameters
+        ----------
+        a : Grid2d
+            2d full state
+        a0 : Basestate
+            Corresponing 1d base state
+
+        Returns
+        -------
+        make_prime : Grid2d
+            2d perturbation, :math: `a-a_0`
+        """
         return a - a0.v2d(buf=a0.ng)
 
 
@@ -319,7 +355,7 @@ class Simulation(NullSimulation):
 
         Returns
         -------
-        lateralAvg : float array
+        lateral_average : float array
             lateral average of a
         """
         return np.mean(a, axis=0, dtype=np.float64)
@@ -329,6 +365,9 @@ class Simulation(NullSimulation):
         """
         Updates zeta in the interior and on the edges.
         Assumes all other variables are up to date.
+
+        Parameters
+        ----------
         """
 
         myg = self.cc_data.grid
@@ -1651,14 +1690,22 @@ class Simulation(NullSimulation):
 
         vort.v()[:,:] = dv - du
 
-        fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
+        # FIXME: DELTETEEEEEEEEEE
+        fig, axes = plt.subplots(nrows=1, ncols=1, num=1)
+        #fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.3)
 
         fields = [D, magvel, v, vort]
         field_names = [r"$D$", r"$|U|$", r"$U_y$", r"$\nabla\times U$"]
 
+        # FIXME: get rid of me!!!!!!!
+        fields = [D]
+        field_names = [r"$D$"]
+
         for n in range(len(fields)):
-            ax = axes.flat[n]
+            # FIXME: GET RID OF ME
+            #ax = axes.flat[n]
+            ax = axes
 
             f = fields[n]
 

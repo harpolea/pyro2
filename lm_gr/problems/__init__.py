@@ -1,1 +1,1 @@
-__all__ = ['bubble', 'sine', 'shear', 'double_bubble', 'kh']
+__all__ = ['bubble', 'sine', 'shear', 'double_bubble', 'kh', 'rt']
