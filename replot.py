@@ -45,9 +45,9 @@ optional arguments:
 
 if __name__== "__main__":
 
-    for i in range(314, 315):
-        outfile = "../../Documents/Work/pyro/double_bubble_256_" +  format(i, '04') + ".png"
-        #outfile = "../../Work/pyro/results/kh_512_" +  format(i, '04') + ".png"
+    for i in range(41, 61):
+        #outfile = "../../Work/pyro/results/rt_256_" +  format(i, '04') + ".png"
+        outfile = "../../Work/pyro/results/kh_256_" +  format(i, '04') + ".png"
         my_dpi = 96.
         W = 1920/my_dpi
         H = 1080/my_dpi
@@ -57,22 +57,23 @@ if __name__== "__main__":
         #vmaxes = [105., 0.0021, 0.0021, 0.2]
 
         # double bubble max and mins
-        vmins = [50., 0., -0.0002, -0.05]
-        vmaxes = [105., 0.0003, 0.0003, 0.05]
+        #vmins = [50., 0., -0.0002, -0.05]
+        #vmaxes = [105., 0.0003, 0.0003, 0.05]
 
         try:
             solver = 'lm_gr'
-            problem = 'bubble'
-            #problem = 'kh'
+            #problem = 'bubble'
+            problem = 'kh'
+            #problem = 'rt'
         except:
             usage()
 
         try:
-            file = "../../Documents/Work/pyro/double_bubble_256_" +  format(i, '04') + ".pyro"
-            #file = "../../Work/pyro/results/kh_512_" +  format(i, '04') + ".pyro"
+            #file = "../../Work/pyro/results/rt_256_" +  format(i, '04') + ".pyro"
+            file = "../../Work/pyro/results/kh_256_" +  format(i, '04') + ".pyro"
         except:
             usage()
 
         myg, myd = patch.read(file)
 
-        makeplot(myd, solver, problem, outfile, W, H, n=i, vmins=vmins, vmaxes=vmaxes)
+        makeplot(myd, solver, problem, outfile, W, H, n=i)#, vmins=vmins, vmaxes=vmaxes)

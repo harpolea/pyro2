@@ -21,8 +21,8 @@ def init_data(my_data, base, rp, metric):
     # get the density, momenta, and energy as separate variables
     dens = my_data.get_var("density")
     enth = my_data.get_var("enthalpy")
-    xvel = my_data.get_var("x-velocity")
-    yvel = my_data.get_var("y-velocity")
+    u = my_data.get_var("x-velocity")
+    v = my_data.get_var("y-velocity")
     eint = my_data.get_var("eint")
 
     gamma = rp.get_param("eos.gamma")
@@ -33,52 +33,40 @@ def init_data(my_data, base, rp, metric):
 
     dens1 = rp.get_param("rt.dens1")
     dens2 = rp.get_param("rt.dens2")
-    p0 = rp.get_param("rt.p0")
     amp = rp.get_param("rt.amp")
     sigma = rp.get_param("rt.sigma")
 
-
-    # initialize the components, remember, that ener here is
-    # rho*eint + 0.5*rho*v**2, where eint is the specific
+    # initialize the components, remember eint is the specific
     # internal energy (erg/g)
-    xvel.d[:,:] = 0.0
-    yvel.d[:,:] = 0.0
+    u.d[:,:] = 0.0
+    v.d[:,:] = 0.0
     enth.d[:,:] = 0.
-    dens.d[:,:] = 0.0
 
-    # set the density to be stratified in the y-direction
     myg = my_data.grid
 
-    ycentre = 0.5*(myg.ymin + myg.ymax)
+    ycentre = 0.5 * (myg.ymin + myg.ymax)
+
+    y_smooth = 0.02 * (myg.ymax - myg.ymin)
 
     p = myg.scratch_array()
+    u0 = metric.calcu0(u=u, v=v)
 
-    dens.d[:,:] = dens2
-    p.d[:,:] = p0 - dens1 * g * ycentre - \
-               dens2 * g * (myg.y[np.newaxis,:] - ycentre)
+    #dens.d[:,:] = dens2
+    #dens.d[:, :int(np.round(0.5 * (myg.jlo+myg.jhi)))] = dens1
 
-    idx = (myg.y[:] < ycentre)
-    idx *= (myg.y[:] >= myg.y[myg.jlo])
+    # Some smoothing across boundary
+    dens.d[:,:] = dens1 + (dens2 - dens1) * 0.5 * (1. + np.tanh(((myg.y2d - ycentre)/y_smooth)/0.9))
 
-    dens.d[:, idx] = dens1
-    p.d[:, idx] = p0 - dens1 * g * myg.y[idx]
-
-    """j = myg.jlo
-    while j <= myg.jhi:
-        if (myg.y[j] < ycentre):
-            dens.d[:,j] = dens1
-            p.d[:,j] = p0 + dens1*grav*myg.y[j]
-
-        else:
-            dens.d[:,j] = dens2
-            p.d[:,j] = p0 + dens1*grav*ycentre + dens2*grav*(myg.y[j] - ycentre)
+    dens.v()[:, :] *= \
+        np.exp(-g * myg.y[np.newaxis, myg.jlo:myg.jhi+1] /
+                (gamma * c**2 * R * metric.alpha.v2d()**2))
 
 
-        j += 1
-    """
+    p.d[:,:] = dens.d**gamma
 
-    yvel.d[:,:] = amp * np.cos(2.0 * math.pi * myg.x2d /
-        (myg.xmax - myg.xmin)) * np.exp(-(myg.y2d - ycentre)**2/sigma**2)
+    v.d[:,:] = amp * np.cos(2.0 * math.pi * myg.x2d /
+        (myg.xmax - myg.xmin)) * \
+        np.exp(-(myg.y2d - ycentre)**2/sigma**2) / u0.d
 
     # set the energy (P = cs2*dens)
     eint.d[:,:] = p.d[:,:]/(gamma - 1.0)/dens.d[:,:]
@@ -95,7 +83,6 @@ def init_data(my_data, base, rp, metric):
     Dh0.d[:] = np.mean(enth.d, axis=0)
     p0.d[:] = np.mean(p.d, axis=0)
 
-    u0 = metric.calcu0()
     p0.d[:] = (D0.d / u0.d1d())**gamma
 
     for i in range(myg.jlo, myg.jhi+1):
@@ -108,7 +95,6 @@ def init_data(my_data, base, rp, metric):
     D0.d[:] *= u0.d1d()
     Dh0.d[:] *= D0.d
     old_p0 = p0.copy()
-
     my_data.fill_BC_all()
 
 

@@ -624,7 +624,7 @@ class Simulation(NullSimulation):
         if S is None:
             S = self.aux_data.get_var("source_y")
 
-        Dh.d[:,:] += 0.5 * self.dt * (S.d * Dh.d + u0.d * v.d * drp0.d)
+        Dh.d[:,:] += 0.5 * self.dt * (S.d * Dh.d + u0.d * v.d * drp0.d2d())
 
         D.d[:,:] += 0.5 * self.dt * (S.d * D.d)
 
@@ -876,7 +876,6 @@ class Simulation(NullSimulation):
         # fill the ghostcells
         self.cc_data.fill_BC("x-velocity")
         self.cc_data.fill_BC("y-velocity")
-
 
         # c. now get an approximation to gradp at n-1/2 by going through the
         # evolution.
@@ -1691,21 +1690,21 @@ class Simulation(NullSimulation):
         vort.v()[:,:] = dv - du
 
         # FIXME: DELTETEEEEEEEEEE
-        fig, axes = plt.subplots(nrows=1, ncols=1, num=1)
-        #fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
+        #fig, axes = plt.subplots(nrows=1, ncols=1, num=1)
+        fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.3)
 
         fields = [D, magvel, v, vort]
         field_names = [r"$D$", r"$|U|$", r"$U_y$", r"$\nabla\times U$"]
 
         # FIXME: get rid of me!!!!!!!
-        fields = [D]
-        field_names = [r"$D$"]
+        #fields = [D]
+        #field_names = [r"$D$"]
 
         for n in range(len(fields)):
             # FIXME: GET RID OF ME
-            #ax = axes.flat[n]
-            ax = axes
+            ax = axes.flat[n]
+            #ax = axes
 
             f = fields[n]
 

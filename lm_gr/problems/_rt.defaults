@@ -1,10 +1,6 @@
 [rt]
 dens1 = 1.0
-dens2 = 2.0
+dens2 = 1.5
 
 amp = 1.0
 sigma = 0.1
-
-p0 = 10.0
-
-

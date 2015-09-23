@@ -57,7 +57,7 @@ def init_data(my_data, base, rp, metric):
     dens.d[:,:] = rho_2
 
     idx = (myg.y[np.newaxis,:] <
-        yctr + 0.05*np.sin(6.0*math.pi*myg.x[:,np.newaxis]/L_x))
+        yctr + 0.02*np.sin(6.0*math.pi*myg.x[:,np.newaxis]/L_x))
     dens.d[idx] = rho_1
     xvel.d[idx] = v_1
 

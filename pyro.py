@@ -60,6 +60,9 @@ def doit(solver_name, problem_name, param_file,
     #-------------------------------------------------------------------------
     # initialization
     #-------------------------------------------------------------------------
+    init_tstep_factor = rp.get_param("driver.init_tstep_factor")
+    max_dt_change = rp.get_param("driver.max_dt_change")
+    fix_dt = rp.get_param("driver.fix_dt")
 
     # initialize the Simulation object -- this will hold the grid and
     # data and know about the runtime parameters and which problem we
@@ -68,6 +71,21 @@ def doit(solver_name, problem_name, param_file,
     #sim_py = solver.Simulation(solver_name, problem_name, rp, timers=tc, fortran=False)
 
     sim.initialize()
+
+    # get the timestep
+    if fix_dt > 0.0:
+        sim.dt = fix_dt
+        #sim_py.dt = fix_dt
+    else:
+        sim.compute_timestep()
+        if sim.n == 0:
+            sim.dt = init_tstep_factor*sim.dt
+            #sim_py.dt = init_tstep_factor*sim.dt
+        else:
+            sim.dt = min(max_dt_change*dt_old, sim.dt)
+            #sim_py.dt = min(max_dt_change*dt_old, sim.dt)
+        dt_old = sim.dt
+
     sim.preevolve()
     #sim_py.initialize()
     #sim_py.preevolve()
@@ -76,9 +94,6 @@ def doit(solver_name, problem_name, param_file,
     #-------------------------------------------------------------------------
     # evolve
     #-------------------------------------------------------------------------
-    init_tstep_factor = rp.get_param("driver.init_tstep_factor")
-    max_dt_change = rp.get_param("driver.max_dt_change")
-    fix_dt = rp.get_param("driver.fix_dt")
 
     verbose = rp.get_param("driver.verbose")
 
