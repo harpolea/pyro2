@@ -24,6 +24,7 @@ def init_data(my_data, base, rp, metric):
     u = my_data.get_var("x-velocity")
     v = my_data.get_var("y-velocity")
     eint = my_data.get_var("eint")
+    scalar = my_data.get_var("scalar")
 
     gamma = rp.get_param("eos.gamma")
 
@@ -43,19 +44,20 @@ def init_data(my_data, base, rp, metric):
     enth.d[:,:] = 0.
 
     myg = my_data.grid
+    print('Resolution: ', myg.nx, ' x ', myg.ny)
 
     ycentre = 0.5 * (myg.ymin + myg.ymax)
 
-    y_smooth = 0.02 * (myg.ymax - myg.ymin)
+    y_smooth = 0.04 * (myg.ymax - myg.ymin)
 
     p = myg.scratch_array()
-    u0 = metric.calcu0(u=u, v=v)
 
     #dens.d[:,:] = dens2
     #dens.d[:, :int(np.round(0.5 * (myg.jlo+myg.jhi)))] = dens1
 
     # Some smoothing across boundary
     dens.d[:,:] = dens1 + (dens2 - dens1) * 0.5 * (1. + np.tanh(((myg.y2d - ycentre)/y_smooth)/0.9))
+    scalar.d[:,:] = 1. * 0.5 * (1. + np.tanh(((myg.y2d - ycentre)/y_smooth)/0.9))
 
     dens.v()[:, :] *= \
         np.exp(-g * myg.y[np.newaxis, myg.jlo:myg.jhi+1] /
@@ -66,13 +68,14 @@ def init_data(my_data, base, rp, metric):
 
     v.d[:,:] = amp * np.cos(2.0 * math.pi * myg.x2d /
         (myg.xmax - myg.xmin)) * \
-        np.exp(-(myg.y2d - ycentre)**2/sigma**2) / u0.d
-
+        np.exp(-(myg.y2d - ycentre)**2/sigma**2)
     # set the energy (P = cs2*dens)
     eint.d[:,:] = p.d[:,:]/(gamma - 1.0)/dens.d[:,:]
     enth.d[:, :] = 1. + eint.d + p.d / dens.d
 
     my_data.fill_BC_all()
+
+    u0 = metric.calcu0(u=u, v=v)
 
     # do the base state
     p0 = base["p0"]
@@ -95,6 +98,7 @@ def init_data(my_data, base, rp, metric):
     D0.d[:] *= u0.d1d()
     Dh0.d[:] *= D0.d
     old_p0 = p0.copy()
+    scalar.d[:,:] *= dens.d
     my_data.fill_BC_all()
 
 

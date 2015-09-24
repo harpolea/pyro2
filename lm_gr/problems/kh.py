@@ -51,6 +51,7 @@ def init_data(my_data, base, rp, metric):
     u_m = 0.5 * (u_1 - u_2)
 
     myg = my_data.grid
+    print('Resolution: ', myg.nx, ' x ', myg.ny)
 
     # initialize the components, remember, that ener here is rho*eint
     # + 0.5*rho*v**2, where eint is the specific internal energy

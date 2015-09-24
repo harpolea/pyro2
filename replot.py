@@ -48,9 +48,9 @@ if __name__== "__main__":
     #reload(sys)
     #sys.setdefaultencoding('utf-8')
 
-    for i in range(140, 601):
-        #outfile = "../../Work/pyro/results/rt_256_" +  format(i, '04') + ".png"
-        outfile = "../../Work/pyro/results/kh_512_" +  format(i, '04') + ".png"
+    for i in range(0, 600):
+        outfile = "../../Work/pyro/results/rt/rt_256_" +  format(i, '04') + ".png"
+        #outfile = "../../Work/pyro/results/kh_1024_" +  format(i, '04') + ".png"
         my_dpi = 96.
         W = 1920/my_dpi
         H = 1080/my_dpi
@@ -66,14 +66,14 @@ if __name__== "__main__":
         try:
             solver = 'lm_gr'
             #problem = 'bubble'
-            problem = 'kh'
-            #problem = 'rt'
+            #problem = 'kh'
+            problem = 'rt'
         except:
             usage()
 
         try:
-            #file = "../../Work/pyro/results/rt_256_" +  format(i, '04') + ".pyro"
-            file = "../../Work/pyro/results/kh_512_" +  format(i, '04') + ".pyro"
+            file = "../../Work/pyro/results/rt/rt_256_" +  format(i, '04') + ".pyro"
+            #file = "../../Work/pyro/results/kh_1024_" +  format(i, '04') + ".pyro"
         except:
             usage()
 

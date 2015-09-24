@@ -263,7 +263,7 @@ class Simulation(NullSimulation):
         my_data.register_var("gradp_x", bc_dens)
         my_data.register_var("gradp_y", bc_dens)
 
-        # passive scalar that is advected along
+        # passive scalar that is advected along - this is actually going to be the scalar times the density, so be careful when plotting at the end
         my_data.register_var("scalar", bc_dens)
 
         my_data.create()
@@ -363,9 +363,9 @@ class Simulation(NullSimulation):
 
     @staticmethod
     def lateral_average(a):
-        """
+        r"""
         Calculates and returns the lateral average of a, assuming that stuff is
-        to be averaged in the x direction.
+        to be averaged in the :math: `x` direction.
 
         Parameters
         ----------
@@ -416,10 +416,10 @@ class Simulation(NullSimulation):
 
 
     def compute_S(self, u=None, v=None):
-        """
-        S = -Gamma^mu_(mu nu) U^nu   (see eq 6.34, 6.37 in LowMachGR).
+        r"""
+        :math: `S = -\Gamma^\mu_(\mu \nu) U^\nu `  (see eq 6.34, 6.37 in LowMachGR).
         base["source-y"] is not updated here as it's sometimes necessary to
-        calculate projections of S (e.g. S^n*) and not S^n
+        calculate projections of `S` (e.g. `S^{n*}`) and not `S^n`
         """
         myg = self.cc_data.grid
         S = myg.scratch_array()
@@ -441,13 +441,13 @@ class Simulation(NullSimulation):
 
 
     def constraint_source(self, u=None, v=None, S=None, zeta=None):
-        """
-        calculate the source terms in the constraint, zeta(S - dpdt/ Gamma1 p)
+        r"""
+        calculate the source terms in the constraint, :math: `\zeta(S - \frac{dp}{dt}/ \Gamma_1 p)`
 
         Returns
         -------
         constraint : float array
-            zeta(S - dpdt/ Gamma1 p)
+            :math: `\zeta(S - \frac{dp}{dt}/ \Gamma_1 p)`
         """
         myg = self.cc_data.grid
         # get parameters
@@ -478,9 +478,9 @@ class Simulation(NullSimulation):
 
 
     def calc_mom_source(self, u=None, v=None, Dh=None, Dh0=None, u0=None):
-        """
+        r"""
         calculate the source terms in the momentum equation.
-        This works only for the metric ds^2 = -a^2 dt^2 + 1/a^2 (dx^2 + dr^2)
+        This works only for the metric :math: `ds^2 = -a^2 dt^2 + 1/a^2 (dx^2 + dr^2)`
 
         FIXME: need the D_t ln u0 term?
 
@@ -492,7 +492,7 @@ class Simulation(NullSimulation):
         Returns
         -------
         mom_source :
-            :math:`Gamma_{\rho \nu j} U^\nu U^\rho -
+            :math:`\Gamma_{\rho \nu j} U^\nu U^\rho -
                     \frac{\partial_j p_0}{Dh u_0}`
         """
         myg = self.cc_data.grid
@@ -549,8 +549,15 @@ class Simulation(NullSimulation):
 
 
     def calc_psi(self, S=None, U0=None, p0=None, old_p0=None):
-        """
-        calculate psi
+        r"""
+        Calculate :math: `\psi`
+        .. math::
+
+            \psi = \partial_tp_0 + U_0\partial_r p_0
+
+        Returns
+        -------
+        :math: `\psi`
         """
         myg = self.cc_data.grid
         if S is None:
@@ -574,9 +581,9 @@ class Simulation(NullSimulation):
 
 
     def base_state_forcing(self, U0_half=None, U0_old_half=None, Dh0_old=None, Dh0=None, u=None, v=None, u0=None):
-        """
+        r"""
         calculate the base state velocity forcing term from 2C
-        This works only for the metric ds^2 = -a^2 dt^2 + 1/a^2 (dx^2 + dr^2)
+        This works only for the metric :math: `ds^2 = -a^2 dt^2 + 1/a^2 (dx^2 + dr^2)`
         """
         myg = self.cc_data.grid
         drpi = myg.scratch_array()
@@ -654,9 +661,13 @@ class Simulation(NullSimulation):
 
 
     def advect_base_density(self, D0=None, U0=None):
-        """
-        Updates the base state density through one timestep. Eq. 6.131.
-        This is incorrect as need to use edge based D, as found in the
+        r"""
+        Updates the base state density through one timestep. Eq. 6.131:
+        .. math::
+
+            D_{0j}^\text{out} = D_{0j}^\text{in} - \frac{\Delta t}{\Delta r}\left[\left(D_0^{\text{out},n+\sfrac{1}{2}} U_0^\text{in}\right)_{j+\sfrac{1}{2}} - \left(D_0^{\text{out},n+\sfrac{1}{2}} U_0^\text{in}\right)_{j-\sfrac{1}{2}}\right]
+
+        This is incorrect as need to use edge based :math: `D`, as found in the
         evolve funciton.
         """
         myg = self.cc_data.grid
@@ -691,9 +702,12 @@ class Simulation(NullSimulation):
 
 
     def enforce_tov(self, p0=None, Dh0=None, u=None, v=None, u0=None):
-        """
+        r"""
         enforces the TOV equation. This is the GR equivalent of enforce_hse.
-        Eq. 6.132.
+        Eq. 6.133.
+        .. math::
+
+            p_{0,j+1}^\text{out} = p_{0,j}^\text{in} + \frac{\Delta r}{2} \left(\partial_r p_{0,j+1} + \partial_r p_{0,j} \right)
         """
         myg = self.cc_data.grid
         if p0 is None:
@@ -732,8 +746,13 @@ class Simulation(NullSimulation):
 
 
     def advect_base_enthalpy(self, Dh0=None, S=None, U0=None, u=None, v=None, u0=None):
-        """
-        updates base state enthalpy throung one timestep.
+        r"""
+        updates base state enthalpy throung one timestep using eq. 6.134
+
+        .. math::
+
+            (Dh)_{0j}^\text{out}
+                = (Dh)_{0j}^\text{in} - \frac{\Delta t}{\Delta r}\left(\left[(Dh)_0^{n+\sfrac{1}{2}} U_0^\text{in}\right]_{j+\sfrac{1}{2}} - \left[(Dh)_0^{n+\sfrac{1}{2}} U_0^\text{in}\right]_{j-\sfrac{1}{2}}\right) + \Delta tu^0\psi_j^\text{in}
         """
         myg = self.cc_data.grid
         if Dh0 is None:
@@ -758,8 +777,12 @@ class Simulation(NullSimulation):
 
 
     def compute_base_velocity(self, U0=None, p0=None, S=None, Dh0=None, u=None, v=None, u0=None):
-        """
-        Caclulates the base velocity using eq. 6.138
+        r"""
+        Calculates the base velocity using eq. 6.138
+
+        .. math::
+
+            \frac{ U^\text{out}_{0,j+\sfrac{1}{2}} -  U^\text{out}_{0,j-\sfrac{1}{2}}}{\Delta r} = \left(\bar{S}^\text{in} - \frac{1}{\bar{\Gamma}_1^\text{in} p_0^\text{in}}\psi^\text{in}\right)_j
         """
         myg = self.cc_data.grid
         if p0 is None:
@@ -961,6 +984,7 @@ class Simulation(NullSimulation):
 
         gradp_x = self.cc_data.get_var("gradp_x")
         gradp_y = self.cc_data.get_var("gradp_y")
+        scalar = self.cc_data.get_var("scalar")
 
         u0 = self.metric.calcu0()
 
@@ -1238,6 +1262,18 @@ class Simulation(NullSimulation):
 
         # 4F: compute psi^n+1/2,*
         psi = self.calc_psi(S=S_t_centred, U0=U0_half_star)
+
+        # FIXME: this scalar stuff is Horrid.
+        """sc = scalar.copy()
+        sc.d[:,:] /= D.d
+        sc_half_star = sc.copy()
+
+        sc_half_star.v()[:,:] -= 0.5 * dt * (
+            (u_MAC.v() * (sc.v() - sc.ip(-1))) / myg.dx +
+            ((v_MAC.v()+U0_half_star.v2d()) * (sc.v()-sc.jp(-1)))/myg.dy)
+
+        # multiply by D again
+        sc_half_star.d[:,:] *= D_yint.d"""
 
         #---------------------------------------------------------------------
         # predict Dh to the edges and do its conservative update

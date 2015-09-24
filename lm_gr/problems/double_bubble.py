@@ -58,6 +58,7 @@ def init_data(my_data, base, rp, metric):
 
     # set the density to be stratified in the y-direction
     myg = my_data.grid
+    print('Resolution: ', myg.nx, ' x ', myg.ny)
     pres = myg.scratch_array()
 
     # FIXME: do this properly for gr case, add alpha back in
