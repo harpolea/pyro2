@@ -1161,7 +1161,6 @@ def read(filename):
     Read a CellCenterData object from a file and return it and the grid
     info and data.
     """
-
     # if we come in with .pyro, we don't need to add it again
     if filename.find(".pyro") < 0:
         filename += ".pyro"

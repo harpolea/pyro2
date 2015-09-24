@@ -6,10 +6,6 @@ TODO: updateZeta?? What is zeta actually supposed to be? How is it calculated?
 
 TODO: D ln u0/Dt term in momentum equation?
 
-TODO: find out where the slow parts are and speed them up
-
-TODO: u0 takes a while to calculate. Try and identify places where it is calculated multiple times and doesn't need to be.
-
 FIXME: base state boundary conditions
 
 FIXME: check edge/cell-centred/time-centred quantities used correctly
@@ -44,6 +40,7 @@ import sys
 import numpy as np
 import matplotlib.pyplot as plt
 import pdb
+import math
 
 from lm_gr.problems import *
 import lm_gr.LM_gr_interface_f as lm_interface_f
@@ -182,6 +179,25 @@ class Basestate(object):
 class Simulation(NullSimulation):
 
     def __init__(self, solver_name, problem_name, rp, timers=None, fortran=True):
+        """
+        Initialize the Simulation object
+
+        Parameters
+        ----------
+        solver_name : str
+            The name of the solver we wish to use. This should correspond
+            to one of the solvers in the pyro folder.
+        problem_name : str
+            The name of the problem we wish to run.  This should
+            correspond to one of the modules in lm_gr/problems/
+        rp : RuntimeParameters object
+            The runtime parameters for the simulation
+        timers : TimerCollection object, optional
+            The timers used for profiling this simulation
+        fortran : boolean, optional
+            Determines whether use the fortran smoother or the original
+            python one.
+        """
 
         NullSimulation.__init__(self, solver_name, problem_name, rp, timers=timers)
 
@@ -246,6 +262,9 @@ class Simulation(NullSimulation):
         # same BCs as density
         my_data.register_var("gradp_x", bc_dens)
         my_data.register_var("gradp_y", bc_dens)
+
+        # passive scalar that is advected along
+        my_data.register_var("scalar", bc_dens)
 
         my_data.create()
 
@@ -368,6 +387,11 @@ class Simulation(NullSimulation):
 
         Parameters
         ----------
+        D0 : Basestate object, optional
+            base state (relativistic) density
+        zeta : Basestate object, optional
+            zeta
+        u : ArrayIndexer object, optional
         """
 
         myg = self.cc_data.grid
@@ -646,6 +670,24 @@ class Simulation(NullSimulation):
         # FIXME: time-centred edge states
 
         D0.v()[:] += -(D0.jp(1) * U0.jp(1) - D0.v() * U0.v()) * dt / dr
+
+    def advect_scalar(self):
+        """
+        Advects the scalar very naively.
+        """
+        myg = self.cc_data.grid
+        scalar = self.cc_data.get_var("scalar")
+        u = self.cc_data.get_var("x-velocity")
+        v = self.cc_data.get_var("y-velocity")
+        dt = self.dt
+        dx = myg.dx
+        dr = myg.dy
+
+        scalar.v()[:,:] += \
+            -(scalar.ip(1)*u.ip(1) - scalar.ip(-1)*u.ip(-1))*0.5*dt / dx \
+            -(scalar.jp(1)*v.jp(1) - scalar.jp(-1)*v.jp(-1))*0.5*dt / dr
+
+        self.cc_data.fill_BC("scalar")
 
 
     def enforce_tov(self, p0=None, Dh0=None, u=None, v=None, u0=None):
@@ -1620,6 +1662,8 @@ class Simulation(NullSimulation):
         u.v()[:,:] += self.dt * (-coeff.v() * gradphi_x.v())
         v.v()[:,:] += self.dt * (-coeff.v() * gradphi_y.v())# + base_forcing.v())
 
+        # self.advect_scalar()
+
         # store gradp for the next step
 
         if proj_type == 1:
@@ -1700,6 +1744,9 @@ class Simulation(NullSimulation):
         # FIXME: get rid of me!!!!!!!
         #fields = [D]
         #field_names = [r"$D$"]
+
+        #vmins[2] = -1.e-4
+        #vmaxes[2] = 1.
 
         for n in range(len(fields)):
             # FIXME: GET RID OF ME

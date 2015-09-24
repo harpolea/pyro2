@@ -20,9 +20,10 @@ def init_data(my_data, base, rp, metric):
     # get the density and velocities
     dens = my_data.get_var("density")
     enth = my_data.get_var("enthalpy")
-    xvel = my_data.get_var("x-velocity")
-    yvel = my_data.get_var("y-velocity")
+    u = my_data.get_var("x-velocity")
+    v = my_data.get_var("y-velocity")
     eint = my_data.get_var("eint")
+    scalar = my_data.get_var("scalar")
 
     g = rp.get_param("lm-gr.grav")
     c = rp.get_param("lm-gr.c")
@@ -31,9 +32,9 @@ def init_data(my_data, base, rp, metric):
     gamma = rp.get_param("eos.gamma")
 
     rho_1 = rp.get_param("kh.rho_1")
-    v_1   = rp.get_param("kh.v_1")
+    u_1   = rp.get_param("kh.v_1")
     rho_2 = rp.get_param("kh.rho_2")
-    v_2   = rp.get_param("kh.v_2")
+    u_2   = rp.get_param("kh.v_2")
 
     gamma = rp.get_param("eos.gamma")
 
@@ -44,26 +45,29 @@ def init_data(my_data, base, rp, metric):
     ymax = rp.get_param("mesh.ymax")
 
     yctr = 0.5*(ymin + ymax)
-
-    L_x = xmax - xmin
+    L_x = 0.025*(xmax - xmin)
+    L = xmax - xmin
+    rho_m = 0.5 * (rho_1 - rho_2)
+    u_m = 0.5 * (u_1 - u_2)
 
     myg = my_data.grid
 
     # initialize the components, remember, that ener here is rho*eint
     # + 0.5*rho*v**2, where eint is the specific internal energy
     # (erg/g)
-    xvel.d[:,:] = v_2
-    yvel.d[:,:] = 0.0
-    dens.d[:,:] = rho_2
+    u.d[:,:] = u_1 - u_m * np.exp((myg.y[np.newaxis,:] - 0.5)/L_x)
+    v.d[:,:] = 5.e-1 * u_1 * np.sin(4. * math.pi * (myg.x[:, np.newaxis]+0.5*L)/L)
+    dens.d[:,:] = rho_1 - rho_m * np.exp((myg.y[np.newaxis,:] - 0.5)/L_x)
+    scalar.d[:,:] = 0.
 
-    idx = (myg.y[np.newaxis,:] <
-        yctr + 0.02*np.sin(6.0*math.pi*myg.x[:,np.newaxis]/L_x))
-    dens.d[idx] = rho_1
-    xvel.d[idx] = v_1
+    idx = (myg.y2d[:,:] > yctr)
+    dens.d[idx] = rho_2 + rho_m * np.exp((-myg.y2d[idx] + 0.5)/L_x)
+    u.d[idx] = u_2 + u_m * np.exp((-myg.y2d[idx] + 0.5)/L_x)
+    scalar.d[idx] = 1.
 
-    dens.v()[:, :] *= \
-        np.exp(-g * myg.y[np.newaxis, myg.jlo:myg.jhi+1] /
-                (gamma * c**2 * R * metric.alpha.v2d()**2))
+    #dens.v()[:, :] *= \
+    #    np.exp(-g * myg.y[np.newaxis, myg.jlo:myg.jhi+1] /
+    #            (gamma * c**2 * R * metric.alpha.v2d()**2))
 
     pres = myg.scratch_array()
 
@@ -95,6 +99,8 @@ def init_data(my_data, base, rp, metric):
     D0.d[:] *= u0.d1d()
     Dh0.d[:] *= D0.d
     old_p0 = p0.copy()
+    u.d[:,:] /= u0.d
+    v.d[:,:] /= u0.d
 
     my_data.fill_BC_all()
 

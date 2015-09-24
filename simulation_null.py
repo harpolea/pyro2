@@ -52,7 +52,7 @@ class NullSimulation(object):
         ----------
         problem_name : str
             The name of the problem we wish to run.  This should
-            correspond to one of the modules in advection/problems/
+            correspond to one of the modules in solver_name/problems/
         rp : RuntimeParameters object
             The runtime parameters for the simulation
         timers : TimerCollection object, optional

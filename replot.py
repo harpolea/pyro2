@@ -45,9 +45,12 @@ optional arguments:
 
 if __name__== "__main__":
 
-    for i in range(41, 61):
+    #reload(sys)
+    #sys.setdefaultencoding('utf-8')
+
+    for i in range(140, 601):
         #outfile = "../../Work/pyro/results/rt_256_" +  format(i, '04') + ".png"
-        outfile = "../../Work/pyro/results/kh_256_" +  format(i, '04') + ".png"
+        outfile = "../../Work/pyro/results/kh_512_" +  format(i, '04') + ".png"
         my_dpi = 96.
         W = 1920/my_dpi
         H = 1080/my_dpi
@@ -70,7 +73,7 @@ if __name__== "__main__":
 
         try:
             #file = "../../Work/pyro/results/rt_256_" +  format(i, '04') + ".pyro"
-            file = "../../Work/pyro/results/kh_256_" +  format(i, '04') + ".pyro"
+            file = "../../Work/pyro/results/kh_512_" +  format(i, '04') + ".pyro"
         except:
             usage()
 
