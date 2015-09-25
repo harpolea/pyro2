@@ -16,13 +16,13 @@ function is_symmetric_pair(qx, qy, ng, nodal, sl, sr) result (sym)
   ilo = ng; ihi = ng+nx-1; jlo = ng; jhi = ng+ny-1
 
   sym = 1
-  
+
   if (.not. nodal) then
      loop_outer: do j = jlo, jhi
         do i = 1, nx/2
            il = ilo + i - 1
            ir = ihi - i + 1
-           
+
            if (.not. sl(il,j) == sr(ir,j)) then
               sym = 0
               exit loop_outer
@@ -36,7 +36,7 @@ function is_symmetric_pair(qx, qy, ng, nodal, sl, sr) result (sym)
         do i = 1, nx/2
            il = ilo + i - 1
            ir = ihi - i + 2
-           
+
            if (.not. sl(il,j) == sr(ir,j)) then
               sym = 0
               exit loop_nodal_outer
@@ -81,13 +81,13 @@ function is_asymmetric_pair(qx, qy, ng, nodal, sl, sr) result (asym)
   ilo = ng; ihi = ng+nx-1; jlo = ng; jhi = ng+ny-1
 
   asym = 1
-  
+
   if (.not. nodal) then
      loop_aouter: do j = jlo, jhi
         do i = 1, nx/2
            il = ilo + i - 1
            ir = ihi - i + 1
-           
+
            print *, il, ir, sl(il,j), -sr(ir,j)
            if (.not. sl(il,j) == -sr(ir,j)) then
               asym = 0
@@ -181,7 +181,7 @@ subroutine mac_vels(qx, qy, ng, dx, dy, dt, &
   integer :: nx, ny, ilo, ihi, jlo, jhi
   nx = qx - 2*ng; ny = qy - 2*ng
   ilo = ng; ihi = ng+nx-1; jlo = ng; jhi = ng+ny-1
-  
+
 
   ! assertions
   ! print *, "checking ldelta_ux"
@@ -209,7 +209,7 @@ subroutine mac_vels(qx, qy, ng, dx, dy, dt, &
   !    stop 'gradp_x not asymmetric'
   ! endif
 
-  
+
   ! get the full u and v left and right states (including transverse
   ! terms) on both the x- and y-interfaces
   call get_interface_states(qx, qy, ng, dx, dy, dt, &
@@ -237,7 +237,7 @@ subroutine mac_vels(qx, qy, ng, dx, dy, dt, &
   ! if (.not. is_asymmetric(qx, qy, ng, .true., u_MAC) == 1) then
   !    stop 'u_MAC not asymmetric'
   ! endif
-  
+
 end subroutine mac_vels
 
 
@@ -278,8 +278,8 @@ subroutine states(qx, qy, ng, dx, dy, dt, &
   double precision, intent(inout) :: u_MAC(0:qx-1, 0:qy-1)
   double precision, intent(inout) :: v_MAC(0:qx-1, 0:qy-1)
 
-  double precision, intent(out) :: u_xint(0:qx-1, 0:qy-1), u_yint(0:qx-1, 0:qy-1)  
-  double precision, intent(out) :: v_xint(0:qx-1, 0:qy-1), v_yint(0:qx-1, 0:qy-1)  
+  double precision, intent(out) :: u_xint(0:qx-1, 0:qy-1), u_yint(0:qx-1, 0:qy-1)
+  double precision, intent(out) :: v_xint(0:qx-1, 0:qy-1), v_yint(0:qx-1, 0:qy-1)
 
 !f2py depend(qx, qy) :: u, v
 !f2py depend(qx, qy) :: ldelta_ux, ldelta_vx, ldelta_uy, ldelta_vy
@@ -316,7 +316,7 @@ subroutine states(qx, qy, ng, dx, dy, dt, &
   call upwind(qx, qy, ng, v_xl, v_xr, u_MAC, v_xint)
   call upwind(qx, qy, ng, u_yl, u_yr, v_MAC, u_yint)
   call upwind(qx, qy, ng, v_yl, v_yr, v_MAC, v_yint)
-    
+
 end subroutine states
 
 
@@ -342,7 +342,7 @@ subroutine rho_states(qx, qy, ng, dx, dy, dt, &
   double precision, intent(inout) :: ldelta_rx(0:qx-1, 0:qy-1)
   double precision, intent(inout) :: ldelta_ry(0:qx-1, 0:qy-1)
 
-  double precision, intent(out) :: rho_xint(0:qx-1, 0:qy-1), rho_yint(0:qx-1, 0:qy-1)  
+  double precision, intent(out) :: rho_xint(0:qx-1, 0:qy-1), rho_yint(0:qx-1, 0:qy-1)
 
 !f2py depend(qx, qy) :: rho, u_MAC, v_MAC
 !f2py depend(qx, qy) :: ldelta_rx, ldelta_ry
@@ -367,13 +367,13 @@ subroutine rho_states(qx, qy, ng, dx, dy, dt, &
   dtdy = dt/dy
 
   do j = jlo-2, jhi+2
-     do i = ilo-2, ihi+2        
+     do i = ilo-2, ihi+2
 
         ! u on x-edges
         rho_xl(i+1,j) = rho(i,j) + 0.5d0*(1.0d0 - dtdx*u_MAC(i+1,j))*ldelta_rx(i,j)
         rho_xr(i  ,j) = rho(i,j) - 0.5d0*(1.0d0 + dtdx*u_MAC(i,j))*ldelta_rx(i,j)
 
-        ! u on y-edges 
+        ! u on y-edges
         rho_yl(i,j+1) = rho(i,j) + 0.5d0*(1.0d0 - dtdy*v_MAC(i,j+1))*ldelta_ry(i,j)
         rho_yr(i,j  ) = rho(i,j) - 0.5d0*(1.0d0 + dtdy*v_MAC(i,j))*ldelta_ry(i,j)
 
@@ -389,7 +389,7 @@ subroutine rho_states(qx, qy, ng, dx, dy, dt, &
   ! now add the transverse term and the non-advective part of the normal
   ! divergence
   do j = jlo-2, jhi+2
-     do i = ilo-2, ihi+2        
+     do i = ilo-2, ihi+2
 
         u_x = (u_MAC(i+1,j) - u_MAC(i,j))/dx
         v_y = (v_MAC(i,j+1) - v_MAC(i,j))/dy
@@ -413,9 +413,107 @@ subroutine rho_states(qx, qy, ng, dx, dy, dt, &
 
   ! finally upwind the full states
   call upwind(qx, qy, ng, rho_xl, rho_xr, u_MAC, rho_xint)
-  call upwind(qx, qy, ng, rho_yl, rho_yr, v_MAC, rho_yint)  
+  call upwind(qx, qy, ng, rho_yl, rho_yr, v_MAC, rho_yint)
 
 end subroutine rho_states
+
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+subroutine psi_states(qx, qy, ng, dx, dy, dt, &
+                      psi, u_MAC, v_MAC, &
+                      ldelta_px, ldelta_py, &
+                      psi_xint, psi_yint)
+
+  ! this predicts rho to the interfaces.  We use the MAC velocities to do
+  ! the upwinding
+
+  implicit none
+
+  integer, intent(in) :: qx, qy, ng
+  double precision, intent(in) :: dx, dy, dt
+
+  ! 0-based indexing to match python
+  double precision, intent(inout) :: psi(0:qx-1, 0:qy-1)
+  double precision, intent(inout) :: u_MAC(0:qx-1, 0:qy-1)
+  double precision, intent(inout) :: v_MAC(0:qx-1, 0:qy-1)
+
+  double precision, intent(inout) :: ldelta_px(0:qx-1, 0:qy-1)
+  double precision, intent(inout) :: ldelta_py(0:qx-1, 0:qy-1)
+
+  double precision, intent(out) :: psi_xint(0:qx-1, 0:qy-1), psi_yint(0:qx-1, 0:qy-1)
+
+!f2py depend(qx, qy) :: psi, u_MAC, v_MAC
+!f2py depend(qx, qy) :: ldelta_px, ldelta_py
+!f2py intent(in) :: psi, u_MAC, v_MAC
+!f2py intent(in) :: ldelta_px, ldelta_py
+!f2py intent(out) :: psi_xint, psi_yint
+
+  double precision :: psi_xl(0:qx-1, 0:qy-1), psi_xr(0:qx-1, 0:qy-1)
+  double precision :: psi_yl(0:qx-1, 0:qy-1), psi_yr(0:qx-1, 0:qy-1)
+
+  integer :: ilo, ihi, jlo, jhi
+  integer :: nx, ny
+  integer :: i, j
+
+  double precision :: dtdx, dtdy
+  double precision :: u_x, v_y, psiv_y, psiu_x
+
+  nx = qx - 2*ng; ny = qy - 2*ng
+  ilo = ng; ihi = ng+nx-1; jlo = ng; jhi = ng+ny-1
+
+  dtdx = dt/dx
+  dtdy = dt/dy
+
+  do j = jlo-2, jhi+2
+     do i = ilo-2, ihi+2
+
+        ! u on x-edges
+        psi_xl(i+1,j) = psi(i,j) + 0.5d0*(1.0d0 - dtdx*u_MAC(i+1,j))*ldelta_px(i,j)
+        psi_xr(i  ,j) = psi(i,j) - 0.5d0*(1.0d0 + dtdx*u_MAC(i,j))*ldelta_px(i,j)
+
+        ! u on y-edges
+        psi_yl(i,j+1) = psi(i,j) + 0.5d0*(1.0d0 - dtdy*v_MAC(i,j+1))*ldelta_py(i,j)
+        psi_yr(i,j  ) = psi(i,j) - 0.5d0*(1.0d0 + dtdy*v_MAC(i,j))*ldelta_py(i,j)
+
+     enddo
+  enddo
+
+
+  ! we upwind based on the MAC velocities
+  call upwind(qx, qy, ng, psi_xl, psi_xr, u_MAC, psi_xint)
+  call upwind(qx, qy, ng, psi_yl, psi_yr, v_MAC, psi_yint)
+
+
+  ! now add the transverse term and the non-advective part of the normal
+  ! divergence
+  do j = jlo-2, jhi+2
+     do i = ilo-2, ihi+2
+
+        u_x = (u_MAC(i+1,j) - u_MAC(i,j))/dx
+        v_y = (v_MAC(i,j+1) - v_MAC(i,j))/dy
+
+        ! (rho v)_y is the transverse term for the x-interfaces
+        ! rho u_x is the non-advective piece for the x-interfaces
+        psiv_y = v_y * (psi_yint(i,j+1) - psi_yint(i,j))/dy
+
+        psi_xl(i+1,j) = psi_xl(i+1,j) - 0.5 * dt * psiv_y
+        psi_xr(i  ,j) = psi_xr(i  ,j) - 0.5 * dt * psiv_y
+
+        ! (rho u)_x is the transverse term for the y-interfaces
+        ! rho v_y is the non-advective piece for the y-interfaces
+        psiu_x = u_x * (psi_xint(i+1,j) - psi_xint(i,j))/dx
+
+        psi_yl(i,j+1) = psi_yl(i,j+1) - 0.5 * dt * psiu_x
+        psi_yr(i,j  ) = psi_yr(i,j  ) - 0.5 * dt * psiu_x
+
+     enddo
+  enddo
+
+  ! finally upwind the full states
+  call upwind(qx, qy, ng, psi_xl, psi_xr, u_MAC, psi_xint)
+  call upwind(qx, qy, ng, psi_yl, psi_yr, v_MAC, psi_yint)
+
+end subroutine psi_states
 
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -433,7 +531,7 @@ subroutine get_interface_states(qx, qy, ng, dx, dy, dt, &
 
   ! note that the gradp_x, gradp_y should have any coefficients
   ! already included (e.g. beta_0/rho)
-  
+
   implicit none
 
   integer, intent(in) :: qx, qy, ng
@@ -465,8 +563,8 @@ subroutine get_interface_states(qx, qy, ng, dx, dy, dt, &
 
   double precision :: uhat_adv(0:qx-1, 0:qy-1), vhat_adv(0:qx-1, 0:qy-1)
 
-  double precision :: u_xint(0:qx-1, 0:qy-1), u_yint(0:qx-1, 0:qy-1)  
-  double precision :: v_xint(0:qx-1, 0:qy-1), v_yint(0:qx-1, 0:qy-1)  
+  double precision :: u_xint(0:qx-1, 0:qy-1), u_yint(0:qx-1, 0:qy-1)
+  double precision :: v_xint(0:qx-1, 0:qy-1), v_yint(0:qx-1, 0:qy-1)
 
   double precision :: dtdx, dtdy
   double precision :: ubar, vbar, uv_x, vu_y, uu_x, vv_y
@@ -478,30 +576,30 @@ subroutine get_interface_states(qx, qy, ng, dx, dy, dt, &
 
 
   ! first predict u and v to both interfaces, considering only the normal
-  ! part of the predictor.  These are the 'hat' states. 
-  
+  ! part of the predictor.  These are the 'hat' states.
+
 
   dtdx = dt/dx
   dtdy = dt/dy
 
   do j = jlo-2, jhi+2
-     do i = ilo-2, ihi+2        
+     do i = ilo-2, ihi+2
 
         ! u on x-edges
-        u_xl(i+1,j) = u(i,j) + 0.5d0*(1.0d0 - dtdx*u(i,j))*ldelta_ux(i,j) 
-        u_xr(i  ,j) = u(i,j) - 0.5d0*(1.0d0 + dtdx*u(i,j))*ldelta_ux(i,j) 
+        u_xl(i+1,j) = u(i,j) + 0.5d0*(1.0d0 - dtdx*u(i,j))*ldelta_ux(i,j)
+        u_xr(i  ,j) = u(i,j) - 0.5d0*(1.0d0 + dtdx*u(i,j))*ldelta_ux(i,j)
 
-        ! v on x-edges 
-        v_xl(i+1,j) = v(i,j) + 0.5d0*(1.0d0 - dtdx*u(i,j))*ldelta_vx(i,j) 
-        v_xr(i  ,j) = v(i,j) - 0.5d0*(1.0d0 + dtdx*u(i,j))*ldelta_vx(i,j) 
+        ! v on x-edges
+        v_xl(i+1,j) = v(i,j) + 0.5d0*(1.0d0 - dtdx*u(i,j))*ldelta_vx(i,j)
+        v_xr(i  ,j) = v(i,j) - 0.5d0*(1.0d0 + dtdx*u(i,j))*ldelta_vx(i,j)
 
-        ! u on y-edges 
-        u_yl(i,j+1) = u(i,j) + 0.5d0*(1.0d0 - dtdy*v(i,j))*ldelta_uy(i,j) 
-        u_yr(i,j  ) = u(i,j) - 0.5d0*(1.0d0 + dtdy*v(i,j))*ldelta_uy(i,j) 
+        ! u on y-edges
+        u_yl(i,j+1) = u(i,j) + 0.5d0*(1.0d0 - dtdy*v(i,j))*ldelta_uy(i,j)
+        u_yr(i,j  ) = u(i,j) - 0.5d0*(1.0d0 + dtdy*v(i,j))*ldelta_uy(i,j)
 
         ! v on y-edges
-        v_yl(i,j+1) = v(i,j) + 0.5d0*(1.0d0 - dtdy*v(i,j))*ldelta_vy(i,j) 
-        v_yr(i,j  ) = v(i,j) - 0.5d0*(1.0d0 + dtdy*v(i,j))*ldelta_vy(i,j) 
+        v_yl(i,j+1) = v(i,j) + 0.5d0*(1.0d0 - dtdy*v(i,j))*ldelta_vy(i,j)
+        v_yr(i,j  ) = v(i,j) - 0.5d0*(1.0d0 + dtdy*v(i,j))*ldelta_vy(i,j)
 
      enddo
   enddo
@@ -513,11 +611,11 @@ subroutine get_interface_states(qx, qy, ng, dx, dy, dt, &
 
 
   ! now get the normal advective velocities on the interfaces by solving
-  ! the Riemann problem.  
+  ! the Riemann problem.
   call riemann(qx, qy, ng, u_xl, u_xr, uhat_adv)
   call riemann(qx, qy, ng, v_yl, v_yr, vhat_adv)
 
-  
+
 
   ! now that we have the advective velocities, upwind the left and right
   ! states using the appropriate advective velocity.
@@ -536,17 +634,17 @@ subroutine get_interface_states(qx, qy, ng, dx, dy, dt, &
 
   ! add the transverse flux differences to the preliminary interface states
   do j = jlo-1, jhi+1
-     do i = ilo-1, ihi+1       
+     do i = ilo-1, ihi+1
 
         ubar = 0.5d0*(uhat_adv(i,j) + uhat_adv(i+1,j))
         vbar = 0.5d0*(vhat_adv(i,j) + vhat_adv(i,j+1))
 
         ! v du/dy is the transerse term for the u states on x-interfaces
         vu_y = vbar*(u_yint(i,j+1) - u_yint(i,j))
-        
-        u_xl(i+1,j) = u_xl(i+1,j) - 0.5*dtdy*vu_y - 0.5*dt*gradp_x(i,j) 
-        u_xr(i  ,j) = u_xr(i  ,j) - 0.5*dtdy*vu_y - 0.5*dt*gradp_x(i,j) 
-        
+
+        u_xl(i+1,j) = u_xl(i+1,j) - 0.5*dtdy*vu_y - 0.5*dt*gradp_x(i,j)
+        u_xr(i  ,j) = u_xr(i  ,j) - 0.5*dtdy*vu_y - 0.5*dt*gradp_x(i,j)
+
         ! v dv/dy is the transverse term for the v states on x-interfaces
         vv_y = vbar*(v_yint(i,j+1) - v_yint(i,j))
 
@@ -562,8 +660,8 @@ subroutine get_interface_states(qx, qy, ng, dx, dy, dt, &
         ! u du/dx is the transverse term for the u states on y-interfaces
         uu_x = ubar*(u_xint(i+1,j) - u_xint(i,j))
 
-        u_yl(i,j+1) = u_yl(i,j+1) - 0.5*dtdx*uu_x - 0.5*dt*gradp_x(i,j) 
-        u_yr(i,j  ) = u_yr(i,j  ) - 0.5*dtdx*uu_x - 0.5*dt*gradp_x(i,j) 
+        u_yl(i,j+1) = u_yl(i,j+1) - 0.5*dtdx*uu_x - 0.5*dt*gradp_x(i,j)
+        u_yr(i,j  ) = u_yr(i,j  ) - 0.5*dtdx*uu_x - 0.5*dt*gradp_x(i,j)
 
      enddo
   enddo
@@ -649,7 +747,7 @@ end subroutine riemann
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 subroutine riemann_and_upwind(qx, qy, ng, q_l, q_r, q_int)
 
-  ! First solve the Riemann problem given q_l and q_r to give the 
+  ! First solve the Riemann problem given q_l and q_r to give the
   ! velocity on the interface and then use this velocity to upwind to
   ! determine the state (q_l, q_r, or a mix) on the interface).
   !

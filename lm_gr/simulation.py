@@ -1188,6 +1188,15 @@ class Simulation(NullSimulation):
                                              myg.dx, myg.dy, self.dt,
                                              D_1.d, u_MAC.d, v_MAC.d,
                                              ldelta_rx, ldelta_ry)
+
+        psi = scalar.copy()
+        psi.d[:,:] /= D_1.d
+        ldelta_px = limitFunc(1, scalar.d, myg.qx, myg.qy, myg.ng)
+        ldelta_py = limitFunc(2, scalar.d, myg.qx, myg.qy, myg.ng)
+        _px, _py = lm_interface_f.psi_states(myg.qx, myg.qy, myg.ng,
+                                             myg.dx, myg.dy, self.dt,
+                                             psi.d, u_MAC.d, v_MAC.d,
+                                             ldelta_px, ldelta_py)
         # x component of U0 is zero
         U0_x = myg.scratch_array()
         # is U0 edge-centred?
@@ -1224,18 +1233,30 @@ class Simulation(NullSimulation):
         D_xint = patch.ArrayIndexer(d=_rx, grid=myg)
         D_yint = patch.ArrayIndexer(d=_ry, grid=myg)
 
+        psi_xint = patch.ArrayIndexer(d=_px, grid=myg)
+        psi_yint = patch.ArrayIndexer(d=_py, grid=myg)
+
         D_xint.d[:,:] += 0.5 * (D0_xint.d + D0_2a_xint.d)
         D_yint.d[:,:] += 0.5 * (D0_yint.d + D0_2a_yint.d)
 
+        sc_xint = D_xint.copy()
+        sc_xint.d[:,:] *= psi_xint.d
+        sc_yint = D_yint.copy()
+        sc_yint.d[:,:] *= psi_yint.d
+
         D_old = D.copy()
+        sc_2_star = sc.copy()
         D_2_star = D_1.copy()
 
-        D_2_star.v()[:,:] -= self.dt * (
+        sc.v()[:,:] -= self.dt * (
             #  (D u)_x
-            (D_xint.ip(1) * u_MAC.ip(1) - D_xint.v() * u_MAC.v())/myg.dx +
+            (sc_xint.ip(1) * u_MAC.ip(1) - sc_xint.v() * u_MAC.v())/myg.dx +
             #  (D v)_y
-            (D_yint.jp(1)*(v_MAC.jp(1) + U0_half_star.jp(1)[np.newaxis,:]) -\
-             D_yint.v() * (v_MAC.v() + U0_half_star.v2d())) / myg.dy )
+            (sc_yint.jp(1)*(v_MAC.jp(1) + U0_half_star.jp(1)[np.newaxis,:]) -\
+             sc_yint.v() * (v_MAC.v() + U0_half_star.v2d())) / myg.dy )
+
+        # FIXME: this is very wrong????
+        D_2_star.d[:,:] = sc.d
 
         self.cc_data.fill_BC("density")
 
@@ -1247,16 +1268,16 @@ class Simulation(NullSimulation):
         psi = self.calc_psi(S=S_t_centred, U0=U0_half_star)
 
         # FIXME: this scalar stuff is Horrid.
-        """sc = scalar.copy()
+        sc = scalar.copy()
         sc.d[:,:] /= D.d
         sc_half_star = sc.copy()
 
-        sc_half_star.v()[:,:] -= 0.5 * dt * (
+        sc_half_star.v()[:,:] -= 0.5 * self.dt * (
             (u_MAC.v() * (sc.v() - sc.ip(-1))) / myg.dx +
             ((v_MAC.v()+U0_half_star.v2d()) * (sc.v()-sc.jp(-1)))/myg.dy)
 
         # multiply by D again
-        sc_half_star.d[:,:] *= D_yint.d"""
+        sc_half_star.d[:,:] *= D_yint.d
 
         #---------------------------------------------------------------------
         # predict Dh to the edges and do its conservative update
@@ -1704,9 +1725,8 @@ class Simulation(NullSimulation):
         #plt.rc("font", size=10)
 
         D = self.cc_data.get_var("density")
-        Dh = self.cc_data.get_var("enthalpy")
-        #D0 = self.base["D0"]
-        #Dprime = self.make_prime(D, D0)
+        scalar = self.cc_data.get_var("scalar")
+        scalar.d[:,:] /= D.d
 
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
@@ -1714,11 +1734,6 @@ class Simulation(NullSimulation):
         #plot_me = self.aux_data.get_var("plot_me")
 
         myg = self.cc_data.grid
-
-        # make D0 2d
-        #temp = myg.scratch_array()
-        #temp.d[:,:] = D0.d[np.newaxis, :]
-        #D0 = temp
 
         magvel = np.sqrt(u**2 + v**2)
 
@@ -1734,8 +1749,10 @@ class Simulation(NullSimulation):
         fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.3)
 
-        fields = [D, magvel, v, vort]
-        field_names = [r"$D$", r"$|U|$", r"$U_y$", r"$\nabla\times U$"]
+        fields = [D, magvel, scalar, vort]
+        field_names = [r"$D$", r"$|U|$", r"$\psi$", r"$\nabla\times U$"]
+        colourmaps = [plt.cm.jet, plt.cm.jet, plt.cm.seismic,
+                      plt.cm.seismic]
 
         # FIXME: get rid of me!!!!!!!
         #fields = [D]
@@ -1750,11 +1767,7 @@ class Simulation(NullSimulation):
             #ax = axes
 
             f = fields[n]
-
-            if n < 3:
-                cmap = plt.cm.jet
-            else:
-                cmap = plt.cm.seismic
+            cmap = colourmaps[n]
 
             img = ax.imshow(np.transpose(f.v()),
                             interpolation="nearest", origin="lower",
