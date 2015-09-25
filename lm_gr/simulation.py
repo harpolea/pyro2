@@ -624,7 +624,7 @@ class Simulation(NullSimulation):
         return drpi
 
 
-    def react_state(self, S=None, D=None, Dh=None, Dh0=None, u=None, v=None, u0=None):
+    def react_state(self, S=None, D=None, Dh=None, scalar=None, Dh0=None, u=None, v=None, u0=None):
         """
         gravitational source terms in the continuity equation (called react
         state to mirror MAESTRO as here they just have source terms from the
@@ -636,6 +636,8 @@ class Simulation(NullSimulation):
             D = self.cc_data.get_var("density")
         if Dh is None:
             Dh = self.cc_data.get_var("enthalpy")
+        if scalar is None:
+            scalar = self.cc_data.get_var("scalar")
         if v is None:
             v = self.cc_data.get_var("y-velocity")
         if u0 is None:
@@ -647,6 +649,8 @@ class Simulation(NullSimulation):
         Dh.d[:,:] += 0.5 * self.dt * (S.d * Dh.d + u0.d * v.d * drp0.d2d())
 
         D.d[:,:] += 0.5 * self.dt * (S.d * D.d)
+
+        scalar.d[:,:] += 0.5 * self.dt * (S.d * scalar.d)
 
 
     def advect_base_density(self, D0=None, U0=None):
@@ -1022,7 +1026,8 @@ class Simulation(NullSimulation):
         #---------------------------------------------------------------------
         D_1 = D.copy()
         Dh_1 = Dh.copy()
-        self.react_state(D=D_1, Dh=Dh_1, u0=u0)
+        scalar_1 = scalar.copy()
+        self.react_state(D=D_1, Dh=Dh_1, scalar=scalar_1, u0=u0)
 
         #---------------------------------------------------------------------
         # 2. Compute provisional S, U0 and base state forcing
@@ -1189,13 +1194,13 @@ class Simulation(NullSimulation):
                                              D_1.d, u_MAC.d, v_MAC.d,
                                              ldelta_rx, ldelta_ry)
 
-        psi = scalar.copy()
-        psi.d[:,:] /= D_1.d
-        ldelta_px = limitFunc(1, scalar.d, myg.qx, myg.qy, myg.ng)
-        ldelta_py = limitFunc(2, scalar.d, myg.qx, myg.qy, myg.ng)
+        psi_1 = scalar_1.copy()
+        psi_1.d[:,:] /= D_1.d
+        ldelta_px = limitFunc(1, psi_1.d, myg.qx, myg.qy, myg.ng)
+        ldelta_py = limitFunc(2, psi_1.d, myg.qx, myg.qy, myg.ng)
         _px, _py = lm_interface_f.psi_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
-                                             psi.d, u_MAC.d, v_MAC.d,
+                                             psi_1.d, u_MAC.d, v_MAC.d,
                                              ldelta_px, ldelta_py)
         # x component of U0 is zero
         U0_x = myg.scratch_array()
@@ -1204,7 +1209,6 @@ class Simulation(NullSimulation):
                                             myg.dx, myg.dy, self.dt,
                                             D0.d2df(myg.qx), U0_x.d, U0_half_star.d2df(myg.qx),
                                             ldelta_r0x, ldelta_r0y)
-
 
         D0_xint = patch.ArrayIndexer(d=_r0x, grid=myg)
         D0_yint = patch.ArrayIndexer(d=_r0y, grid=myg)
@@ -1239,26 +1243,30 @@ class Simulation(NullSimulation):
         D_xint.d[:,:] += 0.5 * (D0_xint.d + D0_2a_xint.d)
         D_yint.d[:,:] += 0.5 * (D0_yint.d + D0_2a_yint.d)
 
-        sc_xint = D_xint.copy()
-        sc_xint.d[:,:] *= psi_xint.d
-        sc_yint = D_yint.copy()
-        sc_yint.d[:,:] *= psi_yint.d
+        scalar_xint = psi_xint.copy()
+        scalar_xint.d[:,:] *= D_xint.d
+        scalar_yint = psi_yint.copy()
+        scalar_yint.d[:,:] *= D_yint.d
+
+        print("min/max scalar = {}, {}".format(psi_yint.d.min(), psi_yint.d.max()))
 
         D_old = D.copy()
-        sc_2_star = sc.copy()
+        scalar_2_star = scalar_1.copy()
         D_2_star = D_1.copy()
 
-        sc.v()[:,:] -= self.dt * (
+        scalar_2_star.v()[:,:] -= self.dt * (
+            #  (psi D u)_x
+            (scalar_xint.ip(1) * u_MAC.ip(1) - scalar_xint.v() * u_MAC.v())/myg.dx +
+            #  (psi D v)_y
+            (scalar_yint.jp(1)*(v_MAC.jp(1) + U0_half_star.jp(1)[np.newaxis,:]) -
+             scalar_yint.v() * (v_MAC.v() + U0_half_star.v2d())) / myg.dy )
+
+        D_2_star.v()[:,:] -= self.dt * (
             #  (D u)_x
-            (sc_xint.ip(1) * u_MAC.ip(1) - sc_xint.v() * u_MAC.v())/myg.dx +
+            (D_xint.ip(1) * u_MAC.ip(1) - D_xint.v() * u_MAC.v())/myg.dx +
             #  (D v)_y
-            (sc_yint.jp(1)*(v_MAC.jp(1) + U0_half_star.jp(1)[np.newaxis,:]) -\
-             sc_yint.v() * (v_MAC.v() + U0_half_star.v2d())) / myg.dy )
-
-        # FIXME: this is very wrong????
-        D_2_star.d[:,:] = sc.d
-
-        self.cc_data.fill_BC("density")
+            (D_yint.jp(1)*(v_MAC.jp(1) + U0_half_star.jp(1)[np.newaxis,:]) -
+             D_yint.v() * (v_MAC.v() + U0_half_star.v2d())) / myg.dy )
 
         # 4D Correct D0
         D0_star = D0_2a_star.copy()
@@ -1266,18 +1274,6 @@ class Simulation(NullSimulation):
 
         # 4F: compute psi^n+1/2,*
         psi = self.calc_psi(S=S_t_centred, U0=U0_half_star)
-
-        # FIXME: this scalar stuff is Horrid.
-        sc = scalar.copy()
-        sc.d[:,:] /= D.d
-        sc_half_star = sc.copy()
-
-        sc_half_star.v()[:,:] -= 0.5 * self.dt * (
-            (u_MAC.v() * (sc.v() - sc.ip(-1))) / myg.dx +
-            ((v_MAC.v()+U0_half_star.v2d()) * (sc.v()-sc.jp(-1)))/myg.dy)
-
-        # multiply by D again
-        sc_half_star.d[:,:] *= D_yint.d
 
         #---------------------------------------------------------------------
         # predict Dh to the edges and do its conservative update
@@ -1360,8 +1356,9 @@ class Simulation(NullSimulation):
         #---------------------------------------------------------------------
         D_star = D_2_star.copy()
         Dh_star = Dh_2_star.copy()
+        scalar_star = scalar_2_star.copy()
         self.react_state(S=self.compute_S(u=u_MAC, v=v_MAC),
-                         D=D_star, Dh=Dh_star, Dh0=Dh0_star, u=u_MAC, v=v_MAC, u0=u0_MAC)
+                         D=D_star, Dh=Dh_star, scalar=scalar_star, Dh0=Dh0_star, u=u_MAC, v=v_MAC, u0=u0_MAC)
 
         #---------------------------------------------------------------------
         # 6. Compute time-centred expasion S, base state velocity U0 and
@@ -1453,10 +1450,11 @@ class Simulation(NullSimulation):
         self.cc_data.fill_BC("y-velocity")
 
         if self.verbose > 0:
-            print("min/max D = {}, {}".format(self.cc_data.min("density"), self.cc_data.max("density")))
-            print("min/max Dh = {}, {}".format(self.cc_data.min("enthalpy"), self.cc_data.max("enthalpy")))
+            print("min/max D   = {}, {}".format(self.cc_data.min("density"), self.cc_data.max("density")))
+            print("min/max Dh  = {}, {}".format(self.cc_data.min("enthalpy"), self.cc_data.max("enthalpy")))
             print("min/max u   = {}, {}".format(self.cc_data.min("x-velocity"), self.cc_data.max("x-velocity")))
             print("min/max v   = {}, {}".format(self.cc_data.min("y-velocity"), self.cc_data.max("y-velocity")))
+            print("min/max psi = {}, {}".format(self.cc_data.min("scalar"), self.cc_data.max("scalar")))
 
         #---------------------------------------------------------------------
         # 8. predict D to the edges and do update
@@ -1481,6 +1479,14 @@ class Simulation(NullSimulation):
                                              D0.d2df(myg.qx), U0_x.d,
                                              U0_half.d2df(myg.qx),
                                              ldelta_r0x, ldelta_r0y)
+
+        psi_1.d[:,:] = scalar_1.d / D_1.d
+        ldelta_px = limitFunc(1, psi_1.d, myg.qx, myg.qy, myg.ng)
+        ldelta_py = limitFunc(2, psi_1.d, myg.qx, myg.qy, myg.ng)
+        _px, _py = lm_interface_f.psi_states(myg.qx, myg.qy, myg.ng,
+                                             myg.dx, myg.dy, self.dt,
+                                             psi_1.d, u_MAC.d, v_MAC.d,
+                                             ldelta_px, ldelta_py)
 
         D0_xint = patch.ArrayIndexer(d=_r0x, grid=myg)
         D0_yint = patch.ArrayIndexer(d=_r0y, grid=myg)
@@ -1509,10 +1515,17 @@ class Simulation(NullSimulation):
         D_xint = patch.ArrayIndexer(d=_rx, grid=myg)
         D_yint = patch.ArrayIndexer(d=_ry, grid=myg)
 
+        psi_xint = patch.ArrayIndexer(d=_px, grid=myg)
+        psi_yint = patch.ArrayIndexer(d=_py, grid=myg)
+
         D_xint.d[:,:] += 0.5 * (D0_xint.d + D0_2a_xint.d)
         D_yint.d[:,:] += 0.5 * (D0_yint.d + D0_2a_yint.d)
 
+        scalar_xint.d[:,:] = D_xint.d * psi_xint.d
+        scalar_yint.d[:,:] = D_yint.d * psi_yint.d
+
         D_old = D.copy()
+        scalar_2 = scalar_1.copy()
         D_2 = D_1.copy()
         D_2.v()[:,:] -= self.dt * (
             #  (D u)_x
@@ -1520,6 +1533,15 @@ class Simulation(NullSimulation):
             #  (D v)_y
             (D_yint.jp(1)*(v_MAC.jp(1) + U0_half.jp(1)[np.newaxis,:]) -\
              D_yint.v() * (v_MAC.v() + U0_half.v2d())) / myg.dy )
+
+        scalar_2.v()[:,:] -= self.dt * (
+            #  (D u)_x
+            (scalar_xint.ip(1) * u_MAC.ip(1) -
+             scalar_xint.v() * u_MAC.v()) / myg.dx +
+            #  (D v)_y
+            (scalar_yint.jp(1) * (v_MAC.jp(1) +
+             U0_half.jp(1)[np.newaxis,:]) -
+             scalar_yint.v() * (v_MAC.v() + U0_half.v2d())) / myg.dy )
 
         # 8D
         D0.v()[:] = self.lateral_average(D_2.v())
@@ -1599,10 +1621,12 @@ class Simulation(NullSimulation):
         #---------------------------------------------------------------------
         D.d[:,:] = D_2.d[:,:]
         Dh.d[:,:] = Dh_2.d[:,:]
-        self.react_state(S=self.compute_S(u=u_MAC, v=v_MAC), D=D, Dh=Dh, u=u_MAC, v=v_MAC, u0=u0_MAC)
+        scalar.d[:,:] = scalar_2.d[:,:]
+        self.react_state(S=self.compute_S(u=u_MAC, v=v_MAC), D=D, Dh=Dh, scalar=scalar, u=u_MAC, v=v_MAC, u0=u0_MAC)
 
         self.cc_data.fill_BC("density")
         self.cc_data.fill_BC("enthalpy")
+        self.cc_data.fill_BC("scalar")
 
         #---------------------------------------------------------------------
         # 10. Define the new time expansion S and Gamma1
@@ -1709,6 +1733,10 @@ class Simulation(NullSimulation):
                 var.d[myg.jhi+gz] = var.d[myg.jhi]
 
         plot_me.d[:,:] =  D.d - D_old.d
+
+        # FIXME: hacky ceil-/flooring of scalars
+        #scalar.d[scalar.d < 0.] = 0.
+        #scalar.d[scalar.d > D.d] = D.d[scalar.d > D.d]
 
         # increment the time
         if not self.in_preevolve:

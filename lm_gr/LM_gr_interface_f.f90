@@ -1,3 +1,6 @@
+! build with
+! python setup.py build_ext --inplace
+
 function is_symmetric_pair(qx, qy, ng, nodal, sl, sr) result (sym)
 
   implicit none
@@ -456,7 +459,7 @@ subroutine psi_states(qx, qy, ng, dx, dy, dt, &
   integer :: i, j
 
   double precision :: dtdx, dtdy
-  double precision :: u_x, v_y, psiv_y, psiu_x
+  double precision :: psi_y, psi_x
 
   nx = qx - 2*ng; ny = qy - 2*ng
   ilo = ng; ihi = ng+nx-1; jlo = ng; jhi = ng+ny-1
@@ -489,22 +492,17 @@ subroutine psi_states(qx, qy, ng, dx, dy, dt, &
   do j = jlo-2, jhi+2
      do i = ilo-2, ihi+2
 
-        u_x = (u_MAC(i+1,j) - u_MAC(i,j))/dx
-        v_y = (v_MAC(i,j+1) - v_MAC(i,j))/dy
+        ! v psi_y is the transverse term for the x-interfaces
+        psi_y = (psi_yint(i,j+1) - psi_yint(i,j))/dy
 
-        ! (rho v)_y is the transverse term for the x-interfaces
-        ! rho u_x is the non-advective piece for the x-interfaces
-        psiv_y = v_y * (psi_yint(i,j+1) - psi_yint(i,j))/dy
+        psi_xl(i+1,j) = psi_xl(i+1,j) - 0.5 * dt * v_MAC(i,j) * psi_y
+        psi_xr(i  ,j) = psi_xr(i  ,j) - 0.5 * dt * v_MAC(i,j) * psi_y
 
-        psi_xl(i+1,j) = psi_xl(i+1,j) - 0.5 * dt * psiv_y
-        psi_xr(i  ,j) = psi_xr(i  ,j) - 0.5 * dt * psiv_y
+        ! u psi_x is the transverse term for the y-interfaces
+        psi_x = (psi_xint(i+1,j) - psi_xint(i,j))/dx
 
-        ! (rho u)_x is the transverse term for the y-interfaces
-        ! rho v_y is the non-advective piece for the y-interfaces
-        psiu_x = u_x * (psi_xint(i+1,j) - psi_xint(i,j))/dx
-
-        psi_yl(i,j+1) = psi_yl(i,j+1) - 0.5 * dt * psiu_x
-        psi_yr(i,j  ) = psi_yr(i,j  ) - 0.5 * dt * psiu_x
+        psi_yl(i,j+1) = psi_yl(i,j+1) - 0.5 * dt * u_MAC(i,j) * psi_x
+        psi_yr(i,j  ) = psi_yr(i,j  ) - 0.5 * dt * u_MAC(i,j) * psi_x
 
      enddo
   enddo

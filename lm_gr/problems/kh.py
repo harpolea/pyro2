@@ -64,7 +64,7 @@ def init_data(my_data, base, rp, metric):
     idx = (myg.y2d[:,:] > yctr)
     dens.d[idx] = rho_2 + rho_m * np.exp((-myg.y2d[idx] + 0.5)/L_x)
     u.d[idx] = u_2 + u_m * np.exp((-myg.y2d[idx] + 0.5)/L_x)
-    scalar.d[idx] = 1.
+    scalar.d[idx] = 1. #+ 0.5 * np.exp((-myg.y2d[idx] + 0.5)/L_x)
 
     #dens.v()[:, :] *= \
     #    np.exp(-g * myg.y[np.newaxis, myg.jlo:myg.jhi+1] /
@@ -102,6 +102,7 @@ def init_data(my_data, base, rp, metric):
     old_p0 = p0.copy()
     u.d[:,:] /= u0.d
     v.d[:,:] /= u0.d
+    scalar.d[:,:] *= dens.d
 
     my_data.fill_BC_all()
 
