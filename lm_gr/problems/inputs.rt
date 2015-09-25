@@ -1,13 +1,13 @@
 # simple inputs files for the Rayleigh-Taylor problem.
 
 [driver]
-max_steps = 600
+max_steps = 10000
 tmax = 1.e8
 
 
 [io]
-basename = ../../Work/pyro/results/rt_256_
-n_out = 1
+basename = ../../Work/pyro/results/rt/rt_256_
+n_out = 20
 do_io = 1                   ; do we output at all?
 
 [vis]

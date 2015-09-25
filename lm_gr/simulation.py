@@ -2,17 +2,9 @@
 TODO: MAKE IT POSSIBLE TO START A PROGRAM FROM EXISTING OUTPUT FILE?
 e.g. maybe do a dump of EVERYTHING at the end of the program so that it's possible to read this in and set up the problem in the state it left off.
 
-TODO: updateZeta?? What is zeta actually supposed to be? How is it calculated?
-
 TODO: D ln u0/Dt term in momentum equation?
 
-FIXME: base state boundary conditions
-
 FIXME: check edge/cell-centred/time-centred quantities used correctly
-
-FIXME: add mom_source_x to momentum equation evolution.
-In pyro, only have this in the y direction do will need to change the fortran
-to allow sourcing in the x direction.
 
 CHANGED: moved tov update in steps 4 and 8 to after the Dh0 update as it is a
 function of Dh0
@@ -322,7 +314,6 @@ class Simulation(NullSimulation):
         gamma = self.rp.get_param("eos.gamma")
         self.base["zeta"] = Basestate(myg.ny, ng=myg.ng)
         D0 = self.base["D0"]
-        # FIXME: check whether this is D or rho
         self.base["zeta"].d[:] = D0.d
 
         # we'll also need zeta on vertical edges -- on the domain edges,
@@ -519,7 +510,6 @@ class Simulation(NullSimulation):
         chrls = self.metric.chrls
 
         # note metric components needed to lower the christoffel symbols
-        # NOTE: tried putting D'/D factor in here to see if could drive some movement upwards but it did not do so as desired.
         mom_source_x.d[:,:] = (gtt[np.newaxis,:] * chrls[:,:,0,0,1] +
             (gxx[np.newaxis,:] * chrls[:,:,1,0,1] +
              gtt[np.newaxis,:] * chrls[:,:,0,1,1]) * u.d +
@@ -543,7 +533,6 @@ class Simulation(NullSimulation):
 
         mom_source_x.d[:,:] *=  self.metric.alpha.d2d()**2
         mom_source_r.d[:,:] *=  self.metric.alpha.d2d()**2
-        #pdb.set_trace()
 
         return mom_source_x, mom_source_r
 
@@ -677,7 +666,6 @@ class Simulation(NullSimulation):
         dr = myg.dy
         if U0 is None:
             U0 = self.base["U0"]
-        # CHANGED: use proper U_0
         # FIXME: time-centred edge states
 
         D0.v()[:] += -(D0.jp(1) * U0.jp(1) - D0.v() * U0.v()) * dt / dr
@@ -1051,8 +1039,6 @@ class Simulation(NullSimulation):
         U0_half_star = U0.copy()
         self.compute_base_velocity(U0=U0_half_star, S=S_t_centred, u0=u0)
 
-        #pdb.set_trace()
-
         # FIXME: base state forcing? Where is it actually used??
 
         #---------------------------------------------------------------------
@@ -1209,7 +1195,6 @@ class Simulation(NullSimulation):
                                             myg.dx, myg.dy, self.dt,
                                             D0.d2df(myg.qx), U0_x.d, U0_half_star.d2df(myg.qx),
                                             ldelta_r0x, ldelta_r0y)
-                                            #D0.d2df(myg.qx), u_MAC.d, v_MAC.d,
 
 
         D0_xint = patch.ArrayIndexer(d=_r0x, grid=myg)
@@ -1219,7 +1204,6 @@ class Simulation(NullSimulation):
         D02d.d[:,:] = D0.d2d()[:,:]
         D02d.v()[:,:] -= self.dt*(
             #  (D v)_y
-            #(D0_yint.jp(1)*v_MAC.jp(1) - D0_yint.v()*v_MAC.v())/myg.dy)
             (D0_yint.jp(1) * U0_half_star.jp(1)[np.newaxis,:] - \
              D0_yint.v() * U0_half_star.v2d())/myg.dy)
 
@@ -1246,7 +1230,6 @@ class Simulation(NullSimulation):
         D_old = D.copy()
         D_2_star = D_1.copy()
 
-        # CHANGED: isn't there supposed to be a U0 term here?
         D_2_star.v()[:,:] -= self.dt * (
             #  (D u)_x
             (D_xint.ip(1) * u_MAC.ip(1) - D_xint.v() * u_MAC.v())/myg.dx +
@@ -1291,8 +1274,6 @@ class Simulation(NullSimulation):
                                              myg.dx, myg.dy, self.dt,
                                              Dh0.d2df(myg.qx), U0_x.d, U0_half_star.d2df(myg.qx),
                                              ldelta_e0x, ldelta_e0y)
-                                             #Dh0.d2df(myg.qx), u_MAC.d, v_MAC.d,
-                                             #ldelta_e0x, ldelta_e0y)
 
         Dh0_yint = patch.ArrayIndexer(d=_e0y, grid=myg)
         Dh0_xint = patch.ArrayIndexer(d=_e0x, grid=myg)
@@ -1304,8 +1285,6 @@ class Simulation(NullSimulation):
             (Dh0_yint.jp(1) * U0_half_star.jp(1)[np.newaxis,:] - \
              Dh0_yint.v() * U0_half_star.v2d())/myg.dy) + \
             self.dt * u0_MAC.v() * psi.v()
-            #(Dh0_yint.jp(1)*v_MAC.jp(1) - Dh0_yint.v()*v_MAC.v())/myg.dy) + \
-            #self.dt * u0.v() * psi.v()
 
         # predict to edges
         Dh0_star = Dh0.copy()
@@ -1376,15 +1355,13 @@ class Simulation(NullSimulation):
         U0_half = U0_half_star.copy()
         self.compute_base_velocity(U0=U0_half, p0=p0_half_star, S=S_half_star, Dh0=Dh0_star, u=u_MAC, v=v_MAC, u0=u0_MAC)
 
-        #pdb.set_trace()
-
         #---------------------------------------------------------------------
         # 7. recompute the interface states, using the advective velocity
         # from above
         #---------------------------------------------------------------------
         if self.verbose > 0:
             print("  making u, v edge states")
-        # FIXME: what Dh are we using here??
+        # FIXME: which Dh are we using here??
         mom_source_x, mom_source_r = self.calc_mom_source(u=u_MAC, v=v_MAC, u0=u0_MAC)
         coeff = self.aux_data.get_var("coeff")
         coeff.d[:,:] = 2.0 / ((Dh.d + Dh_old.d) * u0.d)
@@ -1451,13 +1428,8 @@ class Simulation(NullSimulation):
 
         u0 = self.metric.calcu0(u=u, v=v)
 
-        #pdb.set_trace()
-
         self.cc_data.fill_BC("x-velocity")
         self.cc_data.fill_BC("y-velocity")
-
-        #print("min/max D = {}, {}".format(D.v().min(), D.v().max()))
-        #print("min/max Dh = {}, {}".format(Dh.v().min(), Dh.v().max()))
 
         if self.verbose > 0:
             print("min/max D = {}, {}".format(self.cc_data.min("density"), self.cc_data.max("density")))
@@ -1491,8 +1463,6 @@ class Simulation(NullSimulation):
 
         D0_xint = patch.ArrayIndexer(d=_r0x, grid=myg)
         D0_yint = patch.ArrayIndexer(d=_r0y, grid=myg)
-
-        #D0_old = D0.copy()
 
         D02d = myg.scratch_array()
         D02d.d[:,:] = D0.d2d()
@@ -1539,7 +1509,7 @@ class Simulation(NullSimulation):
         #---------------------------------------------------------------------
         # predict Dh to the edges and do its conservative update
         #---------------------------------------------------------------------
-        # FIXME: this step is in 4G but not 8G, so going to assume that this is a mistake?
+        # CHANGED: this step is in 4G but not 8G, so going to assume that this is a mistake?
         Dh0.v()[:] = self.lateral_average(Dh_1.v())
 
         _ex, _ey = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
@@ -1606,7 +1576,6 @@ class Simulation(NullSimulation):
         #---------------------------------------------------------------------
         # 9. React state through dt/2
         #---------------------------------------------------------------------
-        # CHANGED: I do not trust python
         D.d[:,:] = D_2.d[:,:]
         Dh.d[:,:] = Dh_2.d[:,:]
         self.react_state(S=self.compute_S(u=u_MAC, v=v_MAC), D=D, Dh=Dh, u=u_MAC, v=v_MAC, u0=u0_MAC)
@@ -1628,8 +1597,6 @@ class Simulation(NullSimulation):
         #base_forcing = self.base_state_forcing(U0_half=U0_half, U0_old_half=U0_old_half, Dh0_old=Dh0_old, Dh0=Dh0, u=u, v=v)
 
         #U0_old_half.d[:] = U0_half.d
-
-        #pdb.set_trace()
 
         #---------------------------------------------------------------------
         # 11. project the final velocity
@@ -1698,10 +1665,7 @@ class Simulation(NullSimulation):
         u.v()[:,:] += self.dt * (-coeff.v() * gradphi_x.v())
         v.v()[:,:] += self.dt * (-coeff.v() * gradphi_y.v())# + base_forcing.v())
 
-        # self.advect_scalar()
-
         # store gradp for the next step
-
         if proj_type == 1:
             gradp_x.v()[:,:] += gradphi_x.v()
             gradp_y.v()[:,:] += gradphi_y.v()
@@ -1711,7 +1675,6 @@ class Simulation(NullSimulation):
             gradp_y.v()[:,:] = gradphi_y.v()
 
         # enforce boundary conditions
-
         self.cc_data.fill_BC("x-velocity")
         self.cc_data.fill_BC("y-velocity")
 
@@ -1723,9 +1686,6 @@ class Simulation(NullSimulation):
             for gz in range(1,myg.ng):
                 var.d[myg.jlo-gz] = var.d[myg.jlo]
                 var.d[myg.jhi+gz] = var.d[myg.jhi]
-
-                # reflect lower boundary, outflow upper
-                # var.d[myg.jlo-gz] = var.d[myg.jlo + gz - 1]
 
         plot_me.d[:,:] =  D.d - D_old.d
 

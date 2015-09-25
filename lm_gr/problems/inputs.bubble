@@ -13,7 +13,7 @@ c = 10.0
 radius = 1000.0
 
 [io]
-basename = ../../Documents/Work/pyro/bubble_256_   ; basename for output files
+basename = ../../Documents/Work/pyro/bubble/bubble_256_   ; basename for output files
 n_out = 10                   ; number of timesteps between writing output files
 do_io = 1                   ; do we output at all?
 

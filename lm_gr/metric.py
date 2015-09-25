@@ -74,7 +74,7 @@ class Metric:
 
     # cannot use numba here as it doesn't support list comprehensions :(
     def calcW(self, u=None, v=None):
-        """
+        r"""
         Calculates the Lorentz factor and returns it.
 
         Variables
@@ -105,24 +105,13 @@ class Metric:
             v = self.cc_data.get_var("y-velocity")
         c = self.rp.get_param("lm-gr.c")
 
-        # for loop here as otherwise my brain hurts
-        # FIXME: I think the for-loop here might be seriously slowing stuff down as u0 is calculated quite a lot. Do this with slicing.
         Vs = np.array([[np.array([u.d[i,j], v.d[i,j]]) + self.beta
             for j in range(myg.qy)] for i in range(myg.qx)])
 
-        #W.d[:,:] = np.array([[ (np.mat(Vs[i,j,:]) *
-        #    np.mat(self.gamma[i,j,:,:]) * np.mat(Vs[i,j,:]).T).item()
-        #    for j in range(myg.qy)] for i in range(myg.qx)])
         W.d[:,:] = np.array([[ np.dot(np.dot(Vs[i,j,:],
             self.gamma[i,j,:,:]), np.transpose(Vs[i,j,:]))
             for j in range(myg.qy)] for i in range(myg.qx)])
 
-        #for i in range(self.cc_data.grid.qx):
-        #    for j in range(self.cc_data.grid.qy):
-        #        V = np.array([u.d[i,j], v.d[i,j]]) + self.beta
-        #        # set W = V^i*V_i = V^i * gamma_ij * V^j
-        #        # TODO: do this with numpy einsum
-        #        W.d[i,j] = (np.mat(V) * np.mat(self.gamma[i,j,:,:]) * np.mat(V).T).item()
         W.d[:,:] = 1. - W.d / (self.alpha.d2d()**2 * c**2)
 
         try:
