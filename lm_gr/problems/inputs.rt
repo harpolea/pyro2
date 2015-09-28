@@ -1,14 +1,14 @@
 # simple inputs files for the Rayleigh-Taylor problem.
 
 [driver]
-max_steps = 100
+max_steps = 1000
 tmax = 1.e8
 
 
 [io]
 basename = ../../Work/pyro/results/rt/rt_64_sc_
 n_out = 1
-do_io = 0                   ; do we output at all?
+do_io = 1                   ; do we output at all?
 
 [vis]
 
@@ -39,3 +39,7 @@ gamma = 1.4
 [lm-gr]
 limiter = 2
 c = 1000.0
+
+[driver]
+
+cfl = 0.25

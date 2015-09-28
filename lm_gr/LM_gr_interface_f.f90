@@ -459,7 +459,7 @@ subroutine psi_states(qx, qy, ng, dx, dy, dt, &
   integer :: i, j
 
   double precision :: dtdx, dtdy
-  double precision :: psi_y, psi_x
+  double precision :: ubar, vbar, psi_y, psi_x
 
   nx = qx - 2*ng; ny = qy - 2*ng
   ilo = ng; ihi = ng+nx-1; jlo = ng; jhi = ng+ny-1
@@ -492,17 +492,20 @@ subroutine psi_states(qx, qy, ng, dx, dy, dt, &
   do j = jlo-2, jhi+2
      do i = ilo-2, ihi+2
 
+        ubar = 0.5d0*(u_MAC(i,j) + u_MAC(i+1,j))
+        vbar = 0.5d0*(v_MAC(i,j) + v_MAC(i,j+1))
+
         ! v psi_y is the transverse term for the x-interfaces
         psi_y = (psi_yint(i,j+1) - psi_yint(i,j))/dy
 
-        psi_xl(i+1,j) = psi_xl(i+1,j) - 0.5 * dt * v_MAC(i,j) * psi_y
-        psi_xr(i  ,j) = psi_xr(i  ,j) - 0.5 * dt * v_MAC(i,j) * psi_y
+        psi_xl(i+1,j) = psi_xl(i+1,j) - 0.5 * dt * vbar * psi_y
+        psi_xr(i  ,j) = psi_xr(i  ,j) - 0.5 * dt * vbar * psi_y
 
         ! u psi_x is the transverse term for the y-interfaces
         psi_x = (psi_xint(i+1,j) - psi_xint(i,j))/dx
 
-        psi_yl(i,j+1) = psi_yl(i,j+1) - 0.5 * dt * u_MAC(i,j) * psi_x
-        psi_yr(i,j  ) = psi_yr(i,j  ) - 0.5 * dt * u_MAC(i,j) * psi_x
+        psi_yl(i,j+1) = psi_yl(i,j+1) - 0.5 * dt * ubar * psi_x
+        psi_yr(i,j  ) = psi_yr(i,j  ) - 0.5 * dt * ubar * psi_x
 
      enddo
   enddo

@@ -328,7 +328,8 @@ class Simulation(NullSimulation):
         S = self.aux_data.get_var("source_y")
         S = self.compute_S()
         oldS = self.aux_data.get_var("old_source_y")
-        oldS = S.copy()
+        oldS = myg.scratch_array()
+        oldS.d[:,:] = S.d
 
 
     # This is basically unused now.
@@ -350,6 +351,25 @@ class Simulation(NullSimulation):
             2d perturbation, :math: `a-a_0`
         """
         return a - a0.v2d(buf=a0.ng)
+
+    @staticmethod
+    def smooth_neighbours(a, mask):
+        """
+        Returns smoothed version of state: points satisfying logical input will be replaced by the average of their four immediate neighbours.
+
+        Parameters
+        ----------
+        a : Grid2d
+            2d full state
+        mask : logical
+            logical mask of which points to smooth
+
+        Returns
+        -------
+        smooth_neighbours : float array
+        """
+
+        a.v()[mask] = 0.25 * (a.jp(1)[mask] + a.jp(-1)[mask] + a.ip(1)[mask] + a.ip(-1)[mask])
 
 
     @staticmethod
@@ -705,7 +725,8 @@ class Simulation(NullSimulation):
         if p0 is None:
             p0 = self.base["p0"]
         old_p0 = self.base["old_p0"]
-        old_p0 = p0.copy()
+        old_p0 = Basestate(myg.ny, ng=myg.ng)
+        old_p0.d[:] = p0.d
         drp0 = self.drp0(Dh0=Dh0, u=u, v=v, u0=u0)
 
         p0.d[1:] = p0.d[:-1] + 0.5 * self.cc_data.grid.dy * \
@@ -861,14 +882,16 @@ class Simulation(NullSimulation):
         Dh = self.cc_data.get_var("enthalpy")
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
+        scalar = self.cc_data.get_var("scalar")
 
         self.cc_data.fill_BC("density")
         self.cc_data.fill_BC("enthalpy")
         self.cc_data.fill_BC("x-velocity")
         self.cc_data.fill_BC("y-velocity")
+        self.cc_data.fill_BC("scalar")
 
         oldS = self.aux_data.get_var("old_source_y")
-        oldS = self.aux_data.get_var("source_y").copy()
+        oldS.d[:,:] = self.aux_data.get_var("source_y").d
 
         # a,b. do the initial projection.  This makes sure that our original
         # velocity field satisties div U = 0
@@ -1024,9 +1047,12 @@ class Simulation(NullSimulation):
         #---------------------------------------------------------------------
         # 1. React state through dt/2
         #---------------------------------------------------------------------
-        D_1 = D.copy()
-        Dh_1 = Dh.copy()
-        scalar_1 = scalar.copy()
+        D_1 = myg.scratch_array()
+        D_1.d[:,:] = D.d
+        Dh_1 = myg.scratch_array()
+        Dh_1.d[:,:] = Dh.d
+        scalar_1 = myg.scratch_array()
+        scalar_1.d[:,:] = scalar.d
         self.react_state(D=D_1, Dh=Dh_1, scalar=scalar_1, u0=u0)
 
         #---------------------------------------------------------------------
@@ -1041,7 +1067,8 @@ class Simulation(NullSimulation):
             S_t_centred.d[:,:] = S.d + \
                 self.dt * 0.5 * (S.d - oldS.d) / self.dt_old
 
-        U0_half_star = U0.copy()
+        U0_half_star = Basestate(myg.ny, ng=myg.ng)
+        U0_half_star.d[:] = U0.d
         self.compute_base_velocity(U0=U0_half_star, S=S_t_centred, u0=u0)
 
         # FIXME: base state forcing? Where is it actually used??
@@ -1194,8 +1221,8 @@ class Simulation(NullSimulation):
                                              D_1.d, u_MAC.d, v_MAC.d,
                                              ldelta_rx, ldelta_ry)
 
-        psi_1 = scalar_1.copy()
-        psi_1.d[:,:] /= D_1.d
+        psi_1 = myg.scratch_array()
+        psi_1.d[:,:] = scalar_1.d / D_1.d
         ldelta_px = limitFunc(1, psi_1.d, myg.qx, myg.qy, myg.ng)
         ldelta_py = limitFunc(2, psi_1.d, myg.qx, myg.qy, myg.ng)
         _px, _py = lm_interface_f.psi_states(myg.qx, myg.qy, myg.ng,
@@ -1221,7 +1248,8 @@ class Simulation(NullSimulation):
              D0_yint.v() * U0_half_star.v2d())/myg.dy)
 
         # predict to edges
-        D0_2a_star = D0.copy()
+        D0_2a_star = Basestate(myg.ny, ng=myg.ng)
+        D0_2a_star.d[:] = D0.d
         D0_2a_star.v()[:] = self.lateral_average(D02d.v())
 
         ldelta_r0x = limitFunc(1, D0_2a_star.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
@@ -1243,16 +1271,24 @@ class Simulation(NullSimulation):
         D_xint.d[:,:] += 0.5 * (D0_xint.d + D0_2a_xint.d)
         D_yint.d[:,:] += 0.5 * (D0_yint.d + D0_2a_yint.d)
 
-        scalar_xint = psi_xint.copy()
-        scalar_xint.d[:,:] *= D_xint.d
-        scalar_yint = psi_yint.copy()
-        scalar_yint.d[:,:] *= D_yint.d
+        # FIXME: hacky ceil-/flooring of scalars
+        #psi_xint.d[psi_xint.d < 0.] = 0.
+        #psi_yint.d[psi_yint.d < 0.] = 0.
+        #self.smooth_neighbours(psi_xint, psi_xint.v() > 1.)
+        #self.smooth_neighbours(psi_yint, psi_yint.v() > 1.)
 
-        print("min/max scalar = {}, {}".format(psi_yint.d.min(), psi_yint.d.max()))
+        scalar_xint = myg.scratch_array()
+        scalar_xint.d[:,:] = psi_xint.d * D_xint.d
 
-        D_old = D.copy()
-        scalar_2_star = scalar_1.copy()
-        D_2_star = D_1.copy()
+        scalar_yint = myg.scratch_array()
+        scalar_yint.d[:,:] = psi_yint.d * D_yint.d
+
+        D_old = myg.scratch_array()
+        D_old.d[:,:] = D.d
+        scalar_2_star = myg.scratch_array()
+        scalar_2_star.d[:,:] = scalar_1.d
+        D_2_star = myg.scratch_array()
+        D_2_star.d[:,:] = D_1.d
 
         scalar_2_star.v()[:,:] -= self.dt * (
             #  (psi D u)_x
@@ -1268,8 +1304,8 @@ class Simulation(NullSimulation):
             (D_yint.jp(1)*(v_MAC.jp(1) + U0_half_star.jp(1)[np.newaxis,:]) -
              D_yint.v() * (v_MAC.v() + U0_half_star.v2d())) / myg.dy )
 
-        # 4D Correct D0
-        D0_star = D0_2a_star.copy()
+        D0_star = Basestate(myg.ny, ng=myg.ng)
+        D0_star.d[:] = D0_2a_star.d
         D0_star.v()[:] = self.lateral_average(D_2_star.v())
 
         # 4F: compute psi^n+1/2,*
@@ -1304,7 +1340,8 @@ class Simulation(NullSimulation):
             self.dt * u0_MAC.v() * psi.v()
 
         # predict to edges
-        Dh0_star = Dh0.copy()
+        Dh0_star = Basestate(myg.ny, ng=myg.ng)
+        Dh0_star.d[:] = Dh0.d
         Dh0_star.v()[:] = self.lateral_average(Dh02d.v())
 
         ldelta_e0x = limitFunc(1, Dh0_star.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
@@ -1323,8 +1360,10 @@ class Simulation(NullSimulation):
         Dh_xint.d[:,:] += 0.5 * (Dh0_xint.d + Dh0_star_xint.d)
         Dh_yint.d[:,:] += 0.5 * (Dh0_yint.d + Dh0_star_yint.d)
 
-        Dh_old = Dh_1.copy()
-        Dh_2_star = Dh_1.copy()
+        Dh_old = myg.scratch_array()
+        Dh_old.d[:,:] = Dh_1.d
+        Dh_2_star = myg.scratch_array()
+        Dh_2_star.d[:,:] = Dh_1.d
         # Dh0 is not edge based?
         drp0 = self.drp0(Dh0=Dh0, u=u_MAC, v=v_MAC, u0=u0_MAC)
 
@@ -1342,7 +1381,8 @@ class Simulation(NullSimulation):
 
         # this makes p0 -> p0_star. May not want to update self.base[p0] here.
         p0 = self.base["p0"]
-        p0_star = p0.copy()
+        p0_star = Basestate(myg.ny, ng=myg.ng)
+        p0_star.d[:] = p0.d
         self.enforce_tov(p0=p0_star, Dh0=Dh0_star, u=u_MAC, v=v_MAC, u0=u0_MAC)
 
         # update eint as a diagnostic
@@ -1354,11 +1394,18 @@ class Simulation(NullSimulation):
         #---------------------------------------------------------------------
         # 5. React state through dt/2
         #---------------------------------------------------------------------
-        D_star = D_2_star.copy()
-        Dh_star = Dh_2_star.copy()
-        scalar_star = scalar_2_star.copy()
+        D_star = myg.scratch_array()
+        D_star.d[:,:] = D_2_star.d
+        Dh_star = myg.scratch_array()
+        Dh_star.d[:,:] = Dh_2_star.d
+        scalar_star = myg.scratch_array()
+        scalar_star.d[:,:] = scalar_2_star.d
         self.react_state(S=self.compute_S(u=u_MAC, v=v_MAC),
                          D=D_star, Dh=Dh_star, scalar=scalar_star, Dh0=Dh0_star, u=u_MAC, v=v_MAC, u0=u0_MAC)
+
+        # FIXME: hacky ceil-/flooring of scalars
+        #scalar_star.d[scalar_star.d < 0.] = 0.
+        #self.smooth_neighbours(scalar_star, scalar_star.v() > D_star.v())
 
         #---------------------------------------------------------------------
         # 6. Compute time-centred expasion S, base state velocity U0 and
@@ -1370,7 +1417,8 @@ class Simulation(NullSimulation):
 
         p0_half_star = 0.5 * (p0 + p0_star)
 
-        U0_half = U0_half_star.copy()
+        U0_half = Basestate(myg.ny, ng=myg.ng)
+        U0_half.d[:] = U0_half_star.d
         self.compute_base_velocity(U0=U0_half, p0=p0_half_star, S=S_half_star, Dh0=Dh0_star, u=u_MAC, v=v_MAC, u0=u0_MAC)
 
         #---------------------------------------------------------------------
@@ -1384,7 +1432,8 @@ class Simulation(NullSimulation):
         coeff = self.aux_data.get_var("coeff")
         coeff.d[:,:] = 2.0 / ((Dh.d + Dh_old.d) * u0.d)
 
-        zeta_star = zeta.copy()
+        zeta_star = Basestate(myg.ny, ng=myg.ng)
+        zeta_star.d[:] = zeta.d
         self.update_zeta(D0=D0_star, zeta=zeta_star, u=u_MAC, v=v_MAC, u0=u0_MAC)
         zeta_half_star = 0.5 * (zeta + zeta_star)
         coeff.d[:,:] *= zeta_half_star.d2d()
@@ -1454,7 +1503,7 @@ class Simulation(NullSimulation):
             print("min/max Dh  = {}, {}".format(self.cc_data.min("enthalpy"), self.cc_data.max("enthalpy")))
             print("min/max u   = {}, {}".format(self.cc_data.min("x-velocity"), self.cc_data.max("x-velocity")))
             print("min/max v   = {}, {}".format(self.cc_data.min("y-velocity"), self.cc_data.max("y-velocity")))
-            print("min/max psi = {}, {}".format(self.cc_data.min("scalar"), self.cc_data.max("scalar")))
+            print("min/max psi*D = {}, {}".format(self.cc_data.min("scalar"), self.cc_data.max("scalar")))
 
         #---------------------------------------------------------------------
         # 8. predict D to the edges and do update
@@ -1499,7 +1548,8 @@ class Simulation(NullSimulation):
              D0_yint.v() * U0_half.v2d())/myg.dy)
 
         # predict to edges
-        D0_2a = D0.copy()
+        D0_2a = Basestate(myg.ny, ng=myg.ng)
+        D0_2a.d[:] = D0.d
         D0_2a.v()[:] = self.lateral_average(D02d.v())
 
         ldelta_r0x = limitFunc(1, D0_2a.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
@@ -1518,15 +1568,24 @@ class Simulation(NullSimulation):
         psi_xint = patch.ArrayIndexer(d=_px, grid=myg)
         psi_yint = patch.ArrayIndexer(d=_py, grid=myg)
 
+        # FIXME: hacky ceil-/flooring of scalars
+        #psi_xint.d[psi_xint.d < 0.] = 0.
+        #psi_yint.d[psi_yint.d < 0.] = 0.
+        #self.smooth_neighbours(psi_xint, psi_xint.v() > 1.)
+        #self.smooth_neighbours(psi_yint ,psi_yint.v() > 1.)
+
         D_xint.d[:,:] += 0.5 * (D0_xint.d + D0_2a_xint.d)
         D_yint.d[:,:] += 0.5 * (D0_yint.d + D0_2a_yint.d)
 
         scalar_xint.d[:,:] = D_xint.d * psi_xint.d
         scalar_yint.d[:,:] = D_yint.d * psi_yint.d
 
-        D_old = D.copy()
-        scalar_2 = scalar_1.copy()
-        D_2 = D_1.copy()
+        D_old = myg.scratch_array()
+        D_old.d[:,:] = D.d
+        scalar_2 = myg.scratch_array()
+        scalar_2.d[:,:] = scalar_1.d
+        D_2 = myg.scratch_array()
+        D_2.d[:,:] = D_1.d
         D_2.v()[:,:] -= self.dt * (
             #  (D u)_x
             (D_xint.ip(1)*u_MAC.ip(1) - D_xint.v()*u_MAC.v())/myg.dx +
@@ -1568,7 +1627,8 @@ class Simulation(NullSimulation):
         Dh0_yint = patch.ArrayIndexer(d=_e0y, grid=myg)
 
         # FIXME: using the correct u0s here?
-        Dh0_old = Dh0.copy()
+        Dh0_old = Basestate(myg.ny, ng=myg.ng)
+        Dh0_old.d[:] = Dh0.d
 
         Dh02d = myg.scratch_array()
         Dh02d.d[:,:] = Dh0.d2d()
@@ -1596,8 +1656,10 @@ class Simulation(NullSimulation):
         Dh_xint.d[:,:] += 0.5 * (Dh0_xint.d + Dh0_n1_xint.d)
         Dh_yint.d[:,:] += 0.5 * (Dh0_yint.d + Dh0_n1_yint.d)
 
-        Dh_old = Dh.copy()
-        Dh_2 = Dh_1.copy()
+        Dh_old = myg.scratch_array()
+        Dh_old.d[:,:] = Dh.d
+        Dh_2 = myg.scratch_array()
+        Dh_2.d[:,:] = Dh_1.d
         drp0 = self.drp0(Dh0=Dh0, u=u_MAC, v=v_MAC, u0=u0_MAC)
 
         Dh_2.v()[:,:] += -self.dt * (
@@ -1631,7 +1693,8 @@ class Simulation(NullSimulation):
         #---------------------------------------------------------------------
         # 10. Define the new time expansion S and Gamma1
         #---------------------------------------------------------------------
-        oldS = S.copy()
+        oldS = myg.scratch_array()
+        oldS.d[:,:] = S.d
 
         S = self.compute_S(u=u_MAC, v=v_MAC)
 
@@ -1653,7 +1716,8 @@ class Simulation(NullSimulation):
         # create the coefficient array: zeta**2 / Dh u0
         Dh_half = 0.5 * (Dh_old + Dh)
         coeff = 1.0 / (Dh_half * u0)
-        zeta_old = zeta.copy()
+        zeta_old = Basestate(myg.ny, ng=myg.ng)
+        zeta_old.d[:] = zeta.d
         self.update_zeta(u=u_MAC, v=v_MAC, u0=u0_MAC)
         zeta_half = 0.5 * (zeta_old + zeta)
         coeff.d[:,:] *= zeta_half.d2d()**2
@@ -1736,7 +1800,7 @@ class Simulation(NullSimulation):
 
         # FIXME: hacky ceil-/flooring of scalars
         #scalar.d[scalar.d < 0.] = 0.
-        #scalar.d[scalar.d > D.d] = D.d[scalar.d > D.d]
+        #self.smooth_neighbours(scalar, scalar.v() > D.v())
 
         # increment the time
         if not self.in_preevolve:
@@ -1754,7 +1818,6 @@ class Simulation(NullSimulation):
 
         D = self.cc_data.get_var("density")
         scalar = self.cc_data.get_var("scalar")
-        scalar.d[:,:] /= D.d
 
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
@@ -1762,6 +1825,9 @@ class Simulation(NullSimulation):
         #plot_me = self.aux_data.get_var("plot_me")
 
         myg = self.cc_data.grid
+
+        psi = myg.scratch_array()
+        psi.d[:,:] = scalar.d / D.d
 
         magvel = np.sqrt(u**2 + v**2)
 
@@ -1777,7 +1843,7 @@ class Simulation(NullSimulation):
         fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.3)
 
-        fields = [D, magvel, scalar, vort]
+        fields = [D, magvel, psi, vort]
         field_names = [r"$D$", r"$|U|$", r"$\psi$", r"$\nabla\times U$"]
         colourmaps = [plt.cm.jet, plt.cm.jet, plt.cm.seismic,
                       plt.cm.seismic]
