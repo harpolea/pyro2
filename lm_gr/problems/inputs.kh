@@ -1,17 +1,17 @@
 [driver]
-max_steps = 600
+max_steps = 1000
 tmax = 1000000000.
 
 
 [lm-gr]
-limiter = 2
+limiter = 4
 c = 1000.0
 grav = 1.0
 
 
 [io]
-basename = ../../Work/pyro/results/kh/kh_64_sc_   ; basename for output files
-n_out = 1                   ; number of timesteps between writing output files
+basename = ../../Work/pyro/results/kh/kh_512_   ; basename for output files
+n_out = 10                   ; number of timesteps between writing output files
 do_io = 1                   ; do we output at all?
 
 [vis]
@@ -25,8 +25,8 @@ gamma = 1.4
 
 
 [mesh]
-nx = 64
-ny = 64
+nx = 512
+ny = 512
 xmax = 1.0
 ymax = 1.0
 
@@ -46,4 +46,4 @@ v_2 = -1.0
 
 [driver]
 
-cfl = 0.2
+cfl = 0.25

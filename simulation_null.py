@@ -109,7 +109,7 @@ class NullSimulation(object):
         do_io = self.rp.get_param("io.do_io")
 
         #is_time = self.cc_data.t >= (self.n_num_out + 1)*dt_out or self.n%n_out == 0
-        is_time = self.n%n_out == 0
+        is_time = (self.n%n_out == 0)
         if is_time and do_io == 1:
             self.n_num_out += 1
             return True

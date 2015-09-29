@@ -139,8 +139,8 @@ class Metric:
 
         W = self.calcW(u=u, v=v)
         myg = self.cc_data.grid
-        u0 = myg.scratch_array()
-        u0.d[:,:] = W.d / self.alpha.d2d()
+        u0 = myg.scratch_array(data=W.d/self.alpha.d2d())
+        #u0.d[:,:] = W.d / self.alpha.d2d()
 
         return u0
 

@@ -553,16 +553,17 @@ class Grid2d():
         self.y2d = y2d
 
 
-    def scratch_array(self, nvar=1):
+    def scratch_array(self, nvar=1, data=None):
         """
         return a standard numpy array dimensioned to have the size
         and number of ghostcells as the parent grid
         """
-        if nvar == 1:
-            _tmp = np.zeros((self.qx, self.qy), dtype=np.float64)
-        else:
-            _tmp = np.zeros((self.qx, self.qy, nvar), dtype=np.float64)
-        return ArrayIndexer(d=_tmp, grid=self)
+        if data is None:
+            if nvar == 1:
+                data = np.zeros((self.qx, self.qy), dtype=np.float64)
+            else:
+                data = np.zeros((self.qx, self.qy, nvar), dtype=np.float64)
+        return ArrayIndexer(d=data, grid=self)
 
 
     def norm(self, d):

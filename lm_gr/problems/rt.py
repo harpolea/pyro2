@@ -48,7 +48,7 @@ def init_data(my_data, base, rp, metric):
 
     ycentre = 0.5 * (myg.ymin + myg.ymax)
 
-    y_smooth = 0.04 * (myg.ymax - myg.ymin)
+    y_smooth = 0.0000004 * (myg.ymax - myg.ymin)
 
     p = myg.scratch_array()
 
