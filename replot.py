@@ -26,11 +26,15 @@ def makeplot(myd, solver_name, problem_name, outfile, W, H, n=0, vmins=[None, No
 
 def usage():
     usage="""
-usage: plot.py [-h] [-o image.png] solver filename
+usage: replot.py [-h] [-o image.png] [-s] solver problem basedir resolution start end
 
 positional arguments:
   solver        required inputs: solver name
-  filename      required inputs: filename to read from
+  problem       required inputs: problem name
+  basedir       required inputs: base directory to read from
+  resolution    required inputs: resolution of run
+  start         required inputs: first output to render
+  end           required inputs: last output to render
 
 optional arguments:
   -h, --help    show this help message and exit
@@ -38,6 +42,7 @@ optional arguments:
                 file, .eps will generate an EPS file (default: plot.png).
   -W width      width in inches
   -H height     height in inches
+  -s step       number of steps between renders
 """
     print (usage)
     sys.exit()
@@ -48,12 +53,55 @@ if __name__== "__main__":
     #reload(sys)
     #sys.setdefaultencoding('utf-8')
 
-    for i in range(0, 501):
-        outfile = "../../Work/pyro/results/rt/rt_128_sc_" +  format(i, '04') + ".png"
+    try:
+        opts, next = getopt.getopt(sys.argv[1:], "h:W:H:s:")
+    except getopt.GetoptError:
+        sys.exit("invalid calling sequence")
+
+    my_dpi = 96.
+    W = 1920/my_dpi
+    H = 1080/my_dpi
+    step = 1
+
+    for o, a in opts:
+        if o == "-h":
+            usage()
+        if o == "-W":
+            W = float(a)
+        if o == "-H":
+            H = float(a)
+        if o == "-s":
+            step = int(a)
+
+    try:
+        solver = next[0]
+    except:
+        usage()
+    try:
+        problem = next[1]
+    except:
+        usage()
+    try:
+        basedir = next[2]
+    except:
+        usage()
+    try:
+        resolution = next[3]
+    except:
+        usage()
+    try:
+        start = int(next[4])
+    except:
+        usage()
+    try:
+        end = int(next[5])
+    except:
+        usage()
+
+    for i in range(start, end+1, step):
+        base = basedir + "/" + problem + "/" + problem + "_" + str(resolution) + "_" + format(i, '04')
+        outfile = base + ".png"
         #outfile = "../../Work/pyro/results/kh_1024_" +  format(i, '04') + ".png"
-        my_dpi = 96.
-        W = 1920/my_dpi
-        H = 1080/my_dpi
 
         # bubble max and mins
         #vmins = [90., 0., -0.00075, -0.2]
@@ -64,15 +112,7 @@ if __name__== "__main__":
         #vmaxes = [105., 0.0003, 0.0003, 0.05]
 
         try:
-            solver = 'lm_gr'
-            #problem = 'bubble'
-            #problem = 'kh'
-            problem = 'rt'
-        except:
-            usage()
-
-        try:
-            file = "../../Work/pyro/results/rt/rt_128_sc_" +  format(i, '04') + ".pyro"
+            file = base + ".pyro"
             #file = "../../Work/pyro/results/kh_1024_" +  format(i, '04') + ".pyro"
         except:
             usage()

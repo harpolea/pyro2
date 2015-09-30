@@ -15,7 +15,7 @@ import numpy as np
 from util import msg
 
 def init_data(my_data, base, rp, metric):
-    """ initialize the bubble problem """
+    """ initialize the double bubble problem """
 
     msg.bold("initializing the bubble problem...")
 
@@ -31,6 +31,7 @@ def init_data(my_data, base, rp, metric):
     xvel = my_data.get_var("x-velocity")
     yvel = my_data.get_var("y-velocity")
     eint = my_data.get_var("eint")
+    scalar = my_data.get_var("scalar")
 
     g = rp.get_param("lm-gr.grav")
     c = rp.get_param("lm-gr.c")
@@ -60,6 +61,7 @@ def init_data(my_data, base, rp, metric):
     myg = my_data.grid
     print('Resolution: ', myg.nx, ' x ', myg.ny)
     pres = myg.scratch_array()
+    scalar.d[:,:] = 1.
 
     # FIXME: do this properly for gr case, add alpha back in
     j = myg.jlo
@@ -98,6 +100,7 @@ def init_data(my_data, base, rp, metric):
     eint.d[idx] = eint.d[idx] * pert_amplitude_factor
     dens.d[idx] = pres.d[idx] / (eint.d[idx] * (gamma - 1.0))
     enth.d[idx] = 1. + eint.d[idx] + pres.d[idx] / dens.d[idx]
+    scalar.d[idx] = 0.
 
     # redo the pressure via TOV
     u0 = metric.calcu0()
@@ -115,6 +118,7 @@ def init_data(my_data, base, rp, metric):
     D0.d[:] *= u0.d1d()
     Dh0.d[:] *= D0.d
     old_p0 = p0.copy()
+    scalar.d[:,:] *= dens.d
 
     my_data.fill_BC_all()
 

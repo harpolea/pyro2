@@ -48,7 +48,7 @@ def init_data(my_data, base, rp, metric):
 
     ycentre = 0.5 * (myg.ymin + myg.ymax)
 
-    y_smooth = 0.0000004 * (myg.ymax - myg.ymin)
+    y_smooth = 0.04 * (myg.ymax - myg.ymin)
 
     p = myg.scratch_array()
 
@@ -57,6 +57,7 @@ def init_data(my_data, base, rp, metric):
 
     # Some smoothing across boundary
     dens.d[:,:] = dens1 + (dens2 - dens1) * 0.5 * (1. + np.tanh(((myg.y2d - ycentre)/y_smooth)/0.9))
+    y_smooth *= 1.e-5
     scalar.d[:,:] = 1. * 0.5 * (1. + np.tanh(((myg.y2d - ycentre)/(y_smooth))/0.9))
 
     dens.v()[:, :] *= \

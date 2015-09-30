@@ -329,7 +329,6 @@ class Simulation(NullSimulation):
         S = self.compute_S()
         oldS = self.aux_data.get_var("old_source_y")
         oldS = myg.scratch_array(data=S.d)
-        #oldS.d[:,:] = S.d
 
 
     # This is basically unused now.
@@ -591,6 +590,65 @@ class Simulation(NullSimulation):
 
         return psi
 
+    def calc_T(self, p0=None, D=None, X=None, u=None, v=None, u0=None):
+        r"""
+        Calculates the temperature assuming an ideal gas with a mixed composition and a constant ratio of specific heats:
+        .. math::
+
+            p = \rho e (\gamma -1) = \frac{\rho k_B T}{\mu m_p}
+
+        The mean molecular weight, :math: `\mu`, is given by
+        .. math::
+
+            \mu = \left(\sum_k \frac{X_k}{A_k}\right)^{-1}
+
+        We model the system as being made purely of helium which burns into carbon. X is the fraction of carbon, so we can write
+        .. math::
+
+            \mu = (2+4X)^{-1}
+        """
+        myg = self.cc_data.grid
+        if p0 is None:
+            p0 = self.base["p0"]
+        if D is None:
+            D = self.cc_data.get_var("density")
+        if X is None:
+            X = 0.
+        if u0 is None:
+            u0 = self.metric.calcu0(u=u, v=v)
+        T = myg.scratch_array()
+
+        # mean molecular weight
+        mu = 1./(2. + 4. * X.d)
+        mp_kB = 1.21147e-8
+
+        # use p0 here as otherwise have to explicitly calculate pi somewhere?
+        T.d[:,:] = p0.d2d() * mu * u0.d * mp_kB / D.d
+
+        return T
+
+    def calc_Q_omega_dot(self, D=None, X=None, u=None, v=None, u0=None, p0=None, T=None):
+        r"""
+        Calculates the energy generation rate according to eq. 2 of Cavecchi, Levin, Watts et al 2015 and the creation rate
+        """
+        myg = self.cc_data.grid
+        if D is None:
+            D = self.cc_data.get_var("density")
+        if X is None:
+            X = 0.
+        if u0 is None:
+            u0 = self.metric.calcu0(u=u, v=v)
+        if T is None:
+            T = self.calc_T(p0=p0, D=D, X=X, u=u, v=v, u0=u0)
+        Q = myg.scratch_array()
+        omega_dot = myg.scratch_array()
+
+        Q.d[:,:] = 5.3e35 * (D.d / u0.d)**2 * ((1.-X.d) / T.d)**3 * np.exp(-4.4e9 / T.d)
+
+        # Hnuc = |Delta q|omega_dot, where Delta q is the change in binding energy. q_He = 2.83007e4 keV, q_C=9.2161753e4 keV
+        omega_dot.d[:,:] = Q.d * 1.e11 / 1.02318
+
+        return Q, omega_dot
 
     def base_state_forcing(self, U0_half=None, U0_old_half=None, Dh0_old=None, Dh0=None, u=None, v=None, u0=None):
         r"""
@@ -1051,11 +1109,8 @@ class Simulation(NullSimulation):
         # 1. React state through dt/2
         #---------------------------------------------------------------------
         D_1 = myg.scratch_array(data=D.d)
-        #D_1.d[:,:] = D.d
         Dh_1 = myg.scratch_array(data=Dh.d)
-        #Dh_1.d[:,:] = Dh.d
         scalar_1 = myg.scratch_array(data=scalar.d)
-        #scalar_1.d[:,:] = scalar.d
         self.react_state(D=D_1, Dh=Dh_1, scalar=scalar_1, u0=u0)
 
         #---------------------------------------------------------------------
@@ -1225,7 +1280,6 @@ class Simulation(NullSimulation):
                                              ldelta_rx, ldelta_ry)
 
         psi_1 = myg.scratch_array(data=scalar_1.d/D_1.d)
-        #psi_1.d[:,:] = scalar_1.d / D_1.d
         ldelta_px = limitFunc(1, psi_1.d, myg.qx, myg.qy, myg.ng)
         ldelta_py = limitFunc(2, psi_1.d, myg.qx, myg.qy, myg.ng)
         _px, _py = lm_interface_f.psi_states(myg.qx, myg.qy, myg.ng,
@@ -1243,7 +1297,7 @@ class Simulation(NullSimulation):
         D0_xint = patch.ArrayIndexer(d=_r0x, grid=myg)
         D0_yint = patch.ArrayIndexer(d=_r0y, grid=myg)
 
-        D02d = myg.scratch_array() #data=D0.d2df(myg.qx))
+        D02d = myg.scratch_array()
         D02d.d[:,:] = D0.d2d()[:,:]
         D02d.v()[:,:] -= self.dt*(
             #  (D v)_y
@@ -1281,17 +1335,11 @@ class Simulation(NullSimulation):
         #self.smooth_neighbours(psi_yint, psi_yint.v() > 1.)
 
         scalar_xint = myg.scratch_array(data=psi_xint.d*D_xint.d)
-        #scalar_xint.d[:,:] = psi_xint.d * D_xint.d
-
         scalar_yint = myg.scratch_array(data=psi_yint.d*D_yint.d)
-        #scalar_yint.d[:,:] = psi_yint.d * D_yint.d
 
         D_old = myg.scratch_array(data=D.d)
-        #D_old.d[:,:] = D.d
         scalar_2_star = myg.scratch_array(data=scalar_1.d)
-        #scalar_2_star.d[:,:] = scalar_1.d
         D_2_star = myg.scratch_array(data=D_1.d)
-        #D_2_star.d[:,:] = D_1.d
 
         scalar_2_star.v()[:,:] -= self.dt * (
             #  (psi D u)_x
@@ -1334,7 +1382,7 @@ class Simulation(NullSimulation):
         Dh0_yint = patch.ArrayIndexer(d=_e0y, grid=myg)
         Dh0_xint = patch.ArrayIndexer(d=_e0x, grid=myg)
 
-        Dh02d = myg.scratch_array() #data=Dh0.d2df(myg.qx))
+        Dh02d = myg.scratch_array()
         Dh02d.d[:,:] = Dh0.d2d()
         Dh02d.v()[:,:] += -self.dt * (
             #  (D v)_y
@@ -1364,9 +1412,7 @@ class Simulation(NullSimulation):
         Dh_yint.d[:,:] += 0.5 * (Dh0_yint.d + Dh0_star_yint.d)
 
         Dh_old = myg.scratch_array(data=Dh_1.d)
-        #Dh_old.d[:,:] = Dh_1.d
         Dh_2_star = myg.scratch_array(data=Dh_1.d)
-        #Dh_2_star.d[:,:] = Dh_1.d
         # Dh0 is not edge based?
         drp0 = self.drp0(Dh0=Dh0, u=u_MAC, v=v_MAC, u0=u0_MAC)
 
@@ -1398,11 +1444,8 @@ class Simulation(NullSimulation):
         # 5. React state through dt/2
         #---------------------------------------------------------------------
         D_star = myg.scratch_array(data=D_2_star.d)
-        #D_star.d[:,:] = D_2_star.d
         Dh_star = myg.scratch_array(data=Dh_2_star.d)
-        #Dh_star.d[:,:] = Dh_2_star.d
         scalar_star = myg.scratch_array(data=scalar_2_star.d)
-        #scalar_star.d[:,:] = scalar_2_star.d
         self.react_state(S=self.compute_S(u=u_MAC, v=v_MAC),
                          D=D_star, Dh=Dh_star, scalar=scalar_star, Dh0=Dh0_star, u=u_MAC, v=v_MAC, u0=u0_MAC)
 
@@ -1584,11 +1627,9 @@ class Simulation(NullSimulation):
         scalar_yint.d[:,:] = D_yint.d * psi_yint.d
 
         D_old = myg.scratch_array(data=D.d)
-        #D_old.d[:,:] = D.d
         scalar_2 = myg.scratch_array(data=scalar_1.d)
-        #scalar_2.d[:,:] = scalar_1.d
         D_2 = myg.scratch_array(data=D_1.d)
-        #D_2.d[:,:] = D_1.d
+
         D_2.v()[:,:] -= self.dt * (
             #  (D u)_x
             (D_xint.ip(1)*u_MAC.ip(1) - D_xint.v()*u_MAC.v())/myg.dx +
@@ -1660,9 +1701,7 @@ class Simulation(NullSimulation):
         Dh_yint.d[:,:] += 0.5 * (Dh0_yint.d + Dh0_n1_yint.d)
 
         Dh_old = myg.scratch_array(data=Dh.d)
-        #Dh_old.d[:,:] = Dh.d
         Dh_2 = myg.scratch_array(data=Dh_1.d)
-        #Dh_2.d[:,:] = Dh_1.d
         drp0 = self.drp0(Dh0=Dh0, u=u_MAC, v=v_MAC, u0=u0_MAC)
 
         Dh_2.v()[:,:] += -self.dt * (
@@ -1697,7 +1736,6 @@ class Simulation(NullSimulation):
         # 10. Define the new time expansion S and Gamma1
         #---------------------------------------------------------------------
         oldS = myg.scratch_array(data=S.d)
-        #oldS.d[:,:] = S.d
 
         S = self.compute_S(u=u_MAC, v=v_MAC)
 
@@ -1830,7 +1868,6 @@ class Simulation(NullSimulation):
         myg = self.cc_data.grid
 
         psi = myg.scratch_array(data=scalar.d/D.d)
-        #psi.d[:,:] = scalar.d / D.d
 
         magvel = np.sqrt(u**2 + v**2)
 
@@ -1848,7 +1885,7 @@ class Simulation(NullSimulation):
 
         fields = [D, magvel, psi, vort]
         field_names = [r"$D$", r"$|U|$", r"$\psi$", r"$\nabla\times U$"]
-        colourmaps = [plt.cm.jet, plt.cm.jet, plt.cm.seismic,
+        colourmaps = [plt.cm.jet, plt.cm.jet, plt.cm.YlGnBu,
                       plt.cm.seismic]
 
         # FIXME: get rid of me!!!!!!!
