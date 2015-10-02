@@ -12,8 +12,8 @@ c = 10.0
 radius = 1000.0
 
 [io]
-basename = ../../Work/pyro/results/bubble/bubble_512_   ; basename for output files
-n_out = 5                   ; number of timesteps between writing output files
+basename = ../../Work/pyro/results/bubble/bubble_64_   ; basename for output files
+n_out = 1                   ; number of timesteps between writing output files
 do_io = 1                   ; do we output at all?
 
 [vis]
@@ -23,8 +23,8 @@ store_images = 0           ; store vis images to files (1=yes, 0=no)
 
 
 [mesh]
-nx = 512
-ny = 512
+nx = 64
+ny = 64
 xmax = 1.0
 ymax = 1.0
 

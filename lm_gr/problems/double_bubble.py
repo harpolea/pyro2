@@ -32,6 +32,7 @@ def init_data(my_data, base, rp, metric):
     yvel = my_data.get_var("y-velocity")
     eint = my_data.get_var("eint")
     scalar = my_data.get_var("scalar")
+    T = my_data.get_var("temperature")
 
     g = rp.get_param("lm-gr.grav")
     c = rp.get_param("lm-gr.c")
@@ -111,6 +112,11 @@ def init_data(my_data, base, rp, metric):
                   myg.dy * Dh0.d[i] * g / (R * c**2 * metric.alpha.d[i] **2 * u0.d1d()[i])
                   #myg.dy * g * (2. * p0.d[i-1] * (1. + metric.alpha.d[i]**4) -
                   #Dh0.d[i] / u0.d1d()[i]) / (c**2 * metric.alpha.d[i]**2 * R)
+
+    mu = 0.5 # as we start with pure He, so X = 0
+    mp_kB = 1.21147e-8
+
+    T.d[:,:] = p0.d2d() * mu * mp_kB / dens.d
 
     # multiply by correct u0s
     dens.d[:, :] *= u0.d  # rho * u0
