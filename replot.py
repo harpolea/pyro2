@@ -23,6 +23,9 @@ def makeplot(myd, solver_name, problem_name, outfile, W, H, n=0, vmins=[None, No
     plt.savefig(outfile)
     #plt.show()
 
+    if (n % 10 == 0):
+        print("printing: {}".format(n))
+
 
 def usage():
     usage="""
@@ -120,6 +123,3 @@ if __name__== "__main__":
         myg, myd = patch.read(file)
 
         makeplot(myd, solver, problem, outfile, W, H, n=i)#, vmins=vmins, vmaxes=vmaxes)
-
-        if (i % 10 == 0):
-            print("printing: {}".format(i))

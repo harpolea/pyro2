@@ -7,7 +7,7 @@ tmax = 1.e8
 
 [io]
 basename = ../../Work/pyro/results/rt/rt_512_
-n_out = 10
+n_out = 5
 do_io = 1                   ; do we output at all?
 
 [vis]

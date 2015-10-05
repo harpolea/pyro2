@@ -6,7 +6,7 @@ import mesh.patch as patch
 import numpy as np
 from util import msg
 
-def init_data(my_data, base, rp, metric):
+def init_data(my_data, aux_data, base, rp, metric):
     """ initialize the Kelvin-Helmholtz problem """
 
     msg.bold("initializing the Kelvin-Helmholtz problem...")
@@ -22,9 +22,10 @@ def init_data(my_data, base, rp, metric):
     enth = my_data.get_var("enthalpy")
     u = my_data.get_var("x-velocity")
     v = my_data.get_var("y-velocity")
-    eint = my_data.get_var("eint")
+    eint = aux_data.get_var("eint")
     scalar = my_data.get_var("scalar")
     T = my_data.get_var("temperature")
+    DX = my_data.get_var("mass-frac")
 
     g = rp.get_param("lm-gr.grav")
     c = rp.get_param("lm-gr.c")
@@ -61,11 +62,13 @@ def init_data(my_data, base, rp, metric):
     v.d[:,:] = 5.e-1 * u_1 * np.sin(4. * math.pi * (myg.x[:, np.newaxis]+0.5*L)/L)
     dens.d[:,:] = rho_1 - rho_m * np.exp((myg.y[np.newaxis,:] - 0.5)/L_x)
     scalar.d[:,:] = 0.
+    DX.d[:,:] = 1.
 
     idx = (myg.y2d[:,:] > yctr)
     dens.d[idx] = rho_2 + rho_m * np.exp((-myg.y2d[idx] + 0.5)/L_x)
     u.d[idx] = u_2 + u_m * np.exp((-myg.y2d[idx] + 0.5)/L_x)
     scalar.d[idx] = 1. #+ 0.5 * np.exp((-myg.y2d[idx] + 0.5)/L_x)
+    DX.d[idx] = 0.
 
     #dens.v()[:, :] *= \
     #    np.exp(-g * myg.y[np.newaxis, myg.jlo:myg.jhi+1] /
@@ -109,6 +112,7 @@ def init_data(my_data, base, rp, metric):
     u.d[:,:] /= u0.d
     v.d[:,:] /= u0.d
     scalar.d[:,:] *= dens.d
+    DX.d[:,:] *= dens.d
 
     my_data.fill_BC_all()
 

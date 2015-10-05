@@ -14,7 +14,7 @@ import mesh.patch as patch
 import numpy as np
 from util import msg
 
-def init_data(my_data, base, rp, metric):
+def init_data(my_data, aux_data, base, rp, metric):
     """ initialize the double bubble problem """
 
     msg.bold("initializing the bubble problem...")
@@ -30,7 +30,7 @@ def init_data(my_data, base, rp, metric):
     enth = my_data.get_var("enthalpy")
     xvel = my_data.get_var("x-velocity")
     yvel = my_data.get_var("y-velocity")
-    eint = my_data.get_var("eint")
+    eint = aux_data.get_var("eint")
     scalar = my_data.get_var("scalar")
     T = my_data.get_var("temperature")
 

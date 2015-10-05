@@ -7,7 +7,7 @@ import sys
 import mesh.patch as patch
 from util import msg
 
-def init_data(my_data, base, rp, metric):
+def init_data(my_data, aux_data, base, rp, metric):
     """ initialize the Rayleigh-Taylor problem """
 
     msg.bold("initializing the Rayleigh-Taylor problem...")
@@ -23,9 +23,10 @@ def init_data(my_data, base, rp, metric):
     enth = my_data.get_var("enthalpy")
     u = my_data.get_var("x-velocity")
     v = my_data.get_var("y-velocity")
-    eint = my_data.get_var("eint")
+    eint = aux_data.get_var("eint")
     scalar = my_data.get_var("scalar")
     T = my_data.get_var("temperature")
+    DX = my_data.get_var("mass-frac")
 
     gamma = rp.get_param("eos.gamma")
 
@@ -60,6 +61,7 @@ def init_data(my_data, base, rp, metric):
     dens.d[:,:] = dens1 + (dens2 - dens1) * 0.5 * (1. + np.tanh(((myg.y2d - ycentre)/y_smooth)/0.9))
     y_smooth *= 1.e-5
     scalar.d[:,:] = 1. * 0.5 * (1. + np.tanh(((myg.y2d - ycentre)/(y_smooth))/0.9))
+    DX.d[:,:] = 1. * 0.5 * (1. + np.tanh((-(myg.y2d - ycentre)/(y_smooth))/0.9))
 
     dens.v()[:, :] *= \
         np.exp(-g * myg.y[np.newaxis, myg.jlo:myg.jhi+1] /
@@ -106,6 +108,7 @@ def init_data(my_data, base, rp, metric):
     Dh0.d[:] *= D0.d
     old_p0 = p0.copy()
     scalar.d[:,:] *= dens.d
+    DX.d[:,:] *= dens.d
 
     my_data.fill_BC_all()
 

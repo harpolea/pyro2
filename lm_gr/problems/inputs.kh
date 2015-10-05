@@ -11,7 +11,7 @@ grav = 1.0
 
 [io]
 basename = ../../Work/pyro/results/kh/kh_512_   ; basename for output files
-n_out = 10                   ; number of timesteps between writing output files
+n_out = 5                   ; number of timesteps between writing output files
 do_io = 1                   ; do we output at all?
 
 [vis]

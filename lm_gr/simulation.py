@@ -11,7 +11,9 @@ function of Dh0
 
 TODO: not entirely sure about the lateral averaging of D, Dh to get the base states in steps 4 and 8
 
-CHANGED: made python3 compliable
+CHANGED: made python3 compliable (for the most part - f2py doesn't seem to be able to work too well with python3)
+
+CHANGED: For high resolution runs, pickle seems to limit how much data it will store. Have therefore moved some variables to aux_data so only those that will be used in plotting are in cc_data and will therefore be output to file.
 
 TODO: nose testing!
 
@@ -218,9 +220,6 @@ class Simulation(NullSimulation):
         my_data.register_var("x-velocity", bc_xodd)
         my_data.register_var("y-velocity", bc_yodd)
 
-        # we'll keep the internal energy around just as a diagnostic
-        my_data.register_var("eint", bc_dens)
-
         # phi -- used for the projections.  The boundary conditions
         # here depend on velocity.  At a wall or inflow, we already
         # have the velocity we want on the boundary, so we want
@@ -248,13 +247,7 @@ class Simulation(NullSimulation):
         # CHANGED: tried setting phi BCs to same as density?
         #my_data.register_var("phi-MAC", bc_phi)
         #my_data.register_var("phi", bc_phi)
-        my_data.register_var("phi-MAC", bc_dens)
-        my_data.register_var("phi", bc_dens)
-
-        # gradp -- used in the projection and interface states.  We'll do the
-        # same BCs as density
-        my_data.register_var("gradp_x", bc_dens)
-        my_data.register_var("gradp_y", bc_dens)
+        #my_data.register_var("phi-MAC", bc_dens) # moved to aux_data
 
         # mass fraction: starts as zero, burns to 1
         my_data.register_var("mass-frac", bc_dens)
@@ -273,10 +266,20 @@ class Simulation(NullSimulation):
         # really part of the main solution
         aux_data = patch.CellCenterData2d(myg)
 
+        # we'll keep the internal energy around just as a diagnostic
+        aux_data.register_var("eint", bc_dens)
+
         aux_data.register_var("coeff", bc_dens)
         aux_data.register_var("source_y", bc_yodd)
         aux_data.register_var("old_source_y", bc_yodd)
         aux_data.register_var("plot_me", bc_yodd) # somewhere to store data for plotting
+        aux_data.register_var("phi", bc_dens)
+        aux_data.register_var("phi-MAC", bc_dens)
+
+        # gradp -- used in the projection and interface states.  We'll do the
+        # same BCs as density
+        aux_data.register_var("gradp_x", bc_dens)
+        aux_data.register_var("gradp_y", bc_dens)
 
         aux_data.create()
         self.aux_data = aux_data
@@ -315,7 +318,7 @@ class Simulation(NullSimulation):
         u0 = self.metric.calcu0()
 
         # now set the initial conditions for the problem
-        exec(self.problem_name + '.init_data(self.cc_data, self.base, self.rp, self.metric)')
+        exec(self.problem_name + '.init_data(self.cc_data, self.aux_data, self.base, self.rp, self.metric)')
 
         # Construct zeta
         gamma = self.rp.get_param("eos.gamma")
@@ -642,6 +645,7 @@ class Simulation(NullSimulation):
         mp_kB = 1.21147#e-8
 
         # use p0 here as otherwise have to explicitly calculate pi somewhere?
+        # TODO: could instead calculate this using Dh rather than p0?
         T.d[:,:] = p0.d2d() * mu * u0.d * mp_kB / D.d
 
 
@@ -1013,10 +1017,10 @@ class Simulation(NullSimulation):
         # next create the multigrid object.  We defined phi with
         # the right BCs previously
         mg = vcMG.VarCoeffCCMG2d(myg.nx, myg.ny,
-                                 xl_BC_type=self.cc_data.BCs["phi"].xlb,
-                                 xr_BC_type=self.cc_data.BCs["phi"].xrb,
-                                 yl_BC_type=self.cc_data.BCs["phi"].ylb,
-                                 yr_BC_type=self.cc_data.BCs["phi"].yrb,
+                                 xl_BC_type=self.aux_data.BCs["phi"].xlb,
+                                 xr_BC_type=self.aux_data.BCs["phi"].xrb,
+                                 yl_BC_type=self.aux_data.BCs["phi"].ylb,
+                                 yr_BC_type=self.aux_data.BCs["phi"].yrb,
                                  xmin=myg.xmin, xmax=myg.xmax,
                                  ymin=myg.ymin, ymax=myg.ymax,
                                  coeffs=coeff,
@@ -1040,7 +1044,7 @@ class Simulation(NullSimulation):
 
         # store the solution in our self.cc_data object -- include a single
         # ghostcell
-        phi = self.cc_data.get_var("phi")
+        phi = self.aux_data.get_var("phi")
         phi.d[:,:] = mg.get_solution(grid=myg).d
 
         # get the cell-centered gradient of phi and update the
@@ -1065,6 +1069,7 @@ class Simulation(NullSimulation):
 
         # store the current solution -- we'll restore it in a bit
         orig_data = patch.cell_center_data_clone(self.cc_data)
+        orig_aux = patch.cell_center_data_clone(self.aux_data)
 
         # get the timestep
         self.compute_timestep(u0=u0)
@@ -1073,16 +1078,17 @@ class Simulation(NullSimulation):
         self.evolve()
 
         # update gradp_x and gradp_y in our main data object
-        new_gp_x = self.cc_data.get_var("gradp_x")
-        new_gp_y = self.cc_data.get_var("gradp_y")
+        new_gp_x = self.aux_data.get_var("gradp_x")
+        new_gp_y = self.aux_data.get_var("gradp_y")
 
-        orig_gp_x = orig_data.get_var("gradp_x")
-        orig_gp_y = orig_data.get_var("gradp_y")
+        orig_gp_x = orig_aux.get_var("gradp_x")
+        orig_gp_y = orig_aux.get_var("gradp_y")
 
         orig_gp_x.d[:,:] = new_gp_x.d[:,:]
         orig_gp_y.d[:,:] = new_gp_y.d[:,:]
 
         self.cc_data = orig_data
+        self.aux_data = orig_aux
 
         if self.verbose > 0:
             print("done with the pre-evolution")
@@ -1100,8 +1106,8 @@ class Simulation(NullSimulation):
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
 
-        gradp_x = self.cc_data.get_var("gradp_x")
-        gradp_y = self.cc_data.get_var("gradp_y")
+        gradp_x = self.aux_data.get_var("gradp_x")
+        gradp_y = self.aux_data.get_var("gradp_y")
         DX = self.cc_data.get_var("mass-frac")
         scalar = self.cc_data.get_var("scalar")
         T = self.cc_data.get_var("temperature")
@@ -1117,7 +1123,7 @@ class Simulation(NullSimulation):
         Dh0 = self.base["Dh0"]
         U0 = self.base["U0"]
 
-        phi = self.cc_data.get_var("phi")
+        phi = self.aux_data.get_var("phi")
 
         myg = self.cc_data.grid
 
@@ -1255,10 +1261,10 @@ class Simulation(NullSimulation):
 
         # create the multigrid object
         mg = vcMG.VarCoeffCCMG2d(myg.nx, myg.ny,
-                                 xl_BC_type=self.cc_data.BCs["phi-MAC"].xlb,
-                                 xr_BC_type=self.cc_data.BCs["phi-MAC"].xrb,
-                                 yl_BC_type=self.cc_data.BCs["phi-MAC"].ylb,
-                                 yr_BC_type=self.cc_data.BCs["phi-MAC"].yrb,
+                                 xl_BC_type=self.aux_data.BCs["phi-MAC"].xlb,
+                                 xr_BC_type=self.aux_data.BCs["phi-MAC"].xrb,
+                                 yl_BC_type=self.aux_data.BCs["phi-MAC"].ylb,
+                                 yr_BC_type=self.aux_data.BCs["phi-MAC"].yrb,
                                  xmin=myg.xmin, xmax=myg.xmax,
                                  ymin=myg.ymin, ymax=myg.ymax,
                                  coeffs=coeff,
@@ -1284,7 +1290,8 @@ class Simulation(NullSimulation):
         # update the normal velocities with the pressure gradient -- these
         # constitute our advective velocities.  Note that what we actually
         # solved for here is phi/zeta
-        phi_MAC = self.cc_data.get_var("phi-MAC")
+        #phi_MAC = self.cc_data.get_var("phi-MAC")
+        phi_MAC = self.aux_data.get_var("phi-MAC")
         phi_MAC.d[:,:] = mg.get_solution(grid=myg).d
         # this is zero and shouldn't be
 
@@ -1506,7 +1513,7 @@ class Simulation(NullSimulation):
         self.enforce_tov(p0=p0_star, Dh0=Dh0_star, u=u_MAC, v=v_MAC, u0=u0_MAC)
 
         # update eint as a diagnostic
-        eint = self.cc_data.get_var("eint")
+        eint = self.aux_data.get_var("eint")
         gamma = self.rp.get_param("eos.gamma")
         eint.v()[:,:] = self.base["p0"].v2d()/(gamma - 1.0)/D.v()
 
@@ -1629,7 +1636,7 @@ class Simulation(NullSimulation):
             print("min/max v   = {}, {}".format(self.cc_data.min("y-velocity"), self.cc_data.max("y-velocity")))
             print("min/max psi*D = {}, {}".format(self.cc_data.min("scalar"), self.cc_data.max("scalar")))
             print("min/max T = {}, {}".format(self.cc_data.min("temperature"), self.cc_data.max("temperature")))
-            print("Mean X   = {}".format(np.mean(DX.d/D.d)))
+            print("mean X   = {}".format(np.mean(DX.d/D.d)))
 
         #---------------------------------------------------------------------
         # 8. predict D to the edges and do update
@@ -1819,7 +1826,7 @@ class Simulation(NullSimulation):
         self.enforce_tov(u=u_MAC, v=v_MAC, u0=u0_MAC)
 
         # update eint as a diagnostic
-        eint = self.cc_data.get_var("eint")
+        eint = self.aux_data.get_var("eint")
         gamma = self.rp.get_param("eos.gamma")
         eint.v()[:,:] = self.base["p0"].v2d()/(gamma - 1.0)/D.v()
 
@@ -1875,10 +1882,10 @@ class Simulation(NullSimulation):
 
         # create the multigrid object
         mg = vcMG.VarCoeffCCMG2d(myg.nx, myg.ny,
-                                 xl_BC_type=self.cc_data.BCs["phi"].xlb,
-                                 xr_BC_type=self.cc_data.BCs["phi"].xrb,
-                                 yl_BC_type=self.cc_data.BCs["phi"].ylb,
-                                 yr_BC_type=self.cc_data.BCs["phi"].yrb,
+                                 xl_BC_type=self.aux_data.BCs["phi"].xlb,
+                                 xr_BC_type=self.aux_data.BCs["phi"].xrb,
+                                 yl_BC_type=self.aux_data.BCs["phi"].ylb,
+                                 yr_BC_type=self.aux_data.BCs["phi"].yrb,
                                  xmin=myg.xmin, xmax=myg.xmax,
                                  ymin=myg.ymin, ymax=myg.ymax,
                                  coeffs=coeff,
@@ -1938,8 +1945,8 @@ class Simulation(NullSimulation):
         self.cc_data.fill_BC("x-velocity")
         self.cc_data.fill_BC("y-velocity")
 
-        self.cc_data.fill_BC("gradp_x")
-        self.cc_data.fill_BC("gradp_y")
+        self.aux_data.fill_BC("gradp_x")
+        self.aux_data.fill_BC("gradp_y")
 
         # FIXME: bcs for base state data
         for var in self.base.values():
@@ -1968,12 +1975,12 @@ class Simulation(NullSimulation):
         #plt.rc("font", size=10)
 
         D = self.cc_data.get_var("density")
-        scalar = self.cc_data.get_var("scalar")
-        DX = self.cc_data.get_var("mass-frac")
-        T = self.cc_data.get_var("temperature")
-
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
+
+        DX = self.cc_data.get_var("mass-frac")
+        scalar = self.cc_data.get_var("scalar")
+        T = self.cc_data.get_var("temperature")
 
         #plot_me = self.aux_data.get_var("plot_me")
 

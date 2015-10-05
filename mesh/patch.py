@@ -31,13 +31,14 @@ Typical usage:
 
      data.fill_BC("density")
 
-CHANGED: tried to do the BCS with slicing to speed things up. There are likely to be some errors here.
-
 """
 from __future__ import print_function
 
 import numpy as np
-import pickle
+try:
+    import cPickle as pickle
+except:
+    import pickle
 
 from util import msg
 
