@@ -6,7 +6,7 @@ tmax = 1.e8
 
 
 [io]
-basename = ../../Work/pyro/results/rt/rt_512_
+basename = ../../Work/pyro/results/rt/rt_256_
 n_out = 5
 do_io = 1                   ; do we output at all?
 
@@ -17,8 +17,8 @@ store_images = 0           ; store vis images to files (1=yes, 0=no)
 
 
 [mesh]
-nx = 512
-ny = 512
+nx = 256
+ny = 256
 xmax = 1.0
 ymax = 1.0
 

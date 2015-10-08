@@ -236,10 +236,11 @@ def _buf_split(b):
 
 
 class ArrayIndexer(object):
-    """ a class that wraps the data region of a single array (d)
-        and allows us to easily do array operations like d[i+1,j]
-        using the ip() method. """
-
+    """
+    a class that wraps the data region of a single array (d)
+    and allows us to easily do array operations like d[i+1,j]
+    using the ip() method.
+    """
 
     # ?? Can we accomplish this a lot easier by subclassing
     # the ndarray?
@@ -305,7 +306,6 @@ class ArrayIndexer(object):
     def __abs__(self):
         return ArrayIndexer(d=np.abs(self.d), grid=self.g)
 
-    #@jit
     def v(self, buf=0, n=0, s=1):
         bxlo, bxhi, bylo, byhi = _buf_split(buf)
 
@@ -313,7 +313,6 @@ class ArrayIndexer(object):
                          self.g.jlo-bylo:self.g.jhi+1+byhi:s]
         #return self.ip_jp(0, 0, buf=buf, n=n, s=s)
 
-    #@jit
     def ip(self, shift, buf=0, n=0, s=1):
         bxlo, bxhi, bylo, byhi = _buf_split(buf)
 
@@ -322,7 +321,6 @@ class ArrayIndexer(object):
 
         #return self.ip_jp(shift, 0, buf=buf, n=n, s=s)
 
-    #@jit
     def jp(self, shift, buf=0, n=0, s=1):
         bxlo, bxhi, bylo, byhi = _buf_split(buf)
 
@@ -330,7 +328,6 @@ class ArrayIndexer(object):
                          self.g.jlo-bylo+shift:self.g.jhi+1+byhi+shift:s]
         #return self.ip_jp(0, shift, buf=buf, n=n, s=s)
 
-    #@jit
     def ip_jp(self, ishift, jshift, buf=0, n=0, s=1):
         bxlo, bxhi, bylo, byhi = _buf_split(buf)
 
@@ -342,11 +339,9 @@ class ArrayIndexer(object):
         #    return self.d[self.g.ilo-bxlo+ishift:self.g.ihi+1+bxhi+ishift:s,
         #                  self.g.jlo-bylo+jshift:self.g.jhi+1+byhi+jshift:s,n]
 
-    #@jit
     def d1d(self):
         return np.mean(self.d, axis=0)
 
-    #@jit
     def v1d(self, buf=0, n=0, s=1):
         return np.mean(self.v(buf=buf, n=n, s=s), axis=0)
 
@@ -354,7 +349,6 @@ class ArrayIndexer(object):
         """
         find the norm of the quantity (index n) defined on the same grid,
         in the domain's valid region
-
         """
         if self.c == 2:
             return self.g.norm(self.d)
@@ -1219,7 +1213,6 @@ if __name__== "__main__":
     mydata.register_var("a", bc)
     mydata.create()
 
-
     a = mydata.get_var("a")
     a.d[:,:] = np.exp(-(myg.x2d - 0.5)**2 - (myg.y2d - 1.0)**2)
 
@@ -1232,6 +1225,5 @@ if __name__== "__main__":
     print("reading\n")
     myg2, myd2 = read("mesh_test")
     print(myd2)
-
 
     mydata.pretty_print("a")

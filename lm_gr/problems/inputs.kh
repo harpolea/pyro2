@@ -10,7 +10,7 @@ grav = 1.0
 
 
 [io]
-basename = ../../Work/pyro/results/kh/kh_512_   ; basename for output files
+basename = ../../Work/pyro/results/kh/kh_256_   ; basename for output files
 n_out = 5                   ; number of timesteps between writing output files
 do_io = 1                   ; do we output at all?
 
@@ -25,8 +25,8 @@ gamma = 1.4
 
 
 [mesh]
-nx = 512
-ny = 512
+nx = 256
+ny = 256
 xmax = 1.0
 ymax = 1.0
 

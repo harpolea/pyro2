@@ -13,8 +13,6 @@ TODO: not entirely sure about the lateral averaging of D, Dh to get the base sta
 
 CHANGED: made python3 compliable (for the most part - f2py doesn't seem to be able to work too well with python3)
 
-CHANGED: For high resolution runs, pickle seems to limit how much data it will store. Have therefore moved some variables to aux_data so only those that will be used in plotting are in cc_data and will therefore be output to file.
-
 TODO: nose testing!
 
 Run with a profiler using
@@ -190,7 +188,7 @@ class Simulation(NullSimulation):
         timers : TimerCollection object, optional
             The timers used for profiling this simulation
         fortran : boolean, optional
-            Determines whether use the fortran smoother or the original
+            Determines whether to use the fortran smoother or the original
             python one.
         """
 
@@ -284,8 +282,7 @@ class Simulation(NullSimulation):
         aux_data.create()
         self.aux_data = aux_data
 
-        # we also need storage for the 1-d base state -- we'll store this
-        # in the main class directly.
+        #  1-d base state
         self.base["D0"] = Basestate(myg.ny, ng=myg.ng)
         self.base["Dh0"] = Basestate(myg.ny, ng=myg.ng)
         self.base["p0"] = Basestate(myg.ny, ng=myg.ng)
@@ -361,6 +358,7 @@ class Simulation(NullSimulation):
         """
         return a - a0.v2d(buf=a0.ng)
 
+
     @staticmethod
     def smooth_neighbours(a, mask):
         """
@@ -415,6 +413,11 @@ class Simulation(NullSimulation):
         zeta : Basestate object, optional
             zeta
         u : ArrayIndexer object, optional
+            horizontal velocity
+        v : ArrayIndexer object, optional
+            vertical velocity
+        u0 : ArrayIndexer object, optional
+            timelike component of the 4-velocity
         """
 
         myg = self.cc_data.grid
@@ -443,6 +446,25 @@ class Simulation(NullSimulation):
         :math: `S = -\Gamma^\mu_(\mu \nu) U^\nu + \frac{D (\gamma-1)}{u^0 \gamma^2 p} H`  (see eq 6.34, 6.37 in LowMachGR).
         base["source-y"] is not updated here as it's sometimes necessary to
         calculate projections of `S` (e.g. `S^{n*}`) and not `S^n`
+
+        Parameters
+        ----------
+        u : ArrayIndexer object, optional
+            horizontal velocity
+        v : ArrayIndexer object, optional
+            vertical velocity
+        u0 : ArrayIndexer object, optional
+            timelike component of the 4-velocity
+        p0 : ArrayIndexer object, optional
+            base-state pressure
+        Q : ArrayIndexer object, optional
+            nuclear heating rate
+        D : ArrayIndexer object, optional
+            full density state
+
+        Returns
+        -------
+        S : ArrayIndexer object
         """
         myg = self.cc_data.grid
         S = myg.scratch_array()
@@ -477,9 +499,22 @@ class Simulation(NullSimulation):
         r"""
         calculate the source terms in the constraint, :math: `\zeta(S - \frac{dp}{dt}/ \Gamma_1 p)`
 
+        Parameters
+        ----------
+        u : ArrayIndexer object, optional
+            horizontal velocity
+        v : ArrayIndexer object, optional
+            vertical velocity
+        S : ArrayIndexer object, optional
+            source term
+        zeta : ArrayIndexer object, optional
+            :math:`zeta`
+        p0 : ArrayIndexer object, optional
+            base state pressure
+
         Returns
         -------
-        constraint : float array
+        constraint : ArrayIndexer object
             :math: `\zeta(S - \frac{dp}{dt}/ \Gamma_1 p)`
         """
         myg = self.cc_data.grid
@@ -522,9 +557,22 @@ class Simulation(NullSimulation):
         TODO: make this more general. This definitely needs to be done with
         einsum or something rather than by hand
 
+        Parameters
+        ----------
+        u : ArrayIndexer object, optional
+            horizontal velocity
+        v : ArrayIndexer object, optional
+            vertical velocity
+        Dh : ArrayIndexer object, optional
+            density * enthalpy full state
+        Dh0: ArrayIndexer object, optional
+            density * enthalpy base state
+        u0 : ArrayIndexer object, optional
+            timelike component of the 4-velocity
+
         Returns
         -------
-        mom_source :
+        mom_source : ArrayIndexer object
             :math:`\Gamma_{\rho \nu j} U^\nu U^\rho -
                     \frac{\partial_j p_0}{Dh u_0}`
         """
@@ -586,6 +634,17 @@ class Simulation(NullSimulation):
 
             \psi = \partial_tp_0 + U_0\partial_r p_0
 
+        Parameters
+        ----------
+        S : ArrayIndexer object, optional
+            source term
+        U0 : ArrayIndexer object, optional
+            base state of the radial velocity
+        p0 : ArrayIndexer object, optional
+            base state pressure
+        p0_old: ArrayIndexer object, optional
+            previous base state pressure
+
         Returns
         -------
         :math: `\psi`
@@ -626,6 +685,23 @@ class Simulation(NullSimulation):
         .. math::
 
             \mu = (2+4X)^{-1}
+
+        Parameters
+        ----------
+        p0 : ArrayIndexer object, optional
+            base state pressure
+        D : ArrayIndexer object, optional
+            full state density
+        DX : ArrayIndexer object, optional
+            density * mass fraction full state
+        u : ArrayIndexer object, optional
+            horizontal velocity
+        v : ArrayIndexer object, optional
+            vertical velocity
+        u0 : ArrayIndexer object, optional
+            timelike component of the 4-velocity
+        T : ArrayIndexer object, optional
+            temperature
         """
         myg = self.cc_data.grid
         if p0 is None:
@@ -652,6 +728,28 @@ class Simulation(NullSimulation):
     def calc_Q_omega_dot(self, D=None, DX=None, u=None, v=None, u0=None, T=None):
         r"""
         Calculates the energy generation rate according to eq. 2 of Cavecchi, Levin, Watts et al 2015 and the creation rate
+
+        Parameters
+        ----------
+        D : ArrayIndexer object, optional
+            full state density
+        DX : ArrayIndexer object, optional
+            density * mass fraction full state
+        u : ArrayIndexer object, optional
+            horizontal velocity
+        v : ArrayIndexer object, optional
+            vertical velocity
+        u0 : ArrayIndexer object, optional
+            timelike component of the 4-velocity
+        T : ArrayIndexer object, optional
+            temperature
+
+        Returns
+        -------
+        Q : ArrayIndexer object
+            nuclear heating rate
+        omega_dot : ArrayIndexer object
+            species creation rate
         """
         myg = self.cc_data.grid
         if D is None:
@@ -665,7 +763,7 @@ class Simulation(NullSimulation):
         Q = myg.scratch_array()
         omega_dot = myg.scratch_array()
         # FIXME: hack to drive reactions
-        T9 = T.d * 1.45e-2#1.e-9
+        T9 = T.d * 1.6e-2#1.e-9 # for bubble: 1.45e-2
         D5 = D.d * 1.e-5
 
         Q.d[:,:] = 5.3e18 * (D5 / u0.d)**2 * ((1. - DX.d/D.d) / T9)**3 * np.exp(-4.4 / T9)
@@ -674,15 +772,37 @@ class Simulation(NullSimulation):
         omega_dot.d[:,:] = Q.d * 9.773577e10
 
         # FIXME: hackkkkk
-        Q.d[:,:] *= 1.e9
-        omega_dot.d[:,:] *= 5.
+        Q.d[:,:] *= 1.e12 # for bubble: 1.e9
+        omega_dot.d[:,:] *= 1.e5 # for bubble: 5.
 
         return Q, omega_dot
 
-    def base_state_forcing(self, U0_half=None, U0_old_half=None, Dh0_old=None, Dh0=None, u=None, v=None, u0=None):
+    def base_state_forcing(self, U0_half=None, U0_old_half=None, Dh0=None, Dh0_old=None, u=None, v=None, u0=None):
         r"""
         calculate the base state velocity forcing term from 2C
         This works only for the metric :math: `ds^2 = -a^2 dt^2 + 1/a^2 (dx^2 + dr^2)`
+
+        Parameters
+        ----------
+        U0_half : ArrayIndexer object, optional
+            time-centred base state velocity
+        U0_old_half : ArrayIndexer object, optional
+            previous time-centred base state velocity
+        Dh0 : ArrayIndexer object, optional
+            density * enthalpy base state
+        Dh0 : ArrayIndexer object, optional
+            previous density * enthalpy base state
+        u : ArrayIndexer object, optional
+            horizontal velocity
+        v : ArrayIndexer object, optional
+            vertical velocity
+        u0 : ArrayIndexer object, optional
+            timelike component of the 4-velocity
+
+        Returns
+        -------
+        drpi : ArrayIndexer object
+            base state velocity forcing term
         """
         myg = self.cc_data.grid
         drpi = myg.scratch_array()
@@ -739,6 +859,31 @@ class Simulation(NullSimulation):
         gravitational source terms in the continuity equation (called react
         state to mirror MAESTRO as here they just have source terms from the
         reactions)
+
+        Parameters
+        ----------
+        S : ArrayIndexer object, optional
+            source term
+        D : ArrayIndexer object, optional
+            density full state
+        Dh : ArrayIndexer object, optional
+            density * enthalpy full state
+        DX : ArrayIndexer object, optional
+            density * species mass fraction full state
+        p0 : ArrayIndexer object, optional
+            base state pressure
+        T : ArrayIndexer object, optional
+            temperature
+        scalar : ArrayIndexer object, optional
+            passive advective scalar (* density)
+        Dh0 : ArrayIndexer object, optional
+            density * enthalpy base state
+        u : ArrayIndexer object, optional
+            horizontal velocity
+        v : ArrayIndexer object, optional
+            vertical velocity
+        u0 : ArrayIndexer object, optional
+            timelike component of the 4-velocity
         """
         myg = self.cc_data.grid
 
@@ -788,7 +933,14 @@ class Simulation(NullSimulation):
             D_{0j}^\text{out} = D_{0j}^\text{in} - \frac{\Delta t}{\Delta r}\left[\left(D_0^{\text{out},n+\sfrac{1}{2}} U_0^\text{in}\right)_{j+\sfrac{1}{2}} - \left(D_0^{\text{out},n+\sfrac{1}{2}} U_0^\text{in}\right)_{j-\sfrac{1}{2}}\right]
 
         This is incorrect as need to use edge based :math: `D`, as found in the
-        evolve funciton.
+        evolve function.
+
+        Parameters
+        ----------
+        D0 : ArrayIndexer object, optional
+            density base state
+        U0 : ArrayIndexer object, optional
+            base state velocity
         """
         myg = self.cc_data.grid
         if D0 is None:
@@ -827,6 +979,19 @@ class Simulation(NullSimulation):
         .. math::
 
             p_{0,j+1}^\text{out} = p_{0,j}^\text{in} + \frac{\Delta r}{2} \left(\partial_r p_{0,j+1} + \partial_r p_{0,j} \right)
+
+        Parameters
+        ----------
+        p0 : ArrayIndexer object, optional
+            base state pressure
+        Dh0 : ArrayIndexer object, optional
+            density * enthalpy base state
+        u : ArrayIndexer object, optional
+            horizontal velocity
+        v : ArrayIndexer object, optional
+            vertical velocity
+        u0 : ArrayIndexer object, optional
+            timelike component of the 4-velocity
         """
         myg = self.cc_data.grid
         if p0 is None:
@@ -843,6 +1008,17 @@ class Simulation(NullSimulation):
     def drp0(self, Dh0=None, u=None, v=None, u0=None):
         """
         Calculate drp0 as it's messy using eq 6.136
+
+        Parameters
+        ----------
+        Dh0 : ArrayIndexer object, optional
+            density * enthalpy base state
+        u : ArrayIndexer object, optional
+            horizontal velocity
+        v : ArrayIndexer object, optional
+            vertical velocity
+        u0 : ArrayIndexer object, optional
+            timelike component of the 4-velocity
         """
         myg = self.cc_data.grid
         if Dh0 is None:
@@ -873,6 +1049,21 @@ class Simulation(NullSimulation):
 
             (Dh)_{0j}^\text{out}
                 = (Dh)_{0j}^\text{in} - \frac{\Delta t}{\Delta r}\left(\left[(Dh)_0^{n+\sfrac{1}{2}} U_0^\text{in}\right]_{j+\sfrac{1}{2}} - \left[(Dh)_0^{n+\sfrac{1}{2}} U_0^\text{in}\right]_{j-\sfrac{1}{2}}\right) + \Delta tu^0\psi_j^\text{in}
+
+        Parameters
+        ----------
+        Dh0 : ArrayIndexer object, optional
+            density * enthalpy base state
+        S : ArrayIndexer object, optional
+            source term
+        U0 : ArrayIndexer object, optional
+            base state velocity
+        u : ArrayIndexer object, optional
+            horizontal velocity
+        v : ArrayIndexer object, optional
+            vertical velocity
+        u0 : ArrayIndexer object, optional
+            timelike component of the 4-velocity
         """
         myg = self.cc_data.grid
         if Dh0 is None:
@@ -903,6 +1094,23 @@ class Simulation(NullSimulation):
         .. math::
 
             \frac{ U^\text{out}_{0,j+\sfrac{1}{2}} -  U^\text{out}_{0,j-\sfrac{1}{2}}}{\Delta r} = \left(\bar{S}^\text{in} - \frac{1}{\bar{\Gamma}_1^\text{in} p_0^\text{in}}\psi^\text{in}\right)_j
+
+        Parameters
+        ----------
+        U0 : ArrayIndexer object, optional
+            base state velocity
+        p0 : ArrayIndexer object, optional
+            base state pressure
+        S : ArrayIndexer object, optional
+            source term
+        Dh0 : ArrayIndexer object, optional
+            density * enthalpy base state
+        u : ArrayIndexer object, optional
+            horizontal velocity
+        v : ArrayIndexer object, optional
+            vertical velocity
+        u0 : ArrayIndexer object, optional
+            timelike component of the 4-velocity
         """
         myg = self.cc_data.grid
         if p0 is None:
@@ -932,6 +1140,11 @@ class Simulation(NullSimulation):
 
         We use the driver.cfl parameter to control what fraction of the CFL
         step we actually take.
+
+        Parameters
+        ----------
+        u0 : ArrayIndexer object, optional
+            timelike component of the 4-velocity
         """
 
         self.dt_old = self.dt
@@ -1141,16 +1354,12 @@ class Simulation(NullSimulation):
         else:
             limitFunc = reconstruction_f.limit4
 
-        #ldelta_rx = limitFunc(1, D.d, myg.qx, myg.qy, myg.ng)
         ldelta_r0x = limitFunc(1, D0.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
-        #ldelta_ex = limitFunc(1, Dh.d,myg.qx, myg.qy, myg.ng)
         ldelta_e0x = limitFunc(1, Dh0.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
         ldelta_ux = limitFunc(1, u.d, myg.qx, myg.qy, myg.ng)
         ldelta_vx = limitFunc(1, v.d, myg.qx, myg.qy, myg.ng)
 
-        #ldelta_ry = limitFunc(2, D.d, myg.qx, myg.qy, myg.ng)
         ldelta_r0y = limitFunc(2, D0.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
-        #ldelta_ey = limitFunc(2, Dh.d,myg.qx, myg.qy, myg.ng)
         ldelta_e0y = limitFunc(2, Dh0.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
         ldelta_uy = limitFunc(2, u.d, myg.qx, myg.qy, myg.ng)
         ldelta_vy = limitFunc(2, v.d, myg.qx, myg.qy, myg.ng)
@@ -1395,12 +1604,6 @@ class Simulation(NullSimulation):
         D_xint.d[:,:] += 0.5 * (D0_xint.d + D0_2a_xint.d)
         D_yint.d[:,:] += 0.5 * (D0_yint.d + D0_2a_yint.d)
 
-        # FIXME: hacky ceil-/flooring of scalars
-        #psi_xint.d[psi_xint.d < 0.] = 0.
-        #psi_yint.d[psi_yint.d < 0.] = 0.
-        #self.smooth_neighbours(psi_xint, psi_xint.v() > 1.)
-        #self.smooth_neighbours(psi_yint, psi_yint.v() > 1.)
-
         scalar_xint = myg.scratch_array(data=psi_xint.d*D_xint.d)
         scalar_yint = myg.scratch_array(data=psi_yint.d*D_yint.d)
 
@@ -1532,10 +1735,6 @@ class Simulation(NullSimulation):
         T_star = myg.scratch_array(data=T_2_star.d)
         self.react_state(S=self.compute_S(u=u_MAC, v=v_MAC),
                          D=D_star, Dh=Dh_star, DX=DX_star, T=T_star, scalar=scalar_star, Dh0=Dh0_star, u=u_MAC, v=v_MAC, u0=u0_MAC)
-
-        # FIXME: hacky ceil-/flooring of scalars
-        #scalar_star.d[scalar_star.d < 0.] = 0.
-        #self.smooth_neighbours(scalar_star, scalar_star.v() > D_star.v())
 
         #---------------------------------------------------------------------
         # 6. Compute time-centred expasion S, base state velocity U0 and
@@ -1712,12 +1911,6 @@ class Simulation(NullSimulation):
 
         X_xint = patch.ArrayIndexer(d=_Xx, grid=myg)
         X_yint = patch.ArrayIndexer(d=_Xy, grid=myg)
-
-        # FIXME: hacky ceil-/flooring of scalars
-        #psi_xint.d[psi_xint.d < 0.] = 0.
-        #psi_yint.d[psi_yint.d < 0.] = 0.
-        #self.smooth_neighbours(psi_xint, psi_xint.v() > 1.)
-        #self.smooth_neighbours(psi_yint ,psi_yint.v() > 1.)
 
         D_xint.d[:,:] += 0.5 * (D0_xint.d + D0_2a_xint.d)
         D_yint.d[:,:] += 0.5 * (D0_yint.d + D0_2a_yint.d)
@@ -1956,10 +2149,6 @@ class Simulation(NullSimulation):
 
         plot_me.d[:,:] =  D.d - D_old.d
 
-        # FIXME: hacky ceil-/flooring of scalars
-        #scalar.d[scalar.d < 0.] = 0.
-        #self.smooth_neighbours(scalar, scalar.v() > D.v())
-
         # increment the time
         if not self.in_preevolve:
             self.cc_data.t += self.dt
@@ -2009,17 +2198,8 @@ class Simulation(NullSimulation):
         colourmaps = [cmaps.magma_r, cmaps.magma, cmaps.viridis_r,
                       cmaps.magma]
 
-        # FIXME: get rid of me!!!!!!!
-        #fields = [D]
-        #field_names = [r"$D$"]
-
-        #vmins[2] = -1.e-4
-        #vmaxes[2] = 1.
-
         for n in range(len(fields)):
-            # FIXME: GET RID OF ME
             ax = axes.flat[n]
-            #ax = axes
 
             f = fields[n]
             cmap = colourmaps[n]
@@ -2034,7 +2214,6 @@ class Simulation(NullSimulation):
             ax.set_title(field_names[n])
 
             plt.colorbar(img, ax=ax)
-
 
         plt.figtext(0.05,0.0125,
                     "n: %4d,   t = %10.5f" % (self.n, self.cc_data.t))

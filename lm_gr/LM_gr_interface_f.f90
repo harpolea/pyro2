@@ -647,7 +647,7 @@ subroutine get_interface_states(qx, qy, ng, dx, dy, dt, &
         ubar = 0.5d0*(uhat_adv(i,j) + uhat_adv(i+1,j))
         vbar = 0.5d0*(vhat_adv(i,j) + vhat_adv(i,j+1))
 
-        ! v du/dy is the transerse term for the u states on x-interfaces
+        ! v du/dy is the transverse term for the u states on x-interfaces
         vu_y = vbar*(u_yint(i,j+1) - u_yint(i,j))
 
         u_xl(i+1,j) = u_xl(i+1,j) - 0.5*dtdy*vu_y - 0.5*dt*gradp_x(i,j)
