@@ -9,9 +9,6 @@ import sys
 from util import msg
 from lm_gr.problems import *
 
-#from numba import jit
-
-
 class Metric:
 
     def __init__(self, cellData, rp, alpha, beta, gamma):
@@ -140,7 +137,6 @@ class Metric:
         W = self.calcW(u=u, v=v)
         myg = self.cc_data.grid
         u0 = myg.scratch_array(data=W.d/self.alpha.d2d())
-        #u0.d[:,:] = W.d / self.alpha.d2d()
 
         return u0
 
@@ -168,7 +164,6 @@ class Metric:
 
         return met
 
-    #@jit
     def christoffels(self, x):
         """
         Calculates the Christoffel symbols of the metric at the given point.

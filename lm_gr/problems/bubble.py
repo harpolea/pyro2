@@ -3,7 +3,11 @@ Make resulting png plot output into a gif with:
     convert -delay 20 -loop 0 ../../Work/pyro/results/bubble*.png  lm_gr/results/bubble_128.gif
 
 Make into mpeg:
-    ffmpeg -framerate 10 -i bubble_256_%04d.png -c:v png -r 10 bubble_256.mp4
+    ffmpeg -framerate 10 -i bubble_256_%04d.png -c:v libx264 -r 10 bubble_256.mp4
+
+If have output e.g. every 5 steps, then use
+    ffmpeg -framerate 10 -pattern_type glob -i 'bubble_512_0*.png' -c:v libx264 -r 10 bubble_512.mp4
+
 
 """
 
@@ -39,6 +43,7 @@ def init_data(my_data, aux_data, base, rp, metric):
     R = rp.get_param("lm-gr.radius")
 
     gamma = rp.get_param("eos.gamma")
+    K = rp.get_param("eos.k_poly")
 
     scale_height = rp.get_param("bubble.scale_height")
     dens_base = rp.get_param("bubble.dens_base")
@@ -72,9 +77,9 @@ def init_data(my_data, aux_data, base, rp, metric):
 
     #cs2 = scale_height * abs(g)
 
-    # set the pressure (P = cs2*dens)
-    #pres = cs2 * dens
-    pres.d[:,:] = dens.d**gamma
+    # set the pressure (P = K dens^gamma)
+    #K = 2.2e8/1.241e9
+    pres.d[:,:] = K * dens.d**gamma
     eint.d[:,:] = pres.d / (gamma - 1.0) / dens.d
     enth.d[:, :] = 1. + eint.d + pres.d / dens.d
 
@@ -94,14 +99,14 @@ def init_data(my_data, aux_data, base, rp, metric):
     r = np.sqrt((myg.x2d - x_pert)**2  + (myg.y2d - y_pert)**2)
 
     idx = r <= r_pert
-    eint.d[idx] += eint.d[idx] * (pert_amplitude_factor -  1.) * 0.5 * (1. + np.tanh((2. - r[idx]/r_pert)/0.9))
+    eint.d[idx] += eint.d[idx] * (pert_amplitude_factor -  1.) * 0.5 * (1. + np.tanh((2. - r[idx]/r_pert)/(2.*r_pert)))
     dens.d[idx] = pres.d[idx] / (eint.d[idx] * (gamma - 1.0))
     enth.d[idx] = 1. + eint.d[idx] + pres.d[idx] / dens.d[idx]
     scalar.d[idx] = 0.
 
     # redo the pressure via TOV
     u0 = metric.calcu0()
-    p0.d[:] = (D0.d / u0.d1d())**gamma
+    p0.d[:] = K * D0.d**gamma
 
     for i in range(myg.jlo, myg.jhi+1):
         p0.d[i] = p0.d[i-1] - \
@@ -112,7 +117,9 @@ def init_data(my_data, aux_data, base, rp, metric):
     # FIXME: hack to drive reactions
     mp_kB = 1.21147#e-8
 
-    T.d[:,:] = p0.d2d() * mu * mp_kB / dens.d
+    # FIXME: made zero for now
+    T.d[:,:] = 0.
+    # T.d[:,:] = p0.d2d() * mu * mp_kB / dens.d
 
     # multiply by correct u0s
     dens.d[:, :] *= u0.d  # rho * u0

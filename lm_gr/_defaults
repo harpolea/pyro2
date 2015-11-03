@@ -1,5 +1,4 @@
 [lm-gr]
-
 limiter = 2               ; limiter (0 = none, 1 = 2nd order, 2 = 4th order)
 proj_type = 2             ; what are we projecting? 1 includes -Gp term in U*
 grav = 40.0
@@ -8,10 +7,9 @@ radius = 1000.0
 
 
 [eos]
-
-gamma = 1.4    ; pres = rho ener (gamma - 1)
+gamma = 1.666666666666666667    ; pres = rho ener (gamma - 1)
+k_poly = 1.0                 ; p = K rho^gamma
 
 
 [driver]
-
 cfl = 0.8
