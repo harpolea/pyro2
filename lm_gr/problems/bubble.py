@@ -37,6 +37,7 @@ def init_data(my_data, aux_data, base, rp, metric):
     eint = aux_data.get_var("eint")
     scalar = my_data.get_var("scalar")
     T = my_data.get_var("temperature")
+    DX = my_data.get_var("mass-frac")
 
     g = rp.get_param("lm-gr.grav")
     c = rp.get_param("lm-gr.c")
@@ -65,6 +66,7 @@ def init_data(my_data, aux_data, base, rp, metric):
     print('Resolution: ', myg.nx, ' x ', myg.ny)
     pres = myg.scratch_array()
     scalar.d[:,:] = 1.
+    DX.d[:,:] = 1.
 
     # FIXME: do this properly for gr case, add alpha back in
     j = myg.jlo
@@ -78,7 +80,6 @@ def init_data(my_data, aux_data, base, rp, metric):
     #cs2 = scale_height * abs(g)
 
     # set the pressure (P = K dens^gamma)
-    #K = 2.2e8/1.241e9
     pres.d[:,:] = K * dens.d**gamma
     eint.d[:,:] = pres.d / (gamma - 1.0) / dens.d
     enth.d[:, :] = 1. + eint.d + pres.d / dens.d
@@ -103,6 +104,7 @@ def init_data(my_data, aux_data, base, rp, metric):
     dens.d[idx] = pres.d[idx] / (eint.d[idx] * (gamma - 1.0))
     enth.d[idx] = 1. + eint.d[idx] + pres.d[idx] / dens.d[idx]
     scalar.d[idx] = 0.
+    DX.d[idx] = 1.
 
     # redo the pressure via TOV
     u0 = metric.calcu0()
@@ -117,9 +119,7 @@ def init_data(my_data, aux_data, base, rp, metric):
     # FIXME: hack to drive reactions
     mp_kB = 1.21147#e-8
 
-    # FIXME: made zero for now
-    T.d[:,:] = 0.
-    # T.d[:,:] = p0.d2d() * mu * mp_kB / dens.d
+    T.d[:,:] = p0.d2d() * mu * mp_kB / dens.d
 
     # multiply by correct u0s
     dens.d[:, :] *= u0.d  # rho * u0

@@ -476,10 +476,6 @@ class Simulation(NullSimulation):
             u0 = self.metric.calcu0(u=u, v=v)
         if p0 is None:
             p0 = self.base["p0"]
-        if Q is None:
-            Q = myg.scratch_array()
-        if D is None:
-            D = self.cc_data.get_var("density")
         gamma = self.rp.get_param("eos.gamma")
 
         #chrls = np.array([[self.metric.christoffels([self.cc_data.t, i, j])
@@ -489,8 +485,7 @@ class Simulation(NullSimulation):
 
         S.d[:,:] = -(chrls[:,:,0,0,0] + chrls[:,:,1,1,0] + chrls[:,:,2,2,0] +
             (chrls[:,:,0,0,1] + chrls[:,:,1,1,1] + chrls[:,:,2,2,1]) * u.d +
-            (chrls[:,:,0,0,2] + chrls[:,:,1,1,2] + chrls[:,:,2,2,2]) * v.d) + \
-            D.d * (gamma - 1) * Q.d / (u0.d * gamma**2 * p0.d2d())
+            (chrls[:,:,0,0,2] + chrls[:,:,1,1,2] + chrls[:,:,2,2,2]) * v.d)
 
         return S
 
@@ -703,28 +698,7 @@ class Simulation(NullSimulation):
         T : ArrayIndexer object, optional
             temperature
         """
-        myg = self.cc_data.grid
-        if p0 is None:
-            p0 = self.base["p0"]
-        if D is None:
-            D = self.cc_data.get_var("density")
-        if DX is None:
-            DX = self.cc_data.get_var("mass-frac")
-        if u0 is None:
-            u0 = self.metric.calcu0(u=u, v=v)
-        if T is None:
-            T = self.cc_data.get_var("temperature")
-
-        # mean molecular weight
-        mu = 1./(2. + 4. * DX.d/D.d)
-        # FIXME: hack to drive reactions
-        mp_kB = 1.21147#e-8
-
-        # use p0 here as otherwise have to explicitly calculate pi somewhere?
-        # TODO: could instead calculate this using Dh rather than p0?
-        # FIXME: made zero for now
-        T.d[:,:] = 0.
-        #T.d[:,:] = p0.d2d() * mu * u0.d * mp_kB / D.d
+        return
 
 
     def calc_Q_omega_dot(self, D=None, DX=None, u=None, v=None, u0=None, T=None):
@@ -754,30 +728,8 @@ class Simulation(NullSimulation):
             species creation rate
         """
         myg = self.cc_data.grid
-        if D is None:
-            D = self.cc_data.get_var("density")
-        if DX is None:
-            DX = self.cc_data.get_var("mass-frac")
-        if u0 is None:
-            u0 = self.metric.calcu0(u=u, v=v)
-        if T is None:
-            T = self.cc_data.get_var("temperature")
         Q = myg.scratch_array()
         omega_dot = myg.scratch_array()
-        # FIXME: hack to drive reactions
-        T9 = T.d * 1.6e-2#1.e-9 # for bubble: 1.45e-2
-        D5 = D.d * 1.e-5
-
-        # FIXME: made zero for now
-        Q.d[:,:] = 0.
-        #Q.d[:,:] = 5.3e18 * (D5 / u0.d)**2 * ((1. - DX.d/D.d) / T9)**3 * np.exp(-4.4 / T9)
-
-        # Hnuc = |Delta q|omega_dot, where Delta q is the change in binding energy. q_He = 2.83007e4 keV, q_C=9.2161753e4 keV
-        omega_dot.d[:,:] = Q.d * 9.773577e10
-
-        # FIXME: hackkkkk
-        Q.d[:,:] *= 1.e12 # for bubble: 1.e9
-        omega_dot.d[:,:] *= 1.e5 # for bubble: 5.
 
         return Q, omega_dot
 
@@ -906,32 +858,12 @@ class Simulation(NullSimulation):
         drp0 = self.drp0(Dh0=Dh0, u=u, v=v, u0=u0)
         if S is None:
             S = self.aux_data.get_var("source_y")
-        if T is None:
-            T = self.cc_data.get_var("temperature")
-        # FIXME: hack to drive reactions
-        kB_mp = 8.254409#e7
-        gamma = self.rp.get_param("eos.gamma")
 
-        # FIXME: no reactions
-        Q = myg.scratch_array()
-        omega_dot = myg.scratch_array()
-        # Q, omega_dot = self.calc_Q_omega_dot(D=D, DX=DX, u=u, v=v, u0=u0, T=T)
-        # print(Q.d.max())
-
-        h_T = kB_mp * gamma * (3. - 2. * DX.d/D.d) / (6. * (gamma-1.))
-        h_X = -kB_mp * T.d * gamma / (3. * (gamma-1.))
-
-        Dh.d[:,:] += 0.5 * self.dt * (S.d * Dh.d + u0.d * v.d * drp0.d2d() + D.d * Q.d)
-
-        DX.d[:,:] += 0.5 * self.dt * (S.d * DX.d + D.d * omega_dot.d)
+        Dh.d[:,:] += 0.5 * self.dt * (S.d * Dh.d + u0.d * v.d * drp0.d2d())
 
         D.d[:,:] += 0.5 * self.dt * (S.d * D.d)
 
         scalar.d[:,:] += 0.5 * self.dt * (S.d * scalar.d)
-
-        # FIXME: no reactions
-        T.d[:,:] = 0.
-        # T.d[:,:] += 0.5 * self.dt * (Q.d - h_X * omega_dot.d) / h_T
 
 
     def advect_base_density(self, D0=None, U0=None):
@@ -2042,9 +1974,7 @@ class Simulation(NullSimulation):
         Dh.d[:,:] = Dh_2.d[:,:]
         DX.d[:,:] = DX_2.d[:,:]
         scalar.d[:,:] = scalar_2.d[:,:]
-        # FIXME: make zero for now
-        T.d[:,:] = 0.
-        #T.d[:,:] = T_2.d[:,:]
+        T.d[:,:] = T_2.d[:,:]
         self.react_state(S=self.compute_S(u=u_MAC, v=v_MAC), D=D, Dh=Dh, DX=DX, T=T, scalar=scalar, u=u_MAC, v=v_MAC, u0=u0_MAC)
 
         self.cc_data.fill_BC("density")
@@ -2176,18 +2106,13 @@ class Simulation(NullSimulation):
         D = self.cc_data.get_var("density")
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
-
-        DX = self.cc_data.get_var("mass-frac")
         scalar = self.cc_data.get_var("scalar")
-        #T = self.cc_data.get_var("temperature")
 
         #plot_me = self.aux_data.get_var("plot_me")
 
         myg = self.cc_data.grid
 
         psi = myg.scratch_array(data=scalar.d/D.d)
-        X = myg.scratch_array(data=DX.d/D.d)
-        #logT = myg.scratch_array(data=np.log(T.d))
 
         magvel = np.sqrt(u**2 + v**2)
 
@@ -2201,8 +2126,8 @@ class Simulation(NullSimulation):
         fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.3)
 
-        fields = [D, X, psi, magvel]
-        field_names = [r"$D$", r"$X$", r"$\psi$", r"$|U|$"]
+        fields = [D, v, psi, magvel]
+        field_names = [r"$D$", r"$v$", r"$\psi$", r"$|U|$"]
         colourmaps = [cmaps.magma_r, cmaps.magma, cmaps.viridis_r,
                       cmaps.magma]
 

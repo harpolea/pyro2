@@ -67,7 +67,10 @@ def doit(solver_name, problem_name, param_file,
     # initialize the Simulation object -- this will hold the grid and
     # data and know about the runtime parameters and which problem we
     # are running
-    sim = solver.Simulation(solver_name, problem_name, rp, timers=tc)
+    if solver_name == "lm_gr" and rp.get_param("lm-gr.react") != 0:
+        sim = solver.SimulationReact(solver_name, problem_name, rp, timers=tc)
+    else:
+        sim = solver.Simulation(solver_name, problem_name, rp, timers=tc)
     #sim_py = solver.Simulation(solver_name, problem_name, rp, timers=tc, fortran=False)
 
     sim.initialize()

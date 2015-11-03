@@ -4,10 +4,10 @@ approximate projection method.  The general flow is:
 
   -- create the limited slopes of u and v (in both directions)
 
-  -- get the advective velocities through a piecewise linear Godunov 
+  -- get the advective velocities through a piecewise linear Godunov
      method
 
-  -- enforce the divergence constraint on the velocities through a 
+  -- enforce the divergence constraint on the velocities through a
      projection (the MAC projection)
 
   -- recompute the interface states using the new advective velocity
@@ -20,5 +20,4 @@ The projections are done using multigrid
 """
 
 from .simulation import *
-
-
+from .simulation_react import *

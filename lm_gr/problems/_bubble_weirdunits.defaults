@@ -1,0 +1,14 @@
+[bubble]
+dens_base = 0.5            ; density at the base of the atmosphere
+scale_height = 2.0          ; scale height of the isothermal atmosphere
+
+x_pert = 3.385e-3
+y_pert = 3.385e-3
+r_pert = 5e-4
+pert_amplitude_factor = 1.001
+
+dens_cutoff  = 1e-20
+
+
+[eos]
+k_poly = 0.1773                 ; p = K rho^gamma
