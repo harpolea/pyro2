@@ -188,16 +188,18 @@ class SimulationReact(Simulation):
         Q = myg.scratch_array()
         omega_dot = myg.scratch_array()
         # FIXME: hack to drive reactions
-        T9 = T.d * 1.45e-2#1.e-9
+        T9 = T.d * 1.e-9#1.e-9
         D5 = D.d * 1.e-5
 
         Q.d[:,:] = 5.3e18 * (D5 / u0.d)**2 * ((1. - DX.d/D.d) / T9)**3 * np.exp(-4.4 / T9)
+
+        #print((np.exp(-4.4 / T9))[25:35,25:35])
 
         # Hnuc = |Delta q|omega_dot, where Delta q is the change in binding energy. q_He = 2.83007e4 keV, q_C=9.2161753e4 keV
         omega_dot.d[:,:] = Q.d * 9.773577e10
 
         # FIXME: hackkkkk
-        Q.d[:,:] *= 1.e9 # for bubble: 1.e9, else 1.e12
+        #Q.d[:,:] *= 1.e12 # for bubble: 1.e9, else 1.e12
         omega_dot.d[:,:] *= 5. # for bubble: 5., else 1.e4
 
         return Q, omega_dot
@@ -258,14 +260,18 @@ class SimulationReact(Simulation):
 
         Q, omega_dot = self.calc_Q_omega_dot(D=D, DX=DX, u=u, v=v, u0=u0, T=T)
 
-        super(SimulationReact, self).react_state(S=S, D=D, Dh=Dh, p0=p0, scalar=scalar, Dh0=Dh0, u=u, v=v, u0=u0)
-
         h_T = kB_mp * gamma * (3. - 2. * DX.d/D.d) / (6. * (gamma-1.))
         h_X = -kB_mp * T.d * gamma / (3. * (gamma-1.))
 
-        Dh.d[:,:] += 0.5 * self.dt * (D.d * Q.d)
+        # cannot call super here as it changes D which is then needed to calculate Dh, D
+
+        Dh.d[:,:] += 0.5 * self.dt * (S.d * Dh.d + u0.d * v.d * drp0.d2d() + D.d * Q.d)
 
         DX.d[:,:] += 0.5 * self.dt * (S.d * DX.d + D.d * omega_dot.d)
+
+        D.d[:,:] += 0.5 * self.dt * (S.d * D.d)
+
+        scalar.d[:,:] += 0.5 * self.dt * (S.d * scalar.d)
 
         T.d[:,:] += 0.5 * self.dt * (Q.d - h_X * omega_dot.d) / h_T
 

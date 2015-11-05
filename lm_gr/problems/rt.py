@@ -29,6 +29,7 @@ def init_data(my_data, aux_data, base, rp, metric):
     DX = my_data.get_var("mass-frac")
 
     gamma = rp.get_param("eos.gamma")
+    K = rp.get_param("eos.k_poly")
 
     g = rp.get_param("lm-gr.grav")
     c = rp.get_param("lm-gr.c")
@@ -68,7 +69,7 @@ def init_data(my_data, aux_data, base, rp, metric):
                 (gamma * c**2 * R * metric.alpha.v2d()**2))
 
 
-    p.d[:,:] = dens.d**gamma
+    p.d[:,:] = K * dens.d**gamma
 
     v.d[:,:] = amp * np.cos(2.0 * math.pi * myg.x2d /
         (myg.xmax - myg.xmin)) * \
@@ -90,7 +91,7 @@ def init_data(my_data, aux_data, base, rp, metric):
     Dh0.d[:] = np.mean(enth.d, axis=0)
     p0.d[:] = np.mean(p.d, axis=0)
 
-    p0.d[:] = (D0.d / u0.d1d())**gamma
+    p0.d[:] = K * (D0.d / u0.d1d())**gamma
 
     for i in range(myg.jlo, myg.jhi+1):
         p0.d[i] = p0.d[i-1] - \

@@ -7,14 +7,14 @@ import numpy as np
 from util import msg
 
 def init_data(my_data, aux_data, base, rp, metric):
-    """ initialize the Kelvin-Helmholtz problem """
+    """ initialize the flame problem """
 
-    msg.bold("initializing the Kelvin-Helmholtz problem...")
+    msg.bold("initializing the flame problem...")
 
     # make sure that we are passed a valid patch object
     if not isinstance(my_data, patch.CellCenterData2d):
         print(my_data.__class__)
-        msg.fail("ERROR: patch invalid in kh.py")
+        msg.fail("ERROR: patch invalid in flame.py")
 
 
     # get the density and velocities
@@ -34,10 +34,9 @@ def init_data(my_data, aux_data, base, rp, metric):
     gamma = rp.get_param("eos.gamma")
     K = rp.get_param("eos.k_poly")
 
-    rho_1 = rp.get_param("kh.rho_1")
-    u_1   = rp.get_param("kh.v_1")
-    rho_2 = rp.get_param("kh.rho_2")
-    u_2   = rp.get_param("kh.v_2")
+    p_ratio = rp.get_param("flame.pressure_ratio")
+    dens_base = rp.get_param("flame.dens_base")
+    dens_cutoff = rp.get_param("flame.dens_cutoff")
 
     xmin = rp.get_param("mesh.xmin")
     xmax = rp.get_param("mesh.xmax")
@@ -45,39 +44,48 @@ def init_data(my_data, aux_data, base, rp, metric):
     ymin = rp.get_param("mesh.ymin")
     ymax = rp.get_param("mesh.ymax")
 
-    yctr = 0.5*(ymin + ymax)
+    xctr = 0.5*(xmin + xmax)
     L_x = 0.025*(xmax - xmin)
     L = xmax - xmin
-    rho_m = 0.5 * (rho_1 - rho_2)
-    u_m = 0.5 * (u_1 - u_2)
 
     myg = my_data.grid
     print('Resolution: ', myg.nx, ' x ', myg.ny)
+    pres = myg.scratch_array()
 
     # initialize the components, remember, that ener here is rho*eint
     # + 0.5*rho*v**2, where eint is the specific internal energy
     # (erg/g)
-    u.d[:,:] = u_1 - u_m * np.exp((myg.y[np.newaxis,:] - 0.5)/L_x)
-    v.d[:,:] = 5.e-1 * u_1 * np.sin(4. * math.pi * (myg.x[:, np.newaxis]+0.5*L)/L)
-    dens.d[:,:] = rho_1 - rho_m * np.exp((myg.y[np.newaxis,:] - 0.5)/L_x)
-    scalar.d[:,:] = 0.
-    DX.d[:,:] = 1.
-
-    idx = (myg.y2d[:,:] > yctr)
-    dens.d[idx] = rho_2 + rho_m * np.exp((-myg.y2d[idx] + 0.5)/L_x)
-    u.d[idx] = u_2 + u_m * np.exp((-myg.y2d[idx] + 0.5)/L_x)
-    scalar.d[idx] = 1. #+ 0.5 * np.exp((-myg.y2d[idx] + 0.5)/L_x)
-    DX.d[idx] = 0.
-
-    #dens.v()[:, :] *= \
-    #    np.exp(-g * myg.y[np.newaxis, myg.jlo:myg.jhi+1] /
-    #            (gamma * c**2 * R * metric.alpha.v2d()**2))
-
-    pres = myg.scratch_array()
+    u.d[:,:] = 0.
+    v.d[:,:] = 0.
+    dens.d[:,:] = dens_cutoff
+    dens.v()[:,:] = dens_base * \
+        np.exp(-g * myg.y[np.newaxis, myg.jlo:myg.jhi+1] /
+                (gamma * c**2 * R * metric.alpha.v2d()**2))
 
     pres.d[:,:] = K * dens.d**gamma
     eint.d[:,:] = pres.d / (gamma - 1.0) / dens.d
     enth.d[:, :] = 1. + eint.d + pres.d / dens.d
+
+    scalar.d[:,:] = 0.
+    DX.d[:,:] = 0.
+
+    # do burnt stuff - shall start flame on left, 10% of the way across the domain
+    idx = (myg.x <= 0.2 * xctr)
+    scalar.d[idx] = 1.
+    DX.d[idx] = 1.
+    # need to increase/decrease other quantities here as well to get the discontinuity - shall use Rankine-Hugoniot stuff
+    p2 = pres.d[idx]
+    d2 = dens.d[idx]
+    pres.d[idx] *= p_ratio
+    p1 = pres.d[idx]
+    dens.d[idx] = (pres.d[idx] / K)**(1. / gamma)
+    d1 = dens.d[idx]
+    h2 = enth.d[idx]
+
+    # I think the weak deflagration must take the negative root
+    enth.d[idx] = 0.5 * (p2 - p1) / d1 + np.sqrt(h2**2 + h2 * (p1 - p2) / d2 + (0.5 * (p1 - p2) / d1)**2 )
+
+    #print(enth.d[5:15,5:15])
 
     my_data.fill_BC_all()
 
@@ -108,8 +116,6 @@ def init_data(my_data, aux_data, base, rp, metric):
     D0.d[:] *= u0.d1d()
     Dh0.d[:] *= D0.d
     old_p0 = p0.copy()
-    u.d[:,:] /= u0.d
-    v.d[:,:] /= u0.d
     scalar.d[:,:] *= dens.d
     DX.d[:,:] *= dens.d
 

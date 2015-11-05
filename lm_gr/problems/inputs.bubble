@@ -40,6 +40,3 @@ x_pert = 0.5
 y_pert = 0.5
 r_pert = 0.05
 pert_amplitude_factor = 1.1
-
-[eos]
-gamma = 1.4

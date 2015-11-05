@@ -66,7 +66,7 @@ def init_data(my_data, aux_data, base, rp, metric):
     print('Resolution: ', myg.nx, ' x ', myg.ny)
     pres = myg.scratch_array()
     scalar.d[:,:] = 1.
-    DX.d[:,:] = 1.
+    DX.d[:,:] = 0.
 
     # FIXME: do this properly for gr case, add alpha back in
     j = myg.jlo
@@ -100,7 +100,7 @@ def init_data(my_data, aux_data, base, rp, metric):
     r = np.sqrt((myg.x2d - x_pert)**2  + (myg.y2d - y_pert)**2)
 
     idx = r <= r_pert
-    eint.d[idx] += eint.d[idx] * (pert_amplitude_factor -  1.) * 0.5 * (1. + np.tanh((2. - r[idx]/r_pert)/(2.*r_pert)))
+    eint.d[idx] += eint.d[idx] * (pert_amplitude_factor -  1.) * 0.5 * (1. + np.tanh((2. - r[idx]/r_pert)/0.9))# (2.*r_pert)))
     dens.d[idx] = pres.d[idx] / (eint.d[idx] * (gamma - 1.0))
     enth.d[idx] = 1. + eint.d[idx] + pres.d[idx] / dens.d[idx]
     scalar.d[idx] = 0.
@@ -128,6 +128,7 @@ def init_data(my_data, aux_data, base, rp, metric):
     Dh0.d[:] *= D0.d
     old_p0 = p0.copy()
     scalar.d[:,:] *= dens.d
+    DX.d[:,:] *= dens.d
 
     my_data.fill_BC_all()
 
