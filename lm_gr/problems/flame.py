@@ -16,7 +16,6 @@ def init_data(my_data, aux_data, base, rp, metric):
         print(my_data.__class__)
         msg.fail("ERROR: patch invalid in flame.py")
 
-
     # get the density and velocities
     dens = my_data.get_var("density")
     enth = my_data.get_var("enthalpy")
@@ -34,7 +33,7 @@ def init_data(my_data, aux_data, base, rp, metric):
     gamma = rp.get_param("eos.gamma")
     K = rp.get_param("eos.k_poly")
 
-    p_ratio = rp.get_param("flame.pressure_ratio")
+    dens_ratio = rp.get_param("flame.dens_ratio")
     dens_base = rp.get_param("flame.dens_base")
     dens_cutoff = rp.get_param("flame.dens_cutoff")
 
@@ -44,8 +43,8 @@ def init_data(my_data, aux_data, base, rp, metric):
     ymin = rp.get_param("mesh.ymin")
     ymax = rp.get_param("mesh.ymax")
 
-    xctr = 0.5*(xmin + xmax)
-    L_x = 0.025*(xmax - xmin)
+    xctr = 0.5 * (xmin + xmax)
+    L_x = 0.1 * (xmax - xmin)
     L = xmax - xmin
 
     myg = my_data.grid
@@ -55,7 +54,7 @@ def init_data(my_data, aux_data, base, rp, metric):
     # initialize the components, remember, that ener here is rho*eint
     # + 0.5*rho*v**2, where eint is the specific internal energy
     # (erg/g)
-    u.d[:,:] = 0.
+    u.d[:,:] = 1.e-5
     v.d[:,:] = 0.
     dens.d[:,:] = dens_cutoff
     dens.v()[:,:] = dens_base * \
@@ -74,18 +73,28 @@ def init_data(my_data, aux_data, base, rp, metric):
     scalar.d[idx] = 1.
     DX.d[idx] = 1.
     # need to increase/decrease other quantities here as well to get the discontinuity - shall use Rankine-Hugoniot stuff
-    p2 = pres.d[idx]
-    d2 = dens.d[idx]
-    pres.d[idx] *= p_ratio
-    p1 = pres.d[idx]
-    dens.d[idx] = (pres.d[idx] / K)**(1. / gamma)
-    d1 = dens.d[idx]
-    h2 = enth.d[idx]
+    p2 = pres.d
+    d2 = dens.d
+    dens.d[idx] *= dens_ratio
+
+    pres.d[idx] = K * dens.d[idx]**gamma
+    p1 = pres.d
+    d1 = dens.d
+    h2 = enth.d
 
     # I think the weak deflagration must take the negative root
-    enth.d[idx] = 0.5 * (p2 - p1) / d1 + np.sqrt(h2**2 + h2 * (p1 - p2) / d2 + (0.5 * (p1 - p2) / d1)**2 )
+    enth.d[idx] = 0.5 * (p2[idx] - p1[idx]) / d1[idx] + np.sqrt(h2[idx]**2 + h2[idx] * (p1[idx] - p2[idx]) / d2[idx] + (0.5 * (p1[idx] - p2[idx]) / d1[idx])**2 )
 
     #print(enth.d[5:15,5:15])
+
+    # smooth
+    pres.d[:,:] += (pres.d-p2) * 0.5 * \
+        (1. + np.tanh(((myg.x2d-0.2*xctr)/L_x)/0.9))
+    dens.d[:,:] += (dens.d-d2) * 0.5 * \
+        (1. + np.tanh((0.1 * (myg.x2d-0.2*xctr)/L_x)/0.9))
+    enth.d[:,:] += (enth.d-h2) * 0.5 * \
+        (1. + np.tanh(((myg.x2d-0.2*xctr)/L_x)/0.9))
+    DX.d[:,:] += 0.5 * (1. + np.tanh((-(myg.x2d-0.2*xctr)/L_x)/0.9))
 
     my_data.fill_BC_all()
 
@@ -105,8 +114,8 @@ def init_data(my_data, aux_data, base, rp, metric):
         p0.d[i] = p0.d[i-1] - \
                   myg.dy * Dh0.d[i] * g / (R * c**2 * metric.alpha.d[i] **2 * u0.d1d()[i])
 
-    mu = 0.5 # as we start with pure He, so X = 0
-    mp_kB = 1.21147e-8
+    mu = 1./(2. + 4. * DX.d)
+    mp_kB = 1.21147#e-8
 
     T.d[:,:] = p0.d2d() * mu * mp_kB / dens.d
 

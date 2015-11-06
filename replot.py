@@ -6,6 +6,7 @@ import sys
 import getopt
 
 import mesh.patch as patch
+from util import runparams
 
 # plot an output file using the solver's dovis script
 
@@ -13,7 +14,17 @@ def makeplot(myd, solver_name, problem_name, outfile, W, H, n=0, vmins=[None, No
 
     exec ('import ' + solver_name + ' as solver')
 
-    sim = solver.Simulation(solver_name, problem_name, None)
+    rp = runparams.RuntimeParameters()
+    rp.load_params(solver_name + "/_defaults")
+
+    # problem-specific runtime parameters
+    rp.load_params(solver_name + "/problems/_" + problem_name + ".defaults")
+
+    if solver_name == "lm_gr" and rp.get_param("lm-gr.react") != 0:
+        sim = solver.SimulationReact(solver_name, problem_name, None)
+    else:
+        sim = solver.Simulation(solver_name, problem_name, None)
+
     sim.cc_data = myd
     sim.n = n
 

@@ -199,7 +199,7 @@ class SimulationReact(Simulation):
         omega_dot.d[:,:] = Q.d * 9.773577e10
 
         # FIXME: hackkkkk
-        #Q.d[:,:] *= 1.e12 # for bubble: 1.e9, else 1.e12
+        Q.d[:,:] *= 1.e12 # for bubble: 1.e9, else 1.e12
         omega_dot.d[:,:] *= 5. # for bubble: 5., else 1.e4
 
         return Q, omega_dot
@@ -312,8 +312,8 @@ class SimulationReact(Simulation):
         fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.3)
 
-        fields = [D, X, psi, logT]
-        field_names = [r"$D$", r"$X$", r"$\psi$", r"$\ln T$"]
+        fields = [D, X, u, logT]
+        field_names = [r"$D$", r"$X$", r"$u$", r"$\ln T$"]
         colourmaps = [cmaps.magma_r, cmaps.magma, cmaps.viridis_r,
                       cmaps.magma]
 

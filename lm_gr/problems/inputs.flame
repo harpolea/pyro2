@@ -6,13 +6,13 @@ tmax = 1000000000.
 [lm-gr]
 limiter = 4
 c = 1000.0
-grav = 1.0
+grav = 1.0e-5
 
 
 [io]
 basename = ../../Work/pyro/results/flame/flame_64_   ; basename for output files
-n_out = 5                   ; number of timesteps between writing output files
-do_io = 0                   ; do we output at all?
+n_out = 1                   ; number of timesteps between writing output files
+do_io = 1                   ; do we output at all?
 
 [vis]
 
@@ -26,15 +26,11 @@ ny = 64
 xmax = 1.0
 ymax = 1.0
 
-xlboundary = periodic
-xrboundary = periodic
+xlboundary = outflow
+xrboundary = outflow
 
-ylboundary = outflow
+ylboundary = reflect
 yrboundary = outflow
-
-
-[flame]
-pressure_ratio = 0.9            ; ratio of p_burnt / p_unburnt
 
 [driver]
 
