@@ -34,6 +34,7 @@ def init_data(my_data, aux_data, base, rp, metric):
     K = rp.get_param("eos.k_poly")
 
     dens_ratio = rp.get_param("flame.dens_ratio")
+    print('dens ratio: ', dens_ratio)
     dens_base = rp.get_param("flame.dens_base")
     dens_cutoff = rp.get_param("flame.dens_cutoff")
 
@@ -54,7 +55,7 @@ def init_data(my_data, aux_data, base, rp, metric):
     # initialize the components, remember, that ener here is rho*eint
     # + 0.5*rho*v**2, where eint is the specific internal energy
     # (erg/g)
-    u.d[:,:] = 1.e-5
+    u.d[:,:] = 0.
     v.d[:,:] = 0.
     dens.d[:,:] = dens_cutoff
     dens.v()[:,:] = dens_base * \
@@ -73,28 +74,43 @@ def init_data(my_data, aux_data, base, rp, metric):
     scalar.d[idx] = 1.
     DX.d[idx] = 1.
     # need to increase/decrease other quantities here as well to get the discontinuity - shall use Rankine-Hugoniot stuff
-    p2 = pres.d
-    d2 = dens.d
+    p2 = myg.scratch_array()
+    p2.d[:,:] = pres.d
+    d2 = myg.scratch_array()
+    d2.d[:,:] = dens.d
     dens.d[idx] *= dens_ratio
 
     pres.d[idx] = K * dens.d[idx]**gamma
-    p1 = pres.d
-    d1 = dens.d
-    h2 = enth.d
+    p1 = myg.scratch_array()
+    p1.d[:,:] = pres.d
+    d1 = myg.scratch_array()
+    d1.d[:,:] = dens.d
+    h2 = myg.scratch_array()
+    h2.d[:,:] = enth.d
 
     # I think the weak deflagration must take the negative root
-    enth.d[idx] = 0.5 * (p2[idx] - p1[idx]) / d1[idx] + np.sqrt(h2[idx]**2 + h2[idx] * (p1[idx] - p2[idx]) / d2[idx] + (0.5 * (p1[idx] - p2[idx]) / d1[idx])**2 )
+    enth.d[idx] = 0.5 * (p2.d[idx] - p1.d[idx]) / d1.d[idx] + np.sqrt(h2.d[idx]**2 + h2.d[idx] * (p1.d[idx] - p2.d[idx]) / d2.d[idx] + (0.5 * (p1.d[idx] - p2.d[idx]) / d1.d[idx])**2 )
+    h1 = myg.scratch_array()
+    h1.d[:,:] = enth.d
 
-    #print(enth.d[5:15,5:15])
+    # print(enth.d[5:15,5:15])
 
     # smooth
-    pres.d[:,:] += (pres.d-p2) * 0.5 * \
-        (1. + np.tanh(((myg.x2d-0.2*xctr)/L_x)/0.9))
-    dens.d[:,:] += (dens.d-d2) * 0.5 * \
-        (1. + np.tanh((0.1 * (myg.x2d-0.2*xctr)/L_x)/0.9))
-    enth.d[:,:] += (enth.d-h2) * 0.5 * \
-        (1. + np.tanh(((myg.x2d-0.2*xctr)/L_x)/0.9))
-    DX.d[:,:] += 0.5 * (1. + np.tanh((-(myg.x2d-0.2*xctr)/L_x)/0.9))
+    #pres.d[:,:] += (pres.d-p2) * 0.5 * \
+    #    (1. + np.tanh(((myg.x2d-0.2*xctr)/L_x)/0.9))
+    #dens.d[:,:] += (dens.d-d2) * 0.5 * \
+    #    (1. + np.tanh((0.1 * (myg.x2d-0.2*xctr)/L_x)/0.9))
+    #enth.d[:,:] += (enth.d-h2) * 0.5 * \
+    #    (1. + np.tanh(((myg.x2d-0.2*xctr)/L_x)/0.9))
+    #DX.d[:,:] += 0.5 * (1. + np.tanh((-(myg.x2d-0.2*xctr)/L_x)/0.9))
+
+    Jsq = myg.scratch_array()
+    Jsq.d[idx] = - (p2.d[idx] - p1.d[idx])/ (h2.d[idx]/d2.d[idx] - h1.d[idx]/d1.d[idx])
+    u.d[idx] = np.sqrt(Jsq.d[idx]) / d1.d[idx]
+
+    # extend Jsq to outside the flame.
+    Jsq = np.mean(Jsq.d[idx], axis=0, dtype=np.float64)
+    u.d[~idx] = Jsq[np.newaxis, :]/dens.d[~idx]
 
     my_data.fill_BC_all()
 
