@@ -1,4 +1,4 @@
 [flame]
 dens_base = 100.0
-dens_ratio = 0.4     ; rho_burnt / rho_unburnt
+dens_ratio = 0.9     ; rho_burnt / rho_unburnt
 dens_cutoff  = 0.01

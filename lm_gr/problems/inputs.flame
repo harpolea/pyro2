@@ -5,8 +5,8 @@ tmax = 1000000000.
 
 [lm-gr]
 limiter = 4
-c = 1000.0
-grav = 1.0e-5
+c = 1.0e10
+grav = 1.0e-10
 
 
 [io]

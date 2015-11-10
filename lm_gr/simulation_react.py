@@ -141,7 +141,7 @@ class SimulationReact(Simulation):
             T = self.cc_data.get_var("temperature")
 
         # mean molecular weight
-        mu = 1./(2. + 4. * DX.d/D.d)
+        mu = 1./(2. * (1 - DX.d/D.d) + 4. * DX.d/D.d)
         # FIXME: hack to drive reactions
         mp_kB = 1.21147#e-8
 

@@ -97,7 +97,7 @@ def init_data(my_data, aux_data, base, rp, metric):
         p0.d[i] = p0.d[i-1] - \
                   myg.dy * Dh0.d[i] * g / (R * c**2 * metric.alpha.d[i] **2 * u0.d1d()[i])
 
-    mu = 1./(2. + 4. * DX.d)
+    mu = 1./(2. * (1 - DX.d) + 4. * DX.d)
     mp_kB = 1.21147e-8
 
     T.d[:,:] = p0.d2d() * mu * mp_kB / dens.d

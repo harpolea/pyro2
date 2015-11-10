@@ -110,7 +110,9 @@ def init_data(my_data, aux_data, base, rp, metric):
 
     # extend Jsq to outside the flame.
     Jsq = np.mean(Jsq.d[idx], axis=0, dtype=np.float64)
-    u.d[~idx] = Jsq[np.newaxis, :]/dens.d[~idx]
+    u.d[~idx] = np.sqrt(Jsq[np.newaxis, :])/dens.d[~idx]
+
+    print('u: ', u.d[20:30, 20])
 
     my_data.fill_BC_all()
 
@@ -130,7 +132,7 @@ def init_data(my_data, aux_data, base, rp, metric):
         p0.d[i] = p0.d[i-1] - \
                   myg.dy * Dh0.d[i] * g / (R * c**2 * metric.alpha.d[i] **2 * u0.d1d()[i])
 
-    mu = 1./(2. + 4. * DX.d)
+    mu = 1./(2. * (1 - DX.d) + 4. * DX.d)
     mp_kB = 1.21147#e-8
 
     T.d[:,:] = p0.d2d() * mu * mp_kB / dens.d

@@ -113,7 +113,7 @@ def init_data(my_data, aux_data, base, rp, metric):
                   #myg.dy * g * (2. * p0.d[i-1] * (1. + metric.alpha.d[i]**4) -
                   #Dh0.d[i] / u0.d1d()[i]) / (c**2 * metric.alpha.d[i]**2 * R)
 
-    mu = 0.5 # as we start with pure He, so X = 0
+    mu = 1./(2. * (1 - DX.d) + 4. * DX.d)
     mp_kB = 1.21147e-8
 
     T.d[:,:] = p0.d2d() * mu * mp_kB / dens.d

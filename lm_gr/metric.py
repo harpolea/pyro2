@@ -118,7 +118,7 @@ class Metric:
             print('Tried to take the square root of a negative Lorentz \
                   factor! \nTry checking your velocities?\n')
             print((u.d[-10:, -10:]**2 + v.d[-10:, -10:]**2)/c**2)
-            print(u.d.min, v.d.min)
+            print(u.d.min(), v.d.min())
             sys.exit()
 
         return W

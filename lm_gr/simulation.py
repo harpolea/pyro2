@@ -294,6 +294,10 @@ class Simulation(NullSimulation):
         # add metric
         g = self.rp.get_param("lm-gr.grav")
         c = self.rp.get_param("lm-gr.c")
+
+        if g < 1.e-5:
+            print('Gravity is very low (', g, ') - make sure the speed of light is high enough to cope.')
+
         R = self.rp.get_param("lm-gr.radius")
 
         alpha = Basestate(myg.ny, ng=myg.ng)
@@ -1210,8 +1214,9 @@ class Simulation(NullSimulation):
         coeff = 1. / (Dh * u0)
         coeff.v()[:,:] *= zeta.v2d()
 
-        u.v()[:,:] -= coeff.v() * gradp_x.v()
-        v.v()[:,:] -= coeff.v() * gradp_y.v()
+        # CHANGED: multiplied by dt to match same thing done at end of evolve.
+        u.v()[:,:] -= self.dt * coeff.v() * gradp_x.v()
+        v.v()[:,:] -= self.dt * coeff.v() * gradp_y.v()
 
         # fill the ghostcells
         self.cc_data.fill_BC("x-velocity")
