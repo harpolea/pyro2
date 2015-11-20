@@ -5,6 +5,8 @@ import math
 import mesh.patch as patch
 import numpy as np
 from util import msg
+import lm_gr.metric as metric
+import scipy.optimize
 
 def init_data(my_data, aux_data, base, rp, metric):
     """ initialize the flame problem """
@@ -55,7 +57,7 @@ def init_data(my_data, aux_data, base, rp, metric):
     # initialize the components, remember, that ener here is rho*eint
     # + 0.5*rho*v**2, where eint is the specific internal energy
     # (erg/g)
-    u.d[:,:] = 0.
+    u.d[:,:] = 1.e-3
     v.d[:,:] = 0.
     dens.d[:,:] = dens_cutoff
     dens.v()[:,:] = dens_base * \
@@ -69,32 +71,48 @@ def init_data(my_data, aux_data, base, rp, metric):
     scalar.d[:,:] = 0.
     DX.d[:,:] = 0.
 
+
     # do burnt stuff - shall start flame on left, 10% of the way across the domain
     idx = (myg.x <= 0.2 * xctr)
     scalar.d[idx] = 1.
     DX.d[idx] = 1.
     # need to increase/decrease other quantities here as well to get the discontinuity - shall use Rankine-Hugoniot stuff
-    p2 = myg.scratch_array()
-    p2.d[:,:] = pres.d
-    d2 = myg.scratch_array()
-    d2.d[:,:] = dens.d
-    dens.d[idx] *= dens_ratio
+    # u subscript = unburnt, b subscript = burnt
+    p_u = myg.scratch_array()
+    p_b = myg.scratch_array()
+    p_u.d[:,:] = pres.d
+    d_u = myg.scratch_array()
+    d_b = myg.scratch_array()
+    d_u.d[:,:] = dens.d
+    # need to calculate u_u = flame speed
+    u_u = myg.scratch_array()
+    u_u.d[:,:] = calc_flame_speed(myg).d
+    # u_b = u - flame speed
+    u_b = myg.scratch_array()
+    h_u = myg.scratch_array()
+    h_u.d[:,:] = enth.d
+    h_b = myg.scratch_array()
 
-    pres.d[idx] = K * dens.d[idx]**gamma
-    p1 = myg.scratch_array()
-    p1.d[:,:] = pres.d
-    d1 = myg.scratch_array()
-    d1.d[:,:] = dens.d
-    h2 = myg.scratch_array()
-    h2.d[:,:] = enth.d
+    J = myg.scratch_array()
+    W_u = metric.calcW(u=u_u, v=v)
+    J.d[:,:] = dens.d * W_u.d * u_u.d
 
-    # I think the weak deflagration must take the negative root
-    enth.d[idx] = 0.5 * (p2.d[idx] - p1.d[idx]) / d1.d[idx] + np.sqrt(h2.d[idx]**2 + h2.d[idx] * (p1.d[idx] - p2.d[idx]) / d2.d[idx] + (0.5 * (p1.d[idx] - p2.d[idx]) / d1.d[idx])**2 )
-    h1 = myg.scratch_array()
-    h1.d[:,:] = enth.d
+    # first estimate
+    u_b.d[:,:] = u_u.d
 
-    # print(enth.d[5:15,5:15])
+    #res = get_v_b(u_b_low.d, h_u*W_u, d_u*W_u*u_u, u_u, h_u, p_u, v, gamma, metric, myg)
+    #print('Res = ', res)
 
+    u_b.d[:,:] = scipy.optimize.fsolve(get_v_b, u_b.d,  args=(h_u*W_u, d_u*W_u*u_u, u_u, h_u, p_u, v, gamma, metric, myg))
+
+    # hW, rhoWv, v_u, h_u, p_u, v, gamma, metric
+    W_b = metric.calcW(u=u_b, v=v)
+    d_b.d[:,:] = J.d / (W_b.d * u_b.d)
+    h_b.d[:,:] = h_u.d * W_u.d / W_b.d
+    p_b.d[:,:] = p_u.d - J.d**2 * (h_b.d/d_b.d - h_u.d/d_u.d)
+
+    # I think the weak deflagration must take the positive root
+    #enth.d[idx] = 0.5 * (p2.d[idx] - p1.d[idx]) / d1.d[idx] + np.sqrt(h2.d[idx]**2 + h2.d[idx] * (p1.d[idx] - p2.d[idx]) / d2.d[idx] + (0.5 * (p1.d[idx] - p2.d[idx]) / d1.d[idx])**2 )
     # smooth
     #pres.d[:,:] += (pres.d-p2) * 0.5 * \
     #    (1. + np.tanh(((myg.x2d-0.2*xctr)/L_x)/0.9))
@@ -104,15 +122,18 @@ def init_data(my_data, aux_data, base, rp, metric):
     #    (1. + np.tanh(((myg.x2d-0.2*xctr)/L_x)/0.9))
     #DX.d[:,:] += 0.5 * (1. + np.tanh((-(myg.x2d-0.2*xctr)/L_x)/0.9))
 
-    Jsq = myg.scratch_array()
-    Jsq.d[idx] = - (p2.d[idx] - p1.d[idx])/ (h2.d[idx]/d2.d[idx] - h1.d[idx]/d1.d[idx])
-    u.d[idx] = np.sqrt(Jsq.d[idx]) / d1.d[idx]
+    #Jsq.d[idx] = - (p2.d[idx] - p1.d[idx])/ (h2.d[idx]/d2.d[idx] - h1.d[idx]/d1.d[idx])
+    #u.d[idx] = np.sqrt(Jsq.d[idx]) / d1.d[idx]
 
-    # extend Jsq to outside the flame.
-    Jsq = np.mean(Jsq.d[idx], axis=0, dtype=np.float64)
-    u.d[~idx] = np.sqrt(Jsq[np.newaxis, :])/dens.d[~idx]
-
-    print('u: ', u.d[20:30, 20])
+    # put variables back in
+    pres.d[idx] = p_b.d[idx]
+    pres.d[~idx] = p_u.d[~idx]
+    dens.d[idx] = d_b.d[idx]
+    dens.d[~idx] = d_u.d[~idx]
+    enth.d[idx] = h_b.d[idx]
+    enth.d[~idx] = h_u.d[~idx]
+    u.d[idx] = u_b.d[idx] - u_u.d[idx]
+    u.d[~idx] = 0.
 
     my_data.fill_BC_all()
 
@@ -148,6 +169,31 @@ def init_data(my_data, aux_data, base, rp, metric):
 
     my_data.fill_BC_all()
 
+def get_v_b(v_b, hW, rhoWv, v_u, h_u, p_u, v, gamma, metric, myg):
+
+    # method flattens array, so unflatten it and make into an
+    # ArrayIndexer object so it's compatible with methods
+    v_b_AI = myg.scratch_array()
+    v_b_AI.d[:,:] = v_b.reshape(myg.qx, myg.qy)
+
+    W_b = metric.calcW(v_b_AI, v)
+
+    h_b = hW.d / W_b.d
+    p_b = ((h_b - 1.) * rhoWv.d * (gamma - 1.)) / (gamma * W_b.d * v_b_AI.d)
+    lhs = h_b**2 - h_u.d**2
+    rhs = (hW.d/rhoWv.d) * (v_b_AI.d + v_u.d) * (p_b - p_u.d)
+
+    residual = lhs - rhs
+
+    return residual.flatten()
+
+def calc_flame_speed(myg):
+    s = myg.scratch_array()
+
+    # FIXME: how do I do this???
+    s.d[:,:] = 1.e-3
+
+    return s
 
 def finalize():
     """ print out any information to the user at the end of the run """
