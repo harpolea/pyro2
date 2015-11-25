@@ -6,7 +6,7 @@ tmax = 1.e8
 
 
 [io]
-basename = ../../Work/pyro/results/rt/rt_256_
+basename = ../../Documents/Work/pyro/results/rt/rt_256_
 n_out = 5
 do_io = 1                   ; do we output at all?
 

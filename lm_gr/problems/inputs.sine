@@ -16,7 +16,7 @@ radius = 1.4e4               ; radius of NS
 
 
 [io]
-basename = ../../Work/pyro/results/lm_sine_64_   ; basename for output files
+basename = ../../Documents/Work/pyro/results/lm_sine_64_   ; basename for output files
 dt_out = 0.1               ; simulation time between writing output files
 n_out = 20                 ; number of timesteps between writing output files
 do_io = 1                  ; do we output at all?

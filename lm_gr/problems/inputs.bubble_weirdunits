@@ -13,7 +13,7 @@ c = 1.0
 radius = 6.77   ; 10km
 
 [io]
-basename = ../../Work/pyro/results/bubble/bubble_64_weirdunits_   ; basename for output files
+basename = ../../Documents/Work/pyro/results/bubble/bubble_64_weirdunits_   ; basename for output files
 n_out = 1                   ; number of timesteps between writing output files
 do_io = 1                   ; do we output at all?
 

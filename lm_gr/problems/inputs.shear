@@ -16,7 +16,7 @@ radius = 1.0             ; radius of NS
 
 
 [io]
-basename = ../../Work/pyro/results/shear_64_noLM_
+basename = ../../Documents/Work/pyro/results/shear_64_noLM_
 dt_out = 0.1               ; simulation time between writing output files
 n_out = 1                 ; number of timesteps between writing output files
 

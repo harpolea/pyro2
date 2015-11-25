@@ -10,7 +10,7 @@ grav = 1.0
 
 
 [io]
-basename = ../../Work/pyro/results/kh/kh_64_   ; basename for output files
+basename = ../../Documents/Work/pyro/results/kh/kh_64_   ; basename for output files
 n_out = 5                   ; number of timesteps between writing output files
 do_io = 0                   ; do we output at all?
 
