@@ -618,7 +618,11 @@ class Simulation(NullSimulation):
             (grr[np.newaxis,:] * chrls[:,:,2,1,2] +
              gxx[np.newaxis,:] * chrls[:,:,1,2,2]) * u.d * v.d)
 
-        mom_source_r.d[:,:] -=  drp0.d[np.newaxis,:] / (Dh.d[:,:]*u0.d[:,:])
+        # check drp0 is not zero
+        mask = (abs(drp0.d2d()) > 1.e-15)
+        mom_source_r.d[mask] -=  drp0.d2d()[mask] / (Dh.d[mask]*u0.d[mask])
+
+        #mom_source_r.d[:,:] -=  drp0.d[np.newaxis,:] / (Dh.d[:,:]*u0.d[:,:])
 
         mom_source_x.d[:,:] *=  self.metric.alpha.d2d()**2
         mom_source_r.d[:,:] *=  self.metric.alpha.d2d()**2
@@ -1147,6 +1151,7 @@ class Simulation(NullSimulation):
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
         scalar = self.cc_data.get_var("scalar")
+        print('v sum: ', np.sum(v.d))
 
         self.cc_data.fill_BC("density")
         self.cc_data.fill_BC("enthalpy")
@@ -1215,12 +1220,15 @@ class Simulation(NullSimulation):
         coeff.v()[:,:] *= zeta.v2d()
 
         # CHANGED: multiplied by dt to match same thing done at end of evolve.
-        u.v()[:,:] -= self.dt * coeff.v() * gradp_x.v()
-        v.v()[:,:] -= self.dt * coeff.v() * gradp_y.v()
+        # FIXME: WTF IS IT DOING HERE?????
+        #u.v()[:,:] -= self.dt * coeff.v() * gradp_x.v()
+        #v.v()[:,:] -= self.dt * coeff.v() * gradp_y.v()
 
         # fill the ghostcells
         self.cc_data.fill_BC("x-velocity")
         self.cc_data.fill_BC("y-velocity")
+
+        print('v sum: ', np.sum(v.v()))
 
         # c. now get an approximation to gradp at n-1/2 by going through the
         # evolution.
@@ -1231,6 +1239,7 @@ class Simulation(NullSimulation):
 
         # get the timestep
         self.compute_timestep(u0=u0)
+        print('timestep v sum: ', np.sum(v.v()))
 
         # evolve
         self.evolve()
@@ -1247,6 +1256,10 @@ class Simulation(NullSimulation):
 
         self.cc_data = orig_data
         self.aux_data = orig_aux
+
+        v = self.cc_data.get_var("y-velocity")
+
+        print('v sum: ', np.sum(v.v()))
 
         if self.verbose > 0:
             print("done with the pre-evolution")
@@ -1755,11 +1768,13 @@ class Simulation(NullSimulation):
 
         if proj_type == 1:
             u.v()[:,:] -= (self.dt * advect_x.v() + self.dt * gradp_x.v())
-            v.v()[:,:] -= (self.dt * advect_y.v() + self.dt * gradp_y.v())
+            # FIXME: add back in!
+            #v.v()[:,:] -= (self.dt * advect_y.v() + self.dt * gradp_y.v())
 
         elif proj_type == 2:
             u.v()[:,:] -= self.dt * advect_x.v()
-            v.v()[:,:] -= self.dt * advect_y.v()
+            # FIXME: add back in!
+            #v.v()[:,:] -= self.dt * advect_y.v()
 
         # add on source term
         # do we want to use Dh half star here maybe?
@@ -2067,8 +2082,10 @@ class Simulation(NullSimulation):
 
         # FIXME: need base state forcing here!
         # However, it doesn't actually work: it just causes the atmosphere to rise up?
-        u.v()[:,:] += self.dt * (-coeff.v() * gradphi_x.v())
-        v.v()[:,:] += self.dt * (-coeff.v() * gradphi_y.v())# + base_forcing.v())
+        base_forcing = self.base_state_forcing()
+        #u.v()[:,:] += self.dt * (-coeff.v() * gradphi_x.v())
+        # FIXME: add back in??
+        #v.v()[:,:] += self.dt * (-coeff.v() * gradphi_y.v() + base_forcing.v())
 
         # store gradp for the next step
         if proj_type == 1:

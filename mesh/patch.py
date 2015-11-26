@@ -41,6 +41,7 @@ except:
     import pickle
 
 from util import msg
+import copy
 
 #from numba import jit
 
@@ -365,7 +366,12 @@ class ArrayIndexer(object):
         return self.d.max()
 
     def copy(self):
-        return ArrayIndexer(d=self.d.copy(), grid=self.g)
+        return ArrayIndexer(d=self.d, grid=self.g)
+
+    def deepcopy(self):
+        new = self.g.scratch_array()
+        new.d[:,:] = self.d
+        return new
 
     def is_symmetric(self, nodal=False, tol=1.e-14):
         if not nodal:
@@ -1019,7 +1025,7 @@ class CellCenterData2d():
 
             #for j in range(self.grid.jhi+1, 2*self.grid.ng + self.grid.ny):
             #    self.data[n,:,j] = self.data[n,:,j-self.grid.jhi-1+self.grid.ng]
-            self.dat[n,:,self.grid.jhi+1:] = self.data[n,:,:self.jlo+1]
+            self.dat[n,:,self.grid.jhi+1:] = self.data[n,:,:self.grid.jlo+1]
 
         else:
             if self.BCs[name].yrb in extBCs.keys():
@@ -1194,8 +1200,8 @@ def cell_center_data_clone(old):
 
     new.create()
 
-    new.aux = old.aux.copy()
-    new.data = old.data.copy()
+    new.aux = copy.deepcopy(old.aux)
+    new.data = copy.deepcopy(old.data)
 
     return new
 

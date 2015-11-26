@@ -6,7 +6,8 @@ tmax = 1000000000.
 [lm-gr]
 limiter = 4
 c = 1.0e10
-grav = 1.0e-10
+grav = 0.
+radius = 1.e20
 
 
 [io]
@@ -29,7 +30,7 @@ ymax = 1.0
 xlboundary = outflow
 xrboundary = outflow
 
-ylboundary = reflect
+ylboundary = outflow
 yrboundary = outflow
 
 [driver]

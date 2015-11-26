@@ -43,7 +43,6 @@ class SimulationReact(Simulation):
 
         Simulation.__init__(self, solver_name, problem_name, rp, timers=timers, fortran=fortran)
 
-
     def compute_S(self, u=None, v=None, u0=None, p0=None, Q=None, D=None):
         r"""
         :math: `S = -\Gamma^\mu_(\mu \nu) U^\nu + \frac{D (\gamma-1)}{u^0 \gamma^2 p} H`  (see eq 6.34, 6.37 in LowMachGR).
@@ -191,7 +190,7 @@ class SimulationReact(Simulation):
         T9 = T.d * 1.e-9#1.e-9
         D5 = D.d * 1.e-5
 
-        Q.d[:,:] = 5.3e18 * (D5 / u0.d)**2 * ((1. - DX.d/D.d) / T9)**3 * np.exp(-4.4 / T9)
+        Q.d[:,:] = 5.3e18 * (D5 / u0.d)**2 * ((DX.d/D.d) / T9)**3 * np.exp(-4.4 / T9)
 
         #print((np.exp(-4.4 / T9))[25:35,25:35])
 
@@ -316,6 +315,9 @@ class SimulationReact(Simulation):
         field_names = [r"$D$", r"$X$", r"$u$", r"$\ln T$"]
         colourmaps = [cmaps.magma_r, cmaps.magma, cmaps.viridis_r,
                       cmaps.magma]
+
+        #vmaxes = [0.05, 1.0, 0.64, None]
+        #vmins = [0.0, 0.95, 0.0, 3.0]
 
         for n in range(len(fields)):
             ax = axes.flat[n]
