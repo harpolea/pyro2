@@ -33,7 +33,7 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
 !f2py intent(in) :: r, u, v, p
 !f2py intent(in) :: ldelta_r, ldelta_u, ldelta_v, ldelta_p
 !f2py intent(out) :: q_l, q_r
- 
+
 
 
   ! predict the cell-centered state to the edges in one-dimension
@@ -46,9 +46,9 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
   !
   ! We need the left and right eigenvectors and the eigenvalues for
   ! the system projected along the x-direction
-  !                                      
+  !
   ! Taking our state vector as Q = (rho, u, v, p)^T, the eigenvalues
-  ! are u - c, u, u + c. 
+  ! are u - c, u, u + c.
   !
   ! We look at the equations of hydrodynamics in a split fashion --
   ! i.e., we only consider one dimension at a time.
@@ -61,7 +61,7 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
   !        | 0   u   0  1/r |
   !    A = | 0   0   u   0  |
   !        \ 0  rc^2 0   u  /
-  !            
+  !
   ! The right eigenvectors are
   !
   !        /  1  \        / 1 \        / 0 \        /  1  \
@@ -85,9 +85,9 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
   !           |             |             |             |
   !           |             |             |             |
   !          -+------+------+------+------+------+------+--
-  !           |     i-1     |      i      |     i+1     | 
+  !           |     i-1     |      i      |     i+1     |
   !                        ^ ^           ^
-  !                    q_l,i q_r,i  q_l,i+1    
+  !                    q_l,i q_r,i  q_l,i+1
   !
   ! q_r,i and q_l,i+1 are computed using the information in zone i,j.
 
@@ -116,10 +116,10 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
      do i = ilo-2, ihi+2
 
         dq(:) = [ldelta_r(i,j), &
-                 ldelta_u(i,j), & 
+                 ldelta_u(i,j), &
                  ldelta_v(i,j), &
                  ldelta_p(i,j)]
-        
+
         q(:) = [r(i,j), u(i,j), v(i,j), p(i,j)]
 
         cs = sqrt(gamma*p(i,j)/r(i,j))
@@ -127,7 +127,7 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
         ! compute the eigenvalues and eigenvectors
         if (idir == 1) then
            eval(:) = [u(i,j) - cs, u(i,j), u(i,j), u(i,j) + cs]
-        
+
            lvec(0,:) = [ 0.0d0, -0.5d0*r(i,j)/cs, 0.0d0, 0.5d0/(cs*cs)  ]
            lvec(1,:) = [ 1.0d0, 0.0d0,            0.0d0, -1.0d0/(cs*cs) ]
            lvec(2,:) = [ 0.0d0, 0.0d0,            1.0d0, 0.0d0          ]
@@ -140,7 +140,7 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
 
         else
            eval = [v(i,j) - cs, v(i,j), v(i,j), v(i,j) + cs]
-                            
+
            lvec(0,:) = [ 0.0d0, 0.0d0, -0.5d0*r(i,j)/cs, 0.5d0/(cs*cs)  ]
            lvec(1,:) = [ 1.0d0, 0.0d0, 0.0d0,            -1.0d0/(cs*cs) ]
            lvec(2,:) = [ 0.0d0, 1.0d0, 0.0d0,            0.0d0          ]
@@ -159,12 +159,12 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
            ! so the fastest moving eigenvalue is eval[3] = u + c
            factor = 0.5d0*(1.0d0 - dtdx*max(eval(3), 0.0d0))
            q_l(i+1,j,:) = q(:) + factor*dq(:)
-               
+
            ! left face of the current zone, so the fastest moving
            ! eigenvalue is eval[3] = u - c
            factor = 0.5d0*(1.0d0 + dtdx*min(eval(0), 0.0d0))
            q_r(i,  j,:) = q(:) - factor*dq(:)
-    
+
         else
 
            factor = 0.5d0*(1.0d0 - dtdx*max(eval(3), 0.0d0))
@@ -205,23 +205,25 @@ end subroutine states
 
 
 subroutine riemann_cgf(idir, qx, qy, ng, &
-                       nvar, idens, ixmom, iymom, iener, &
-                       gamma, U_l, U_r, F)
+                       nvar, iD, iSx, iSy, itau, &
+                       gamma, U_l, U_r, V_l, V_r, c, F)
 
   implicit none
 
   integer, intent(in) :: idir
   integer, intent(in) :: qx, qy, ng
-  integer, intent(in) :: nvar, idens, ixmom, iymom, iener
-  double precision, intent(in) :: gamma
+  integer, intent(in) :: nvar, iD, iSx, iSy, itau
+  double precision, intent(in) :: gamma, c
 
-  ! 0-based indexing to match python 
+  ! 0-based indexing to match python
   double precision, intent(inout) :: U_l(0:qx-1,0:qy-1,0:nvar-1)
   double precision, intent(inout) :: U_r(0:qx-1,0:qy-1,0:nvar-1)
+  double precision, intent(inout) :: V_l(0:qx-1,0:qy-1,0:nvar-1)
+  double precision, intent(inout) :: V_r(0:qx-1,0:qy-1,0:nvar-1)
   double precision, intent(  out) :: F(0:qx-1,0:qy-1,0:nvar-1)
 
-!f2py depend(qx, qy, nvar) :: U_l, U_r     
-!f2py intent(in) :: U_l, U_r
+!f2py depend(qx, qy, nvar) :: U_l, U_r, V_l, V_r
+!f2py intent(in) :: U_l, U_r, V_l, V_r
 !f2py intent(out) :: F
 
   ! Solve riemann shock tube problem for a general equation of
@@ -249,7 +251,7 @@ subroutine riemann_cgf(idir, qx, qy, ng, &
   !
   ! Only density jumps across the u characteristic.  All primitive
   ! variables jump across the other two.  Special attention is needed
-  ! if a rarefaction spans the axis.  
+  ! if a rarefaction spans the axis.
 
   integer :: ilo, ihi, jlo, jhi
   integer :: nx, ny
@@ -259,17 +261,17 @@ subroutine riemann_cgf(idir, qx, qy, ng, &
   double precision, parameter :: smallrho = 1.e-10
   double precision, parameter :: smallp = 1.e-10
 
-  double precision :: rho_l, un_l, ut_l, rhoe_l, p_l
-  double precision :: rho_r, un_r, ut_r, rhoe_r, p_r
+  double precision :: rho_l, un_l, ut_l, h_l, p_l
+  double precision :: rho_r, un_r, ut_r, h_r, p_r
 
-  double precision :: rhostar_l, rhostar_r, rhoestar_l, rhoestar_r
+  double precision :: rhostar_l, rhostar_r, hstar_l, hstar_r
   double precision :: ustar, pstar, cstar_l, cstar_r
   double precision :: lambda_l, lambdastar_l, lambda_r, lambdastar_r
   double precision :: W_l, W_r, c_l, c_r, sigma
   double precision :: alpha
 
-  double precision :: rho_state, un_state, ut_state, p_state, rhoe_state
-  
+  double precision :: rho_state, un_state, ut_state, p_state, h_state, W
+
 
   nx = qx - 2*ng; ny = qy - 2*ng
   ilo = ng; ihi = ng+nx-1; jlo = ng; jhi = ng+ny-1
@@ -278,45 +280,46 @@ subroutine riemann_cgf(idir, qx, qy, ng, &
      do i = ilo-1, ihi+1
 
         ! primitive variable states
-        rho_l  = U_l(i,j,idens)
+        rho_l  = V_l(i,j,iD)
 
-        ! un = normal velocity; ut = transverse velocity        
+        ! un = normal velocity; ut = transverse velocity
         if (idir == 1) then
-           un_l    = U_l(i,j,ixmom)/rho_l
-           ut_l    = U_l(i,j,iymom)/rho_l
+           un_l    = V_l(i,j,iSx)
+           ut_l    = V_l(i,j,iSy)
         else
-           un_l    = U_l(i,j,iymom)/rho_l
-           ut_l    = U_l(i,j,ixmom)/rho_l
+           un_l    = V_l(i,j,iSy)
+           ut_l    = V_l(i,j,iSx)
         endif
 
-        rhoe_l = U_l(i,j,iener) - 0.5*rho_l*(un_l**2 + ut_l**2)
+        h_l = V_l(i,j,itau)
 
-        p_l   = rhoe_l*(gamma - 1.0d0)
+        p_l   = (h_l - 1.0d0) * (gamma - 1.0d0) * rho_l / gamma
         p_l = max(p_l, smallp)
+        eps_l = h_l - 1.0d0 - p_l / rho_l
 
-        rho_r  = U_r(i,j,idens)
+        rho_r  = V_r(i,j,iD)
 
         if (idir == 1) then
-           un_r    = U_r(i,j,ixmom)/rho_r
-           ut_r    = U_r(i,j,iymom)/rho_r
+            un_r    = V_r(i,j,iSx)
+            ut_r    = V_r(i,j,iSy)
         else
-           un_r    = U_r(i,j,iymom)/rho_r
-           ut_r    = U_r(i,j,ixmom)/rho_r
+            un_r    = V_r(i,j,iSy)
+            ut_r    = V_r(i,j,iSx)
         endif
 
-        rhoe_r = U_r(i,j,iener) - 0.5*rho_r*(un_r**2 + ut_r**2)
+        h_r = V_r(i,j,itau)
 
-        p_r   = rhoe_r*(gamma - 1.0d0)
+        p_r   = (h_r - 1.0d0) * (gamma - 1.0d0) * rho_r / gamma
         p_r = max(p_r, smallp)
-            
+        eps_r = h_r - 1.0d0 - p_r / rho_r
 
         ! define the Lagrangian sound speed
-        W_l = max(smallrho*smallc, sqrt(gamma*p_l*rho_l))
-        W_r = max(smallrho*smallc, sqrt(gamma*p_r*rho_r))
+        W_l = max(smallrho*smallc, rho_l * sqrt(gamma * (gamma - 1.0d0) * eps_l / (1.0d0 + gamma * eps_l)))
+        W_r = max(smallrho*smallc, rho_r * sqrt(gamma * (gamma - 1.0d0) * eps_r / (1.0d0 + gamma * eps_r)))
 
         ! and the regular sound speeds
-        c_l = max(smallc, sqrt(gamma*p_l/rho_l))
-        c_r = max(smallc, sqrt(gamma*p_r/rho_r))
+        c_l = max(smallc, sqrt(gamma * (gamma - 1.0d0) * eps_l / (1.0d0 + gamma * eps_l)))
+        c_r = max(smallc, sqrt(gamma * (gamma - 1.0d0) * eps_r / (1.0d0 + gamma * eps_r)))
 
         ! define the star states
         pstar = (W_l*p_r + W_r*p_l + W_l*W_r*(un_l - un_r))/(W_l + W_r)
@@ -328,10 +331,10 @@ subroutine riemann_cgf(idir, qx, qy, ng, &
         rhostar_l = rho_l + (pstar - p_l)/c_l**2
         rhostar_r = rho_r + (pstar - p_r)/c_r**2
 
-        rhoestar_l = rhoe_l + &
-             (pstar - p_l)*(rhoe_l/rho_l + p_l/rho_l)/c_l**2
-        rhoestar_r = rhoe_r + &
-             (pstar - p_r)*(rhoe_r/rho_r + p_r/rho_r)/c_r**2
+        hstar_l = h_l + &
+             (pstar - p_l)*(h_l/rho_l + p_l/rho_l)/c_l**2
+        hstar_r = rhoe_r + &
+             (pstar - p_r)*(h_r/rho_r + p_r/rho_r)/c_r**2
 
         cstar_l = max(smallc,sqrt(gamma*pstar/rhostar_l))
         cstar_r = max(smallc,sqrt(gamma*pstar/rhostar_r))
@@ -339,8 +342,8 @@ subroutine riemann_cgf(idir, qx, qy, ng, &
         ! figure out which state we are in, based on the location of
         ! the waves
         if (ustar > 0.0d0) then
-                
-           ! contact is moving to the right, we need to understand 
+
+           ! contact is moving to the right, we need to understand
            ! the L and *L states
 
            ! Note: transverse velocity only jumps across contact
@@ -359,14 +362,14 @@ subroutine riemann_cgf(idir, qx, qy, ng, &
                  rho_state = rho_l
                  un_state = un_l
                  p_state = p_l
-                 rhoe_state = rhoe_l
-                 
+                 h_state = h_l
+
               else
                  ! solution is *L state
                  rho_state = rhostar_l
                  un_state = ustar
                  p_state = pstar
-                 rhoe_state = rhoestar_l                        
+                 h_state = hstar_l
               endif
 
            else
@@ -377,15 +380,15 @@ subroutine riemann_cgf(idir, qx, qy, ng, &
                  rho_state = rhostar_l
                  un_state = ustar
                  p_state = pstar
-                 rhoe_state = rhoestar_l
-                 
+                 h_state = hstar_l
+
               else if (lambda_l > 0.0d0 .and. lambdastar_l > 0.0d0) then
                  ! rarefaction fan is moving to the right -- solution is
                  ! L state
                  rho_state = rho_l
                  un_state = un_l
                  p_state = p_l
-                 rhoe_state = rhoe_l
+                 h_state = h_l
 
               else
                  ! rarefaction spans x/t = 0 -- interpolate
@@ -394,25 +397,25 @@ subroutine riemann_cgf(idir, qx, qy, ng, &
                  rho_state  = alpha*rhostar_l  + (1.0d0 - alpha)*rho_l
                  un_state   = alpha*ustar      + (1.0d0 - alpha)*un_l
                  p_state    = alpha*pstar      + (1.0d0 - alpha)*p_l
-                 rhoe_state = alpha*rhoestar_l + (1.0d0 - alpha)*rhoe_l
+                 h_state = alpha*hstar_l + (1.0d0 - alpha)*h_l
               endif
 
            endif
 
         else if (ustar < 0) then
-                
+
            ! contact moving left, we need to understand the R and *R
            ! states
 
            ! Note: transverse velocity only jumps across contact
            ut_state = ut_r
-                
+
            ! define eigenvalues
            lambda_r = un_r + c_r
            lambdastar_r = ustar + cstar_r
 
            if (pstar > p_r) then
-              ! the wave if a shock -- find the shock speed 
+              ! the wave if a shock -- find the shock speed
               sigma = (lambda_r + lambdastar_r)/2.0d0
 
               if (sigma > 0.0d0) then
@@ -420,14 +423,14 @@ subroutine riemann_cgf(idir, qx, qy, ng, &
                  rho_state = rhostar_r
                  un_state = ustar
                  p_state = pstar
-                 rhoe_state = rhoestar_r
+                 h_state = hstar_r
 
               else
                  ! solution is R state
                  rho_state = rho_r
                  un_state = un_r
                  p_state = p_r
-                 rhoe_state = rhoe_r
+                 h_state = h_r
               endif
 
            else
@@ -438,16 +441,16 @@ subroutine riemann_cgf(idir, qx, qy, ng, &
                  rho_state = rho_r
                  un_state = un_r
                  p_state = p_r
-                 rhoe_state = rhoe_r
-                        
+                 h_state = h_r
+
               else if (lambda_r > 0.0d0 .and. lambdastar_r > 0.0d0) then
                  ! rarefaction fan is moving to the right -- solution is
                  ! *R state
                  rho_state = rhostar_r
                  un_state = ustar
                  p_state = pstar
-                 rhoe_state = rhoestar_r
-                 
+                 h_state = hstar_r
+
               else
                  ! rarefaction spans x/t = 0 -- interpolate
                  alpha = lambda_r/(lambda_r - lambdastar_r)
@@ -455,36 +458,36 @@ subroutine riemann_cgf(idir, qx, qy, ng, &
                  rho_state  = alpha*rhostar_r  + (1.0d0 - alpha)*rho_r
                  un_state   = alpha*ustar      + (1.0d0 - alpha)*un_r
                  p_state    = alpha*pstar      + (1.0d0 - alpha)*p_r
-                 rhoe_state = alpha*rhoestar_r + (1.0d0 - alpha)*rhoe_r
-                        
+                 h_state = alpha*hstar_r + (1.0d0 - alpha)*h_r
+
               endif
-              
+
            endif
-           
+
         else  ! ustar == 0
-                
+
            rho_state = 0.5*(rhostar_l + rhostar_r)
            un_state = ustar
            ut_state = 0.5*(ut_l + ut_r)
            p_state = pstar
-           rhoe_state = 0.5*(rhoestar_l + rhoestar_r)
+           h_state = 0.5*(hstar_l + hstar_r)
 
         endif
 
         ! compute the fluxes
-        F(i,j,idens) = rho_state*un_state
+        W = 1.0d0 / sqrt(1.0d0 - (un_state**2 + ut_state**2)/c**2)
+
+        F(i,j,iD) = rho_state * W * un_state
 
         if (idir == 1) then
-           F(i,j,ixmom) = rho_state*un_state**2 + p_state
-           F(i,j,iymom) = rho_state*ut_state*un_state
+           F(i,j,iSx) = rho_state * h_state * W**2 * un_state**2 + p_state
+           F(i,j,iSy) = rho_state * h_state * W**2 * ut_state * un_state
         else
-           F(i,j,ixmom) = rho_state*ut_state*un_state
-           F(i,j,iymom) = rho_state*un_state**2 + p_state
+           F(i,j,iSx) = rho_state * h_state * W**2 * ut_state * un_state
+           F(i,j,iSy) = rho_state * h_state * W**2 * un_state**2 + p_state
         endif
 
-        F(i,j,iener) = rhoe_state*un_state + &
-             0.5*rho_state*(un_state**2 + ut_state**2)*un_state + &
-             p_state*un_state
+        F(i,j,itau) = (rho_state * h_state * W**2 - rho_state * W) * un_state
 
      enddo
   enddo
@@ -493,24 +496,26 @@ end subroutine riemann_cgf
 
 
 subroutine riemann_HLLC(idir, qx, qy, ng, &
-                        nvar, idens, ixmom, iymom, iener, &
-                        gamma, U_l, U_r, F)
+                        nvar, iD, iSx, iSy, itau, &
+                        gamma, U_l, U_r, V_l, V_r, c, F)
 
 
   implicit none
 
   integer, intent(in) :: idir
   integer, intent(in) :: qx, qy, ng
-  integer, intent(in) :: nvar, idens, ixmom, iymom, iener
-  double precision, intent(in) :: gamma
+  integer, intent(in) :: nvar, iD, iSx, iSy, itau
+  double precision, intent(in) :: gamma, c
 
-  ! 0-based indexing to match python 
+  ! 0-based indexing to match python
   double precision, intent(inout) :: U_l(0:qx-1,0:qy-1,0:nvar-1)
   double precision, intent(inout) :: U_r(0:qx-1,0:qy-1,0:nvar-1)
+  double precision, intent(inout) :: V_l(0:qx-1,0:qy-1,0:nvar-1)
+  double precision, intent(inout) :: V_r(0:qx-1,0:qy-1,0:nvar-1)
   double precision, intent(  out) :: F(0:qx-1,0:qy-1,0:nvar-1)
 
-!f2py depend(qx, qy, nvar) :: U_l, U_r     
-!f2py intent(in) :: U_l, U_r
+!f2py depend(qx, qy, nvar) :: U_l, U_r, V_l, V_r
+!f2py intent(in) :: U_l, U_r, V_l, V_r
 !f2py intent(out) :: F
 
   ! this is the HLLC Riemann solver.  The implementation follows
@@ -525,8 +530,8 @@ subroutine riemann_HLLC(idir, qx, qy, ng, &
   double precision, parameter :: smallrho = 1.e-10
   double precision, parameter :: smallp = 1.e-10
 
-  double precision :: rho_l, un_l, ut_l, rhoe_l, p_l
-  double precision :: rho_r, un_r, ut_r, rhoe_r, p_r
+  double precision :: rho_l, un_l, ut_l, h_l, p_l
+  double precision :: rho_r, un_r, ut_r, h_r, p_r
 
   double precision :: rhostar_l, rhostar_r, rho_avg
   double precision :: ustar, pstar
@@ -535,11 +540,11 @@ subroutine riemann_HLLC(idir, qx, qy, ng, &
   double precision :: g_l, g_r, A_l, B_l, A_r, B_r, z
   double precision :: S_l, S_r, S_c
   double precision :: c_l, c_r, c_avg
-  
+
   double precision :: U_state(0:nvar-1)
   double precision :: HLLCfactor
 
-  
+
 
   nx = qx - 2*ng; ny = qy - 2*ng
   ilo = ng; ihi = ng+nx-1; jlo = ng; jhi = ng+ny-1
@@ -548,48 +553,50 @@ subroutine riemann_HLLC(idir, qx, qy, ng, &
      do i = ilo-1, ihi+1
 
         ! primitive variable states
-        rho_l  = U_l(i,j,idens)
+        rho_l  = V_l(i,j,iD)
 
-        ! un = normal velocity; ut = transverse velocity        
+        ! un = normal velocity; ut = transverse velocity
         if (idir == 1) then
-           un_l    = U_l(i,j,ixmom)/rho_l
-           ut_l    = U_l(i,j,iymom)/rho_l
+            un_l    = V_l(i,j,iSx)
+            ut_l    = V_l(i,j,iSy)
         else
-           un_l    = U_l(i,j,iymom)/rho_l
-           ut_l    = U_l(i,j,ixmom)/rho_l
+            un_l    = V_l(i,j,iSy)
+            ut_l    = V_l(i,j,iSx)
         endif
 
-        rhoe_l = U_l(i,j,iener) - 0.5*rho_l*(un_l**2 + ut_l**2)
+        h_l = V_l(i,j,itau)
 
-        p_l   = rhoe_l*(gamma - 1.0d0)
+        p_l   = (h_l - 1.0d0) * (gamma - 1.0d0) * rho_l / gamma
         p_l = max(p_l, smallp)
+        eps_l = h_l - 1.0d0 - p_l / rho_l
 
-        rho_r  = U_r(i,j,idens)
+        rho_r  = V_r(i,j,iD)
 
         if (idir == 1) then
-           un_r    = U_r(i,j,ixmom)/rho_r
-           ut_r    = U_r(i,j,iymom)/rho_r
+            un_r    = V_r(i,j,iSx)
+            ut_r    = V_r(i,j,iSy)
         else
-           un_r    = U_r(i,j,iymom)/rho_r
-           ut_r    = U_r(i,j,ixmom)/rho_r
+            un_r    = V_r(i,j,iSy)
+            ut_r    = V_r(i,j,iSx)
         endif
 
-        rhoe_r = U_r(i,j,iener) - 0.5*rho_r*(un_r**2 + ut_r**2)
+        h_r = V_r(i,j,itau)
 
-        p_r   = rhoe_r*(gamma - 1.0d0)
+        p_r   = (h_r - 1.0d0) * (gamma - 1.0d0) * rho_r / gamma
         p_r = max(p_r, smallp)
-            
-        
+
+        eps_r = h_r - 1.0d0 - p_r / rho_r
+
         ! compute the sound speeds
-        c_l = max(smallc, sqrt(gamma*p_l/rho_l))
-        c_r = max(smallc, sqrt(gamma*p_r/rho_r))
+        c_l = max(smallc, sqrt(gamma * (gamma - 1.0d0) * eps_l / (1.0d0 + gamma * eps_l)))
+        c_r = max(smallc, sqrt(gamma * (gamma - 1.0d0) * eps_r / (1.0d0 + gamma * eps_r)))
 
         ! Estimate the star quantities -- use one of three methods to
         ! do this -- the primitive variable Riemann solver, the two
         ! shock approximation, or the two rarefaction approximation.
         ! Pick the method based on the pressure states at the
         ! interface.
-        
+
         p_max = max(p_l, p_r)
         p_min = min(p_l, p_r)
 
@@ -611,9 +618,9 @@ subroutine riemann_HLLC(idir, qx, qy, ng, &
         if (Q > 2 .and. (pstar < p_min .or. pstar > p_max)) then
 
            ! use a more accurate Riemann solver for the estimate here
-           
+
            if (pstar < p_min) then
-              
+
               ! 2-rarefaction Riemann solver
               z = (gamma - 1.0d0)/(2.0d0*gamma)
               p_lr = (p_l/p_r)**z
@@ -687,36 +694,36 @@ subroutine riemann_HLLC(idir, qx, qy, ng, &
         S_c = (p_r - p_l + rho_l*un_l*(S_l - un_l) - rho_r*un_r*(S_r - un_r))/ &
              (rho_l*(S_l - un_l) - rho_r*(S_r - un_r))
 
-        
-        ! figure out which region we are in and compute the state and 
+
+        ! figure out which region we are in and compute the state and
         ! the interface fluxes using the HLLC Riemann solver
         if (S_r <= 0.0d0) then
            ! R region
            U_state(:) = U_r(i,j,:)
 
-           call consFlux(idir, gamma, idens, ixmom, iymom, iener, nvar, &
-                         U_state, F(i,j,:))
+           call consFlux(idir, gamma, iD, iSx, iSy, itau, nvar, &
+                         U_state, F(i,j,:), c)
 
         else if (S_r > 0.0d0 .and. S_c <= 0) then
            ! R* region
            HLLCfactor = rho_r*(S_r - un_r)/(S_r - S_c)
-           
-           U_state(idens) = HLLCfactor
+
+           U_state(iD) = HLLCfactor
 
            if (idir == 1) then
-              U_state(ixmom) = HLLCfactor*S_c
-              U_state(iymom) = HLLCfactor*ut_r
+              U_state(iSx) = HLLCfactor*S_c
+              U_state(iSy) = HLLCfactor*ut_r
            else
-              U_state(ixmom) = HLLCfactor*ut_r
-              U_state(iymom) = HLLCfactor*S_c
+              U_state(iSx) = HLLCfactor*ut_r
+              U_state(iSy) = HLLCfactor*S_c
            endif
 
-           U_state(iener) = HLLCfactor*(U_r(i,j,iener)/rho_r + &
+           U_state(itau) = HLLCfactor*(U_r(i,j,itau)/rho_r + &
                 (S_c - un_r)*(S_c + p_r/(rho_r*(S_r - un_r))))
 
            ! find the flux on the right interface
-           call consFlux(idir, gamma, idens, ixmom, iymom, iener, nvar, &
-                         U_r(i,j,:), F(i,j,:))
+           call consFlux(idir, gamma, iD, iSx, iSy, itau, nvar, &
+                         U_r(i,j,:), F(i,j,:), c)
 
            ! correct the flux
            F(i,j,:) = F(i,j,:) + S_r*(U_state(:) - U_r(i,j,:))
@@ -725,22 +732,22 @@ subroutine riemann_HLLC(idir, qx, qy, ng, &
            ! L* region
            HLLCfactor = rho_l*(S_l - un_l)/(S_l - S_c)
 
-           U_state(idens) = HLLCfactor
+           U_state(iD) = HLLCfactor
 
            if (idir == 1) then
-              U_state(ixmom) = HLLCfactor*S_c
-              U_state(iymom) = HLLCfactor*ut_l
+              U_state(iSx) = HLLCfactor*S_c
+              U_state(iSy) = HLLCfactor*ut_l
            else
-              U_state(ixmom) = HLLCfactor*ut_l
-              U_state(iymom) = HLLCfactor*S_c
+              U_state(iSx) = HLLCfactor*ut_l
+              U_state(iSy) = HLLCfactor*S_c
            endif
 
-           U_state(iener) = HLLCfactor*(U_l(i,j,iener)/rho_l + &
+           U_state(itau) = HLLCfactor*(U_l(i,j,itau)/rho_l + &
                 (S_c - un_l)*(S_c + p_l/(rho_l*(S_l - un_l))))
 
            ! find the flux on the left interface
-           call consFlux(idir, gamma, idens, ixmom, iymom, iener, nvar, &
-                         U_l(i,j,:), F(i,j,:))
+           call consFlux(idir, gamma, iD, iSx, iSy, itau, nvar, &
+                         U_l(i,j,:), F(i,j,:), c)
 
            ! correct the flux
            F(i,j,:) = F(i,j,:) + S_l*(U_state(:) - U_l(i,j,:))
@@ -749,44 +756,46 @@ subroutine riemann_HLLC(idir, qx, qy, ng, &
            ! L region
            U_state(:) = U_l(i,j,:)
 
-           call consFlux(idir, gamma, idens, ixmom, iymom, iener, nvar, &
-                         U_state, F(i,j,:))
+           call consFlux(idir, gamma, iD, iSx, iSy, itau, nvar, &
+                         U_state, F(i,j,:), c)
 
         endif
-           
+
      enddo
   enddo
 end subroutine riemann_HLLC
-   
-subroutine consFlux(idir, gamma, idens, ixmom, iymom, iener, nvar, U_state, F)        
-  
+
+subroutine consFlux(idir, gamma, iD, iSx, iSy, itau, nvar, U_state, F, c)
+
   integer, intent(in) :: idir
-  double precision, intent(in) :: gamma
-  integer, intent(in) :: idens, ixmom, iymom, iener, nvar
+  double precision, intent(in) :: gamma, c
+  integer, intent(in) :: iD, iSx, iSy, itau, nvar
   double precision, intent(in) :: U_state(0:nvar-1)
   double precision, intent(out) :: F(0:nvar-1)
 
   double precision :: p, u, v
 
-  u = U_state(ixmom)/U_state(idens)
-  v = U_state(iymom)/U_state(idens)
+  u = U_state(iSx)/U_state(iD)
+  v = U_state(iSy)/U_state(iD)
+  W = 1.0d0 / sqrt(1.0d0 - (u**2 + v**2)/c**2)
+  h = U_state(itau)/U_state(iD)
 
-  p = (U_state(iener) - 0.5d0*U_state(idens)*(u*u + v*v))*(gamma - 1.0d0)
+  p = (h - 1.0d0) * U_state(iD) * (gamma - 1.0d0) / gamma
 
   if (idir == 1) then
-     F(idens) = U_state(idens)*u
-     F(ixmom) = U_state(ixmom)*u + p
-     F(iymom) = U_state(iymom)*u
-     F(iener) = (U_state(iener) + p)*u
+     F(iD) = U_state(iD) * W * u
+     F(iSx) = U_state(iSx) * u * h * W**2 + p
+     F(iSy) = U_state(iSy) * u * h * W**2
+     F(itau) = (U_state(iD) * h * W**2 - F(iD)) * u
   else
-     F(idens) = U_state(idens)*v
-     F(ixmom) = U_state(ixmom)*v 
-     F(iymom) = U_state(iymom)*v + p
-     F(iener) = (U_state(iener) + p)*v
+     F(iD) = U_state(iD) * W * v
+     F(iSx) = U_state(iSx) * v * h * W**2
+     F(iSy) = U_state(iSy) * v * h * W**2 + p
+     F(itau) = (U_state(iD) * h * W**2 - F(iD)) * v
   endif
 
 end subroutine consFlux
-  
+
 
 subroutine artificial_viscosity(qx, qy, ng, dx, dy, &
                                 cvisc, u, v, avisco_x, avisco_y)
@@ -808,7 +817,7 @@ subroutine artificial_viscosity(qx, qy, ng, dx, dy, &
 !f2py intent(out) :: avisco_x, avisco_y
 
   ! compute the artifical viscosity.  Here, we compute edge-centered
-  ! approximations to the divergence of the velocity.  This follows 
+  ! approximations to the divergence of the velocity.  This follows
   ! directly Colella & Woodward (1984) Eq. 4.5
   !
   ! data locations:
@@ -821,21 +830,21 @@ subroutine artificial_viscosity(qx, qy, ng, dx, dy, &
   !          |         |         |         |
   !        j +         X         |         |
   !          |         |         |         |
-  !   j-1/2--+---------+----Y----+---------+ 
+  !   j-1/2--+---------+----Y----+---------+
   !          |         |         |         |
   !      j-1 +         |         |         |
-  !          |         |         |         | 
+  !          |         |         |         |
   !   j-3/2--+---------+---------+---------+
-  !          |    |    |    |    |    |    | 
-  !              i-1        i        i+1   
-  !        i-3/2     i-1/2     i+1/2     i+3/2 
+  !          |    |    |    |    |    |    |
+  !              i-1        i        i+1
+  !        i-3/2     i-1/2     i+1/2     i+3/2
   !
   ! X is the location of avisco_x(i,j)
   ! Y is the location of avisco_y(i,j)
 
   integer :: ilo, ihi, jlo, jhi
   integer :: nx, ny
- 
+
   integer :: i, j
 
   double precision :: divU_x, divU_y
@@ -862,7 +871,7 @@ subroutine artificial_viscosity(qx, qy, ng, dx, dy, &
              (v(i,j) - v(i,j-1))/dy
 
         avisco_y(i,j) = cvisc*max(-divU_y*dy, 0.0d0)
-        
+
      enddo
   enddo
 

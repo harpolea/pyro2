@@ -17,21 +17,22 @@ class Variables(object):
     a container class for easy access to the different compressible
     variable by an integer key
     """
-    def __init__(self, idens=-1, ixmom=-1, iymom=-1, iener=-1):
+    def __init__(self, iD=-1, iSx=-1, iSy=-1, itau=-1):
         self.nvar = 4
 
         # conserved variables -- we set these when we initialize for
         # they match the CellCenterData2d object
-        self.idens = idens
-        self.ixmom = ixmom
-        self.iymom = iymom
-        self.iener = iener
+        self.iD = iD
+        self.iSx = iSx
+        self.iSy = iSy
+        self.itau = itau
 
         # primitive variables
-        self.irho = 0
-        self.iu = 1
-        self.iv = 2
-        self.ip = 3
+        self.irho = iD
+        self.iu = iSx
+        self.iv = iSy
+        self.ih = itau
+        #self.ip = 4
 
 
 class Simulation(NullSimulation):
@@ -41,7 +42,7 @@ class Simulation(NullSimulation):
         Initialize the grid and variables for compressible flow and set
         the initial conditions for the chosen problem.
         """
-        
+
         my_grid = grid_setup(self.rp, ng=4)
         my_data = patch.CellCenterData2d(my_grid)
 
@@ -68,10 +69,10 @@ class Simulation(NullSimulation):
 
         self.cc_data = my_data
 
-        self.vars = Variables(idens = my_data.vars.index("density"),
-                              ixmom = my_data.vars.index("x-momentum"),
-                              iymom = my_data.vars.index("y-momentum"),
-                              iener = my_data.vars.index("energy"))
+        self.vars = Variables(iD = my_data.vars.index("density"),
+                              iSx = my_data.vars.index("x-momentum"),
+                              iSy = my_data.vars.index("y-momentum"),
+                              itau = my_data.vars.index("energy"))
 
 
         # initial conditions for the problem
@@ -93,23 +94,23 @@ class Simulation(NullSimulation):
         cfl = self.rp.get_param("driver.cfl")
 
         # get the variables we need
-        dens = self.cc_data.get_var("density")
-        xmom = self.cc_data.get_var("x-momentum")
-        ymom = self.cc_data.get_var("y-momentum")
-        ener = self.cc_data.get_var("energy")
+        D = self.cc_data.get_var("density")
+        Sx = self.cc_data.get_var("x-momentum")
+        Sy = self.cc_data.get_var("y-momentum")
+        tau = self.cc_data.get_var("energy")
 
         # we need to compute the pressure
-        u = xmom/dens
-        v = ymom/dens
+        u = Sx/D
+        v = Sy/D
 
-        e = (ener - 0.5*dens*(u*u + v*v))/dens
+        e = (tau - 0.5*D*(u*u + v*v))/D
 
         gamma = self.rp.get_param("eos.gamma")
 
-        p = eos.pres(gamma, dens, e)
+        p = eos.pres(gamma, D, e)
 
         # compute the sounds speed
-        cs = np.sqrt(gamma*p/dens)
+        cs = np.sqrt(gamma*p/D)
 
 
         # the timestep is min(dx/(|u| + cs), dy/(|v| + cs))
@@ -128,9 +129,9 @@ class Simulation(NullSimulation):
         tm_evolve = self.tc.timer("evolve")
         tm_evolve.begin()
 
-        dens = self.cc_data.get_var("density")
-        ymom = self.cc_data.get_var("y-momentum")
-        ener = self.cc_data.get_var("energy")
+        D = self.cc_data.get_var("density")
+        Sy = self.cc_data.get_var("y-momentum")
+        tau = self.cc_data.get_var("energy")
 
         grav = self.rp.get_param("compressible.grav")
 
@@ -138,8 +139,8 @@ class Simulation(NullSimulation):
 
         Flux_x, Flux_y = unsplitFluxes(self.cc_data, self.rp, self.vars, self.tc, self.dt)
 
-        old_dens = dens.copy()
-        old_ymom = ymom.copy()
+        old_D = D.copy()
+        old_Sy = Sy.copy()
 
         # conservative update
         dtdx = self.dt/myg.dx
@@ -153,8 +154,8 @@ class Simulation(NullSimulation):
                 dtdy*(Flux_y.v(n=n) - Flux_y.jp(1, n=n))
 
         # gravitational source terms
-        ymom.d[:,:] += 0.5*self.dt*(dens.d[:,:] + old_dens.d[:,:])*grav
-        ener.d[:,:] += 0.5*self.dt*(ymom.d[:,:] + old_ymom.d[:,:])*grav
+        Sy.d[:,:] += 0.5*self.dt*(D.d[:,:] + old_D.d[:,:])*grav
+        tau.d[:,:] += 0.5*self.dt*(Sy.d[:,:] + old_Sy.d[:,:])*grav
 
         # increment the time
         self.cc_data.t += self.dt
@@ -172,28 +173,28 @@ class Simulation(NullSimulation):
 
         plt.rc("font", size=10)
 
-        dens = self.cc_data.get_var("density")
-        xmom = self.cc_data.get_var("x-momentum")
-        ymom = self.cc_data.get_var("y-momentum")
-        ener = self.cc_data.get_var("energy")
+        D = self.cc_data.get_var("density")
+        Sx = self.cc_data.get_var("x-momentum")
+        Sy = self.cc_data.get_var("y-momentum")
+        tau = self.cc_data.get_var("energy")
 
         # get the velocities
-        u = xmom/dens
-        v = ymom/dens
+        u = Sx/D
+        v = Sy/D
 
         # get the pressure
         magvel = u**2 + v**2   # temporarily |U|^2
-        rhoe = (ener - 0.5*dens*magvel)
+        rhoe = (tau - 0.5*D*magvel)
 
         magvel = np.sqrt(magvel)
 
-        e = rhoe/dens
+        e = rhoe/D
 
         # access gamma from the cc_data object so we can use dovis
         # outside of a running simulation.
         gamma = self.cc_data.get_aux("gamma")
 
-        p = eos.pres(gamma, dens, e)
+        p = eos.pres(gamma, D, e)
 
         myg = self.cc_data.grid
 
@@ -245,7 +246,7 @@ class Simulation(NullSimulation):
             onLeft = [0,2]
 
 
-        fields = [dens, magvel, p, e]
+        fields = [D, magvel, p, e]
         field_names = [r"$\rho$", r"U", "p", "e"]
 
         for n in range(4):
