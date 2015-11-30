@@ -39,6 +39,7 @@ def init_data(my_data, aux_data, base, rp, metric):
     print('dens ratio: ', dens_ratio)
     dens_base = rp.get_param("flame.dens_base")
     dens_cutoff = rp.get_param("flame.dens_cutoff")
+    u_adv = rp.get_param("flame.u_adv")
 
     xmin = rp.get_param("mesh.xmin")
     xmax = rp.get_param("mesh.xmax")
@@ -57,7 +58,7 @@ def init_data(my_data, aux_data, base, rp, metric):
     # initialize the components, remember, that ener here is rho*eint
     # + 0.5*rho*v**2, where eint is the specific internal energy
     # (erg/g)
-    u.d[:,:] = -1.e-3
+    u.d[:,:] = 0.
     v.d[:,:] = 0.
     dens.d[:,:] = dens_cutoff
     dens.v()[:,:] = dens_base * \
@@ -71,26 +72,25 @@ def init_data(my_data, aux_data, base, rp, metric):
     scalar.d[:,:] = 0.
     DX.d[:,:] = 0.
 
-    # FIXME: make this into a scalar problem as it's not enjoying this
-
     d1_u = dens_base
     p1_u = K * d1_u**gamma
     e1_u = p1_u / (gamma - 1.0) / d1_u
     Q_u = 0.
     h1_u = enthalpy(d1_u, p1_u, Q_u, gamma)
     # calculate flame speed here
-    u1_u = -0.1
-    W1 = 1. / np.sqrt(1. - u1_u**2/c**2)
+    s = calc_flame_speed(myg)
+    u1_u = u_adv - s
+    W1 = W(u1_u, c)
     J1 = d1_u * W1 * u1_u
 
-    d1_b_lims = np.array([0.1, 2.]) * u1_u
+    d1_b_lims = np.array([0.01, 1.]) * d1_u
 
     print('lower lim: ', get_d_b(d1_b_lims[0], d1_u, u1_u, p1_u, gamma, c), '    upper lim: ', get_d_b(d1_b_lims[1], d1_u, u1_u, p1_u, gamma, c))
 
     d1_b = scipy.optimize.brentq(get_d_b, d1_b_lims[0], d1_b_lims[1], args=(d1_u, u1_u, p1_u, gamma, c))
-    print(d1_b)
+    print('d1_b ', d1_b)
     Wv_b = J1 / d1_b
-    W1_b = np.sqrt(1. + Wv_b**2)
+    W1_b = np.sqrt(1. + (Wv_b/c)**2)
     u1_b = Wv_b / W1_b
     Q_b = calcQ(d1_b, 1.)
     p1_b = pb_from_Rayleigh(d1_u, p1_u, d1_b, J1, Q_b, gamma)
@@ -110,10 +110,14 @@ def init_data(my_data, aux_data, base, rp, metric):
     pres.d[~idx] = p1_u
     dens.d[idx] = d1_b
     dens.d[~idx] = d1_u
-    enth.d[idx] = h1_b
-    enth.d[~idx] = h1_u
-    u.d[idx] = u1_b - u1_u
-    u.d[~idx] = 0.
+    ul = u1_b + s
+    ur = u1_u + s
+    u.d[idx] = ul
+    u.d[~idx] = ur
+    hl = h1_b + 0.5 * d1_b * s**2
+    hr = h1_u + 0.5 * d1_u * s**2
+    enth.d[idx] = hl
+    enth.d[~idx] = hr
 
     # do burnt stuff - shall start flame on left, 10% of the way across the domain
     scalar.d[idx] = 1.
@@ -122,13 +126,14 @@ def init_data(my_data, aux_data, base, rp, metric):
     # ADD SMOOTHING
     # we're going to smooth between 0.05 and 0.15.
     smoo = (myg.x2d >= 0.1 * xctr) * (myg.x2d <= 0.3 * xctr)
+    #smoo = (myg.x < -1000.)
     deltx = 0.1
-    pres.d[smoo] = p1_b + (myg.x2d[smoo] - 0.05) * (p1_u-p1_b) / deltx
-    dens.d[smoo] = d1_b + (myg.x2d[smoo] - 0.05) * (d1_u-d1_b) / deltx
-    enth.d[smoo] = h1_b + (myg.x2d[smoo] - 0.05) * (h1_u-h1_b) / deltx
-    u.d[smoo] = u1_b - u1_u + (myg.x2d[smoo] - 0.05) * (u1_u-u1_b) / deltx
-    scalar.d[smoo] = 1. + (myg.x2d[smoo] - 0.05) * (0.-1.) / deltx
-    DX.d[smoo] = 1. + (myg.x2d[smoo] - 0.05) * (0.-1.) / deltx
+    pres.d[smoo] = p1_b + (myg.x2d[smoo] - 0.1 * xctr) * (p1_u-p1_b) / deltx
+    dens.d[smoo] = d1_b + (myg.x2d[smoo] - 0.1 * xctr) * (d1_u-d1_b) / deltx
+    enth.d[smoo] = hl + (myg.x2d[smoo] - 0.1 * xctr) * (hr-hl) / deltx
+    u.d[smoo] = ul + (myg.x2d[smoo] - 0.1 * xctr) * (ur-ul) / deltx
+    scalar.d[smoo] = 1. + (myg.x2d[smoo] - 0.1 * xctr) * (0.-1.) / deltx
+    DX.d[smoo] = 1. + (myg.x2d[smoo] - 0.1 * xctr) * (0.-1.) / deltx
 
     dens.v()[:,:] *= np.exp(-g * myg.y[np.newaxis, myg.jlo:myg.jhi+1] /
                 (gamma * c**2 * R * metric.alpha.v2d()**2))
@@ -195,12 +200,13 @@ def init_data(my_data, aux_data, base, rp, metric):
     u0 = metric.calcu0(u=myg.scratch_array())
     p0.d[:] = K * (D0.d / u0.d1d())**gamma
 
-    for i in range(myg.jlo, myg.jhi+1):
-        p0.d[i] = p0.d[i-1] - \
-                  myg.dy * Dh0.d[i] * g / (R * c**2 * metric.alpha.d[i] **2 * u0.d1d()[i])
+    # gravity = 0
+    #for i in range(myg.jlo, myg.jhi+1):
+    #    p0.d[i] = p0.d[i-1] - \
+    #              myg.dy * Dh0.d[i] * g / (R * c**2 * metric.alpha.d[i] **2 * u0.d1d()[i])
 
-    mu = 1./(2. * (1 - DX.d) + 4. * DX.d)
-    mp_kB = 1.21147#e-8
+    mu = 4./(8. * (1. - DX.d) + 3. * DX.d)
+    mp_kB = 1.21147#e5#e-8
 
     T.d[:,:] = p0.d2d() * mu * mp_kB / dens.d
 
@@ -236,7 +242,7 @@ def get_v_b(v_b, hW, rhoWv, v_u, h_u, p_u, v, gamma, metric, myg):
 
 def get_u1_b(v_b, hW, rhoWv, v_u, h_u, p_u, v, gamma, c):
 
-    W_b = 1. / np.sqrt(1. - v_b**2/c**2)
+    W_b = W(v_b, c)
 
     h_b = hW / W_b
     p_b = ((h_b - 1.) * rhoWv * (gamma - 1.)) / (gamma * W_b * v_b)
@@ -248,10 +254,11 @@ def get_u1_b(v_b, hW, rhoWv, v_u, h_u, p_u, v, gamma, c):
     return residual
 
 def calc_flame_speed(myg):
-    s = myg.scratch_array()
+    #s = myg.scratch_array()
 
     # FIXME: how do I do this???
-    s.d[:,:] = 1.e-3
+    #s.d[:,:] = 1.e-3
+    s = -0.5
 
     return s
 
@@ -273,7 +280,7 @@ def calcQ(rho, X):
     return Q
 
 def get_d_b(d_b, d_u, u_u, p_u, gamma, c):
-    W_u = W(u_u,c )
+    W_u = W(u_u, c)
     J = d_u * W_u * u_u
     X_b = 1.
     X_u = 0.
@@ -294,11 +301,11 @@ def get_d_b(d_b, d_u, u_u, p_u, gamma, c):
 
 
 def pb_from_Rayleigh(d_u, p_u, d_b, J, Q_b, gamma):
-    return d_b / \
-           (d_u**2 * (J**2 * gamma + d_b**2 * (gamma-1.))) * \
+    return d_b * \
            (J**2 * (d_b * (gamma * p_u + d_u * (gamma-1.)) -\
             d_u**2 * (gamma-1.) - d_u**2 * Q_b) + d_b * p_u *
-            d_u**2 * (gamma-1.))
+            d_u**2 * (gamma-1.)) / \
+            (d_u**2 * (J**2 * gamma + d_b**2 * (gamma-1.)))
 
 def enthalpy(rho, p, Q, gamma):
     return 1.0 + gamma/(gamma-1.) * p / rho + Q/(gamma-1.)

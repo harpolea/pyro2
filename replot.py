@@ -3,6 +3,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
+import os
 import getopt
 
 import mesh.patch as patch
@@ -15,15 +16,29 @@ def makeplot(myd, solver_name, problem_name, outfile, W, H, n=0, vmins=[None, No
     exec ('import ' + solver_name + ' as solver')
 
     rp = runparams.RuntimeParameters()
+    rp.load_params("_defaults")
     rp.load_params(solver_name + "/_defaults")
 
     # problem-specific runtime parameters
     rp.load_params(solver_name + "/problems/_" + problem_name + ".defaults")
+    param_file = 'inputs.' + problem_name
+
+    # now read in the inputs file
+    if not os.path.isfile(param_file):
+        # check if the param file lives in the solver's problems directory
+        param_file = solver_name + "/problems/" + param_file
+        if not os.path.isfile(param_file):
+            msg.fail("ERROR: inputs file does not exist")
+
+    rp.load_params(param_file, no_new=1)
+    init_tstep_factor = rp.get_param("driver.init_tstep_factor")
+    max_dt_change = rp.get_param("driver.max_dt_change")
+    fix_dt = rp.get_param("driver.fix_dt")
 
     if solver_name == "lm_gr" and rp.get_param("lm-gr.react") != 0:
-        sim = solver.SimulationReact(solver_name, problem_name, None)
+        sim = solver.SimulationReact(solver_name, problem_name, rp)
     else:
-        sim = solver.Simulation(solver_name, problem_name, None)
+        sim = solver.Simulation(solver_name, problem_name, rp)
 
     sim.cc_data = myd
     sim.n = n

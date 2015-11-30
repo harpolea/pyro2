@@ -665,10 +665,10 @@ class Simulation(NullSimulation):
 
         psi = Basestate(myg.ny, ng=myg.ng)
 
-        psi.v(buf=myg.ng-1)[:] = gamma * 0.5 * \
+        psi.v(buf=myg.ng-1)[:] = gamma * 0.25 * \
             (p0.v(buf=myg.ng-1) + old_p0.v(buf=myg.ng-1)) * \
             (self.lateral_average(S.v(buf=myg.ng-1)) -
-             (U0.jp(1, buf=myg.ng-1) - U0.v(buf=myg.ng-1)))
+             (U0.jp(1, buf=myg.ng-1) - U0.jp(-1, buf=myg.ng-1)))
 
         return psi
 
@@ -900,7 +900,7 @@ class Simulation(NullSimulation):
             U0 = self.base["U0"]
         # FIXME: time-centred edge states
 
-        D0.v()[:] += -(D0.jp(1) * U0.jp(1) - D0.v() * U0.v()) * dt / dr
+        D0.v()[:] += -(D0.jp(1) * U0.jp(1) - D0.jp(-1) * U0.jp(-1)) * 0.25 * dt / dr
 
     def advect_scalar(self):
         """
@@ -1031,7 +1031,7 @@ class Simulation(NullSimulation):
         # states and use them here?
         # CHANGED: add psi
 
-        Dh0.v()[:] += -(Dh0.jp(1) * U0.jp(1) - Dh0.v() * U0.v()) * dt / dr + \
+        Dh0.v()[:] += -(Dh0.jp(1) * U0.jp(1) - Dh0.jp(-1) * U0.jp(-1)) * 0.25 * dt / dr + \
                       dt * self.lateral_average(u0.v()) * psi.v()
                       # dt * U0.v() * self.drp0().v() + \
 
@@ -1125,8 +1125,12 @@ class Simulation(NullSimulation):
 
         F_buoy = np.max(np.abs(mom_source_r.v()))
 
+        # check reactions
+        _, omega_dot = self.calc_Q_omega_dot()
+        dt_react = 1./omega_dot.v().max()
+
         dt_buoy = np.sqrt(2.0 * myg.dx / max(F_buoy, 1.e-12))
-        self.dt = min(dt, dt_buoy)
+        self.dt = min(dt, dt_buoy, dt_react)
         if self.dt > 1.e30:
             self.dt = 100.
         if self.verbose > 0:
@@ -1151,7 +1155,6 @@ class Simulation(NullSimulation):
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
         scalar = self.cc_data.get_var("scalar")
-        print('v sum: ', np.sum(v.d))
 
         self.cc_data.fill_BC("density")
         self.cc_data.fill_BC("enthalpy")
@@ -1219,16 +1222,22 @@ class Simulation(NullSimulation):
         coeff = 1. / (Dh * u0)
         coeff.v()[:,:] *= zeta.v2d()
 
+        ###########################
+
+        ##### GRADP USED HERE #####
+
+        ###########################
+        #gradp_x.d[:,:] = 1.
+        #gradp_y.d[:,:] = 1.
+
         # CHANGED: multiplied by dt to match same thing done at end of evolve.
         # FIXME: WTF IS IT DOING HERE?????
-        #u.v()[:,:] -= self.dt * coeff.v() * gradp_x.v()
+        u.v()[:,:] -= self.dt * coeff.v() * gradp_x.v()
         #v.v()[:,:] -= self.dt * coeff.v() * gradp_y.v()
 
         # fill the ghostcells
         self.cc_data.fill_BC("x-velocity")
         self.cc_data.fill_BC("y-velocity")
-
-        print('v sum: ', np.sum(v.v()))
 
         # c. now get an approximation to gradp at n-1/2 by going through the
         # evolution.
@@ -1239,7 +1248,6 @@ class Simulation(NullSimulation):
 
         # get the timestep
         self.compute_timestep(u0=u0)
-        print('timestep v sum: ', np.sum(v.v()))
 
         # evolve
         self.evolve()
@@ -1258,8 +1266,6 @@ class Simulation(NullSimulation):
         self.aux_data = orig_aux
 
         v = self.cc_data.get_var("y-velocity")
-
-        print('v sum: ', np.sum(v.v()))
 
         if self.verbose > 0:
             print("done with the pre-evolution")
@@ -1392,6 +1398,13 @@ class Simulation(NullSimulation):
 
         mom_source_x, mom_source_r = self.calc_mom_source(Dh=Dh, u0=u0)
 
+        ###########################
+
+        ##### GRADP USED HERE #####
+
+        ###########################
+        #gradp_x.d[:,:] = 1.
+        #gradp_y.d[:,:] = 1.
         _um, _vm = lm_interface_f.mac_vels(myg.qx, myg.qy, myg.ng,
                                            myg.dx, myg.dy, self.dt,
                                            u.d, v.d,
@@ -1460,7 +1473,7 @@ class Simulation(NullSimulation):
         #phi_MAC = self.cc_data.get_var("phi-MAC")
         phi_MAC = self.aux_data.get_var("phi-MAC")
         phi_MAC.d[:,:] = mg.get_solution(grid=myg).d
-        # this is zero and shouldn't be
+        gradp_MAC_x, gradp_MAC_y = mg.get_solution_gradient(grid=myg)
 
         coeff = self.aux_data.get_var("coeff")
         # FIXME: is this u0 or u0_MAC?
@@ -1471,22 +1484,35 @@ class Simulation(NullSimulation):
         coeff_x = myg.scratch_array()
         b = (3, 1, 0, 0)  # this seems more than we need
         coeff_x.v(buf=b)[:,:] = 0.5 * (coeff.ip(-1, buf=b) + coeff.v(buf=b))
+        gradp_MAC_x.v(buf=b)[:,:] = 0.5 * (gradp_MAC_x.ip(-1, buf=b) + gradp_MAC_x.v(buf=b))
 
         coeff_y = myg.scratch_array()
         b = (0, 0, 3, 1)
         coeff_y.v(buf=b)[:,:] = 0.5 * (coeff.jp(-1, buf=b) + coeff.v(buf=b))
+        gradp_MAC_y.v(buf=b)[:,:] = 0.5 * (gradp_MAC_y.jp(-1, buf=b) + gradp_MAC_y.v(buf=b))
+
+        #############################
+
+        ##### phi_MAC USED HERE #####
+
+        #############################
+        #phi_MAC.d[:,:] = 1.
 
         # we need the MAC velocities on all edges of the computational domain
         # here we do U = U - (zeta/Dh u0) grad (phi/zeta)
         b = (0, 1, 0, 0)
-        u_MAC.v(buf=b)[:,:] -= \
-                coeff_x.v(buf=b) * (phi_MAC.v(buf=b) - phi_MAC.ip(-1, buf=b)) / myg.dx
+        #u_MAC.v(buf=b)[:,:] -= coeff_x.v(buf=b) * \
+        #    (phi_MAC.v(buf=b) - phi_MAC.ip(-1, buf=b)) / myg.dx
+        u_MAC.v(buf=b)[:,:] -= coeff_x.v(buf=b) * \
+            gradp_MAC_x.v(buf=b)
 
         b = (0, 0, 0, 1)
+        #v_MAC.v(buf=b)[:,:] -= coeff_y.v(buf=b) * \
+        #    (phi_MAC.v(buf=b) - phi_MAC.jp(-1, buf=b)) / myg.dy
         v_MAC.v(buf=b)[:,:] -= coeff_y.v(buf=b) * \
-            (phi_MAC.v(buf=b) - phi_MAC.jp(-1, buf=b)) / myg.dy
+            gradp_MAC_y.v(buf=b)
 
-        u0_MAC = self.metric.calcu0(u=u_MAC, v=v_MAC)
+        #u0_MAC = self.metric.calcu0(u=u_MAC, v=v_MAC)
         #---------------------------------------------------------------------
         # 4. predict D to the edges and do its conservative update
         #---------------------------------------------------------------------
@@ -1756,6 +1782,8 @@ class Simulation(NullSimulation):
         advect_x = myg.scratch_array()
         advect_y = myg.scratch_array()
 
+        # advect MAC velocities to get cell-centred quantities
+
         advect_x.v()[:,:] = \
             0.5*(u_MAC.v() + u_MAC.ip(1))*(u_xint.ip(1) - u_xint.v())/myg.dx +\
             0.5*(v_MAC.v() + v_MAC.jp(1))*(u_yint.jp(1) - u_yint.v())/myg.dy
@@ -1766,6 +1794,14 @@ class Simulation(NullSimulation):
 
         proj_type = self.rp.get_param("lm-gr.proj_type")
 
+        ###########################
+
+        ##### GRADP USED HERE #####
+
+        ###########################
+        #gradp_x.d[:,:] = 1.
+        #gradp_y.d[:,:] = 1.
+        # THIS TERM DOES NOT BREAK THINGS
         if proj_type == 1:
             u.v()[:,:] -= (self.dt * advect_x.v() + self.dt * gradp_x.v())
             # FIXME: add back in!
@@ -1778,8 +1814,8 @@ class Simulation(NullSimulation):
 
         # add on source term
         # do we want to use Dh half star here maybe?
-        # FIXME: u_MAC, v_MAC in source??
-        mom_source_x, mom_source_r = self.calc_mom_source(Dh=Dh_star, Dh0=Dh0_star, u=u_MAC, v=v_MAC, u0=u0_MAC)
+        # FIXME: u_MAC, v_MAC in source?? No: MAC quantities are edge based, this is cell-centred
+        mom_source_x, mom_source_r = self.calc_mom_source(Dh=Dh_star, Dh0=Dh0_star, u=u, v=v, u0=u0)
         u.d[:,:] += self.dt * mom_source_x.d
         v.d[:,:] += self.dt * mom_source_r.d
 
@@ -2080,9 +2116,18 @@ class Simulation(NullSimulation):
         coeff.d[:,:] *=  self.metric.alpha.d2d()**2
         coeff.d[:,:] *= zeta_half.d2d()
 
+        ###########################
+
+        ##### GRADP USED HERE #####
+
+        ###########################
+        #gradp_x.d[:,:] = 1.
+        #gradp_y.d[:,:] = 1.
+
         # FIXME: need base state forcing here!
         # However, it doesn't actually work: it just causes the atmosphere to rise up?
         base_forcing = self.base_state_forcing()
+        # FIXME: This line messes up the velocity somehow - what on earth is it doing????
         #u.v()[:,:] += self.dt * (-coeff.v() * gradphi_x.v())
         # FIXME: add back in??
         #v.v()[:,:] += self.dt * (-coeff.v() * gradphi_y.v() + base_forcing.v())

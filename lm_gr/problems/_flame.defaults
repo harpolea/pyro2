@@ -2,3 +2,7 @@
 dens_base = 1.0
 dens_ratio = 0.9     ; rho_burnt / rho_unburnt
 dens_cutoff  = 0.001
+u_adv = 0.00   ; advective speed
+
+[eos]
+k_poly = 1.0

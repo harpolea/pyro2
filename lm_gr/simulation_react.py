@@ -139,10 +139,10 @@ class SimulationReact(Simulation):
         if T is None:
             T = self.cc_data.get_var("temperature")
 
-        # mean molecular weight
-        mu = 1./(2. * (1 - DX.d/D.d) + 4. * DX.d/D.d)
+        # mean molecular weight = (2*(1-X) + 3/4 X)^-1
+        mu = 4./(8. * (1. - DX.d/D.d) + 3. * DX.d/D.d)
         # FIXME: hack to drive reactions
-        mp_kB = 1.21147#e-8
+        mp_kB = 1.21147#e5#e-8
 
         # use p0 here as otherwise have to explicitly calculate pi somewhere?
         # TODO: could instead calculate this using Dh rather than p0?
@@ -187,19 +187,19 @@ class SimulationReact(Simulation):
         Q = myg.scratch_array()
         omega_dot = myg.scratch_array()
         # FIXME: hack to drive reactions
-        T9 = T.d * 1.e-9#1.e-9
-        D5 = D.d * 1.e-5
+        T9 = T.d #* 1.e-9#1.e-9
+        D5 = D.d #* 1.e-5
 
-        Q.d[:,:] = 5.3e18 * (D5 / u0.d)**2 * ((DX.d/D.d) / T9)**3 * np.exp(-4.4 / T9)
+        Q.d[:,:] = 5.3 * (D5 / u0.d)**2 * (DX.d/D.d / T9)**3 * np.exp(-4.4 / T9)
 
         #print((np.exp(-4.4 / T9))[25:35,25:35])
 
         # Hnuc = |Delta q|omega_dot, where Delta q is the change in binding energy. q_He = 2.83007e4 keV, q_C=9.2161753e4 keV
-        omega_dot.d[:,:] = Q.d * 9.773577e10
+        omega_dot.d[:,:] = Q.d #* 9.773577e10
 
         # FIXME: hackkkkk
-        Q.d[:,:] *= 1.e12 # for bubble: 1.e9, else 1.e12
-        omega_dot.d[:,:] *= 5. # for bubble: 5., else 1.e4
+        #Q.d[:,:] *= 1.e12 # for bubble: 1.e9, else 1.e12
+        #omega_dot.d[:,:] *= 5. # for bubble: 5., else 1.e4
 
         return Q, omega_dot
 

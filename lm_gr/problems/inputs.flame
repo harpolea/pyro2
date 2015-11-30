@@ -8,6 +8,7 @@ limiter = 4
 c = 1.0e10
 grav = 0.
 radius = 1.e20
+react = 0
 
 
 [io]
