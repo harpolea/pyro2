@@ -556,6 +556,10 @@ def W(u, v, c):
     return 1. / np.sqrt(1. - (u.d**2 + v.d**2)/c**2)
 
 def root_find_on_me1(p, F, c, gamma):
+    """
+    Equation to root find on in order to find the primitive pressure.
+    """
+
     D, Sx, Sy, tau = F
 
     pbar  = p
@@ -577,6 +581,9 @@ def root_find_on_me1(p, F, c, gamma):
 
 
 def root_find_on_me2(p, F, c, gamma):
+    """
+    Equation to root find on in order to find the primitive pressure.
+    """
 
     D, Sx, Sy, tau = F
     p_bar = p
