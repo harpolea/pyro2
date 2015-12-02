@@ -124,11 +124,12 @@ Updating U_{i,j}:
           the input to the transverse Riemann problem.
 """
 
-import compressible.eos as eos
-import compressible.interface_f as interface_f
+import compressible_gr.eos as eos
+import compressible_gr.interface_f as interface_f
 import mesh.reconstruction_f as reconstruction_f
 import mesh.patch as patch
 from scipy.optimize import brentq
+import numpy as np
 
 from util import msg
 
@@ -183,11 +184,11 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     Sy = my_data.get_var("y-momentum")
     tau = my_data.get_var("energy")
 
-    F = (D, Sx, Sy, tau)
+    Q = (D, Sx, Sy, tau)
 
-    Fp, c_s = cons_to_prim(F, c, gamma)
+    Qp, c_s = cons_to_prim(Q, c, gamma)
 
-    (rho, u, v, h, p) = Fp
+    (rho, u, v, h, p) = Qp
 
     smallp = 1.e-10
     p.d = p.d.clip(smallp)   # apply a floor to the pressure
@@ -199,12 +200,12 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     #=========================================================================
 
     # there is a single flattening coefficient (xi) for all directions
-    use_flattening = rp.get_param("compressible.use_flattening")
+    use_flattening = rp.get_param("compressible-gr.use_flattening")
 
     if use_flattening:
-        delta = rp.get_param("compressible.delta")
-        z0 = rp.get_param("compressible.z0")
-        z1 = rp.get_param("compressible.z1")
+        delta = rp.get_param("compressible-gr.delta")
+        z0 = rp.get_param("compressible-gr.z0")
+        z1 = rp.get_param("compressible-gr.z1")
 
         xi_x = reconstruction_f.flatten(1, p.d, u.d, myg.qx, myg.qy, myg.ng, smallp, delta, z0, z1)
         xi_y = reconstruction_f.flatten(2, p.d, v.d, myg.qx, myg.qy, myg.ng, smallp, delta, z0, z1)
@@ -219,7 +220,7 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     tm_limit = tc.timer("limiting")
     tm_limit.begin()
 
-    limiter = rp.get_param("compressible.limiter")
+    limiter = rp.get_param("compressible-gr.limiter")
     if limiter == 0:
         limitFunc = reconstruction_f.nolimit
     elif limiter == 1:
@@ -327,7 +328,7 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     #=========================================================================
     # apply source terms (zero for now)
     #=========================================================================
-    #grav = rp.get_param("compressible.grav")
+    #grav = rp.get_param("compressible-gr.grav")
 
     # Sy_xl[i,j] += 0.5*dt*D[i-1,j]*grav
     #U_xl.v(buf=1, n=vars.Sy)[:,:] += 0.5 * dt * D.ip(-1, buf=1) * grav
@@ -352,12 +353,12 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     tm_riem = tc.timer("riemann")
     tm_riem.begin()
 
-    riemann = rp.get_param("compressible.riemann")
+    riemann = rp.get_param("compressible-gr.riemann")
 
-    if riemann == "HLLC":
-        riemannFunc = interface_f.riemann_hllc
-    elif riemann == "CGF":
-        riemannFunc = interface_f.riemann_cgf
+    if riemann == "RHLLC":
+        riemannFunc = interface_f.riemann_rhllc
+    elif riemann == "RHLLE":
+        riemannFunc = interface_f.riemann_rhlle
     else:
         msg.fail("ERROR: Riemann solver undefined")
 
@@ -365,11 +366,11 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
 
     _fx = riemannFunc(1, myg.qx, myg.qy, myg.ng,
                       vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau,
-                      gamma, U_xl.d, U_xr.d, V_xl.d, V_xr.d, c)
+                      gamma, U_xl.d, U_xr.d, V_xl.d, V_xr.d)
 
     _fy = riemannFunc(2, myg.qx, myg.qy, myg.ng,
                       vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau,
-                      gamma, U_yl.d, U_yr.d, V_yl.d, V_yr.d, c)
+                      gamma, U_yl.d, U_yr.d, V_yl.d, V_yr.d)
 
     F_x = patch.ArrayIndexer(d=_fx, grid=myg)
     F_y = patch.ArrayIndexer(d=_fy, grid=myg)
@@ -463,11 +464,11 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
 
     _fx = riemannFunc(1, myg.qx, myg.qy, myg.ng,
                       vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau,
-                      gamma, U_xl.d, U_xr.d, V_xl.d, V_xr.d, c)
+                      gamma, U_xl.d, U_xr.d, V_xl.d, V_xr.d)
 
     _fy = riemannFunc(2, myg.qx, myg.qy, myg.ng,
                       vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau,
-                      gamma, U_yl.d, U_yr.d, V_yl.d, V_yr.d, c)
+                      gamma, U_yl.d, U_yr.d, V_yl.d, V_yr.d)
 
     F_x = patch.ArrayIndexer(d=_fx, grid=myg)
     F_y = patch.ArrayIndexer(d=_fy, grid=myg)
@@ -477,7 +478,7 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     #=========================================================================
     # apply artificial viscosity
     #=========================================================================
-    cvisc = rp.get_param("compressible.cvisc")
+    cvisc = rp.get_param("compressible-gr.cvisc")
 
     _ax, _ay = interface_f.artificial_viscosity(
         myg.qx, myg.qy, myg.ng, myg.dx, myg.dy,
@@ -519,48 +520,71 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
 
     return F_x, F_y
 
-def cons_to_prim(F, c, gamma):
+def cons_to_prim(Q, c, gamma):
     """
-    Converts the given flux F of conservative variables into a flux Fp of primitive variables.
+    Converts the given set Q of conservative variables into a set Qp of primitive variables.
     """
-    D, Sx, Sy, tau = F
+    D, Sx, Sy, tau = Q
 
-    pmin = Sx**2 + Sy**2 - tau - D
-    if pmin < 0.:
-        pmin = 0.
+    pmin = (Sx**2 + Sy**2)/c**2 - tau - D
     pmax = (gamma - 1.) * tau
-    pbar = 0.5 * (pmin + pmax)
-    p = brentq(root_find_on_me1, pmin, pmax, args=(F, c, gamma))
 
-    u = Sx / (tau + D + pbar)
-    v = Sy / (tau + D + pbar)
-    W = W(u, v, c)
+    if pmin > pmax:
+        pmin = abs(np.sqrt(Sx**2 + Sy**2)/c - tau - D)
+
+    if pmin < 0. or root_find_on_me1(pmin, Q, c, gamma) < 0.:
+        pmin = 0.
+
+    pbar = 0.5 * (pmin + pmax)
+    p = brentq(root_find_on_me1, pmin, pmax, args=(Q, c, gamma))
+
+    u = Sx / (tau + D + p)
+    v = Sy / (tau + D + p)
+    w = W(u, v, c)
     v2 = (u**2 + v**2) / c**2
 
     if v2 > 1.:
         print('something is wrong here?')
 
-    rho = D / W
-    eps = (tau + D * (1. - W) + pbar * v2 / (v2 - 1.)) / (W**2 * rho)
+    rho = D / w
+    eps = (tau + D * (1. - w) + p * v2 / (v2 - 1.)) / (w**2 * rho)
     h = 1. + eps + p / rho
     c_s = np.sqrt(gamma * (gamma - 1.) * eps / (1. + gamma * eps))
 
-    Fp = (rho, u, v, h, p)
+    Qp = (rho, u, v, h, p)
 
-    return Fp, c_s
+    return Qp, c_s
+
+def prim_to_cons(Q, c, gamma):
+    """
+    Converts the given set Q of primitive variables into a set Qc of conservative variables.
+    """
+
+    rho, u, v, h, p = Q
+
+    w = W(u, v, c)
+
+    D = rho * w
+    Sx = rho * h * w**2 * u
+    Sy = rho * h * w**2 * v
+    tau = rho * h * w**2 - p - D
+
+    Qc = (D, Sx, Sy, tau)
+
+    return Qc
 
 def W(u, v, c):
     """
     Lorentz factor
     """
-    return 1. / np.sqrt(1. - (u.d**2 + v.d**2)/c**2)
+    return 1. / np.sqrt(1. - (u**2 + v**2)/c**2)
 
-def root_find_on_me1(p, F, c, gamma):
+def root_find_on_me1(p, Q, c, gamma):
     """
     Equation to root find on in order to find the primitive pressure.
     """
 
-    D, Sx, Sy, tau = F
+    D, Sx, Sy, tau = Q
 
     pbar  = p
     if pbar > 0.:
@@ -568,9 +592,9 @@ def root_find_on_me1(p, F, c, gamma):
         u_local = Sx / (tau + D + pbar)
         v_local = Sy / (tau + D + pbar)
 
-        v2 = (u_local**2 + v_local**2) / c^2
-        W = W(u_local, v_local, c)
-        epsrho = (tau + D * (1. - W) + pbar * v2 / (v2 - 1.)) / W**2
+        v2 = (u_local**2 + v_local**2) / c**2
+        w = W(u_local, v_local, c)
+        epsrho = (tau + D * (1. - w) + pbar * v2 / (v2 - 1.)) / w**2
 
         p_error = (gamma - 1.) * epsrho - pbar
 
@@ -580,12 +604,12 @@ def root_find_on_me1(p, F, c, gamma):
     return p_error
 
 
-def root_find_on_me2(p, F, c, gamma):
+def root_find_on_me2(p, Q, c, gamma):
     """
     Equation to root find on in order to find the primitive pressure.
     """
 
-    D, Sx, Sy, tau = F
+    D, Sx, Sy, tau = Q
     p_bar = p
 
     if pbar > 0.:

@@ -3,7 +3,7 @@ max_steps = 500
 tmax = 0.1
 
 
-[compressible]
+[compressible-gr]
 limiter = 2
 cvisc = 0.1
 

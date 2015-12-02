@@ -4,7 +4,7 @@ tmax = 0.5
 splitting = unsplit
 
 
-[compressible]
+[compressible-gr]
 limiter = 2
 cvisc = 0.1
 

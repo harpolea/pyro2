@@ -26,7 +26,7 @@ def init_data(my_data, rp):
 
     gamma = rp.get_param("eos.gamma")
 
-    grav = rp.get_param("compressible.grav")
+    grav = rp.get_param("compressible-gr.grav")
 
 
     dens1 = rp.get_param("rt.dens1")

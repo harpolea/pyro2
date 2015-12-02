@@ -27,7 +27,7 @@ yrboundary = hse
 amp = 0.25
 
 
-[compressible]
+[compressible-gr]
 grav = -1.0
 
 limiter = 2

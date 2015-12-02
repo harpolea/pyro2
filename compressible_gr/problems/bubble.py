@@ -24,7 +24,7 @@ def init_data(my_data, rp):
 
     gamma = rp.get_param("eos.gamma")
 
-    grav = rp.get_param("compressible.grav")
+    grav = rp.get_param("compressible-gr.grav")
 
     scale_height = rp.get_param("bubble.scale_height")
     dens_base = rp.get_param("bubble.dens_base")
@@ -58,7 +58,7 @@ def init_data(my_data, rp):
                 0.5*(xmom[:,:]**2 + ymom[:,:]**2)/dens[:,:]
 
 
-    
+
     i = myg.ilo
     while i <= myg.ihi:
 
@@ -70,7 +70,7 @@ def init_data(my_data, rp):
             if (r <= r_pert):
                 # boost the specific internal energy, keeping the pressure
                 # constant, by dropping the density
-                eint = (ener[i,j] - 
+                eint = (ener[i,j] -
                         0.5*(xmom[i,j]**2 - ymom[i,j]**2)/dens[i,j])/dens[i,j]
 
                 pres = dens[i,j]*eint*(gamma - 1.0)
@@ -83,8 +83,8 @@ def init_data(my_data, rp):
 
             j += 1
         i += 1
-        
-    
+
+
 
 def finalize():
     """ print out any information to the user at the end of the run """

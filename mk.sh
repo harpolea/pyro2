@@ -8,7 +8,7 @@
 # set, then default to python.  You can use python3, for example,
 # by doing:
 # PYTHON=python3 ./mk.sh
-: ${PYTHON:=python}
+: ${PYTHON:=python2}
 
 if [ "$1" == "clean" ]; then
 
@@ -16,6 +16,7 @@ if [ "$1" == "clean" ]; then
     rm -rf multigrid/*.so
     rm -rf incompressible/*.so
     rm -rf compressible/*.so
+    rm -rf compressible_gr/*.so
     rm -rf lm_atm/*.so
     rm -rf lm_gr/*.so
     find . -name "*.pyc" -exec rm -f {} \;
@@ -27,7 +28,7 @@ else
 	FFLAGS="-C"
     fi
 
-    for d in mesh multigrid incompressible compressible lm_atm lm_gr
+    for d in mesh multigrid incompressible compressible compressible_gr lm_atm lm_gr
     do
 	cd ${d}
 	${PYTHON} setup.py config_fc --f90flags "${FFLAGS}" build_ext --inplace

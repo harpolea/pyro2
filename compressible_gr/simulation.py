@@ -3,12 +3,12 @@ from __future__ import print_function
 import numpy as np
 import matplotlib.pyplot as plt
 
-import compressible.BC as BC
-from compressible.problems import *
-import compressible.eos as eos
+import compressible_gr.BC as BC
+from compressible_gr.problems import *
+import compressible_gr.eos as eos
 import mesh.patch as patch
 from simulation_null import NullSimulation, grid_setup, bc_setup
-from compressible.unsplitFluxes import *
+from compressible_gr.unsplitFluxes import *
 from util import profile
 
 
@@ -32,7 +32,7 @@ class Variables(object):
         self.iu = iSx
         self.iv = iSy
         self.ih = itau
-        #self.ip = 4
+        self.ip = 4
 
 
 class Simulation(NullSimulation):
@@ -45,7 +45,6 @@ class Simulation(NullSimulation):
 
         my_grid = grid_setup(self.rp, ng=4)
         my_data = patch.CellCenterData2d(my_grid)
-
 
         # define solver specific boundary condition routines
         patch.define_bc("hse", BC.user)
@@ -63,7 +62,8 @@ class Simulation(NullSimulation):
         # self-contained object stored in output files to make plots.
         # store grav because we'll need that in some BCs
         my_data.set_aux("gamma", self.rp.get_param("eos.gamma"))
-        my_data.set_aux("grav", self.rp.get_param("compressible.grav"))
+        my_data.set_aux("c", self.rp.get_param("eos.c"))
+        my_data.set_aux("grav", self.rp.get_param("compressible-gr.grav"))
 
         my_data.create()
 
@@ -99,23 +99,31 @@ class Simulation(NullSimulation):
         Sy = self.cc_data.get_var("y-momentum")
         tau = self.cc_data.get_var("energy")
 
-        # we need to compute the pressure
-        u = Sx/D
-        v = Sy/D
-
-        e = (tau - 0.5*D*(u*u + v*v))/D
-
         gamma = self.rp.get_param("eos.gamma")
+        c = self.rp.get_param("eos.c")
 
-        p = eos.pres(gamma, D, e)
+        # we need to compute the primitive speeds and sound speed
+        F = (D.d, Sx.d, Sy.d, tau.d)
+        Fp, cs = cons_to_prim(F, c, gamma)
 
-        # compute the sounds speed
-        cs = np.sqrt(gamma*p/D)
-
+        _, u, v, _, _ = Fp
 
         # the timestep is min(dx/(|u| + cs), dy/(|v| + cs))
-        xtmp = self.cc_data.grid.dx/(abs(u) + cs)
-        ytmp = self.cc_data.grid.dy/(abs(v) + cs)
+        # FIXME: it's not so simple in the relativistic case
+        # relativistic addition of velocities here?
+
+        # FIXME: what do you do about the tangential velocities here?
+        #denom_x = rel_add_velocity(abs(u), 0., cs, 0., c)
+        #denom_y = rel_add_velocity(0., abs(v), 0., cs, c)
+        maxvel = max(abs(np.sqrt(u**2 + v**2)))
+        maxcs = max(cs)
+
+        denom = rel_add_velocity(maxvel, 0., maxcs, 0., c)
+
+        #xtmp = self.cc_data.grid.dx/(abs(u) + cs)
+        #ytmp = self.cc_data.grid.dy/(abs(v) + cs)
+        xtmp = self.cc_data.grid.dx / denom
+        ytmp = self.cc_data.grid.dy / denom
 
         self.dt = cfl*min(xtmp.min(), ytmp.min())
 
@@ -133,7 +141,7 @@ class Simulation(NullSimulation):
         Sy = self.cc_data.get_var("y-momentum")
         tau = self.cc_data.get_var("energy")
 
-        grav = self.rp.get_param("compressible.grav")
+        grav = self.rp.get_param("compressible-gr.grav")
 
         myg = self.cc_data.grid
 
@@ -143,19 +151,19 @@ class Simulation(NullSimulation):
         old_Sy = Sy.copy()
 
         # conservative update
-        dtdx = self.dt/myg.dx
-        dtdy = self.dt/myg.dy
+        dtdx = self.dt / myg.dx
+        dtdy = self.dt / myg.dy
 
         for n in range(self.vars.nvar):
             var = self.cc_data.get_var_by_index(n)
 
             var.v()[:,:] += \
-                dtdx*(Flux_x.v(n=n) - Flux_x.ip(1, n=n)) + \
-                dtdy*(Flux_y.v(n=n) - Flux_y.jp(1, n=n))
+                dtdx * (Flux_x.v(n=n) - Flux_x.ip(1, n=n)) + \
+                dtdy * (Flux_y.v(n=n) - Flux_y.jp(1, n=n))
 
         # gravitational source terms
-        Sy.d[:,:] += 0.5*self.dt*(D.d[:,:] + old_D.d[:,:])*grav
-        tau.d[:,:] += 0.5*self.dt*(Sy.d[:,:] + old_Sy.d[:,:])*grav
+        #Sy.d[:,:] += 0.5*self.dt*(D.d[:,:] + old_D.d[:,:])*grav
+        #tau.d[:,:] += 0.5*self.dt*(Sy.d[:,:] + old_Sy.d[:,:])*grav
 
         # increment the time
         self.cc_data.t += self.dt
@@ -178,23 +186,19 @@ class Simulation(NullSimulation):
         Sy = self.cc_data.get_var("y-momentum")
         tau = self.cc_data.get_var("energy")
 
-        # get the velocities
-        u = Sx/D
-        v = Sy/D
+        gamma = self.cc_data.get_aux("gamma")
+        c = self.cc_data.get_aux("c")
+
+        F = (D.d, Sx.d, Sy.d, tau.d)
+        Fp, cs = cons_to_prim(F, c, gamma)
+
+        rho, u, v, h, p = Fp
 
         # get the pressure
-        magvel = u**2 + v**2   # temporarily |U|^2
-        rhoe = (tau - 0.5*D*magvel)
-
-        magvel = np.sqrt(magvel)
-
-        e = rhoe/D
+        magvel = np.sqrt(u**2 + v**2)
 
         # access gamma from the cc_data object so we can use dovis
         # outside of a running simulation.
-        gamma = self.cc_data.get_aux("gamma")
-
-        p = eos.pres(gamma, D, e)
 
         myg = self.cc_data.grid
 

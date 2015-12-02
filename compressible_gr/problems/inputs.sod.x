@@ -4,7 +4,7 @@
 max_steps = 200
 tmax = 0.2
 
-[compressible]
+[compressible-gr]
 limiter = 1
 
 [io]

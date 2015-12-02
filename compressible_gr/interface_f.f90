@@ -581,8 +581,8 @@ subroutine riemann_RHLLE(idir, qx, qy, ng, &
         cs_l = max(smallc, sqrt(gamma * (gamma - 1.0d0) * eps_l / (1.0d0 + gamma * eps_l)))
         cs_r = max(smallc, sqrt(gamma * (gamma - 1.0d0) * eps_r / (1.0d0 + gamma * eps_r)))
 
-        F_l(iDx) = U_l(i,j,iDx) * un_l
-        F_r(iDx) = U_r(i,j,iDx) * un_l
+        F_l(iD) = U_l(i,j,iD) * un_l
+        F_r(iD) = U_r(i,j,iD) * un_l
 
         if idir == 1 then
             F_l(iSx) = U_l(i,j,iSx) * un_l + p_l
@@ -714,8 +714,8 @@ subroutine riemann_RHLLC(idir, qx, qy, ng, &
         cs_l = max(smallc, sqrt(gamma * (gamma - 1.0d0) * eps_l / (1.0d0 + gamma * eps_l)))
         cs_r = max(smallc, sqrt(gamma * (gamma - 1.0d0) * eps_r / (1.0d0 + gamma * eps_r)))
 
-        F_l(iDx) = U_l(i,j,iDx) * un_l
-        F_r(iDx) = U_r(i,j,iDx) * un_l
+        F_l(iD) = U_l(i,j,iD) * un_l
+        F_r(iD) = U_r(i,j,iD) * un_l
 
         if idir == 1 then
             F_l(iSx) = U_l(i,j,iSx) * un_l + p_l
@@ -820,6 +820,11 @@ subroutine numFlux(idir, iDx, iSx, iSy, itau, nvar, V_l, V_r, cs_l, cs_r, F_l, F
     double precision, intent(in) :: cs_l, cs_r
     double precision, intent(in) :: F_l(0:nvar-1), F_r(0:nvar-1)
     double precision, intent(out) :: F(0:nvar-1)
+
+!f2py depend(qx, qy, nvar) :: V_l, V_r, F_l, F_r
+!f2py intent(in) :: V_l, V_r, F_l, F_r
+!f2py intent(out) :: F
+
 
     double precision :: cs_bar, v_bar, a_l, a_r, a_lm, a_rp
 
