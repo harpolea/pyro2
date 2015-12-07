@@ -363,11 +363,11 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
 
     _fx = riemannFunc(1, myg.qx, myg.qy, myg.ng,
                       vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau,
-                      gamma, U_xl.d, U_xr.d, V_l, V_r)
+                      gamma, c, U_xl.d, U_xr.d, V_l, V_r)
 
     _fy = riemannFunc(2, myg.qx, myg.qy, myg.ng,
                       vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau,
-                      gamma, U_yl.d, U_yr.d, V_l, V_r)
+                      gamma, c, U_yl.d, U_yr.d, V_l, V_r)
 
     F_x = patch.ArrayIndexer(d=_fx, grid=myg)
     F_y = patch.ArrayIndexer(d=_fy, grid=myg)
@@ -461,11 +461,11 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
 
     _fx = riemannFunc(1, myg.qx, myg.qy, myg.ng,
                       vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau,
-                      gamma, U_xl.d, U_xr.d, V_l, V_r)
+                      gamma, c, U_xl.d, U_xr.d, V_l, V_r)
 
     _fy = riemannFunc(2, myg.qx, myg.qy, myg.ng,
                       vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau,
-                      gamma, U_yl.d, U_yr.d, V_l, V_r)
+                      gamma, c, U_yl.d, U_yr.d, V_l, V_r)
 
     F_x = patch.ArrayIndexer(d=_fx, grid=myg)
     F_y = patch.ArrayIndexer(d=_fy, grid=myg)
@@ -531,7 +531,7 @@ def cons_to_prim(Q, c, gamma):
     if pmin > pmax:
         pmin = abs(np.sqrt(Sx**2 + Sy**2)/c - tau - D)
 
-    if pmin < 0. or root_find_on_me1(pmin, Q, c, gamma) < 0.:
+    if pmin < 0. or root_find_on_me1(pmin, Q, c, gamma) < 0. or root_find_on_me1(pmin, Q, c, gamma) < root_find_on_me1(pmax, Q, c, gamma):
         pmin = 0.
 
     pbar = 0.5 * (pmin + pmax)
@@ -615,7 +615,7 @@ def root_find_on_me2(p, Q, c, gamma):
         u_local = Sx / (tau + D + pbar)
         v_local = Sy / (tau + D + pbar)
 
-        v2 = (u_local**2 + v_local**2) / c^2
+        v2 = (u_local**2 + v_local**2) / c**2
 
         if v2 < 1.:
             W = W(u_local, v_local, c)
