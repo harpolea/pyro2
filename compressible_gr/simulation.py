@@ -31,11 +31,33 @@ class Variables(object):
         self.irho = iD
         self.iu = iSx
         self.iv = iSy
-        self.ih = itau
-        self.ip = 4
+        self.ip = itau
+        #self.ih = 4
 
 
 class Simulation(NullSimulation):
+
+    def __init__(self, solver_name, problem_name, rp, timers=None):
+        """
+        Initialize the Simulation object
+
+        Parameters
+        ----------
+        solver_name : str
+            The name of the solver we wish to use. This should correspond
+            to one of the solvers in the pyro folder.
+        problem_name : str
+            The name of the problem we wish to run.  This should
+            correspond to one of the modules in lm_gr/problems/
+        rp : RuntimeParameters object
+            The runtime parameters for the simulation
+        timers : TimerCollection object, optional
+            The timers used for profiling this simulation
+        """
+
+        NullSimulation.__init__(self, solver_name, problem_name, rp, timers=timers)
+
+        self.vars = Variables()
 
     def initialize(self):
         """
@@ -52,10 +74,10 @@ class Simulation(NullSimulation):
         bc, bc_xodd, bc_yodd = bc_setup(self.rp)
 
         # density and energy
-        my_data.register_var("density", bc)
-        my_data.register_var("energy", bc)
-        my_data.register_var("x-momentum", bc_xodd)
-        my_data.register_var("y-momentum", bc_yodd)
+        my_data.register_var("D", bc)
+        my_data.register_var("tau", bc)
+        my_data.register_var("Sx", bc_xodd)
+        my_data.register_var("Sy", bc_yodd)
 
 
         # store the EOS gamma as an auxillary quantity so we can have a
@@ -69,16 +91,17 @@ class Simulation(NullSimulation):
 
         self.cc_data = my_data
 
-        self.vars = Variables(iD = my_data.vars.index("density"),
-                              iSx = my_data.vars.index("x-momentum"),
-                              iSy = my_data.vars.index("y-momentum"),
-                              itau = my_data.vars.index("energy"))
+        self.vars = Variables(iD = my_data.vars.index("D"),
+                              iSx = my_data.vars.index("Sx"),
+                              iSy = my_data.vars.index("Sy"),
+                              itau = my_data.vars.index("tau"))
 
 
         # initial conditions for the problem
         exec(self.problem_name + '.init_data(self.cc_data, self.rp)')
 
-        if self.verbose > 0: print(my_data)
+        if self.verbose > 0:
+            print(my_data)
 
 
     def compute_timestep(self):
@@ -90,42 +113,39 @@ class Simulation(NullSimulation):
         We use the driver.cfl parameter to control what fraction of the
         CFL step we actually take.
         """
+        myg = self.cc_data.grid
 
         cfl = self.rp.get_param("driver.cfl")
 
         # get the variables we need
-        D = self.cc_data.get_var("density")
-        Sx = self.cc_data.get_var("x-momentum")
-        Sy = self.cc_data.get_var("y-momentum")
-        tau = self.cc_data.get_var("energy")
+        D = self.cc_data.get_var("D")
+        Sx = self.cc_data.get_var("Sx")
+        Sy = self.cc_data.get_var("Sy")
+        tau = self.cc_data.get_var("tau")
 
         gamma = self.rp.get_param("eos.gamma")
         c = self.rp.get_param("eos.c")
+        u = np.zeros_like(D.d)
+        v = np.zeros_like(D.d)
 
         # we need to compute the primitive speeds and sound speed
-        F = (D.d, Sx.d, Sy.d, tau.d)
-        Fp, cs = cons_to_prim(F, c, gamma)
+        for i in range(myg.qx):
+            for j in range(myg.qy):
+                F = (D.d[i,j], Sx.d[i,j], Sy.d[i,j], tau.d[i,j])
+                Fp, cs = cons_to_prim(F, c, gamma)
 
-        _, u, v, _, _ = Fp
+                _, u[i,j], v[i,j], _, _ = Fp
 
         # the timestep is min(dx/(|u| + cs), dy/(|v| + cs))
-        # FIXME: it's not so simple in the relativistic case
-        # relativistic addition of velocities here?
+        maxvel = np.fabs(np.sqrt(u**2 + v**2)).max()
+        maxcs = cs.max()
 
-        # FIXME: what do you do about the tangential velocities here?
-        #denom_x = rel_add_velocity(abs(u), 0., cs, 0., c)
-        #denom_y = rel_add_velocity(0., abs(v), 0., cs, c)
-        maxvel = max(abs(np.sqrt(u**2 + v**2)))
-        maxcs = max(cs)
+        denom, _ = rel_add_velocity(maxvel, 0., maxcs, 0., c)
 
-        denom = rel_add_velocity(maxvel, 0., maxcs, 0., c)
-
-        #xtmp = self.cc_data.grid.dx/(abs(u) + cs)
-        #ytmp = self.cc_data.grid.dy/(abs(v) + cs)
         xtmp = self.cc_data.grid.dx / denom
         ytmp = self.cc_data.grid.dy / denom
 
-        self.dt = cfl*min(xtmp.min(), ytmp.min())
+        self.dt = cfl * min(xtmp.min(), ytmp.min())
 
 
     def evolve(self):
@@ -137,18 +157,13 @@ class Simulation(NullSimulation):
         tm_evolve = self.tc.timer("evolve")
         tm_evolve.begin()
 
-        D = self.cc_data.get_var("density")
-        Sy = self.cc_data.get_var("y-momentum")
-        tau = self.cc_data.get_var("energy")
-
         grav = self.rp.get_param("compressible-gr.grav")
 
         myg = self.cc_data.grid
 
         Flux_x, Flux_y = unsplitFluxes(self.cc_data, self.rp, self.vars, self.tc, self.dt)
 
-        old_D = D.copy()
-        old_Sy = Sy.copy()
+        #print(Flux_x.v(0))
 
         # conservative update
         dtdx = self.dt / myg.dx
@@ -172,7 +187,7 @@ class Simulation(NullSimulation):
         tm_evolve.end()
 
 
-    def dovis(self):
+    def dovis(self, vmins=[None, None, None, None], vmaxes=[None, None, None, None]):
         """
         Do runtime visualization.
         """
@@ -180,32 +195,38 @@ class Simulation(NullSimulation):
         plt.clf()
 
         plt.rc("font", size=10)
+        myg = self.cc_data.grid
 
-        D = self.cc_data.get_var("density")
-        Sx = self.cc_data.get_var("x-momentum")
-        Sy = self.cc_data.get_var("y-momentum")
-        tau = self.cc_data.get_var("energy")
+        D = self.cc_data.get_var("D")
+        Sx = self.cc_data.get_var("Sx")
+        Sy = self.cc_data.get_var("Sy")
+        tau = self.cc_data.get_var("tau")
 
         gamma = self.cc_data.get_aux("gamma")
         c = self.cc_data.get_aux("c")
+        u = np.zeros_like(D.d)
+        v = np.zeros_like(D.d)
 
-        F = (D.d, Sx.d, Sy.d, tau.d)
-        Fp, cs = cons_to_prim(F, c, gamma)
+        rho = myg.scratch_array()
+        p = myg.scratch_array()
+        h = myg.scratch_array()
 
-        rho, u, v, h, p = Fp
+        for i in range(myg.qx):
+            for j in range(myg.qy):
+                F = (D.d[i,j], Sx.d[i,j], Sy.d[i,j], tau.d[i,j])
+                Fp, cs = cons_to_prim(F, c, gamma)
+                rho.d[i,j], u[i,j], v[i,j], h.d[i,j], p.d[i,j] = Fp
 
         # get the pressure
-        magvel = np.sqrt(u**2 + v**2)
+        magvel = myg.scratch_array()
+        magvel.d[:,:] = np.sqrt(u**2 + v**2)
 
         # access gamma from the cc_data object so we can use dovis
         # outside of a running simulation.
 
-        myg = self.cc_data.grid
-
-
         # figure out the geometry
-        L_x = self.cc_data.grid.xmax - self.cc_data.grid.xmin
-        L_y = self.cc_data.grid.ymax - self.cc_data.grid.ymin
+        L_x = myg.xmax - myg.xmin
+        L_y = myg.ymax - myg.ymin
 
         orientation = "vertical"
         shrink = 1.0
@@ -222,17 +243,17 @@ class Simulation(NullSimulation):
             #   e
             fig, axes = plt.subplots(nrows=4, ncols=1, num=1)
             orientation = "horizontal"
-            if (L_x > 4*L_y):
+            if (L_x > 4.*L_y):
                 shrink = 0.75
 
             onLeft = list(range(self.vars.nvar))
 
 
-        elif L_y > 2*L_x:
+        elif L_y > 2.*L_x:
 
             # we want 4 columns:  rho  |U|  p  e
             fig, axes = plt.subplots(nrows=1, ncols=4, num=1)
-            if (L_y >= 3*L_x):
+            if (L_y >= 3.*L_x):
                 shrink = 0.5
                 sparseX = 1
                 allYlabel = 0
@@ -250,8 +271,8 @@ class Simulation(NullSimulation):
             onLeft = [0,2]
 
 
-        fields = [D, magvel, p, e]
-        field_names = [r"$\rho$", r"U", "p", "e"]
+        fields = [rho, magvel, p, h]
+        field_names = [r"$\rho$", r"U", "p", "h"]
 
         for n in range(4):
             ax = axes.flat[n]
@@ -279,6 +300,6 @@ class Simulation(NullSimulation):
             plt.colorbar(img, ax=ax, orientation=orientation, shrink=shrink)
 
 
-        plt.figtext(0.05,0.0125, "t = %10.5f" % self.cc_data.t)
+        plt.figtext(0.05,0.0125, "n: %4d,   t = %10.5f" % (self.n, self.cc_data.t))
 
         plt.draw()

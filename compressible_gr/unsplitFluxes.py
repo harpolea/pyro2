@@ -173,27 +173,33 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
 
     gamma = rp.get_param("eos.gamma")
     c = rp.get_param("eos.c")
+    K = rp.get_param("eos.k_poly")
+
 
     #=========================================================================
     # compute the primitive variables
     #=========================================================================
-    # Q = (rho, u, v, h, p)
+    # Qp = (rho, u, v, h, p)
 
-    D = my_data.get_var("density")
-    Sx = my_data.get_var("x-momentum")
-    Sy = my_data.get_var("y-momentum")
-    tau = my_data.get_var("energy")
+    D = my_data.get_var("D")
+    Sx = my_data.get_var("Sx")
+    Sy = my_data.get_var("Sy")
+    tau = my_data.get_var("tau")
+    r = myg.scratch_array()
+    u = myg.scratch_array()
+    v = myg.scratch_array()
+    h = myg.scratch_array()
+    p = myg.scratch_array()
 
-    Q = (D, Sx, Sy, tau)
-
-    Qp, c_s = cons_to_prim(Q, c, gamma)
-
-    (rho, u, v, h, p) = Qp
+    for i in range(myg.qx):
+        for j in range(myg.qy):
+            Q = (D.d[i,j], Sx.d[i,j], Sy.d[i,j], tau.d[i,j])
+            Qp, c_s = cons_to_prim(Q, c, gamma)
+            (r.d[i,j], u.d[i,j], v.d[i,j], h.d[i,j], p.d[i,j]) = Qp
 
     smallp = 1.e-10
     p.d = p.d.clip(smallp)   # apply a floor to the pressure
 
-    r = rho
 
     #=========================================================================
     # compute the flattening coefficients
@@ -254,7 +260,7 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
 
     V_l, V_r = interface_f.states(1, myg.qx, myg.qy, myg.ng, myg.dx, dt,
                                   vars.nvar,
-                                  gamma,
+                                  gamma, c,
                                   r.d, u.d, v.d, p.d,
                                   ldelta_rx, ldelta_ux, ldelta_vx, ldelta_px)
 
@@ -265,23 +271,20 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     U_xl = myg.scratch_array(vars.nvar)
     U_xr = myg.scratch_array(vars.nvar)
 
-    W_l = W(V_l[:,:,vars.u], V_l[:,:,vars.v], c)
-    h_l = h_from_eos(V_l[:,:,vars.p], V_l[:,:,vars.rho], gamma)
+    h_l = h_from_eos(V_l[:,:,vars.irho], gamma, K)
+    p_l = p_from_eos(V_l[:,:,vars.irho], gamma, K)
+    h_r = h_from_eos(V_r[:,:,vars.irho], gamma, K)
+    p_r = p_from_eos(V_r[:,:,vars.irho], gamma, K)
 
-    U_xl.d[:,:,vars.D] = V_l[:,:,vars.rho] * W_l
-    U_xl.d[:,:,vars.Sx] = V_l[:,:,vars.rho] * h_l * V_l[:,:,vars.u] * W_l
-    U_xl.d[:,:,vars.Sy] = V_l[:,:,vars.rho] * h_l * V_l[:,:,vars.v] * W_l
-    U_xl.d[:,:,vars.tau] = V_l[:,:,vars.rho] * h_l * W_l**2 - \
-                           V_l[:,:,vars.p] - V_l[:,:,vars.rho] * W_l
 
-    W_r = W(V_r[:,:,vars.u], V_r[:,:,vars.v], c)
-    h_r = h_from_eos(V_r[:,:,vars.p], V_r[:,:,vars.rho], gamma)
+    for i in range(myg.qx):
+        for j in range(myg.qy):
+            Qp_l = (V_l[i,j,vars.irho], V_l[i,j,vars.iu], V_l[i,j,vars.iv], h_l[i,j], p_l[i,j])
+            Qp_r = (V_r[i,j,vars.irho], V_r[i,j,vars.iu], V_r[i,j,vars.iv], h_r[i,j], p_r[i,j])
 
-    U_xr.d[:,:,vars.D] = V_r[:,:,vars.rho] * W_r
-    U_xr.d[:,:,vars.Sx] = V_r[:,:,vars.rho] * h_r * V_r[:,:,vars.u] * W_r
-    U_xr.d[:,:,vars.Sy] = V_r[:,:,vars.rho] * h_r * V_r[:,:,vars.v] * W_r
-    U_xr.d[:,:,vars.tau] = V_r[:,:,vars.rho] * h_r * W_r**2 - \
-                           V_r[:,:,vars.p] - V_r[:,:,vars.rho] * W_r
+            (U_xl.d[i,j,vars.iD], U_xl.d[i,j,vars.iSx], U_xl.d[i,j,vars.iSy], U_xl.d[i,j,vars.itau]) = prim_to_cons(Qp_l, c, gamma)
+
+            (U_xr.d[i,j,vars.iD], U_xr.d[i,j,vars.iSx], U_xr.d[i,j,vars.iSy], U_xr.d[i,j,vars.itau]) = prim_to_cons(Qp_r, c, gamma)
 
 
 
@@ -295,7 +298,7 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
 
     V_l, V_r = interface_f.states(2, myg.qx, myg.qy, myg.ng, myg.dy, dt,
                                   vars.nvar,
-                                  gamma,
+                                  gamma, c,
                                   r.d, u.d, v.d, p.d,
                                   ldelta_ry, ldelta_uy, ldelta_vy, ldelta_py)
 
@@ -306,23 +309,19 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     U_yl = myg.scratch_array(vars.nvar)
     U_yr = myg.scratch_array(vars.nvar)
 
-    W_l = W(V_l[:,:,vars.u], V_l[:,:,vars.v], c)
-    h_l = h_from_eos(V_l[:,:,vars.p], V_l[:,:,vars.rho], gamma)
+    h_l = h_from_eos(V_l[:,:,vars.irho], gamma, K)
+    p_l = p_from_eos(V_l[:,:,vars.irho], gamma, K)
+    h_r = h_from_eos(V_r[:,:,vars.irho], gamma, K)
+    p_r = p_from_eos(V_r[:,:,vars.irho], gamma, K)
 
-    U_yl.d[:,:,vars.D] = V_l[:,:,vars.rho] * W_l
-    U_yl.d[:,:,vars.Sx] = V_l[:,:,vars.rho] * h_l * V_l[:,:,vars.u] * W_l
-    U_yl.d[:,:,vars.Sy] = V_l[:,:,vars.rho] * h_l * V_l[:,:,vars.v] * W_l
-    U_yl.d[:,:,vars.tau] = V_l[:,:,vars.rho] * h_l * W_l**2 - \
-                           V_l[:,:,vars.p] - V_l[:,:,vars.rho] * W_l
+    for i in range(myg.qx):
+        for j in range(myg.qy):
+            Qp_l = (V_l[i,j,vars.irho], V_l[i,j,vars.iu], V_l[i,j,vars.iv], h_l[i,j], p_l[i,j])
+            Qp_r = (V_r[i,j,vars.irho], V_r[i,j,vars.iu], V_r[i,j,vars.iv], h_r[i,j], p_r[i,j])
 
-    W_r = W(V_r[:,:,vars.u], V_r[:,:,vars.v], c)
-    h_r = h_from_eos(V_r[:,:,vars.p], V_r[:,:,vars.rho], gamma)
+            (U_yl.d[i,j,vars.iD], U_yl.d[i,j,vars.iSx], U_yl.d[i,j,vars.iSy], U_yl.d[i,j,vars.itau]) = prim_to_cons(Qp_l, c, gamma)
 
-    U_yr.d[:,:,vars.D] = V_r[:,:,vars.rho] * W_r
-    U_yr.d[:,:,vars.Sx] = V_r[:,:,vars.rho] * h_r * V_r[:,:,vars.u] * W_r
-    U_yr.d[:,:,vars.Sy] = V_r[:,:,vars.rho] * h_r * V_r[:,:,vars.v] * W_r
-    U_yr.d[:,:,vars.tau] = V_r[:,:,vars.rho] * h_r * W_r**2 - \
-                           V_r[:,:,vars.p] - V_r[:,:,vars.rho] * W_r
+            (U_yr.d[i,j,vars.iD], U_yr.d[i,j,vars.iSx], U_yr.d[i,j,vars.iSy], U_yr.d[i,j,vars.itau]) = prim_to_cons(Qp_r, c, gamma)
 
 
     #=========================================================================
@@ -331,20 +330,20 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     #grav = rp.get_param("compressible-gr.grav")
 
     # Sy_xl[i,j] += 0.5*dt*D[i-1,j]*grav
-    #U_xl.v(buf=1, n=vars.Sy)[:,:] += 0.5 * dt * D.ip(-1, buf=1) * grav
-    #U_xl.v(buf=1, n=vars.tau)[:,:] += 0.5*dt*Sy.ip(-1, buf=1)*grav
+    #U_xl.v(buf=1, n=vars.iSy)[:,:] += 0.5 * dt * D.ip(-1, buf=1) * grav
+    #U_xl.v(buf=1, n=vars.itau)[:,:] += 0.5*dt*Sy.ip(-1, buf=1)*grav
 
     # Sy_xr[i,j] += 0.5*dt*D[i,j]*grav
-    #U_xr.v(buf=1, n=vars.Sy)[:,:] += 0.5*dt*D.v(buf=1)*grav
-    #U_xr.v(buf=1, n=vars.tau)[:,:] += 0.5*dt*Sy.v(buf=1)*grav
+    #U_xr.v(buf=1, n=vars.iSy)[:,:] += 0.5*dt*D.v(buf=1)*grav
+    #U_xr.v(buf=1, n=vars.itau)[:,:] += 0.5*dt*Sy.v(buf=1)*grav
 
     # Sy_yl[i,j] += 0.5*dt*D[i,j-1]*grav
-    #U_yl.v(buf=1, n=vars.Sy)[:,:] += 0.5*dt*D.jp(-1, buf=1)*grav
-    #U_yl.v(buf=1, n=vars.tau)[:,:] += 0.5*dt*Sy.jp(-1, buf=1)*grav
+    #U_yl.v(buf=1, n=vars.iSy)[:,:] += 0.5*dt*D.jp(-1, buf=1)*grav
+    #U_yl.v(buf=1, n=vars.itau)[:,:] += 0.5*dt*Sy.jp(-1, buf=1)*grav
 
     # Sy_yr[i,j] += 0.5*dt*D[i,j]*grav
-    #U_yr.v(buf=1, n=vars.Sy)[:,:] += 0.5*dt*D.v(buf=1)*grav
-    #U_yr.v(buf=1, n=vars.tau)[:,:] += 0.5*dt*Sy.v(buf=1)*grav
+    #U_yr.v(buf=1, n=vars.iSy)[:,:] += 0.5*dt*D.v(buf=1)*grav
+    #U_yr.v(buf=1, n=vars.itau)[:,:] += 0.5*dt*Sy.v(buf=1)*grav
 
 
     #=========================================================================
@@ -362,15 +361,13 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     else:
         msg.fail("ERROR: Riemann solver undefined")
 
-    # FIXME: check out the fortran to make sure it's doing stuff right here.
-
     _fx = riemannFunc(1, myg.qx, myg.qy, myg.ng,
                       vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau,
-                      gamma, U_xl.d, U_xr.d, V_xl.d, V_xr.d)
+                      gamma, U_xl.d, U_xr.d, V_l, V_r)
 
     _fy = riemannFunc(2, myg.qx, myg.qy, myg.ng,
                       vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau,
-                      gamma, U_yl.d, U_yr.d, V_yl.d, V_yr.d)
+                      gamma, U_yl.d, U_yr.d, V_l, V_r)
 
     F_x = patch.ArrayIndexer(d=_fx, grid=myg)
     F_y = patch.ArrayIndexer(d=_fy, grid=myg)
@@ -464,11 +461,11 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
 
     _fx = riemannFunc(1, myg.qx, myg.qy, myg.ng,
                       vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau,
-                      gamma, U_xl.d, U_xr.d, V_xl.d, V_xr.d)
+                      gamma, U_xl.d, U_xr.d, V_l, V_r)
 
     _fy = riemannFunc(2, myg.qx, myg.qy, myg.ng,
                       vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau,
-                      gamma, U_yl.d, U_yr.d, V_yl.d, V_yr.d)
+                      gamma, U_yl.d, U_yr.d, V_l, V_r)
 
     F_x = patch.ArrayIndexer(d=_fx, grid=myg)
     F_y = patch.ArrayIndexer(d=_fy, grid=myg)
@@ -478,6 +475,7 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     #=========================================================================
     # apply artificial viscosity
     #=========================================================================
+    """
     cvisc = rp.get_param("compressible-gr.cvisc")
 
     _ax, _ay = interface_f.artificial_viscosity(
@@ -491,30 +489,31 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     b = (2,1)
 
     # F_x = F_x + avisco_x * (U(i-1,j) - U(i,j))
-    F_x.v(buf=b, n=vars.D)[:,:] += \
+    F_x.v(buf=b, n=vars.iD)[:,:] += \
         avisco_x.v(buf=b) * (D.ip(-1, buf=b) - D.v(buf=b))
 
-    F_x.v(buf=b, n=vars.Sx)[:,:] += \
+    F_x.v(buf=b, n=vars.iSx)[:,:] += \
         avisco_x.v(buf=b) * (Sx.ip(-1, buf=b) - Sx.v(buf=b))
 
-    F_x.v(buf=b, n=vars.Sy)[:,:] += \
+    F_x.v(buf=b, n=vars.iSy)[:,:] += \
         avisco_x.v(buf=b) * (Sy.ip(-1, buf=b) - Sy.v(buf=b))
 
-    F_x.v(buf=b, n=vars.tau)[:,:] += \
+    F_x.v(buf=b, n=vars.itau)[:,:] += \
         avisco_x.v(buf=b) * (tau.ip(-1, buf=b) - tau.v(buf=b))
 
     # F_y = F_y + avisco_y * (U(i,j-1) - U(i,j))
-    F_y.v(buf=b, n=vars.D)[:,:] += \
+    F_y.v(buf=b, n=vars.iD)[:,:] += \
         avisco_y.v(buf=b) * (D.jp(-1, buf=b) - D.v(buf=b))
 
-    F_y.v(buf=b, n=vars.Sx)[:,:] += \
+    F_y.v(buf=b, n=vars.iSx)[:,:] += \
         avisco_y.v(buf=b) * (Sx.jp(-1, buf=b) - Sx.v(buf=b))
 
-    F_y.v(buf=b, n=vars.Sy)[:,:] += \
+    F_y.v(buf=b, n=vars.iSy)[:,:] += \
         avisco_y.v(buf=b) * (Sy.jp(-1, buf=b) - Sy.v(buf=b))
 
-    F_y.v(buf=b, n=vars.tau)[:,:] += \
+    F_y.v(buf=b, n=vars.itau)[:,:] += \
         avisco_y.v(buf=b) * (tau.jp(-1, buf=b) - tau.v(buf=b))
+    """
 
     tm_flux.end()
 
@@ -524,7 +523,7 @@ def cons_to_prim(Q, c, gamma):
     """
     Converts the given set Q of conservative variables into a set Qp of primitive variables.
     """
-    D, Sx, Sy, tau = Q
+    (D, Sx, Sy, tau) = Q
 
     pmin = (Sx**2 + Sy**2)/c**2 - tau - D
     pmax = (gamma - 1.) * tau
@@ -597,7 +596,6 @@ def root_find_on_me1(p, Q, c, gamma):
         epsrho = (tau + D * (1. - w) + pbar * v2 / (v2 - 1.)) / w**2
 
         p_error = (gamma - 1.) * epsrho - pbar
-
     else:
         p_error = 1.e6
 
@@ -638,12 +636,19 @@ def root_find_on_me2(p, Q, c, gamma):
 
     return f
 
-def h_from_eos(p, rho, gamma):
+def h_from_eos(rho, gamma, K):
     """
-    return h using the equation of state, given the pressure, density and ratio of specific heats, gamma.
+    return h using the equation of state, given the density, ratio of specific heats, gamma, and the polytropic index, K.
     """
-    e = p.d / (gamma - 1.) / rho.d
-    return 1. + e + p.d / rho.d
+    p = p_from_eos(rho, gamma, K)
+    e = p / (gamma - 1.) / rho
+    return 1. + e + p / rho
+
+def p_from_eos(rho, gamma, K):
+    """
+    return p using the equation of state, given the density, ratio of specific heats, gamma, and the polytropic index, K.
+    """
+    return K * rho**gamma
 
 def rel_add_velocity(ux, uy, vx, vy, c):
     """

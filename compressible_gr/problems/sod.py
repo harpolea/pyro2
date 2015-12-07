@@ -3,6 +3,7 @@ from __future__ import print_function
 import sys
 
 import mesh.patch as patch
+from compressible_gr.unsplitFluxes import *
 from util import msg
 
 def init_data(my_data, rp):
@@ -16,6 +17,8 @@ def init_data(my_data, rp):
         print(my_data.__class__)
         sys.exit()
 
+    gamma = rp.get_param("eos.gamma")
+    c = rp.get_param("eos.c")
 
     # get the sod parameters
     dens_left = rp.get_param("sod.dens_left")
@@ -26,13 +29,19 @@ def init_data(my_data, rp):
 
     p_left = rp.get_param("sod.p_left")
     p_right = rp.get_param("sod.p_right")
-    
 
     # get the density, momenta, and energy as separate variables
-    dens = my_data.get_var("density")
-    xmom = my_data.get_var("x-momentum")
-    ymom = my_data.get_var("y-momentum")
-    ener = my_data.get_var("energy")
+    D = my_data.get_var("D")
+    Sx = my_data.get_var("Sx")
+    Sy = my_data.get_var("Sy")
+    tau = my_data.get_var("tau")
+    rho = np.zeros_like(D.d)
+    u = np.zeros_like(D.d)
+    v = np.zeros_like(D.d)
+    h = np.zeros_like(D.d)
+    p = np.zeros_like(D.d)
+
+    myg = my_data.grid
 
     # initialize the components, remember, that ener here is rho*eint
     # + 0.5*rho*v**2, where eint is the specific internal energy
@@ -43,63 +52,63 @@ def init_data(my_data, rp):
     ymin = rp.get_param("mesh.ymin")
     ymax = rp.get_param("mesh.ymax")
 
-    gamma = rp.get_param("eos.gamma")
-
     direction = rp.get_param("sod.direction")
-    
+
     xctr = 0.5*(xmin + xmax)
     yctr = 0.5*(ymin + ymax)
 
-    myg = my_data.grid
-    
     if direction == "x":
 
         # left
         idxl = myg.x2d <= xctr
 
-        dens.d[idxl] = dens_left
-        xmom.d[idxl] = dens_left*u_left
-        ymom.d[idxl] = 0.0
-        ener.d[idxl] = p_left/(gamma - 1.0) + 0.5*xmom.d[idxl]*u_left
+        rho[idxl] = dens_left
+        u[idxl] = u_left
+        v[idxl] = 0.0
+        p[idxl] = p_left
 
         # right
         idxr = myg.x2d > xctr
-                
-        dens.d[idxr] = dens_right
-        xmom.d[idxr] = dens_right*u_right
-        ymom.d[idxr] = 0.0
-        ener.d[idxr] = p_right/(gamma - 1.0) + 0.5*xmom.d[idxr]*u_right
+
+        rho[idxr] = dens_right
+        u[idxr] = u_right
+        v[idxr] = 0.0
+        p[idxr] = p_right
 
     else:
 
         # bottom
         idxb = myg.y2d <= yctr
 
-        dens.d[idxb] = dens_left
-        xmom.d[idxb] = 0.0
-        ymom.d[idxb] = dens_left*u_left
-        ener.d[idxb] = p_left/(gamma - 1.0) + 0.5*ymom.d[idxb]*u_left
-                
+        rho[idxb] = dens_left
+        u[idxb] = 0.0
+        v[idxb] = u_left
+        p[idxb] = p_left
+
         # top
         idxt = myg.y2d > yctr
-        
-        dens.d[idxt] = dens_right
-        xmom.d[idxt] = 0.0
-        ymom.d[idxt] = dens_right*u_right
-        ener.d[idxt] = p_right/(gamma - 1.0) + 0.5*ymom.d[idxt]*u_right
-        
-    
+
+        rho[idxt] = dens_right
+        u[idxt] = 0.0
+        v[idxt] = u_right
+        p[idxt] = p
+
+    h[:,:] = 1. + p * gamma / (rho * (gamma - 1.))
+
+    for i in range(myg.qx):
+        for j in range(myg.qy):
+            Qp = (rho[i,j], u[i,j], v[i,j], h[i,j], p[i,j])
+            Qc = prim_to_cons(Qp, c, gamma)
+            (D.d[i,j], Sx.d[i,j], Sy.d[i,j], tau.d[i,j]) = Qc
+
+
 def finalize():
     """ print out any information to the user at the end of the run """
 
     msg = """
-          The script analysis/sod_compare.py can be used to compare 
+          The script analysis/sod_compare.py can be used to compare
           this output to the exact solution.  Some sample exact solution
           data is present as analysis/sod-exact.out
           """
 
     print(msg)
-
-
-
-                             

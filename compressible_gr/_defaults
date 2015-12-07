@@ -4,7 +4,8 @@ cfl = 0.8
 
 [eos]
 gamma = 1.4    ; pres = rho ener (gamma - 1)
-c = 1.0        ; speed of light
+c = 100.0        ; speed of light
+k_poly = 1.0   ; polytropic index
 
 
 [compressible-gr]
@@ -20,4 +21,4 @@ limiter = 2               ; limiter (0 = none, 1 = 2nd order, 2 = 4th order)
 
 grav = 0.0                ; gravitational acceleration (in y-direction)
 
-riemann = RHLLC            ; RHLLC or RHLLE
+riemann = RHLLE            ; RHLLC or RHLLE

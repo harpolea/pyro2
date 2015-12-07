@@ -1,12 +1,21 @@
 # simple inputs files for the unsplit CTU hydro scheme
 
 [driver]
-max_steps = 200
-tmax = 0.2
+max_steps = 100
+tmax = 1.0000
+
+[compressible-gr]
+limiter = 1
 
 [io]
-basename = sod_y_
-dt_out = 0.05
+basename = ../../Documents/Work/pyro/results/sod/sod_128_   ; basename for output files
+n_out = 1                   ; number of timesteps between writing output files
+do_io = 1                   ; do we output at all?
+
+[vis]
+
+dovis = 0                  ; runtime visualization? (1=yes, 0=no)
+store_images = 0           ; store vis images to files (1=yes, 0=no)
 
 [mesh]
 nx = 10

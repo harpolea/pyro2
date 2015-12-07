@@ -1,6 +1,6 @@
 subroutine states(idir, qx, qy, ng, dx, dt, &
                   nvar, &
-                  gamma, &
+                  gamma, c, &
                   r, u, v, p, &
                   ldelta_r, ldelta_u, ldelta_v, ldelta_p, &
                   q_l, q_r)
@@ -11,7 +11,7 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
   integer, intent(in) :: qx, qy, ng
   double precision, intent(in) :: dx, dt
   integer, intent(in) :: nvar
-  double precision, intent(in) :: gamma
+  double precision, intent(in) :: gamma, c
 
   ! 0-based indexing to match python
   double precision, intent(inout) :: r(0:qx-1, 0:qy-1)
@@ -47,38 +47,20 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
   ! We need the left and right eigenvectors and the eigenvalues for
   ! the system projected along the x-direction
   !
-  ! Taking our state vector as Q = (rho, u, v, p)^T, the eigenvalues
-  ! are u - c, u, u + c.
+  ! Taking our state vector as Q = (D, Sx, Sy, tau)^T, the eigenvalues
+  ! are l0, l+, l-
   !
   ! We look at the equations of hydrodynamics in a split fashion --
   ! i.e., we only consider one dimension at a time.
   !
   ! Considering advection in the x-direction, the Jacobian matrix for
   ! the primitive variable formulation of the Euler equations
-  ! projected in the x-direction is:
+  ! projected in the x-direction is horrid.
   !
-  !        / u   r   0   0 \
-  !        | 0   u   0  1/r |
-  !    A = | 0   0   u   0  |
-  !        \ 0  rc^2 0   u  /
+  ! The right eigenvectors are also horrid.
   !
-  ! The right eigenvectors are
-  !
-  !        /  1  \        / 1 \        / 0 \        /  1  \
-  !        |-c/r |        | 0 |        | 0 |        | c/r |
-  !   r1 = |  0  |   r2 = | 0 |   r3 = | 1 |   r4 = |  0  |
-  !        \ c^2 /        \ 0 /        \ 0 /        \ c^2 /
-  !
-  ! In particular, we see from r3 that the transverse velocity (v in
-  ! this case) is simply advected at a speed u in the x-direction.
-  !
-  ! The left eigenvectors are
-  !
-  !    l1 =     ( 0,  -r/(2c),  0, 1/(2c^2) )
-  !    l2 =     ( 1,     0,     0,  -1/c^2  )
-  !    l3 =     ( 0,     0,     1,     0    )
-  !    l4 =     ( 0,   r/(2c),  0, 1/(2c^2) )
-  !
+  ! The left eigenvectors are again, horrid.
+
   ! The fluxes are going to be defined on the left edge of the
   ! computational zones
   !
@@ -101,7 +83,8 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
   double precision :: betal(0:nvar-1), betar(0:nvar-1)
 
   double precision :: dtdx, dtdx4
-  double precision :: cs
+  double precision :: cs, eps, v2, a_minus, a_plus, Kappa, h2OverDelta, W
+  double precision :: h
 
   double precision :: sum, sum_l, sum_r, factor
 
@@ -122,34 +105,182 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
 
         q(:) = [r(i,j), u(i,j), v(i,j), p(i,j)]
 
-        cs = sqrt(gamma*p(i,j)/r(i,j))
+        eps = p(i,j) / (r(i,j) * (gamma - 1.0d0))
+        h = 1.0d0 + eps + p(i,j)/r(i,j)
+
+        cs = sqrt(gamma*(gamma - 1.0d0)*eps/(1.0d0 + gamma*eps))
+        v2 = v(i,j)**2 + u(i,j)**2
+        W = 1.0d0 / sqrt(1.0d0 - v2/c**2)
 
         ! compute the eigenvalues and eigenvectors
         if (idir == 1) then
-           eval(:) = [u(i,j) - cs, u(i,j), u(i,j), u(i,j) + cs]
+           eval(0) = (u(i,j) * (1.0d0 - cs**2) - cs * &
+                sqrt((1.0d0 - v2)*(1.0d0 - u(i,j)*v(i,j) - &
+                (v2 - u(i,j)*v(i,j))*cs**2))) / (1.0d0 - v2*cs**2)
+           eval(1:2) = u(i,j)
+           eval(3) = (u(i,j) * (1.0d0 - cs**2) + cs * &
+                sqrt((1.0d0 - v2)*(1.0d0 - u(i,j)*v(i,j) - &
+                (v2 - u(i,j)*v(i,j))*cs**2))) / (1.0d0 - v2*cs**2)
 
-           lvec(0,:) = [ 0.0d0, -0.5d0*r(i,j)/cs, 0.0d0, 0.5d0/(cs*cs)  ]
-           lvec(1,:) = [ 1.0d0, 0.0d0,            0.0d0, -1.0d0/(cs*cs) ]
-           lvec(2,:) = [ 0.0d0, 0.0d0,            1.0d0, 0.0d0          ]
-           lvec(3,:) = [ 0.0d0, 0.5d0*r(i,j)/cs,  0.0d0, 0.5d0/(cs*cs)  ]
+           a_minus = (1.0d0 - u(i,j)**2) / (1 - u(i,j) * eval(0))
+           a_plus  = (1.0d0- u(i,j)**2) / (1 - u(i,j) * eval(3))
+           Kappa = h ! ideal gas: K = h
+           h2OverDelta = 1.0d0 / &
+                (h * W * (Kappa - 1.0d0) * &
+                  (1.0d0 - u(i,j)**2) * &
+                  (a_plus * eval(3) - a_minus * eval(0)))
 
-           rvec(0,:) = [1.0d0, -cs/r(i,j), 0.0d0, cs*cs ]
-           rvec(1,:) = [1.0d0, 0.0d0,      0.0d0, 0.0d0 ]
-           rvec(2,:) = [0.0d0, 0.0d0,      1.0d0, 0.0d0 ]
-           rvec(3,:) = [1.0d0, cs/r(i,j),  0.0d0, cs*cs ]
+           lvec(0,0) = h2OverDelta * &
+                (h*W*a_plus*(u(i,j) - eval(3)) - &
+                  u(i,j) - &
+                  W**2*(v2 - u(i,j)**2)*(2.0d0 * Kappa - 1.0d0)*&
+                                (u(i,j) - a_plus * eval(3)) + &
+                  Kappa*a_plus*eval(3) )
+           lvec(0, 1) = h2OverDelta * &
+               ( 1.0d0 - Kappa * a_plus + &
+                 W**2*(v2 - u(i,j)**2)*(2.0d0 * Kappa - 1.0d0)*&
+                               (1.0d0 - a_plus) )
+           lvec(0, 2) = h2OverDelta * &
+               (W**2*v(i,j)*(2.0d0 * Kappa - 1.0d0)*&
+                               a_plus*(u(i,j) - eval(3)) )
+           lvec(0, 3) = h2OverDelta * &
+               ( -u(i,j) + Kappa*a_plus*eval(3) - &
+                 W**2*(v2 - u(i,j)**2)*(2.0d0 * Kappa - 1.0d0)*&
+                               (u(i,j) - a_plus * eval(3)) )
+
+           lvec(3, 0) =-h2OverDelta * &
+                ( h*W*a_minus*(u(i,j) - eval(0)) - &
+                  u(i,j) - &
+                  W**2*(v2 - u(i,j)**2)*(2.0d0 * Kappa - 1.0d0)*&
+                                (u(i,j) - a_minus * eval(0)) + &
+                  Kappa*a_minus*eval(0) )
+           lvec(3, 1) =-h2OverDelta * &
+                ( 1.0d0 - Kappa * a_minus + &
+                  W**2*(v2 - u(i,j)**2)*(2.0d0 * Kappa - 1.0d0)*&
+                                (1.0d0 - a_minus) )
+           lvec(3, 1) =-h2OverDelta * &
+                ( W**2*v(i,j)*(2.0d0 * Kappa - 1.0d0)*&
+                                a_minus*(u(i,j) - eval(0)) )
+           lvec(3, 2) =-h2OverDelta * &
+                ( -u(i,j) + Kappa*a_minus*eval(0) - &
+                  W**2*(v2 - u(i,j)**2)*(2.0d0 * Kappa - 1.0d0)*&
+                                (u(i,j) - a_minus * eval(0)) )
+
+           lvec(1, 0) = W / (Kappa - 1.0d0) * ( h - W )
+           lvec(1, 1) = W / (Kappa - 1.0d0) * ( W * u(i,j) )
+           lvec(1, 2) = W / (Kappa - 1.0d0) * ( W * v(i,j) )
+           lvec(1, 3) = W / (Kappa - 1.0d0) * ( -W )
+
+           lvec(2, 0) = 1.0d0 / h / (1.0d0 - u(i,j)**2) * (-v(i,j))
+           lvec(2, 1) = 1.0d0 / h / (1.0d0 - u(i,j)**2) * (u(i,j) * v(i,j))
+           lvec(2, 2) = 1.0d0 / h / (1.0d0 - u(i,j)**2) * (1 - u(i,j)**2)
+           lvec(2, 3) = lvec(2,0)
+
+           rvec(0,0) = 1.0d0
+           rvec(0,1) = h * W * eval(0) * a_minus
+           rvec(0,2) = h * W * v(i,j)
+           rvec(0,3) = h * W * a_minus - 1.0d0
+
+           rvec(3,0) = 1.0d0
+           rvec(3,1) = h * W * eval(3) * a_plus
+           rvec(3,2) = h * W * v(i,j)
+           rvec(3,3) = h * W * a_plus - 1.0d0
+
+           rvec(1,0) = Kappa / (h * W)
+           rvec(1,1) = u(i,j)
+           rvec(1,2) = v(i,j)
+           rvec(1,3) = 1.0d0 - rvec(1,0)
+
+           rvec(2,0) = W * v(i,j)
+           rvec(2,1) = 2.0d0 * h * W**2 * &
+                u(i,j) * v(i,j)
+           rvec(2,2) = h * &
+                (1.0d0 + 2.0d0 * W**2 * v(i,j)**2)
+           rvec(2,3) = 2.0d0 * h * W**2 * v(i,j) - &
+                W * v(i,j)
 
         else
-           eval = [v(i,j) - cs, v(i,j), v(i,j), v(i,j) + cs]
+            eval(0) = (v(i,j) * (1.0d0 - cs**2) - cs * &
+                 sqrt((1.0d0 - v2)*(1.0d0 - u(i,j)*v(i,j) - &
+                 (v2 - u(i,j)*v(i,j))*cs**2))) / (1.0d0 - v2*cs**2)
+            eval(1:2) = v(i,j)
+            eval(3) = (v(i,j) * (1.0d0 - cs**2) + cs * &
+                 sqrt((1.0d0 - v2)*(1.0d0 - u(i,j)*v(i,j) - &
+                 (v2 - u(i,j)*v(i,j))*cs**2))) / (1.0d0 - v2*cs**2)
 
-           lvec(0,:) = [ 0.0d0, 0.0d0, -0.5d0*r(i,j)/cs, 0.5d0/(cs*cs)  ]
-           lvec(1,:) = [ 1.0d0, 0.0d0, 0.0d0,            -1.0d0/(cs*cs) ]
-           lvec(2,:) = [ 0.0d0, 1.0d0, 0.0d0,            0.0d0          ]
-           lvec(3,:) = [ 0.0d0, 0.0d0, 0.5d0*r(i,j)/cs,  0.5d0/(cs*cs)  ]
+            a_minus = (1.0d0 - v(i,j)**2) / (1 - v(i,j) * eval(0))
+            a_plus  = (1.0d0- v(i,j)**2) / (1 - v(i,j) * eval(3))
+            Kappa = h ! ideal gas: K = h
+            h2OverDelta = 1.0d0 / &
+                 (h * W * (Kappa - 1.0d0) * &
+                   (1.0d0 - v(i,j)**2) * &
+                   (a_plus * eval(3) - a_minus * eval(0)))
 
-           rvec(0,:) = [1.0d0, 0.0d0, -cs/r(i,j), cs*cs ]
-           rvec(1,:) = [1.0d0, 0.0d0, 0.0d0,      0.0d0 ]
-           rvec(2,:) = [0.0d0, 1.0d0, 0.0d0,      0.0d0 ]
-           rvec(3,:) = [1.0d0, 0.0d0, cs/r(i,j),  cs*cs ]
+            lvec(0,0) = h2OverDelta * &
+                 (h*W*a_plus*(v(i,j) - eval(3)) - &
+                   v(i,j) - &
+                   W**2*(v2 - v(i,j)**2)*(2.0d0 * Kappa - 1.0d0)*&
+                                 (v(i,j) - a_plus * eval(3)) + &
+                   Kappa*a_plus*eval(3) )
+            lvec(0, 1) = h2OverDelta * &
+                (W**2*u(i,j)*(2.0d0 * Kappa - 1.0d0)*&
+                                a_plus*(v(i,j) - eval(3)) )
+            lvec(0, 2) = h2OverDelta * &
+                ( 1.0d0 - Kappa * a_plus + &
+                  W**2*(v2 - v(i,j)**2)*(2.0d0 * Kappa - 1.0d0)*&
+                                (1.0d0 - a_plus) )
+            lvec(0, 3) = h2OverDelta * &
+                ( -v(i,j) + Kappa*a_plus*eval(3) - &
+                  W**2*(v2 - v(i,j)**2)*(2.0d0 * Kappa - 1.0d0)*&
+                                (v(i,j) - a_plus * eval(3)) )
+
+            lvec(3, 0) =-h2OverDelta * &
+                 ( h*W*a_minus*(v(i,j) - eval(0)) - &
+                   v(i,j) - &
+                   W**2*(v2 - v(i,j)**2)*(2.0d0 * Kappa - 1.0d0)*&
+                                 (v(i,j) - a_minus * eval(0)) + &
+                   Kappa*a_minus*eval(0) )
+            lvec(3, 1) =-h2OverDelta * &
+                 ( W**2*u(i,j)*(2.0d0 * Kappa - 1.0d0)*&
+                                 a_minus*(v(i,j) - eval(0)) )
+            lvec(3, 1) =-h2OverDelta * &
+                 ( 1.0d0 - Kappa * a_minus + &
+                   W**2*(v2 - v(i,j)**2)*(2.0d0 * Kappa - 1.0d0)*&
+                                 (1.0d0 - a_minus) )
+            lvec(3, 2) =-h2OverDelta * &
+                 ( -v(i,j) + Kappa*a_minus*eval(0) - &
+                   W**2*(v2 - v(i,j)**2)*(2.0d0 * Kappa - 1.0d0)*&
+                                 (v(i,j) - a_minus * eval(0)) )
+
+            lvec(1, 0) = W / (Kappa - 1.0d0) * ( h - W )
+            lvec(1, 1) = W / (Kappa - 1.0d0) * ( W * u(i,j) )
+            lvec(1, 2) = W / (Kappa - 1.0d0) * ( W * v(i,j) )
+            lvec(1, 3) = W / (Kappa - 1.0d0) * ( -W )
+
+            lvec(2, 0) = 1.0d0 / h / (1.0d0 - v(i,j)**2) * (-v(i,j))
+            lvec(2, 1) = 1.0d0 / h / (1.0d0 - v(i,j)**2) * (1 - v(i,j)**2)
+            lvec(2, 2) = 1.0d0 / h / (1.0d0 - v(i,j)**2) * (u(i,j)*v(i,j))
+            lvec(2, 3) = lvec(2, 0)
+
+            rvec(0,0) = 1.0d0
+            rvec(0,1) = h * W * u(i,j)
+            rvec(0,2) = h * W * eval(0) * a_minus
+            rvec(0,3) = h * W * a_minus - 1.0d0
+
+            rvec(3,0) = 1.0d0
+            rvec(3,1) = h * W * u(i,j)
+            rvec(3,2) = h * W * eval(3) * a_plus
+            rvec(3,3) = h * W * a_plus - 1.0d0
+
+            rvec(1,0) = Kappa / (h * W)
+            rvec(1,1) = u(i,j)
+            rvec(1,2) = v(i,j)
+            rvec(1,3) = 1.0d0 - rvec(1,0)
+
+            rvec(2,0) = W * v(i,j)
+            rvec(2,1) = h * (1.0d0 + 2.0d0 * W**2 * u(i,j)**2)
+            rvec(2,2) = 2.0d0 * h * W**2 * u(i,j) * v(i,j)
+            rvec(2,3) = 2.0d0 * h * W**2 * v(i,j) - W * v(i,j)
 
         endif
 
@@ -268,7 +399,7 @@ subroutine riemann_cgf(idir, qx, qy, ng, &
   double precision :: ustar, pstar, cstar_l, cstar_r
   double precision :: lambda_l, lambdastar_l, lambda_r, lambdastar_r
   double precision :: W_l, W_r, c_l, c_r, sigma
-  double precision :: alpha
+  double precision :: alpha, eps_l, eps_r
 
   double precision :: rho_state, un_state, ut_state, p_state, h_state, W
 
@@ -333,7 +464,7 @@ subroutine riemann_cgf(idir, qx, qy, ng, &
 
         hstar_l = h_l + &
              (pstar - p_l)*(h_l/rho_l + p_l/rho_l)/c_l**2
-        hstar_r = rhoe_r + &
+        hstar_r = h_r + &
              (pstar - p_r)*(h_r/rho_r + p_r/rho_r)/c_r**2
 
         cstar_l = max(smallc,sqrt(gamma*pstar/rhostar_l))
@@ -532,7 +663,6 @@ subroutine riemann_RHLLE(idir, qx, qy, ng, &
   double precision :: cs_l, cs_r
   double precision :: cs_bar, v_bar, a_l, a_r, a_lm, a_rp
 
-  double precision :: U_state(0:nvar-1)
   double precision :: F_l(0:nvar-1), F_r(0:nvar-1)
 
 
@@ -554,11 +684,10 @@ subroutine riemann_RHLLE(idir, qx, qy, ng, &
             ut_l    = V_l(i,j,iSx)
         endif
 
-        h_l = V_l(i,j,itau)
-
-        p_l   = (h_l - 1.0d0) * (gamma - 1.0d0) * rho_l / gamma
+        p_l = V_l(i,j,itau)
         p_l = max(p_l, smallp)
-        eps_l = h_l - 1.0d0 - p_l / rho_l
+        eps_l = p_l / (rho_l * (gamma - 1.0d0))
+        h_l = 1.0d0 + eps_l + p_l/rho_l
 
         rho_r  = V_r(i,j,iD)
 
@@ -570,12 +699,10 @@ subroutine riemann_RHLLE(idir, qx, qy, ng, &
             ut_r    = V_r(i,j,iSx)
         endif
 
-        h_r = V_r(i,j,itau)
-
-        p_r   = (h_r - 1.0d0) * (gamma - 1.0d0) * rho_r / gamma
+        p_r = V_r(i,j,itau)
         p_r = max(p_r, smallp)
-
-        eps_r = h_r - 1.0d0 - p_r / rho_r
+        eps_r = p_r / (rho_r * (gamma - 1.0d0))
+        h_r = 1.0d0 + eps_r + p_r/rho_r
 
         ! compute the sound speeds
         cs_l = max(smallc, sqrt(gamma * (gamma - 1.0d0) * eps_l / (1.0d0 + gamma * eps_l)))
@@ -584,16 +711,16 @@ subroutine riemann_RHLLE(idir, qx, qy, ng, &
         F_l(iD) = U_l(i,j,iD) * un_l
         F_r(iD) = U_r(i,j,iD) * un_l
 
-        if idir == 1 then
+        if (idir == 1) then
             F_l(iSx) = U_l(i,j,iSx) * un_l + p_l
-            F_l(iSy) = U_l(i,j,iSx) * un_l
+            F_l(iSy) = U_l(i,j,iSy) * un_l
             F_r(iSx) = U_r(i,j,iSx) * un_r + p_r
-            F_r(iSy) = U_r(i,j,iSx) * un_r
+            F_r(iSy) = U_r(i,j,iSy) * un_r
         else
             F_l(iSx) = U_l(i,j,iSx) * un_l
-            F_l(iSy) = U_l(i,j,iSx) * un_l + p_l
+            F_l(iSy) = U_l(i,j,iSy) * un_l + p_l
             F_r(iSx) = U_r(i,j,iSx) * un_r
-            F_r(iSy) = U_r(i,j,iSx) * un_r + p_r
+            F_r(iSy) = U_r(i,j,iSy) * un_r + p_r
         endif
 
         F_l(itau) = (U_l(i,j,itau) + p_l) * un_l
@@ -608,18 +735,15 @@ subroutine riemann_RHLLE(idir, qx, qy, ng, &
 
         a_r = (v_bar + cs_bar) / (1.0d0 + v_bar * cs_bar)
         a_rp = max(0.0d0, a_r)
-        a_l = (vbar - cs_bar) / (1.0d0 - v_bar * cs_bar)
+        a_l = (v_bar - cs_bar) / (1.0d0 - v_bar * cs_bar)
         a_lm = min(0.0d0, a_l)
 
         if (a_l > 0.0d0) then
             F(i,j,:) = F_l(:)
-        elseif (a_r >= 0.0d0) then
-            !U_star(:) = (a_r * V_r(:) - a_l * V_l(:) - &
-            !            F_r(:) + F_l(:)) / (a_r - a_l)
-            F(i,j,:) = (a_rp * F_l(:) - a_lm * F_r(:) + a_rp * al_m * &
+        elseif (a_l <= 0.0d0 .and. 0.0 <= a_r) then
+            F(i,j,:) = (a_rp * F_l(:) - a_lm * F_r(:) + a_rp * a_lm * &
                 (V_r(i,j,:) - V_l(i,j,:))) / (a_rp - a_lm)
         else
-            !U_star(:) = V_r(:)
             F(i,j,:) = F_r(:)
         endif
 
@@ -662,7 +786,7 @@ subroutine riemann_RHLLC(idir, qx, qy, ng, &
   double precision :: rho_l, un_l, ut_l, h_l, p_l, eps_l
   double precision :: rho_r, un_r, ut_r, h_r, p_r, eps_r
   double precision :: cs_l, cs_r, p_lstar, p_rstar
-  double precision :: cs_bar, v_bar, a_l, a_r, a_lm, a_rp
+  double precision :: cs_bar, v_bar, a_l, a_r, a_lm, a_rp, a_c
 
   double precision :: U_lstar(0:nvar-1), U_rstar(0:nvar-1)
   double precision :: Q(0:nvar-1)
@@ -687,11 +811,10 @@ subroutine riemann_RHLLC(idir, qx, qy, ng, &
             ut_l    = V_l(i,j,iSx)
         endif
 
-        h_l = V_l(i,j,itau)
-
-        p_l   = (h_l - 1.0d0) * (gamma - 1.0d0) * rho_l / gamma
+        p_l = V_l(i,j,itau)
         p_l = max(p_l, smallp)
-        eps_l = h_l - 1.0d0 - p_l / rho_l
+        eps_l = p_l / (rho_l * (gamma - 1.0d0))
+        h_l = 1.0d0 + eps_l + p_l/rho_l
 
         rho_r  = V_r(i,j,iD)
 
@@ -703,12 +826,10 @@ subroutine riemann_RHLLC(idir, qx, qy, ng, &
             ut_r    = V_r(i,j,iSx)
         endif
 
-        h_r = V_r(i,j,itau)
-
-        p_r   = (h_r - 1.0d0) * (gamma - 1.0d0) * rho_r / gamma
+        p_r = V_r(i,j,itau)
         p_r = max(p_r, smallp)
-
-        eps_r = h_r - 1.0d0 - p_r / rho_r
+        eps_r = p_r / (rho_r * (gamma - 1.0d0))
+        h_r = 1.0d0 + eps_r + p_r/rho_r
 
         ! compute the sound speeds
         cs_l = max(smallc, sqrt(gamma * (gamma - 1.0d0) * eps_l / (1.0d0 + gamma * eps_l)))
@@ -717,16 +838,16 @@ subroutine riemann_RHLLC(idir, qx, qy, ng, &
         F_l(iD) = U_l(i,j,iD) * un_l
         F_r(iD) = U_r(i,j,iD) * un_l
 
-        if idir == 1 then
+        if (idir == 1) then
             F_l(iSx) = U_l(i,j,iSx) * un_l + p_l
-            F_l(iSy) = U_l(i,j,iSx) * un_l
+            F_l(iSy) = U_l(i,j,iSy) * un_l
             F_r(iSx) = U_r(i,j,iSx) * un_r + p_r
-            F_r(iSy) = U_r(i,j,iSx) * un_r
+            F_r(iSy) = U_r(i,j,iSy) * un_r
         else
             F_l(iSx) = U_l(i,j,iSx) * un_l
-            F_l(iSy) = U_l(i,j,iSx) * un_l + p_l
+            F_l(iSy) = U_l(i,j,iSy) * un_l + p_l
             F_r(iSx) = U_r(i,j,iSx) * un_r
-            F_r(iSy) = U_r(i,j,iSx) * un_r + p_r
+            F_r(iSy) = U_r(i,j,iSy) * un_r + p_r
         endif
 
         F_l(itau) = (U_l(i,j,itau) + p_l) * un_l
@@ -741,7 +862,7 @@ subroutine riemann_RHLLC(idir, qx, qy, ng, &
 
         a_r = (v_bar + cs_bar) / (1.0d0 + v_bar * cs_bar)
         a_rp = max(0.0d0, a_r)
-        a_l = (vbar - cs_bar) / (1.0d0 - v_bar * cs_bar)
+        a_l = (v_bar - cs_bar) / (1.0d0 - v_bar * cs_bar)
         a_lm = min(0.0d0, a_l)
         !!!!! how do you calculate a_c??????
         a_c = 0.5 * (a_r + a_l)
@@ -751,13 +872,13 @@ subroutine riemann_RHLLC(idir, qx, qy, ng, &
         Q(:) = a_l * U_l(i,j,:) - F_l(:)
         U_lstar(iD) = Q(iD) / (a_l - a_c)
         if (idir == 1) then
-            p_lstar = (Q(iSx) - a_c * (Q(itau) + Q(iD)) / (a_c * a_l - 1.0d0)
+            p_lstar = (Q(iSx) - a_c * (Q(itau) + Q(iD))) / (a_c * a_l - 1.0d0)
             U_lstar(iSx) = (Q(iSx) + p_lstar)/(a_l - a_c)
             U_lstar(iSy) = Q(iSy) / (a_l - a_c)
         else
-            p_lstar = (Q(iSy) - a_c * (Q(itau) + Q(iD)) / (a_c * a_l - 1.0d0)
+            p_lstar = (Q(iSy) - a_c * (Q(itau) + Q(iD))) / (a_c * a_l - 1.0d0)
             U_lstar(iSx) = Q(iSx)/(a_l - a_c)
-            U_lstar(iSy) = Q(iSy + p_lstar) / (a_l - a_c)
+            U_lstar(iSy) = (Q(iSy) + p_lstar) / (a_l - a_c)
         endif
         U_lstar(itau) = (Q(itau) + p_lstar*a_c) / (a_l - a_c)
 
@@ -765,13 +886,13 @@ subroutine riemann_RHLLC(idir, qx, qy, ng, &
         Q(:) = a_r * U_r(i,j,:) - F_r(:)
         U_rstar(iD) = Q(iD) / (a_r - a_c)
         if (idir == 1) then
-            p_rstar = (Q(iSx) - a_c * (Q(itau) + Q(iD)) / (a_c * a_r - 1.0d0)
+            p_rstar = (Q(iSx) - a_c * (Q(itau) + Q(iD))) / (a_c * a_r - 1.0d0)
             U_rstar(iSx) = (Q(iSx) + p_rstar)/(a_r - a_c)
             U_rstar(iSy) = Q(iSy) / (a_r - a_c)
         else
-            p_rstar = (Q(iSy) - a_c * (Q(itau) + Q(iD)) / (a_c * a_r - 1.0d0)
+            p_rstar = (Q(iSy) - a_c * (Q(itau) + Q(iD))) / (a_c * a_r - 1.0d0)
             U_rstar(iSx) = Q(iSx)/(a_r - a_c)
-            U_rstar(iSy) = Q(iSy + p_rstar) / (a_r - a_c)
+            U_rstar(iSy) = (Q(iSy) + p_rstar) / (a_r - a_c)
         endif
         U_rstar(itau) = (Q(itau) + p_rstar*a_c) / (a_r - a_c)
 
@@ -781,7 +902,7 @@ subroutine riemann_RHLLC(idir, qx, qy, ng, &
         elseif (a_c > 0.0d0) then
             F(i,j,:) = F_l(:) + a_l * (U_lstar(:) - U_l(i,j,:))
         elseif (a_r > 0.0d0) then
-            F(i,j,:) = F_r(:) + a_r * (U_rstar(:) - un_r(i,j,:))
+            F(i,j,:) = F_r(:) + a_r * (U_rstar(:) - U_r(i,j,:))
         else
             F(i,j,:) = F_r(:)
         endif
@@ -813,7 +934,7 @@ subroutine consFlux(idir, iD, iSx, iSy, itau, nvar, U_state, F, u, v, p)
 
 end subroutine consFlux
 
-subroutine numFlux(idir, iDx, iSx, iSy, itau, nvar, V_l, V_r, cs_l, cs_r, F_l, F_r, F)
+subroutine numFlux(idir, iD, iSx, iSy, itau, nvar, V_l, V_r, cs_l, cs_r, F_l, F_r, F)
 
     integer, intent(in) :: idir, iD, iSx, iSy, itau, nvar
     double precision, intent(in) :: V_l(0:nvar-1), V_r(0:nvar-1)
@@ -837,18 +958,15 @@ subroutine numFlux(idir, iDx, iSx, iSy, itau, nvar, V_l, V_r, cs_l, cs_r, F_l, F
 
     a_r = (v_bar + cs_bar) / (1.0d0 + v_bar * cs_bar)
     a_rp = max(0.0d0, a_r)
-    a_l = (vbar - cs_bar) / (1.0d0 - v_bar * cs_bar)
+    a_l = (v_bar - cs_bar) / (1.0d0 - v_bar * cs_bar)
     a_lm = min(0.0d0, a_l)
 
     if (a_l > 0.0d0) then
         F(:) = F_l(:)
     elseif (a_r >= 0.0d0) then
-        !U_star(:) = (a_r * V_r(:) - a_l * V_l(:) - &
-        !            F_r(:) + F_l(:)) / (a_r - a_l)
-        F(:) = (a_rp * F_l(:) - a_lm * F_r(:) + a_rp * al_m * &
+        F(:) = (a_rp * F_l(:) - a_lm * F_r(:) + a_rp * a_lm * &
             (V_r(:) - V_l(:))) / (a_rp - a_lm)
     else
-        !U_star(:) = V_r(:)
         F(:) = F_r(:)
     endif
 

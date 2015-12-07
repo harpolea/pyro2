@@ -7,7 +7,7 @@ import os
 import getopt
 
 import mesh.patch as patch
-from util import runparams
+from util import runparams, msg
 
 # plot an output file using the solver's dovis script
 
@@ -28,6 +28,7 @@ def makeplot(myd, solver_name, problem_name, outfile, W, H, n=0, vmins=[None, No
         # check if the param file lives in the solver's problems directory
         param_file = solver_name + "/problems/" + param_file
         if not os.path.isfile(param_file):
+            print(param_file)
             msg.fail("ERROR: inputs file does not exist")
 
     rp.load_params(param_file, no_new=1)

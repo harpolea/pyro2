@@ -307,35 +307,50 @@ class ArrayIndexer(object):
     def __abs__(self):
         return ArrayIndexer(d=np.abs(self.d), grid=self.g)
 
-    def v(self, buf=0, n=0, s=1):
+    def v(self, buf=0, n=None, s=1):
         bxlo, bxhi, bylo, byhi = _buf_split(buf)
-
-        return self.d[self.g.ilo-bxlo:self.g.ihi+1+bxhi:s,
+        if n is None:
+            return self.d[self.g.ilo-bxlo:self.g.ihi+1+bxhi:s,
                          self.g.jlo-bylo:self.g.jhi+1+byhi:s]
+        else:
+            return self.d[self.g.ilo-bxlo:self.g.ihi+1+bxhi:s,
+                         self.g.jlo-bylo:self.g.jhi+1+byhi:s, n]
         #return self.ip_jp(0, 0, buf=buf, n=n, s=s)
 
-    def ip(self, shift, buf=0, n=0, s=1):
+    def ip(self, shift, buf=0, n=None, s=1):
         bxlo, bxhi, bylo, byhi = _buf_split(buf)
 
-        return self.d[self.g.ilo-bxlo+shift:self.g.ihi+1+bxhi+shift:s,
+        if n is None:
+            return self.d[self.g.ilo-bxlo+shift:self.g.ihi+1+bxhi+shift:s,
                          self.g.jlo-bylo:self.g.jhi+1+byhi:s]
+        else:
+            return self.d[self.g.ilo-bxlo+shift:self.g.ihi+1+bxhi+shift:s,
+                         self.g.jlo-bylo:self.g.jhi+1+byhi:s, n]
 
         #return self.ip_jp(shift, 0, buf=buf, n=n, s=s)
 
-    def jp(self, shift, buf=0, n=0, s=1):
+    def jp(self, shift, buf=0, n=None, s=1):
         bxlo, bxhi, bylo, byhi = _buf_split(buf)
 
-        return self.d[self.g.ilo-bxlo:self.g.ihi+1+bxhi:s,
+        if n is None:
+            return self.d[self.g.ilo-bxlo:self.g.ihi+1+bxhi:s,
                          self.g.jlo-bylo+shift:self.g.jhi+1+byhi+shift:s]
+        else:
+            return self.d[self.g.ilo-bxlo:self.g.ihi+1+bxhi:s,
+                        self.g.jlo-bylo+shift:self.g.jhi+1+byhi+shift:s,n]
         #return self.ip_jp(0, shift, buf=buf, n=n, s=s)
 
-    def ip_jp(self, ishift, jshift, buf=0, n=0, s=1):
+    def ip_jp(self, ishift, jshift, buf=0, n=None, s=1):
         bxlo, bxhi, bylo, byhi = _buf_split(buf)
 
         # don't need if statement for now so have got rid of it
         #if self.c == 2:
-        return self.d[self.g.ilo-bxlo+ishift:self.g.ihi+1+bxhi+ishift:s,
-                         self.g.jlo-bylo+jshift:self.g.jhi+1+byhi+jshift:s]
+        if n is None:
+            return self.d[self.g.ilo-bxlo+ishift:self.g.ihi+1+bxhi+ishift:s,
+                    self.g.jlo-bylo+jshift:self.g.jhi+1+byhi+jshift:s]
+        else:
+            return self.d[self.g.ilo-bxlo+ishift:self.g.ihi+1+bxhi+ishift:s,
+                    self.g.jlo-bylo+jshift:self.g.jhi+1+byhi+jshift:s, n]
         #else:
         #    return self.d[self.g.ilo-bxlo+ishift:self.g.ihi+1+bxhi+ishift:s,
         #                  self.g.jlo-bylo+jshift:self.g.jhi+1+byhi+jshift:s,n]

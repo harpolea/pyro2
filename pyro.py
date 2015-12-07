@@ -142,7 +142,7 @@ def doit(solver_name, problem_name, param_file,
         sim.evolve()
         #sim_py.evolve()
 
-        if verbose > 0:
+        if verbose > 0 and sim.do_output():
             print("%5d %10.8f %10.8f" % (sim.n, sim.cc_data.t, sim.dt))
 
         # output

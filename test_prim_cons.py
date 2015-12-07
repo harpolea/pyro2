@@ -17,10 +17,10 @@ def test_prim_con():
     for i in range(N):
         c = 1. # speed of light
         gamma = 5./3.
-        K = 1.e5 # polytropic coefficient
+        K = 1. # polytropic coefficient
 
         # generate random primitive data
-        rho = random.random() * 1.e-5
+        rho = random.random() * 1.
         s = c * random.random() # speed - must be less than c
         u = s * random.random() # this randomly makes u some fraction of the total speed
         v = np.sqrt(s**2 - u**2)
