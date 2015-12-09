@@ -39,7 +39,7 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
   ! predict the cell-centered state to the edges in one-dimension
   ! using the reconstructed, limited slopes.
   !
-  ! We follow the convection here that V_l[i] is the left state at the
+  ! We follow the convention here that V_l[i] is the left state at the
   ! i-1/2 interface and V_l[i+1] is the left state at the i+1/2
   ! interface.
   !
@@ -114,6 +114,7 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
         W = 1.0d0 / sqrt(1.0d0 - v2)
         uu = u(i,j)/c
         vv = v(i,j)/c
+        cs = cs / c
 
         ! compute the eigenvalues and eigenvectors
         if (idir == 1) then
@@ -722,7 +723,7 @@ subroutine riemann_RHLLE(idir, qx, qy, ng, &
         cs_r = max(smallc, sqrt(gamma * (gamma - 1.0d0) * eps_r / (1.0d0 + gamma * eps_r)))
 
         F_l(iD) = U_l(i,j,iD) * un_l
-        F_r(iD) = U_r(i,j,iD) * un_l
+        F_r(iD) = U_r(i,j,iD) * un_r
 
         if (idir == 1) then
             F_l(iSx) = U_l(i,j,iSx) * un_l + p_l
@@ -753,7 +754,7 @@ subroutine riemann_RHLLE(idir, qx, qy, ng, &
 
         if (a_l > 0.0d0) then
             F(i,j,:) = F_l(:)
-        elseif (a_l <= 0.0d0 .and. 0.0d0 <= a_r) then
+        elseif (a_r > 0.0d0) then
             F(i,j,:) = (a_rp * F_l(:) - a_lm * F_r(:) + a_rp * a_lm * &
                 (V_r(i,j,:) - V_l(i,j,:))) / (a_rp - a_lm)
         else
@@ -849,7 +850,7 @@ subroutine riemann_RHLLC(idir, qx, qy, ng, &
         cs_r = max(smallc, sqrt(gamma * (gamma - 1.0d0) * eps_r / (1.0d0 + gamma * eps_r)))
 
         F_l(iD) = U_l(i,j,iD) * un_l
-        F_r(iD) = U_r(i,j,iD) * un_l
+        F_r(iD) = U_r(i,j,iD) * un_r
 
         if (idir == 1) then
             F_l(iSx) = U_l(i,j,iSx) * un_l + p_l

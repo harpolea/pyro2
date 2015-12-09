@@ -130,6 +130,7 @@ import mesh.reconstruction_f as reconstruction_f
 import mesh.patch as patch
 from scipy.optimize import brentq
 import numpy as np
+import math
 
 from util import msg
 
@@ -196,10 +197,10 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
             Q = (D.d[i,j], Sx.d[i,j], Sy.d[i,j], tau.d[i,j])
             Qp, c_s = cons_to_prim(Q, c, gamma)
             (r.d[i,j], u.d[i,j], v.d[i,j], h.d[i,j], p.d[i,j]) = Qp
-
+    print(p.d)
     smallp = 1.e-10
     p.d = p.d.clip(smallp)   # apply a floor to the pressure
-
+    print(p.d)
 
     #=========================================================================
     # compute the flattening coefficients
@@ -253,7 +254,6 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     # x-direction
     #=========================================================================
 
-
     # left and right primitive variable states
     tm_states = tc.timer("interfaceStates")
     tm_states.begin()
@@ -266,6 +266,10 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
 
     tm_states.end()
 
+    # stop the nans
+    smallr = 1.e-10
+    V_l[:,:,vars.irho] = V_l[:,:,vars.irho].clip(smallr)
+    V_r[:,:,vars.irho] = V_r[:,:,vars.irho].clip(smallr)
 
     # transform interface states back into conserved variables
     U_xl = myg.scratch_array(vars.nvar)
@@ -276,9 +280,12 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     h_r = h_from_eos(V_r[:,:,vars.irho], gamma, K)
     p_r = p_from_eos(V_r[:,:,vars.irho], gamma, K)
 
-
     for i in range(myg.qx):
         for j in range(myg.qy):
+            nan_check((h_l[i,j], p_l[i,j], h_r[i,j], p_r[i,j]), ['hl', 'pl', 'hr', 'pr'])
+            #if V_l[i,j,vars.irho] == 0.:
+            #    print('zero alert! {}'.format(V_l[i,j,vars.irho]))
+
             Qp_l = (V_l[i,j,vars.irho], V_l[i,j,vars.iu], V_l[i,j,vars.iv], h_l[i,j], p_l[i,j])
             Qp_r = (V_r[i,j,vars.irho], V_r[i,j,vars.iu], V_r[i,j,vars.iv], h_r[i,j], p_r[i,j])
 
@@ -308,6 +315,10 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     # transform interface states back into conserved variables
     U_yl = myg.scratch_array(vars.nvar)
     U_yr = myg.scratch_array(vars.nvar)
+
+    # stop the nans
+    V_l[:,:,vars.irho] = V_l[:,:,vars.irho].clip(smallr)
+    V_r[:,:,vars.irho] = V_r[:,:,vars.irho].clip(smallr)
 
     h_l = h_from_eos(V_l[:,:,vars.irho], gamma, K)
     p_l = p_from_eos(V_l[:,:,vars.irho], gamma, K)
@@ -523,6 +534,8 @@ def cons_to_prim(Q, c, gamma):
     """
     Converts the given set Q of conservative variables into a set Qp of primitive variables.
     """
+    names = ['D', 'Sx', 'Sy', 'tau']
+    nan_check(Q, names)
     (D, Sx, Sy, tau) = Q
 
     pmin = (Sx**2 + Sy**2)/c**2 - tau - D
@@ -531,11 +544,21 @@ def cons_to_prim(Q, c, gamma):
     if pmin > pmax:
         pmin = abs(np.sqrt(Sx**2 + Sy**2)/c - tau - D)
 
-    if pmin < 0. or root_find_on_me1(pmin, Q, c, gamma) < 0. or root_find_on_me1(pmin, Q, c, gamma) < root_find_on_me1(pmax, Q, c, gamma):
+    if pmin < 0. or root_find_on_me1(pmin, Q, c, gamma) < 0. or math.isnan(pmin):
         pmin = 0.
 
+    if math.isnan(pmax):
+        pmax = Sx**2 + Sy**2
+
     pbar = 0.5 * (pmin + pmax)
-    p = brentq(root_find_on_me1, pmin, pmax, args=(Q, c, gamma))
+    # try catch block on root finder in case pmin, pmax unsuitable
+    try:
+        p = brentq(root_find_on_me1, pmin, pmax, args=(Q, c, gamma))
+    except ValueError:
+        print('pmin: ', pmin, '    f(pmin): ', root_find_on_me1(pmin, Q, c, gamma),'   pmax: ', pmax, '   f(pmax): ', root_find_on_me1(pmax, Q, c, gamma))
+        pmin = pbar
+        pmax *= 2.
+        p = brentq(root_find_on_me1, pmin, pmax, args=(Q, c, gamma))
 
     u = Sx / (tau + D + p)
     v = Sy / (tau + D + p)
@@ -576,7 +599,14 @@ def W(u, v, c):
     """
     Lorentz factor
     """
-    return 1. / np.sqrt(1. - (u**2 + v**2)/c**2)
+    W = 1. - (u**2 + v**2)/c**2
+
+    if W < 0.:
+        print("Oops, Lorentz factor is imaginary, with denominator squared of {}".format(W))
+        print("u: {},  v: {}".format(u, v))
+        raise ValueError
+        return 1.e-10
+    return 1. / np.sqrt(W)
 
 def root_find_on_me1(p, Q, c, gamma):
     """
@@ -662,3 +692,8 @@ def rel_add_velocity(ux, uy, vx, vy, c):
     upv_y = (uy + vy/Wu + (Wu * (ux * vx + uy * vy) * uy)/ (c**2 *(1. + Wu))) / denom
 
     return upv_x, upv_y
+
+def nan_check(Q, names):
+    for (q, n) in zip(Q, names):
+        if math.isnan(q):
+            print("NAN FOUND!!! {} is {}".format(n, q))

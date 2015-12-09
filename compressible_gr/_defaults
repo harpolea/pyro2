@@ -3,8 +3,8 @@ cfl = 0.8
 
 
 [eos]
-gamma = 1.4    ; pres = rho ener (gamma - 1)
-c = 100.0        ; speed of light
+gamma = 1.66666666667    ; pres = rho ener (gamma - 1)
+c = 1.0        ; speed of light
 k_poly = 1.0   ; polytropic index
 
 

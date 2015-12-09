@@ -100,6 +100,8 @@ class Simulation(NullSimulation):
         # initial conditions for the problem
         exec(self.problem_name + '.init_data(self.cc_data, self.rp)')
 
+        self.cc_data.fill_BC_all()
+
         if self.verbose > 0:
             print(my_data)
 
@@ -132,6 +134,8 @@ class Simulation(NullSimulation):
         for i in range(myg.qx):
             for j in range(myg.qy):
                 F = (D.d[i,j], Sx.d[i,j], Sy.d[i,j], tau.d[i,j])
+                names = ['D', 'Sx', 'Sy', 'tau']
+                nan_check(F, names)
                 Fp, cs = cons_to_prim(F, c, gamma)
 
                 _, u[i,j], v[i,j], _, _ = Fp
@@ -163,7 +167,14 @@ class Simulation(NullSimulation):
 
         Flux_x, Flux_y = unsplitFluxes(self.cc_data, self.rp, self.vars, self.tc, self.dt)
 
-        #print(Flux_x.v(0))
+
+        for i in range(myg.qx):
+            for j in range(myg.qy):
+                nan_check(Flux_x.d[i,j,:], ['fx0', 'fx1', 'fx2', 'fx3'])
+                nan_check(Flux_y.d[i,j,:], ['fy0', 'fy1', 'fy2', 'fy3'])
+
+
+        #print(Flux_x.v(2)[])
 
         # conservative update
         dtdx = self.dt / myg.dx
@@ -179,6 +190,8 @@ class Simulation(NullSimulation):
         # gravitational source terms
         #Sy.d[:,:] += 0.5*self.dt*(D.d[:,:] + old_D.d[:,:])*grav
         #tau.d[:,:] += 0.5*self.dt*(Sy.d[:,:] + old_Sy.d[:,:])*grav
+
+        self.cc_data.fill_BC_all()
 
         # increment the time
         self.cc_data.t += self.dt
