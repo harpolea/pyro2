@@ -543,6 +543,9 @@ def cons_to_prim(Q, c, gamma):
     pmin = (Sx**2 + Sy**2)/c**2 - tau - D
     pmax = (gamma - 1.) * tau
 
+    if pmax < 0.:
+        pmax = np.fabs(pmax)
+
     if pmin > pmax:
         pmin = abs(np.sqrt(Sx**2 + Sy**2)/c - tau - D)
 

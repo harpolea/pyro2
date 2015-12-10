@@ -745,6 +745,8 @@ subroutine riemann_RHLLE(idir, qx, qy, ng, &
             v_bar = 0.5d0 * (V_l(i,j,iSy) + V_r(i,j,iSy))
         endif
 
+        !write (*,*) v_bar, cs_bar
+
         a_r = (v_bar + cs_bar) / (c + (v_bar * cs_bar) / c)
         a_rp = max(0.0d0, a_r)
         a_l = (v_bar - cs_bar) / (c - (v_bar * cs_bar) / c)
@@ -752,11 +754,14 @@ subroutine riemann_RHLLE(idir, qx, qy, ng, &
 
         if (a_l > 0.0d0) then
             F(i,j,:) = F_l(:)
+            !write (*,*) 'left'
         elseif (a_r > 0.0d0) then
             F(i,j,:) = (a_rp * F_l(:) - a_lm * F_r(:) + a_rp * a_lm * &
-                (V_r(i,j,:) - V_l(i,j,:))) / (a_rp - a_lm)
+                (U_r(i,j,:) - U_l(i,j,:))) / (a_rp - a_lm)
+            !write (*,*) 'middle'
         else
             F(i,j,:) = F_r(:)
+            !write (*,*) 'right'
         endif
 
      enddo

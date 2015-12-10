@@ -74,6 +74,7 @@ class Simulation(NullSimulation):
         bc, bc_xodd, bc_yodd = bc_setup(self.rp)
 
         # density and energy
+        # order in which these are registers determines their variable indices
         my_data.register_var("D", bc)
         my_data.register_var("Sx", bc_xodd)
         my_data.register_var("Sy", bc_yodd)
@@ -129,16 +130,20 @@ class Simulation(NullSimulation):
         c = self.rp.get_param("eos.c")
         u = np.zeros_like(D.d)
         v = np.zeros_like(D.d)
+        cs = np.zeros_like(D.d)
+
+        print('timestep')
 
         # we need to compute the primitive speeds and sound speed
         for i in range(myg.qx):
             for j in range(myg.qy):
-                F = (D.d[i,j], Sx.d[i,j], Sy.d[i,j], tau.d[i,j])
+                U = (D.d[i,j], Sx.d[i,j], Sy.d[i,j], tau.d[i,j])
                 names = ['D', 'Sx', 'Sy', 'tau']
-                nan_check(F, names)
-                Fp, cs = cons_to_prim(F, c, gamma)
+                # U here is wrong
+                nan_check(U, names)
+                V, cs[i,j] = cons_to_prim(U, c, gamma)
 
-                _, u[i,j], v[i,j], _, _ = Fp
+                _, u[i,j], v[i,j], _, _ = V
 
         # the timestep is min(dx/(|u| + cs), dy/(|v| + cs))
         maxvel = np.fabs(np.sqrt(u**2 + v**2)).max()
@@ -251,7 +256,7 @@ class Simulation(NullSimulation):
             #  |U|
             #   p
             #   e
-            fig, axes = plt.subplots(nrows=4, ncols=1, num=1)
+            fig, axes = plt.subplots(nrows=4, ncols=2, num=1)
             orientation = "horizontal"
             if (L_x > 4.*L_y):
                 shrink = 0.75
@@ -283,33 +288,47 @@ class Simulation(NullSimulation):
 
         fields = [rho, magvel, p, h]
         field_names = [r"$\rho$", r"U", "p", "h"]
+        colours = ['blue', 'red', 'black', 'green']
 
         for n in range(4):
-            ax = axes.flat[n]
+            ax = axes.flat[2*n]
+            ax2 = axes.flat[2*n+1]
 
             v = fields[n]
             img = ax.imshow(np.transpose(v.v()),
                         interpolation="nearest", origin="lower",
                         extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax])
+            plt2 = ax2.plot(myg.x, v.d[:,myg.ng+1], c=colours[n])
+            ax2.set_xlim([myg.xmin, myg.xmax])
 
-            ax.set_xlabel("x")
+            #ax.set_xlabel("x")
+            if n==3:
+                ax2.set_xlabel("x")
             if n == 0:
                 ax.set_ylabel("y")
+                ax2.set_ylabel(field_names[n], rotation='horizontal')
             elif allYlabel:
                 ax.set_ylabel("y")
+                ax2.set_ylabel(field_names[n], rotation='horizontal')
 
             ax.set_title(field_names[n])
 
             if not n in onLeft:
                 ax.yaxis.offsetText.set_visible(False)
-                if n > 0: ax.get_yaxis().set_visible(False)
+                ax2.yaxis.offsetText.set_visible(False)
+                if n > 0:
+                    ax.get_yaxis().set_visible(False)
+                    ax2.get_yaxis().set_visible(False)
 
             if sparseX:
                 ax.xaxis.set_major_locator(plt.MaxNLocator(3))
+                ax2.xaxis.set_major_locator(plt.MaxNLocator(3))
 
-            plt.colorbar(img, ax=ax, orientation=orientation, shrink=shrink)
+            plt.colorbar(img, ax=ax, orientation=orientation, shrink=0.75)
 
 
         plt.figtext(0.05,0.0125, "n: %4d,   t = %10.5f" % (self.n, self.cc_data.t))
+        plt.subplots_adjust(left=0.05, right=0.95, bottom=0.05, top=0.95, hspace=0.4, wspace=0.1)
+        #plt.tight_layout()
 
         plt.draw()
