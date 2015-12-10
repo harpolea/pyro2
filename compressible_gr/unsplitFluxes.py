@@ -197,10 +197,10 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
             Q = (D.d[i,j], Sx.d[i,j], Sy.d[i,j], tau.d[i,j])
             Qp, c_s = cons_to_prim(Q, c, gamma)
             (r.d[i,j], u.d[i,j], v.d[i,j], h.d[i,j], p.d[i,j]) = Qp
-    print(p.d)
+    #print(p.d)
     smallp = 1.e-10
     p.d = p.d.clip(smallp)   # apply a floor to the pressure
-    print(p.d)
+    #print(p.d)
 
     #=========================================================================
     # compute the flattening coefficients
@@ -258,6 +258,7 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     tm_states = tc.timer("interfaceStates")
     tm_states.begin()
 
+    # ERROR: somehow, this makes v in V_l, V_r = 1.0 in all but the ghost cells (irrespective of the speed of light).
     V_l, V_r = interface_f.states(1, myg.qx, myg.qy, myg.ng, myg.dx, dt,
                                   vars.nvar,
                                   gamma, c,
@@ -291,6 +292,7 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
 
             (U_xl.d[i,j,vars.iD], U_xl.d[i,j,vars.iSx], U_xl.d[i,j,vars.iSy], U_xl.d[i,j,vars.itau]) = prim_to_cons(Qp_l, c, gamma)
 
+            # ERROR: v in V_r goes to 1.0 somehow?
             (U_xr.d[i,j,vars.iD], U_xr.d[i,j,vars.iSx], U_xr.d[i,j,vars.iSy], U_xr.d[i,j,vars.itau]) = prim_to_cons(Qp_r, c, gamma)
 
 
@@ -601,7 +603,7 @@ def W(u, v, c):
     """
     W = 1. - (u**2 + v**2)/c**2
 
-    if W < 0.:
+    if W <= 0.:
         print("Oops, Lorentz factor is imaginary, with denominator squared of {}".format(W))
         print("u: {},  v: {}".format(u, v))
         raise ValueError

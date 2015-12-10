@@ -92,7 +92,7 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
   ilo = ng; ihi = ng+nx-1; jlo = ng; jhi = ng+ny-1
 
   dtdx = dt/dx
-  dtdx4 = 0.25d0*dtdx
+  dtdx4 = 0.25d0 * dtdx
 
   ! this is the loop over zones.  For zone i, we see q_l[i+1] and q_r[i]
   do j = jlo-2, jhi+2
@@ -119,65 +119,65 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
         ! compute the eigenvalues and eigenvectors
         if (idir == 1) then
            eval(0) = (uu * (1.0d0 - cs**2) - cs * &
-                sqrt((1.0d0 - v2)*(1.0d0 - uu*vv - &
-                (v2 - uu*vv)*cs**2))) / (1.0d0 - v2*cs**2)
+                sqrt((1.0d0 - v2)*(1.0d0 - uu**2 - &
+                vv**2*cs**2))) / (1.0d0 - v2*cs**2)
            eval(1:2) = uu
            eval(3) = (uu * (1.0d0 - cs**2) + cs * &
-                sqrt((1.0d0 - v2)*(1.0d0 - uu*vv - &
-                (v2 - uu*vv)*cs**2))) / (1.0d0 - v2*cs**2)
+                sqrt((1.0d0 - v2)*(1.0d0 - uu**2 - &
+                vv**2*cs**2))) / (1.0d0 - v2*cs**2)
 
            a_minus = (1.0d0 - uu**2) / (1.0d0 - uu * eval(0))
-           a_plus  = (1.0d0- uu**2) / (1.0d0 - uu * eval(3))
+           a_plus  = (1.0d0 - uu**2) / (1.0d0 - uu * eval(3))
            Kappa = h ! ideal gas: K = h
            h2OverDelta = 1.0d0 / &
-                (h * W * (Kappa - 1.0d0) * &
+                (W * (Kappa - 1.0d0) * &
                   (1.0d0 - uu**2) * &
                   (a_plus * eval(3) - a_minus * eval(0)))
 
            lvec(0,0) = h2OverDelta * &
                 (h*W*a_plus*(uu - eval(3)) - &
                   uu - &
-                  W**2*(v2 - uu**2)*(2.0d0 * Kappa - 1.0d0)*&
+                  W**2*vv**2*(2.0d0 * Kappa - 1.0d0) * &
                                 (uu - a_plus * eval(3)) + &
-                  Kappa*a_plus*eval(3) )
+                  Kappa * a_plus * eval(3) )
            lvec(0, 1) = h2OverDelta * &
                ( 1.0d0 - Kappa * a_plus + &
-                 W**2*(v2 - uu**2)*(2.0d0 * Kappa - 1.0d0)*&
+                 W**2 * vv**2 * (2.0d0 * Kappa - 1.0d0) * &
                                (1.0d0 - a_plus) )
            lvec(0, 2) = h2OverDelta * &
-               (W**2*vv*(2.0d0 * Kappa - 1.0d0)*&
-                               a_plus*(uu - eval(3)) )
+               (W**2 * vv * (2.0d0 * Kappa - 1.0d0) * &
+                               a_plus * (uu - eval(3)) )
            lvec(0, 3) = h2OverDelta * &
-               ( -uu + Kappa*a_plus*eval(3) - &
-                 W**2*(v2 - uu**2)*(2.0d0 * Kappa - 1.0d0)*&
+               ( -uu + Kappa * a_plus * eval(3) - &
+                 W**2 * vv**2 * (2.0d0 * Kappa - 1.0d0) * &
                                (uu - a_plus * eval(3)) )
 
            lvec(3, 0) =-h2OverDelta * &
-                ( h*W*a_minus*(uu - eval(0)) - &
+                ( h * W * a_minus * (uu - eval(0)) - &
                   uu - &
-                  W**2*(v2 - uu**2)*(2.0d0 * Kappa - 1.0d0)*&
+                  W**2 * vv**2 * (2.0d0 * Kappa - 1.0d0) * &
                                 (uu - a_minus * eval(0)) + &
-                  Kappa*a_minus*eval(0) )
+                  Kappa * a_minus * eval(0) )
            lvec(3, 1) =-h2OverDelta * &
                 ( 1.0d0 - Kappa * a_minus + &
-                  W**2*(v2 - uu**2)*(2.0d0 * Kappa - 1.0d0)*&
+                  W**2 * vv**2 * (2.0d0 * Kappa - 1.0d0) * &
                                 (1.0d0 - a_minus) )
            lvec(3, 1) =-h2OverDelta * &
-                ( W**2*vv*(2.0d0 * Kappa - 1.0d0)*&
-                                a_minus*(uu - eval(0)) )
+                ( W**2 * vv * (2.0d0 * Kappa - 1.0d0) * &
+                                a_minus * (uu - eval(0)) )
            lvec(3, 2) =-h2OverDelta * &
-                ( -uu + Kappa*a_minus*eval(0) - &
-                  W**2*(v2 - uu**2)*(2.0d0 * Kappa - 1.0d0)*&
+                ( -uu + Kappa * a_minus * eval(0) - &
+                  W**2 * vv**2 * (2.0d0 * Kappa - 1.0d0) * &
                                 (uu - a_minus * eval(0)) )
 
-           lvec(1, 0) = W / (Kappa - 1.0d0) * ( h - W )
-           lvec(1, 1) = W / (Kappa - 1.0d0) * ( W * uu )
-           lvec(1, 2) = W / (Kappa - 1.0d0) * ( W * vv )
-           lvec(1, 3) = W / (Kappa - 1.0d0) * ( -W )
+           lvec(1, 0) = W * ( h - W ) / (Kappa - 1.0d0)
+           lvec(1, 1) = W * ( W * uu ) / (Kappa - 1.0d0)
+           lvec(1, 2) = W * ( W * vv ) / (Kappa - 1.0d0)
+           lvec(1, 3) = -W**2 / (Kappa - 1.0d0)
 
-           lvec(2, 0) = 1.0d0 / h / (1.0d0 - uu**2) * (-vv)
-           lvec(2, 1) = 1.0d0 / h / (1.0d0 - uu**2) * (uu * vv)
-           lvec(2, 2) = 1.0d0 / h / (1.0d0 - uu**2) * (1.0d0 - uu**2)
+           lvec(2, 0) = -vv / (h * (1.0d0 - uu**2))
+           lvec(2, 1) = uu * vv / (h * (1.0d0 - uu**2))
+           lvec(2, 2) = 1.0d0 / h
            lvec(2, 3) = lvec(2,0)
 
            rvec(0,0) = 1.0d0
@@ -196,75 +196,72 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
            rvec(1,3) = 1.0d0 - rvec(1,0)
 
            rvec(2,0) = W * vv
-           rvec(2,1) = 2.0d0 * h * W**2 * &
-                uu * vv
-           rvec(2,2) = h * &
-                (1.0d0 + 2.0d0 * W**2 * vv**2)
-           rvec(2,3) = 2.0d0 * h * W**2 * vv - &
-                W * vv
+           rvec(2,1) = 2.0d0 * h * W**2 * uu * vv
+           rvec(2,2) = h * (1.0d0 + 2.0d0 * W**2 * vv**2)
+           rvec(2,3) = 2.0d0 * h * W**2 * vv - W * vv
 
         else
             eval(0) = (vv * (1.0d0 - cs**2) - cs * &
-                 sqrt((1.0d0 - v2)*(1.0d0 - uu*vv - &
-                 (v2 - uu*vv)*cs**2))) / (1.0d0 - v2*cs**2)
+                 sqrt((1.0d0 - v2)*(1.0d0 - vv**2 - &
+                 uu**2 * cs**2))) / (1.0d0 - v2*cs**2)
             eval(1:2) = vv
             eval(3) = (vv * (1.0d0 - cs**2) + cs * &
-                 sqrt((1.0d0 - v2)*(1.0d0 - uu*vv - &
-                 (v2 - uu*vv)*cs**2))) / (1.0d0 - v2*cs**2)
+                 sqrt((1.0d0 - v2)*(1.0d0 - vv**2 - &
+                 uu**2 * cs**2))) / (1.0d0 - v2*cs**2)
 
             a_minus = (1.0d0 - vv**2) / (1.0d0 - vv * eval(0))
             a_plus  = (1.0d0- vv**2) / (1.0d0 - vv * eval(3))
             Kappa = h ! ideal gas: K = h
             h2OverDelta = 1.0d0 / &
-                 (h * W * (Kappa - 1.0d0) * &
+                 (W * (Kappa - 1.0d0) * &
                    (1.0d0 - vv**2) * &
                    (a_plus * eval(3) - a_minus * eval(0)))
 
             lvec(0,0) = h2OverDelta * &
-                 (h*W*a_plus*(vv - eval(3)) - &
-                   vv - &
-                   W**2*(v2 - vv**2)*(2.0d0 * Kappa - 1.0d0)*&
+                 (h * W * a_plus * (vv - eval(3)) - vv - &
+                   W**2 * uu**2 * (2.0d0 * Kappa - 1.0d0) * &
                                  (vv - a_plus * eval(3)) + &
                    Kappa*a_plus*eval(3) )
             lvec(0, 1) = h2OverDelta * &
-                (W**2*uu*(2.0d0 * Kappa - 1.0d0)*&
-                                a_plus*(vv - eval(3)) )
+                (W**2 * uu*(2.0d0 * Kappa - 1.0d0) * &
+                                a_plus * (vv - eval(3)) )
             lvec(0, 2) = h2OverDelta * &
                 ( 1.0d0 - Kappa * a_plus + &
-                  W**2*(v2 - vv**2)*(2.0d0 * Kappa - 1.0d0)*&
+                  W**2 * uu**2 * (2.0d0 * Kappa - 1.0d0)*&
                                 (1.0d0 - a_plus) )
             lvec(0, 3) = h2OverDelta * &
-                ( -vv + Kappa*a_plus*eval(3) - &
-                  W**2*(v2 - vv**2)*(2.0d0 * Kappa - 1.0d0)*&
+                ( -vv + Kappa * a_plus * eval(3) - &
+                  W**2 * uu**2 * (2.0d0 * Kappa - 1.0d0)*&
                                 (vv - a_plus * eval(3)) )
 
             lvec(3, 0) =-h2OverDelta * &
-                 ( h*W*a_minus*(vv - eval(0)) - &
+                 ( h * W * a_minus * (vv - eval(0)) - &
                    vv - &
-                   W**2*(v2 - vv**2)*(2.0d0 * Kappa - 1.0d0)*&
+                   W**2 * uu**2 * (2.0d0 * Kappa - 1.0d0)*&
                                  (vv - a_minus * eval(0)) + &
-                   Kappa*a_minus*eval(0) )
+                   Kappa * a_minus * eval(0) )
             lvec(3, 1) =-h2OverDelta * &
-                 ( W**2*uu*(2.0d0 * Kappa - 1.0d0)*&
+                 ( W**2 * uu * (2.0d0 * Kappa - 1.0d0)*&
                                  a_minus*(vv - eval(0)) )
             lvec(3, 1) =-h2OverDelta * &
                  ( 1.0d0 - Kappa * a_minus + &
-                   W**2*(v2 - vv**2)*(2.0d0 * Kappa - 1.0d0)*&
+                   W**2 *uu**2 * (2.0d0 * Kappa - 1.0d0) * &
                                  (1.0d0 - a_minus) )
             lvec(3, 2) =-h2OverDelta * &
-                 ( -vv + Kappa*a_minus*eval(0) - &
-                   W**2*(v2 - vv**2)*(2.0d0 * Kappa - 1.0d0)*&
+                 ( -vv + Kappa * a_minus * eval(0) - &
+                   W**2 * uu**2 * (2.0d0 * Kappa - 1.0d0) * &
                                  (vv - a_minus * eval(0)) )
 
-            lvec(1, 0) = W / (Kappa - 1.0d0) * ( h - W )
-            lvec(1, 1) = W / (Kappa - 1.0d0) * ( W * uu )
-            lvec(1, 2) = W / (Kappa - 1.0d0) * ( W * vv )
-            lvec(1, 3) = W / (Kappa - 1.0d0) * ( -W )
+            lvec(1, 0) = -uu / (h * (1.0d0 - vv**2))
+            lvec(1, 1) = 1.0d0 / h / (1.0d0 - vv**2) * (1.0d0 - vv**2)
+            lvec(1, 2) = (uu * vv) / (h * (1.0d0 - vv**2))
+            lvec(1, 3) = -uu / (h * (1.0d0 - vv**2))
 
-            lvec(2, 0) = 1.0d0 / h / (1.0d0 - vv**2) * (-vv)
-            lvec(2, 1) = 1.0d0 / h / (1.0d0 - vv**2) * (1.0d0 - vv**2)
-            lvec(2, 2) = 1.0d0 / h / (1.0d0 - vv**2) * (uu*vv)
-            lvec(2, 3) = lvec(2, 0)
+            lvec(2, 0) = W * ( h - W ) / (Kappa - 1.0d0)
+            lvec(2, 1) = W * ( W * uu ) / (Kappa - 1.0d0)
+            lvec(2, 2) = W * ( W * vv ) / (Kappa - 1.0d0)
+            lvec(2, 3) = -W**2 / (Kappa - 1.0d0)
+
 
             rvec(0,0) = 1.0d0
             rvec(0,1) = h * W * uu
@@ -276,15 +273,15 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
             rvec(3,2) = h * W * eval(3) * a_plus
             rvec(3,3) = h * W * a_plus - 1.0d0
 
-            rvec(1,0) = Kappa / (h * W)
-            rvec(1,1) = uu
-            rvec(1,2) = vv
-            rvec(1,3) = 1.0d0 - rvec(1,0)
+            rvec(1,0) = W * uu
+            rvec(1,1) = h * (1.0d0 + 2.0d0 * W**2 * uu**2)
+            rvec(1,2) = 2.0d0 * h * W**2 * uu * vv
+            rvec(1,3) = 2.0d0 * h * W**2 * vv - W * vv
 
-            rvec(2,0) = W * vv
-            rvec(2,1) = h * (1.0d0 + 2.0d0 * W**2 * uu**2)
-            rvec(2,2) = 2.0d0 * h * W**2 * uu * vv
-            rvec(2,3) = 2.0d0 * h * W**2 * vv - W * vv
+            rvec(2,0) = Kappa / (h * W)
+            rvec(2,1) = uu
+            rvec(2,2) = vv
+            rvec(2,3) = 1.0d0 - Kappa / (h * W)
 
         endif
 
@@ -293,30 +290,32 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
         if (idir == 1) then
            ! this is one the right face of the current zone,
            ! so the fastest moving eigenvalue is eval[3] = u + c
-           factor = 0.5d0*(1.0d0 - dtdx*max(eval(3), 0.0d0))
-           q_l(i+1,j,:) = q(:) + factor*dq(:)
+           factor = 0.5d0 * (1.0d0 - dtdx * max(eval(3), 0.0d0))
+           q_l(i+1,j,:) = q(:) + factor * dq(:)
 
            ! left face of the current zone, so the fastest moving
-           ! eigenvalue is eval[3] = u - c
-           factor = 0.5d0*(1.0d0 + dtdx*min(eval(0), 0.0d0))
-           q_r(i,  j,:) = q(:) - factor*dq(:)
+           ! eigenvalue is eval[0] = u - c
+           factor = 0.5d0 * (1.0d0 + dtdx * min(eval(0), 0.0d0))
+           q_r(i,  j,:) = q(:) - factor * dq(:)
 
         else
 
-           factor = 0.5d0*(1.0d0 - dtdx*max(eval(3), 0.0d0))
-           q_l(i,j+1,:) = q(:) + factor*dq(:)
+           factor = 0.5d0 * (1.0d0 - dtdx * max(eval(3), 0.0d0))
+           q_l(i,j+1,:) = q(:) + factor * dq(:)
 
-           factor = 0.5d0*(1.0d0 + dtdx*min(eval(0), 0.0d0))
-           q_r(i,j,  :) = q(:) - factor*dq(:)
+           factor = 0.5d0 * (1.0d0 + dtdx * min(eval(0), 0.0d0))
+           q_r(i,j,  :) = q(:) - factor * dq(:)
 
         endif
 
         ! compute the Vhat functions
+        betal(:) = 0.0d0
+        betar(:) = 0.0d0
         do m = 0, 3
            sum = dot_product(lvec(m,:),dq(:))
 
-           betal(m) = dtdx4*(eval(3) - eval(m))*(sign(1.0d0,eval(m)) + 1.0d0)*sum
-           betar(m) = dtdx4*(eval(0) - eval(m))*(1.0d0 - sign(1.0d0,eval(m)))*sum
+           betal(m) = dtdx4 * (eval(3) - eval(m)) * (sign(1.0d0,eval(m)) + 1.0d0) * sum
+           betar(m) = dtdx4 * (eval(0) - eval(m)) * (1.0d0 - sign(1.0d0,eval(m)))*sum
         enddo
 
         ! put factors of c back in
@@ -340,7 +339,6 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
               q_l(i,j+1,m) = q_l(i,j+1,m) + sum_l
               q_r(i,j,  m) = q_r(i,j,  m) + sum_r
            endif
-
         enddo
 
      enddo

@@ -17,7 +17,7 @@ class Variables(object):
     a container class for easy access to the different compressible
     variable by an integer key
     """
-    def __init__(self, iD=-1, iSx=-1, iSy=-1, itau=-1):
+    def __init__(self, iD=0, iSx=1, iSy=2, itau=3):
         self.nvar = 4
 
         # conserved variables -- we set these when we initialize for
@@ -75,9 +75,9 @@ class Simulation(NullSimulation):
 
         # density and energy
         my_data.register_var("D", bc)
-        my_data.register_var("tau", bc)
         my_data.register_var("Sx", bc_xodd)
         my_data.register_var("Sy", bc_yodd)
+        my_data.register_var("tau", bc)
 
 
         # store the EOS gamma as an auxillary quantity so we can have a
@@ -172,9 +172,6 @@ class Simulation(NullSimulation):
             for j in range(myg.qy):
                 nan_check(Flux_x.d[i,j,:], ['fx0', 'fx1', 'fx2', 'fx3'])
                 nan_check(Flux_y.d[i,j,:], ['fy0', 'fy1', 'fy2', 'fy3'])
-
-
-        #print(Flux_x.v(2)[])
 
         # conservative update
         dtdx = self.dt / myg.dx
