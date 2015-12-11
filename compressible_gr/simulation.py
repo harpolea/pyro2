@@ -290,14 +290,6 @@ class Simulation(NullSimulation):
         field_names = [r"$\rho$", r"U", "p", "h"]
         colours = ['blue', 'red', 'black', 'green']
 
-        #if problem_name == 'sod':
-        #    exact = np.loadtxt("sod-exact.out")
-        #    x_exact   = exact[:,0]
-        #    rho_exact = exact[:,1]
-        #    u_exact   = exact[:,2]
-        #    p_exact   = exact[:,3]
-        #    e_exact   = exact[:,4]
-
         for n in range(4):
             ax = axes.flat[2*n]
             ax2 = axes.flat[2*n+1]

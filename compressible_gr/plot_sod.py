@@ -15,7 +15,7 @@ def plot_sod():
 
     ax = axes.flat[0]
 
-    ax.plot(x_exact, rho_exact)
+    ax.plot(x_exact, rho_exact, 'b')
 
     ax.set_ylabel(r"$\rho$")
     ax.set_xlim(0,1.0)
@@ -23,21 +23,21 @@ def plot_sod():
 
     ax = axes.flat[1]
 
-    ax.plot(x_exact, u_exact)
+    ax.plot(x_exact, u_exact, 'r')
 
     ax.set_ylabel(r"$u$")
     ax.set_xlim(0,1.0)
 
     ax = axes.flat[2]
 
-    ax.plot(x_exact, p_exact)
+    ax.plot(x_exact, p_exact, 'k')
 
     ax.set_ylabel(r"$p$")
     ax.set_xlim(0,1.0)
 
     ax = axes.flat[3]
 
-    ax.plot(x_exact, e_exact)
+    ax.plot(x_exact, e_exact, 'g')
 
     ax.set_ylabel(r"$e$")
     ax.set_xlim(0,1.0)
@@ -46,7 +46,7 @@ def plot_sod():
 
     fig.set_size_inches(4.5,9.0)
 
-    #plt.savefig("sod_compare.png", bbox_inches="tight")
+    plt.savefig("sod_compare.png", bbox_inches="tight")
 
     plt.show()
 
