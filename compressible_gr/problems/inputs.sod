@@ -5,7 +5,7 @@ max_steps = 100
 tmax = 10000000000.0
 
 [compressible-gr]
-limiter = 1
+limiter = 2
 
 [io]
 basename = ../../Documents/Work/pyro/results/sod/sod_128_   ; basename for output files
@@ -31,10 +31,10 @@ yrboundary = outflow
 direction = x
 
 dens_left = 1.0
-dens_right = 1.0
+dens_right = 0.125
 
 u_left = 0.0
 u_right = 0.0
 
 p_left = 1.0
-p_right = 0.9
+p_right = 0.1

@@ -259,7 +259,7 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     tm_states.begin()
 
     # ERROR: somehow, this makes v in V_l, V_r = 1.0 in all but the ghost cells (irrespective of the speed of light).
-    V_l, V_r = interface_f.states(1, myg.qx, myg.qy, myg.ng, myg.dx, dt,
+    V_xl, V_xr = interface_f.states(1, myg.qx, myg.qy, myg.ng, myg.dx, dt,
                                   vars.nvar,
                                   gamma, c,
                                   r.d, u.d, v.d, p.d,
@@ -269,26 +269,26 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
 
     # stop the nans
     smallr = 1.e-10
-    V_l[:,:,vars.irho] = V_l[:,:,vars.irho].clip(smallr)
-    V_r[:,:,vars.irho] = V_r[:,:,vars.irho].clip(smallr)
+    V_xl[:,:,vars.irho] = V_xl[:,:,vars.irho].clip(smallr)
+    V_xr[:,:,vars.irho] = V_xr[:,:,vars.irho].clip(smallr)
 
     # transform interface states back into conserved variables
     U_xl = myg.scratch_array(vars.nvar)
     U_xr = myg.scratch_array(vars.nvar)
 
-    h_l = h_from_eos(V_l[:,:,vars.irho], gamma, K)
-    p_l = p_from_eos(V_l[:,:,vars.irho], gamma, K)
-    h_r = h_from_eos(V_r[:,:,vars.irho], gamma, K)
-    p_r = p_from_eos(V_r[:,:,vars.irho], gamma, K)
+    h_xl = h_from_eos(V_xl[:,:,vars.irho], gamma, K)
+    p_xl = p_from_eos(V_xl[:,:,vars.irho], gamma, K)
+    h_xr = h_from_eos(V_xr[:,:,vars.irho], gamma, K)
+    p_xr = p_from_eos(V_xr[:,:,vars.irho], gamma, K)
 
     for i in range(myg.qx):
         for j in range(myg.qy):
-            nan_check((h_l[i,j], p_l[i,j], h_r[i,j], p_r[i,j]), ['hl', 'pl', 'hr', 'pr'])
+            nan_check((h_xl[i,j], p_xl[i,j], h_xr[i,j], p_xr[i,j]), ['hl', 'pl', 'hr', 'pr'])
             #if V_l[i,j,vars.irho] == 0.:
             #    print('zero alert! {}'.format(V_l[i,j,vars.irho]))
 
-            Qp_l = (V_l[i,j,vars.irho], V_l[i,j,vars.iu], V_l[i,j,vars.iv], h_l[i,j], p_l[i,j])
-            Qp_r = (V_r[i,j,vars.irho], V_r[i,j,vars.iu], V_r[i,j,vars.iv], h_r[i,j], p_r[i,j])
+            Qp_l = (V_xl[i,j,vars.irho], V_xl[i,j,vars.iu], V_xl[i,j,vars.iv], h_xl[i,j], p_xl[i,j])
+            Qp_r = (V_xr[i,j,vars.irho], V_xr[i,j,vars.iu], V_xr[i,j,vars.iv], h_xr[i,j], p_xr[i,j])
 
             (U_xl.d[i,j,vars.iD], U_xl.d[i,j,vars.iSx], U_xl.d[i,j,vars.iSy], U_xl.d[i,j,vars.itau]) = prim_to_cons(Qp_l, c, gamma)
 
@@ -305,7 +305,7 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     # left and right primitive variable states
     tm_states.begin()
 
-    V_l, V_r = interface_f.states(2, myg.qx, myg.qy, myg.ng, myg.dy, dt,
+    V_yl, V_yr = interface_f.states(2, myg.qx, myg.qy, myg.ng, myg.dy, dt,
                                   vars.nvar,
                                   gamma, c,
                                   r.d, u.d, v.d, p.d,
@@ -319,18 +319,18 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     U_yr = myg.scratch_array(vars.nvar)
 
     # stop the nans
-    V_l[:,:,vars.irho] = V_l[:,:,vars.irho].clip(smallr)
-    V_r[:,:,vars.irho] = V_r[:,:,vars.irho].clip(smallr)
+    V_yl[:,:,vars.irho] = V_yl[:,:,vars.irho].clip(smallr)
+    V_yr[:,:,vars.irho] = V_yr[:,:,vars.irho].clip(smallr)
 
-    h_l = h_from_eos(V_l[:,:,vars.irho], gamma, K)
-    p_l = p_from_eos(V_l[:,:,vars.irho], gamma, K)
-    h_r = h_from_eos(V_r[:,:,vars.irho], gamma, K)
-    p_r = p_from_eos(V_r[:,:,vars.irho], gamma, K)
+    h_yl = h_from_eos(V_yl[:,:,vars.irho], gamma, K)
+    p_yl = p_from_eos(V_yl[:,:,vars.irho], gamma, K)
+    h_yr = h_from_eos(V_yr[:,:,vars.irho], gamma, K)
+    p_yr = p_from_eos(V_yr[:,:,vars.irho], gamma, K)
 
     for i in range(myg.qx):
         for j in range(myg.qy):
-            Qp_l = (V_l[i,j,vars.irho], V_l[i,j,vars.iu], V_l[i,j,vars.iv], h_l[i,j], p_l[i,j])
-            Qp_r = (V_r[i,j,vars.irho], V_r[i,j,vars.iu], V_r[i,j,vars.iv], h_r[i,j], p_r[i,j])
+            Qp_l = (V_yl[i,j,vars.irho], V_yl[i,j,vars.iu], V_yl[i,j,vars.iv], h_yl[i,j], p_yl[i,j])
+            Qp_r = (V_yr[i,j,vars.irho], V_yr[i,j,vars.iu], V_yr[i,j,vars.iv], h_yr[i,j], p_yr[i,j])
 
             (U_yl.d[i,j,vars.iD], U_yl.d[i,j,vars.iSx], U_yl.d[i,j,vars.iSy], U_yl.d[i,j,vars.itau]) = prim_to_cons(Qp_l, c, gamma)
 
@@ -376,14 +376,18 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
 
     _fx = riemannFunc(1, myg.qx, myg.qy, myg.ng,
                       vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau,
-                      gamma, c, U_xl.d, U_xr.d, V_l, V_r)
+                      gamma, c, U_xl.d, U_xr.d, V_xl, V_xr)
 
     _fy = riemannFunc(2, myg.qx, myg.qy, myg.ng,
                       vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau,
-                      gamma, c, U_yl.d, U_yr.d, V_l, V_r)
+                      gamma, c, U_yl.d, U_yr.d, V_yl, V_yr)
 
     F_x = patch.ArrayIndexer(d=_fx, grid=myg)
     F_y = patch.ArrayIndexer(d=_fy, grid=myg)
+
+    # FIXME: turning off transverse for now
+    #F_x.d[:,:] = 0.
+    #F_y.d[:,:] = 0.
 
     tm_riem.end()
 
@@ -470,15 +474,36 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     # up until now, F_x and F_y stored the transverse fluxes, now we
     # overwrite with the fluxes normal to the interfaces
 
+    # construct primitives
+    for i in range(myg.qx):
+        for j in range(myg.qy):
+            Qc_xl = (U_xl.d[i,j,vars.iD], U_xl.d[i,j,vars.iSx], U_xl.d[i,j,vars.iSy], U_xl.d[i,j,vars.itau])
+
+            Qc_xr = (U_xr.d[i,j,vars.iD], U_xr.d[i,j,vars.iSx], U_xr.d[i,j,vars.iSy], U_xr.d[i,j,vars.itau])
+
+            Qc_yl = (U_yl.d[i,j,vars.iD], U_yl.d[i,j,vars.iSx], U_yl.d[i,j,vars.iSy], U_yl.d[i,j,vars.itau])
+
+            Qc_yr = (U_yr.d[i,j,vars.iD], U_yr.d[i,j,vars.iSx], U_yr.d[i,j,vars.iSy], U_yr.d[i,j,vars.itau])
+
+            Qp_xl, _ = cons_to_prim(Qc_xl, c, gamma)
+            (V_xl[i,j,vars.irho], V_xl[i,j,vars.iu], V_xl[i,j,vars.iv], _, V_xl[i,j,vars.ip]) = Qp_xl
+            Qp_yl,_ = cons_to_prim(Qc_yl, c, gamma)
+            (V_yl[i,j,vars.irho], V_yl[i,j,vars.iu], V_yl[i,j,vars.iv],_, V_yl[i,j,vars.ip]) = Qp_yl
+
+            Qp_yr,_ = cons_to_prim(Qc_yr, c, gamma)
+            (V_yr[i,j,vars.irho], V_yr[i,j,vars.iu], V_yr[i,j,vars.iv],_, V_yr[i,j,vars.ip]) = Qp_yr
+            Qp_xr,_ = cons_to_prim(Qc_xr, c, gamma)
+            (V_xr[i,j,vars.irho], V_xr[i,j,vars.iu], V_xr[i,j,vars.iv],_, V_xr[i,j,vars.ip]) = Qp_xr
+
     tm_riem.begin()
 
     _fx = riemannFunc(1, myg.qx, myg.qy, myg.ng,
                       vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau,
-                      gamma, c, U_xl.d, U_xr.d, V_l, V_r)
+                      gamma, c, U_xl.d, U_xr.d, V_xl, V_xr)
 
     _fy = riemannFunc(2, myg.qx, myg.qy, myg.ng,
                       vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau,
-                      gamma, c, U_yl.d, U_yr.d, V_l, V_r)
+                      gamma, c, U_yl.d, U_yr.d, V_yl, V_yr)
 
     F_x = patch.ArrayIndexer(d=_fx, grid=myg)
     F_y = patch.ArrayIndexer(d=_fy, grid=myg)
@@ -488,7 +513,7 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     #=========================================================================
     # apply artificial viscosity
     #=========================================================================
-    """
+
     cvisc = rp.get_param("compressible-gr.cvisc")
 
     _ax, _ay = interface_f.artificial_viscosity(
@@ -526,7 +551,7 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
 
     F_y.v(buf=b, n=vars.itau)[:,:] += \
         avisco_y.v(buf=b) * (tau.jp(-1, buf=b) - tau.v(buf=b))
-    """
+
 
     tm_flux.end()
 
