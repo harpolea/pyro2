@@ -132,8 +132,6 @@ class Simulation(NullSimulation):
         v = np.zeros_like(D.d)
         cs = np.zeros_like(D.d)
 
-        print('timestep')
-
         # we need to compute the primitive speeds and sound speed
         for i in range(myg.qx):
             for j in range(myg.qy):
@@ -287,7 +285,7 @@ class Simulation(NullSimulation):
 
 
         fields = [rho, magvel, p, h]
-        field_names = [r"$\rho$", r"U", "p", "h"]
+        field_names = [r"$\rho$", r"$u$", "$p$", "$h$"]
         colours = ['blue', 'red', 'black', 'green']
 
         for n in range(4):
@@ -303,12 +301,12 @@ class Simulation(NullSimulation):
 
             #ax.set_xlabel("x")
             if n==3:
-                ax2.set_xlabel("x")
+                ax2.set_xlabel("$x$")
             if n == 0:
-                ax.set_ylabel("y")
+                ax.set_ylabel("$y$")
                 ax2.set_ylabel(field_names[n], rotation='horizontal')
             elif allYlabel:
-                ax.set_ylabel("y")
+                ax.set_ylabel("$y$")
                 ax2.set_ylabel(field_names[n], rotation='horizontal')
 
             ax.set_title(field_names[n])

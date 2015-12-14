@@ -315,21 +315,6 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     V_yl = myg.scratch_array(vars.nvar)
     V_yr = myg.scratch_array(vars.nvar)
 
-    """
-
-    h_yl = h_from_eos(V_yl[:,:,vars.irho], gamma, K)
-    h_yr = h_from_eos(V_yr[:,:,vars.irho], gamma, K)
-
-    for i in range(myg.qx):
-        for j in range(myg.qy):
-            Qp_l = (V_yl[i,j,vars.irho], V_yl[i,j,vars.iu], V_yl[i,j,vars.iv], h_yl[i,j], V_yl[i,j,vars.ip])
-            Qp_r = (V_yr[i,j,vars.irho], V_yr[i,j,vars.iu], V_yr[i,j,vars.iv], h_yr[i,j], V_yr[i,j,vars.ip])
-
-            (U_yl.d[i,j,vars.iD], U_yl.d[i,j,vars.iSx], U_yl.d[i,j,vars.iSy], U_yl.d[i,j,vars.itau]) = prim_to_cons(Qp_l, c, gamma)
-
-            (U_yr.d[i,j,vars.iD], U_yr.d[i,j,vars.iSx], U_yr.d[i,j,vars.iSy], U_yr.d[i,j,vars.itau]) = prim_to_cons(Qp_r, c, gamma)
-    """
-
     # construct primitives
     for i in range(myg.qx):
         for j in range(myg.qy):
@@ -342,14 +327,15 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
             Qc_yr = (U_yr.d[i,j,vars.iD], U_yr.d[i,j,vars.iSx], U_yr.d[i,j,vars.iSy], U_yr.d[i,j,vars.itau])
 
 
-
             Qp_xl, _ = cons_to_prim(Qc_xl, c, gamma)
             (V_xl.d[i,j,vars.irho], V_xl.d[i,j,vars.iu], V_xl.d[i,j,vars.iv], _, V_xl.d[i,j,vars.ip]) = Qp_xl
+
             Qp_yl,_ = cons_to_prim(Qc_yl, c, gamma)
             (V_yl.d[i,j,vars.irho], V_yl.d[i,j,vars.iu], V_yl.d[i,j,vars.iv],_, V_yl.d[i,j,vars.ip]) = Qp_yl
 
             Qp_yr,_ = cons_to_prim(Qc_yr, c, gamma)
             (V_yr.d[i,j,vars.irho], V_yr.d[i,j,vars.iu], V_yr.d[i,j,vars.iv],_, V_yr.d[i,j,vars.ip]) = Qp_yr
+
             Qp_xr,_ = cons_to_prim(Qc_xr, c, gamma)
             (V_xr.d[i,j,vars.irho], V_xr.d[i,j,vars.iu], V_xr.d[i,j,vars.iv],_, V_xr.d[i,j,vars.ip]) = Qp_xr
 
@@ -529,7 +515,7 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     #=========================================================================
     # apply artificial viscosity
     #=========================================================================
-
+    """
     cvisc = rp.get_param("compressible-gr.cvisc")
 
     _ax, _ay = interface_f.artificial_viscosity(
@@ -538,7 +524,6 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
 
     avisco_x = patch.ArrayIndexer(d=_ax, grid=myg)
     avisco_y = patch.ArrayIndexer(d=_ay, grid=myg)
-
 
     b = (2,1)
 
@@ -567,7 +552,7 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
 
     F_y.v(buf=b, n=vars.itau)[:,:] += \
         avisco_y.v(buf=b) * (tau.jp(-1, buf=b) - tau.v(buf=b))
-
+    """
 
     tm_flux.end()
 
