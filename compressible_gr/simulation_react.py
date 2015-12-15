@@ -4,96 +4,23 @@ import sys
 
 import numpy as np
 import matplotlib.pyplot as plt
-import pdb
 import math
 
-from lm_gr.problems import *
-import lm_gr.LM_gr_interface_f as lm_interface_f
-import mesh.reconstruction_f as reconstruction_f
+import compressible_gr.BC as BC
+from compressible_gr.simulation import *
+from compressible_gr.problems import *
+import compressible_gr.eos as eos
 import mesh.patch as patch
 from simulation_null import NullSimulation, grid_setup, bc_setup
-from lm_gr.simulation import *
-import multigrid.variable_coeff_MG as vcMG
+from compressible_gr.unsplitFluxes import *
 from util import profile
 import lm_gr.metric as metric
 import colormaps as cmaps
+from compressible_gr.unsplitFluxes import *
 
 class SimulationReact(Simulation):
 
-    def __init__(self, solver_name, problem_name, rp, timers=None, fortran=True):
-        """
-        Initialize the SimulationReact object
-
-        Parameters
-        ----------
-        solver_name : str
-            The name of the solver we wish to use. This should correspond
-            to one of the solvers in the pyro folder.
-        problem_name : str
-            The name of the problem we wish to run.  This should
-            correspond to one of the modules in lm_gr/problems/
-        rp : RuntimeParameters object
-            The runtime parameters for the simulation
-        timers : TimerCollection object, optional
-            The timers used for profiling this simulation
-        fortran : boolean, optional
-            Determines whether to use the fortran smoother or the original
-            python one.
-        """
-
-        Simulation.__init__(self, solver_name, problem_name, rp, timers=timers, fortran=fortran)
-
-    def compute_S(self, u=None, v=None, u0=None, p0=None, Q=None, D=None):
-        r"""
-        :math: `S = -\Gamma^\mu_(\mu \nu) U^\nu + \frac{D (\gamma-1)}{u^0 \gamma^2 p} H`  (see eq 6.34, 6.37 in LowMachGR).
-        base["source-y"] is not updated here as it's sometimes necessary to
-        calculate projections of `S` (e.g. `S^{n*}`) and not `S^n`
-
-        Parameters
-        ----------
-        u : ArrayIndexer object, optional
-            horizontal velocity
-        v : ArrayIndexer object, optional
-            vertical velocity
-        u0 : ArrayIndexer object, optional
-            timelike component of the 4-velocity
-        p0 : ArrayIndexer object, optional
-            base-state pressure
-        Q : ArrayIndexer object, optional
-            nuclear heating rate
-        D : ArrayIndexer object, optional
-            full density state
-
-        Returns
-        -------
-        S : ArrayIndexer object
-        """
-        myg = self.cc_data.grid
-        S = myg.scratch_array()
-        if u is None:
-            u = self.cc_data.get_var("x-velocity")
-        if v is None:
-            v = self.cc_data.get_var("y-velocity")
-        if u0 is None:
-            u0 = self.metric.calcu0(u=u, v=v)
-        if p0 is None:
-            p0 = self.base["p0"]
-        if Q is None:
-            Q = myg.scratch_array()
-        if D is None:
-            D = self.cc_data.get_var("density")
-        gamma = self.rp.get_param("eos.gamma")
-
-        chrls = self.metric.chrls
-
-        S.d[:,:] = super(SimulationReact, self).compute_S(u=u, v=v, u0=u0, p0=p0).d
-
-        S.d[:,:] += D.d * (gamma - 1) * Q.d / (u0.d * gamma**2 * p0.d2d())
-
-        return S
-
-
-    def calc_T(self, p0=None, D=None, DX=None, u=None, v=None, u0=None, T=None):
+    def calc_T(self, p, D, DX, rho):
         r"""
         Calculates the temperature assuming an ideal gas with a mixed composition and a constant ratio of specific heats:
         .. math::
@@ -112,60 +39,45 @@ class SimulationReact(Simulation):
 
         Parameters
         ----------
-        p0 : ArrayIndexer object, optional
-            base state pressure
-        D : ArrayIndexer object, optional
-            full state density
-        DX : ArrayIndexer object, optional
-            density * mass fraction full state
-        u : ArrayIndexer object, optional
-            horizontal velocity
-        v : ArrayIndexer object, optional
-            vertical velocity
-        u0 : ArrayIndexer object, optional
-            timelike component of the 4-velocity
-        T : ArrayIndexer object, optional
+        p : ArrayIndexer object
+            pressure
+        D : ArrayIndexer object
+            conservative density
+        DX : ArrayIndexer object
+            conservative density * mass fraction
+        rho : ArrayIndexer object
+            primitive density
+        T : ArrayIndexer object
             temperature
         """
         myg = self.cc_data.grid
-        if p0 is None:
-            p0 = self.base["p0"]
-        if D is None:
-            D = self.cc_data.get_var("density")
-        if DX is None:
-            DX = self.cc_data.get_var("mass-frac")
-        if u0 is None:
-            u0 = self.metric.calcu0(u=u, v=v)
-        if T is None:
-            T = self.cc_data.get_var("temperature")
+
+        T = myg.scratch_array()
 
         # mean molecular weight = (2*(1-X) + 3/4 X)^-1
-        mu = 4./(8. * (1. - DX.d/D.d) + 3. * DX.d/D.d)
+        X = DX.d / D.d
+        mu = 4. / (8. * (1. - X) + 3. * X)
         # FIXME: hack to drive reactions
         mp_kB = 1.21147#e5#e-8
 
-        # use p0 here as otherwise have to explicitly calculate pi somewhere?
-        # TODO: could instead calculate this using Dh rather than p0?
-        T.d[:,:] = p0.d2d() * mu * u0.d * mp_kB / D.d
+        T.d[:,:] = p.d * mu * mp_kB / rho.d
+
+        return T
 
 
-    def calc_Q_omega_dot(self, D=None, DX=None, u=None, v=None, u0=None, T=None):
+    def calc_Q_omega_dot(self, D, DX, rho, T):
         r"""
         Calculates the energy generation rate according to eq. 2 of Cavecchi, Levin, Watts et al 2015 and the creation rate
 
         Parameters
         ----------
-        D : ArrayIndexer object, optional
-            full state density
-        DX : ArrayIndexer object, optional
-            density * mass fraction full state
-        u : ArrayIndexer object, optional
-            horizontal velocity
-        v : ArrayIndexer object, optional
-            vertical velocity
-        u0 : ArrayIndexer object, optional
-            timelike component of the 4-velocity
-        T : ArrayIndexer object, optional
+        D : ArrayIndexer object
+            conservative density
+        DX : ArrayIndexer object
+            conservative density * mass fraction
+        rho : ArrayIndexer object
+            primitive density
+        T : ArrayIndexer object
             temperature
 
         Returns
@@ -176,21 +88,16 @@ class SimulationReact(Simulation):
             species creation rate
         """
         myg = self.cc_data.grid
-        if D is None:
-            D = self.cc_data.get_var("density")
-        if DX is None:
-            DX = self.cc_data.get_var("mass-frac")
-        if u0 is None:
-            u0 = self.metric.calcu0(u=u, v=v)
-        if T is None:
-            T = self.cc_data.get_var("temperature")
+
         Q = myg.scratch_array()
         omega_dot = myg.scratch_array()
         # FIXME: hack to drive reactions
         T9 = T.d #* 1.e-9#1.e-9
-        D5 = D.d #* 1.e-5
+        rho5 = rho.d #* 1.e-5
 
-        Q.d[:,:] = 5.3 * (D5 / u0.d)**2 * (DX.d/D.d / T9)**3 * np.exp(-4.4 / T9)
+        X = DX.d / D.d
+
+        Q.d[:,:] = 5.3 * rho5**2 * (X / T9)**3 * np.exp(-4.4 / T9)
 
         #print((np.exp(-4.4 / T9))[25:35,25:35])
 
@@ -200,143 +107,230 @@ class SimulationReact(Simulation):
         # FIXME: hackkkkk
         #Q.d[:,:] *= 1.e12 # for bubble: 1.e9, else 1.e12
         #omega_dot.d[:,:] *= 5. # for bubble: 5., else 1.e4
+        #print(omega_dot.d[20:30, 8:12])
 
         return Q, omega_dot
 
-
-    def react_state(self, S=None, D=None, Dh=None, DX=None, p0=None, T=None, scalar=None, Dh0=None, u=None, v=None, u0=None):
+    def burning_flux(self):
         """
-        gravitational source terms in the continuity equation (called react
-        state to mirror MAESTRO as here they just have source terms from the
-        reactions)
+        burning source terms
 
         Parameters
         ----------
-        S : ArrayIndexer object, optional
-            source term
-        D : ArrayIndexer object, optional
-            density full state
-        Dh : ArrayIndexer object, optional
-            density * enthalpy full state
-        DX : ArrayIndexer object, optional
-            density * species mass fraction full state
-        p0 : ArrayIndexer object, optional
-            base state pressure
-        T : ArrayIndexer object, optional
+        D : ArrayIndexer object
+            conservative density
+        h : ArrayIndexer object
+            enthalpy
+        DX : ArrayIndexer object
+            conservative density * species mass fraction
+        T : ArrayIndexer object
             temperature
-        scalar : ArrayIndexer object, optional
+        scalar : ArrayIndexer object
             passive advective scalar (* density)
-        Dh0 : ArrayIndexer object, optional
-            density * enthalpy base state
-        u : ArrayIndexer object, optional
-            horizontal velocity
-        v : ArrayIndexer object, optional
-            vertical velocity
-        u0 : ArrayIndexer object, optional
-            timelike component of the 4-velocity
+        rho : ArrayIndexer object
+            primitive density
         """
+
         myg = self.cc_data.grid
 
-        if D is None:
-            D = self.cc_data.get_var("density")
-        if Dh is None:
-            Dh = self.cc_data.get_var("enthalpy")
-        if DX is None:
-            DX = self.cc_data.get_var("mass-frac")
-        if scalar is None:
-            scalar = self.cc_data.get_var("scalar")
-        if v is None:
-            v = self.cc_data.get_var("y-velocity")
-        if u0 is None:
-            u0 = self.metric.calcu0(u=u, v=v)
-        drp0 = self.drp0(Dh0=Dh0, u=u, v=v, u0=u0)
-        if S is None:
-            S = self.aux_data.get_var("source_y")
-        if T is None:
-            T = self.cc_data.get_var("temperature")
+        # get conserved and primitive variables.
+        D = self.cc_data.get_var("D")
+        Sx = self.cc_data.get_var("Sx")
+        Sy = self.cc_data.get_var("Sy")
+        tau = self.cc_data.get_var("tau")
+        DX = self.cc_data.get_var("DX")
+
+        gamma = self.rp.get_param("eos.gamma")
+        c = self.rp.get_param("eos.c")
+        _rho = np.zeros_like(D.d)
+        _u = np.zeros_like(D.d)
+        _v = np.zeros_like(D.d)
+        _p = np.zeros_like(D.d)
+
+        # we need to compute the primitive speeds and sound speed
+        for i in range(myg.qx):
+            for j in range(myg.qy):
+                U = (D.d[i,j], Sx.d[i,j], Sy.d[i,j], tau.d[i,j], DX.d[i,j])
+                names = ['D', 'Sx', 'Sy', 'tau', 'DX']
+                nan_check(U, names)
+                V, _ = cons_to_prim(U, c, gamma)
+
+                _rho[i,j], _u[i,j], _v[i,j], _, _p[i,j], _ = V
+
+        rho = myg.scratch_array()
+        u = myg.scratch_array()
+        v = myg.scratch_array()
+        p = myg.scratch_array()
+        rho.d[:,:] = _rho
+        u.d[:,:] = _u
+        v.d[:,:] = _v
+        p.d[:,:] = _p
+
+        T = self.calc_T(p, D, DX, rho)
+
         kB_mp = 8.254409#e7
         gamma = self.rp.get_param("eos.gamma")
+        c = self.rp.get_param("eos.c")
 
-        Q, omega_dot = self.calc_Q_omega_dot(D=D, DX=DX, u=u, v=v, u0=u0, T=T)
+        Q, omega_dot = self.calc_Q_omega_dot(D, DX, rho, T)
 
-        h_T = kB_mp * gamma * (3. - 2. * DX.d/D.d) / (6. * (gamma-1.))
+        X = DX.d / D.d
+
+        h_T = kB_mp * gamma * (3. - 2. * X) / (6. * (gamma-1.))
         h_X = -kB_mp * T.d * gamma / (3. * (gamma-1.))
 
-        # cannot call super here as it changes D which is then needed to calculate Dh, D
+        blank = D.d * 0.0
 
-        Dh.d[:,:] += 0.5 * self.dt * (S.d * Dh.d + u0.d * v.d * drp0.d2d() + D.d * Q.d)
+        w = 1 / np.sqrt(1 - (u.d**2 + v.d**2)/c**2)
 
-        DX.d[:,:] += 0.5 * self.dt * (S.d * DX.d + D.d * omega_dot.d)
+        Sx_F = myg.scratch_array()
+        Sy_F = myg.scratch_array()
+        tau_F = myg.scratch_array()
+        DX_F = myg.scratch_array()
 
-        D.d[:,:] += 0.5 * self.dt * (S.d * D.d)
+        Sx_F.d[:,:] = D.d * Q.d * w * u.d
+        Sy_F.d[:,:] = D.d * Q.d * w * v.d
 
-        scalar.d[:,:] += 0.5 * self.dt * (S.d * scalar.d)
+        tau_F.d[:,:] = D.d * Q.d * w
 
-        T.d[:,:] += 0.5 * self.dt * (Q.d - h_X * omega_dot.d) / h_T
+        DX_F.d[:,:] = D.d * omega_dot.d
+
+        #T.d[:,:] += self.dt * (Q.d - h_X * omega_dot.d) / h_T
+
+        return (blank, Sx_F, Sy_F, tau_F, DX_F)
 
 
     def dovis(self, vmins=[None, None, None, None], vmaxes=[None, None, None, None]):
         """
         Do runtime visualization
         """
+
         plt.clf()
 
-        #plt.rc("font", size=10)
-
-        D = self.cc_data.get_var("density")
-        u = self.cc_data.get_var("x-velocity")
-        v = self.cc_data.get_var("y-velocity")
-
-        DX = self.cc_data.get_var("mass-frac")
-        scalar = self.cc_data.get_var("scalar")
-        T = self.cc_data.get_var("temperature")
-
-        #plot_me = self.aux_data.get_var("plot_me")
-
+        plt.rc("font", size=12)
         myg = self.cc_data.grid
 
-        psi = myg.scratch_array(data=scalar.d/D.d)
-        X = myg.scratch_array(data=DX.d/D.d)
-        logT = myg.scratch_array(data=np.log(T.d))
+        D = self.cc_data.get_var("D")
+        DX = self.cc_data.get_var("DX")
+        Sx = self.cc_data.get_var("Sx")
+        Sy = self.cc_data.get_var("Sy")
+        tau = self.cc_data.get_var("tau")
 
-        magvel = np.sqrt(u**2 + v**2)
+        gamma = self.cc_data.get_aux("gamma")
+        c = self.cc_data.get_aux("c")
+        u = np.zeros_like(D.d)
+        v = np.zeros_like(D.d)
 
-        vort = myg.scratch_array()
+        rho = myg.scratch_array()
+        p = myg.scratch_array()
+        h = myg.scratch_array()
+        X = myg.scratch_array()
+        X.d[:,:] = DX.d / D.d
 
-        dv = 0.5 * (v.ip(1) - v.ip(-1)) / myg.dx
-        du = 0.5 * (u.jp(1) - u.jp(-1)) / myg.dy
+        for i in range(myg.qx):
+            for j in range(myg.qy):
+                F = (D.d[i,j], Sx.d[i,j], Sy.d[i,j], tau.d[i,j], DX.d[i,j])
+                Fp, cs = cons_to_prim(F, c, gamma)
+                rho.d[i,j], u[i,j], v[i,j], h.d[i,j], p.d[i,j], X.d[i,j] = Fp
 
-        vort.v()[:,:] = dv - du
+        # get the pressure
+        magvel = myg.scratch_array()
+        magvel.d[:,:] = np.sqrt(u**2 + v**2)
 
-        fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
-        plt.subplots_adjust(hspace=0.3)
+        # access gamma from the cc_data object so we can use dovis
+        # outside of a running simulation.
 
-        fields = [D, X, u, logT]
-        field_names = [r"$D$", r"$X$", r"$u$", r"$\ln T$"]
-        colourmaps = [cmaps.magma_r, cmaps.magma, cmaps.viridis_r,
-                      cmaps.magma]
+        # figure out the geometry
+        L_x = myg.xmax - myg.xmin
+        L_y = myg.ymax - myg.ymin
 
-        #vmaxes = [0.05, 1.0, 0.64, None]
-        #vmins = [0.0, 0.95, 0.0, 3.0]
+        orientation = "vertical"
+        shrink = 1.0
 
-        for n in range(len(fields)):
-            ax = axes.flat[n]
+        sparseX = 0
+        allYlabel = 1
 
-            f = fields[n]
-            cmap = colourmaps[n]
+        if L_x > 2*L_y:
 
-            img = ax.imshow(np.transpose(f.v()),
-                            interpolation="nearest", origin="lower",
-                            extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax],
-                            vmin=vmins[n], vmax=vmaxes[n], cmap=cmap)
+            # we want 4 rows:
+            #  rho
+            #  |U|
+            #   p
+            #   e
+            fig, axes = plt.subplots(nrows=4, ncols=2, num=1)
+            orientation = "horizontal"
+            if (L_x > 4.*L_y):
+                shrink = 0.75
 
-            ax.set_xlabel(r"$x$")
-            ax.set_ylabel(r"$y$")
+            onLeft = list(range(self.vars.nvar))
+
+
+        elif L_y > 2.*L_x:
+
+            # we want 4 columns:  rho  |U|  p  e
+            fig, axes = plt.subplots(nrows=1, ncols=4, num=1)
+            if (L_y >= 3.*L_x):
+                shrink = 0.5
+                sparseX = 1
+                allYlabel = 0
+
+            onLeft = [0]
+
+        else:
+            # 2x2 grid of plots with
+            #
+            #   rho   |u|
+            #    p     e
+            fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
+            plt.subplots_adjust(hspace=0.25)
+
+            onLeft = [0,2]
+
+
+        fields = [rho, magvel, p, X]
+        field_names = [r"$\rho$", r"$|u|$", "$p$", "$X$"]
+        colours = ['blue', 'red', 'black', 'green']
+
+        for n in range(4):
+            ax = axes.flat[2*n]
+            ax2 = axes.flat[2*n+1]
+
+            v = fields[n]
+            ycntr = np.round(0.5 * myg.qy).astype(int)
+            img = ax.imshow(np.transpose(v.v()),
+                        interpolation="nearest", origin="lower",
+                        extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax])
+            plt2 = ax2.plot(myg.x, v.d[:,ycntr], c=colours[n])
+            ax2.set_xlim([myg.xmin, myg.xmax])
+
+            #ax.set_xlabel("x")
+            if n==3:
+                ax2.set_xlabel("$x$")
+            if n == 0:
+                ax.set_ylabel("$y$")
+                ax2.set_ylabel(field_names[n], rotation='horizontal')
+            elif allYlabel:
+                ax.set_ylabel("$y$")
+                ax2.set_ylabel(field_names[n], rotation='horizontal')
+
             ax.set_title(field_names[n])
 
-            plt.colorbar(img, ax=ax)
+            if not n in onLeft:
+                ax.yaxis.offsetText.set_visible(False)
+                ax2.yaxis.offsetText.set_visible(False)
+                if n > 0:
+                    ax.get_yaxis().set_visible(False)
+                    ax2.get_yaxis().set_visible(False)
 
-        plt.figtext(0.05,0.0125,
-                    "n: %4d,   t = %10.5f" % (self.n, self.cc_data.t))
+            if sparseX:
+                ax.xaxis.set_major_locator(plt.MaxNLocator(3))
+                ax2.xaxis.set_major_locator(plt.MaxNLocator(3))
+
+            plt.colorbar(img, ax=ax, orientation=orientation, shrink=0.75)
+
+
+        plt.figtext(0.05,0.0125, "n: %4d,   t = %10.5f" % (self.n, self.cc_data.t))
+        plt.subplots_adjust(left=0.05, right=0.95, bottom=0.05, top=0.95, hspace=0.4, wspace=0.1)
+        #plt.tight_layout()
 
         plt.draw()

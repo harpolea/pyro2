@@ -17,8 +17,8 @@ class Variables(object):
     a container class for easy access to the different compressible
     variable by an integer key
     """
-    def __init__(self, iD=0, iSx=1, iSy=2, itau=3):
-        self.nvar = 4
+    def __init__(self, iD=0, iSx=1, iSy=2, itau=3, iDX=4):
+        self.nvar = 5
 
         # conserved variables -- we set these when we initialize for
         # they match the CellCenterData2d object
@@ -26,13 +26,15 @@ class Variables(object):
         self.iSx = iSx
         self.iSy = iSy
         self.itau = itau
+        self.iDX = iDX
 
         # primitive variables
         self.irho = iD
         self.iu = iSx
         self.iv = iSy
         self.ip = itau
-        #self.ih = 4
+        self.iX = iDX
+        #self.ih = 5
 
 
 class Simulation(NullSimulation):
@@ -79,6 +81,7 @@ class Simulation(NullSimulation):
         my_data.register_var("Sx", bc_xodd)
         my_data.register_var("Sy", bc_yodd)
         my_data.register_var("tau", bc)
+        my_data.register_var("DX", bc)
 
 
         # store the EOS gamma as an auxillary quantity so we can have a
@@ -95,7 +98,8 @@ class Simulation(NullSimulation):
         self.vars = Variables(iD = my_data.vars.index("D"),
                               iSx = my_data.vars.index("Sx"),
                               iSy = my_data.vars.index("Sy"),
-                              itau = my_data.vars.index("tau"))
+                              itau = my_data.vars.index("tau"),
+                              iDX = my_data.vars.index("DX"))
 
 
         # initial conditions for the problem
@@ -125,6 +129,7 @@ class Simulation(NullSimulation):
         Sx = self.cc_data.get_var("Sx")
         Sy = self.cc_data.get_var("Sy")
         tau = self.cc_data.get_var("tau")
+        DX = self.cc_data.get_var("DX")
 
         gamma = self.rp.get_param("eos.gamma")
         c = self.rp.get_param("eos.c")
@@ -135,13 +140,13 @@ class Simulation(NullSimulation):
         # we need to compute the primitive speeds and sound speed
         for i in range(myg.qx):
             for j in range(myg.qy):
-                U = (D.d[i,j], Sx.d[i,j], Sy.d[i,j], tau.d[i,j])
-                names = ['D', 'Sx', 'Sy', 'tau']
+                U = (D.d[i,j], Sx.d[i,j], Sy.d[i,j], tau.d[i,j], DX.d[i,j])
+                names = ['D', 'Sx', 'Sy', 'tau', 'DX']
                 # U here is wrong
                 nan_check(U, names)
                 V, cs[i,j] = cons_to_prim(U, c, gamma)
 
-                _, u[i,j], v[i,j], _, _ = V
+                _, u[i,j], v[i,j], _, _, _ = V
 
         # the timestep is min(dx/(|u| + cs), dy/(|v| + cs))
         maxvel = np.fabs(np.sqrt(u**2 + v**2)).max()
@@ -154,6 +159,15 @@ class Simulation(NullSimulation):
 
         self.dt = cfl * min(xtmp.min(), ytmp.min())
 
+    # blank functions to be overriden by simulation_react
+    def calc_T(self, p, D, DX, rho):
+        return self.cc_data.grid.scratch_array()
+
+    def calc_Q_omega_dot(self, D, DX, rho, T):
+        return self.cc_data.grid.scratch_array(), self.cc_data.grid.scratch_array()
+
+    def burning_flux(self):
+        return (self.cc_data.grid.scratch_array() for n in range(self.vars.nvar))
 
     def evolve(self):
         """
@@ -168,7 +182,9 @@ class Simulation(NullSimulation):
 
         myg = self.cc_data.grid
 
-        Flux_x, Flux_y = unsplitFluxes(self.cc_data, self.rp, self.vars, self.tc, self.dt)
+        burning_source = self.burning_flux()
+
+        Flux_x, Flux_y = unsplitFluxes(self.cc_data, self.rp, self.vars, self.tc, self.dt, burning_source)
 
 
         for i in range(myg.qx):
@@ -207,13 +223,14 @@ class Simulation(NullSimulation):
 
         plt.clf()
 
-        plt.rc("font", size=10)
+        plt.rc("font", size=12)
         myg = self.cc_data.grid
 
         D = self.cc_data.get_var("D")
         Sx = self.cc_data.get_var("Sx")
         Sy = self.cc_data.get_var("Sy")
         tau = self.cc_data.get_var("tau")
+        DX = self.cc_data.get_var("DX")
 
         gamma = self.cc_data.get_aux("gamma")
         c = self.cc_data.get_aux("c")
@@ -226,9 +243,9 @@ class Simulation(NullSimulation):
 
         for i in range(myg.qx):
             for j in range(myg.qy):
-                F = (D.d[i,j], Sx.d[i,j], Sy.d[i,j], tau.d[i,j])
+                F = (D.d[i,j], Sx.d[i,j], Sy.d[i,j], tau.d[i,j], DX.d[i,j])
                 Fp, cs = cons_to_prim(F, c, gamma)
-                rho.d[i,j], u[i,j], v[i,j], h.d[i,j], p.d[i,j] = Fp
+                rho.d[i,j], u[i,j], v[i,j], h.d[i,j], p.d[i,j], _ = Fp
 
         # get the pressure
         magvel = myg.scratch_array()
@@ -285,7 +302,7 @@ class Simulation(NullSimulation):
 
 
         fields = [rho, magvel, p, h]
-        field_names = [r"$\rho$", r"$u$", "$p$", "$h$"]
+        field_names = [r"$\rho$", r"$|u|$", "$p$", "$h$"]
         colours = ['blue', 'red', 'black', 'green']
 
         for n in range(4):
@@ -293,10 +310,11 @@ class Simulation(NullSimulation):
             ax2 = axes.flat[2*n+1]
 
             v = fields[n]
+            ycntr = np.round(0.5 * myg.qy).astype(int)
             img = ax.imshow(np.transpose(v.v()),
                         interpolation="nearest", origin="lower",
                         extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax])
-            plt2 = ax2.plot(myg.x, v.d[:,myg.ng+1], c=colours[n])
+            plt2 = ax2.plot(myg.x, v.d[:,ycntr], c=colours[n])
             ax2.set_xlim([myg.xmin, myg.xmax])
 
             #ax.set_xlabel("x")

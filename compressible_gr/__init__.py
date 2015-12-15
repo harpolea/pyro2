@@ -4,3 +4,4 @@ second-order (piecewise-linear), unsplit method of Colella 1990.
 
 """
 from .simulation import *
+from .simulation_react import *

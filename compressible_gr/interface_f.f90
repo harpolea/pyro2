@@ -1,9 +1,9 @@
 subroutine states(idir, qx, qy, ng, dx, dt, &
                   nvar, &
                   gamma, c, &
-                  r, u, v, p, &
-                  D, Sx, Sy, tau, &
-                  ldelta_D, ldelta_Sx, ldelta_Sy, ldelta_tau, &
+                  r, u, v, p, X, &
+                  D, Sx, Sy, tau, D_X, &
+                  ldelta_D, ldelta_Sx, ldelta_Sy, ldelta_tau, ldelta_DX, &
                   q_l, q_r)
 
   implicit none
@@ -19,25 +19,28 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
   double precision, intent(inout) :: u(0:qx-1, 0:qy-1)
   double precision, intent(inout) :: v(0:qx-1, 0:qy-1)
   double precision, intent(inout) :: p(0:qx-1, 0:qy-1)
+  double precision, intent(inout) :: X(0:qx-1, 0:qy-1)
 
   double precision, intent(inout) :: D(0:qx-1, 0:qy-1)
   double precision, intent(inout) :: Sx(0:qx-1, 0:qy-1)
   double precision, intent(inout) :: Sy(0:qx-1, 0:qy-1)
   double precision, intent(inout) :: tau(0:qx-1, 0:qy-1)
+  double precision, intent(inout) :: D_X(0:qx-1, 0:qy-1)
 
   double precision, intent(inout) :: ldelta_D(0:qx-1, 0:qy-1)
   double precision, intent(inout) :: ldelta_Sx(0:qx-1, 0:qy-1)
   double precision, intent(inout) :: ldelta_Sy(0:qx-1, 0:qy-1)
   double precision, intent(inout) :: ldelta_tau(0:qx-1, 0:qy-1)
+  double precision, intent(inout) :: ldelta_DX(0:qx-1, 0:qy-1)
 
   double precision, intent(  out) :: q_l(0:qx-1, 0:qy-1, 0:nvar-1)
   double precision, intent(  out) :: q_r(0:qx-1, 0:qy-1, 0:nvar-1)
 
-!f2py depend(qx, qy) :: r, u, v, p, D, Sx, Sy, tau
-!f2py depend(qx, qy) :: ldelta_D, ldelta_Sx, ldelta_Sy, ldelta_tau
+!f2py depend(qx, qy) :: r, u, v, p, X, D, Sx, Sy, tau, D_X
+!f2py depend(qx, qy) :: ldelta_D, ldelta_Sx, ldelta_Sy, ldelta_tau, ldelta_DX
 !f2py depend(qx, qy, nvar) :: q_l, q_r
-!f2py intent(in) :: r, u, v, p, D, Sx, Sy, tau
-!f2py intent(in) :: ldelta_D, ldelta_Sx, ldelta_Sy, ldelta_tau
+!f2py intent(in) :: r, u, v, p, X, D, Sx, Sy, tau, D_X
+!f2py intent(in) :: ldelta_D, ldelta_Sx, ldelta_Sy, ldelta_tau, ldelta_DX
 !f2py intent(out) :: q_l, q_r
 
 
@@ -107,9 +110,10 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
         dq(:) = [ldelta_D(i,j), &
                  ldelta_Sx(i,j), &
                  ldelta_Sy(i,j), &
-                 ldelta_tau(i,j)]
+                 ldelta_tau(i,j), &
+                 ldelta_DX(i,j)]
 
-        q(:) = [D(i,j), Sx(i,j), Sy(i,j), tau(i,j)]
+        q(:) = [D(i,j), Sx(i,j), Sy(i,j), tau(i,j), D_X(i,j)]
 
         eps = p(i,j) / (r(i,j) * (gamma - 1.0d0))
         h = 1.0d0 + eps + p(i,j)/r(i,j)
@@ -131,6 +135,7 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
            eval(3) = (uu * (1.0d0 - cs**2) + cs * &
                 sqrt((1.0d0 - v2)*(1.0d0 - uu**2 - &
                 vv**2*cs**2))) / (1.0d0 - v2*cs**2)
+            eval(4) = uu
 
            a_minus = (1.0d0 - uu**2) / (1.0d0 - uu * eval(0))
            a_plus  = (1.0d0 - uu**2) / (1.0d0 - uu * eval(3))
@@ -157,6 +162,7 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
                ( -uu + Kappa * a_plus * eval(3) - &
                  W**2 * vv**2 * (2.0d0 * Kappa - 1.0d0) * &
                                (uu - a_plus * eval(3)) )
+           lvec(0, 4) = 0.0d0
 
            lvec(3, 0) =-h2OverDelta * &
                 ( h * W * a_minus * (uu - eval(0)) - &
@@ -168,43 +174,56 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
                 ( 1.0d0 - Kappa * a_minus + &
                   W**2 * vv**2 * (2.0d0 * Kappa - 1.0d0) * &
                                 (1.0d0 - a_minus) )
-           lvec(3, 1) =-h2OverDelta * &
+           lvec(3, 2) =-h2OverDelta * &
                 ( W**2 * vv * (2.0d0 * Kappa - 1.0d0) * &
                                 a_minus * (uu - eval(0)) )
-           lvec(3, 2) =-h2OverDelta * &
+           lvec(3, 3) =-h2OverDelta * &
                 ( -uu + Kappa * a_minus * eval(0) - &
                   W**2 * vv**2 * (2.0d0 * Kappa - 1.0d0) * &
                                 (uu - a_minus * eval(0)) )
+           lvec(3, 4) = 0.0d0
 
            lvec(1, 0) = W * ( h - W ) / (Kappa - 1.0d0)
            lvec(1, 1) = W * ( W * uu ) / (Kappa - 1.0d0)
            lvec(1, 2) = W * ( W * vv ) / (Kappa - 1.0d0)
            lvec(1, 3) = -W**2 / (Kappa - 1.0d0)
+           lvec(1, 4) = 0.0d0
 
            lvec(2, 0) = -vv / (h * (1.0d0 - uu**2))
            lvec(2, 1) = uu * vv / (h * (1.0d0 - uu**2))
            lvec(2, 2) = 1.0d0 / h
            lvec(2, 3) = lvec(2,0)
+           lvec(2, 4) = 0.0d0
+
+           lvec(4,:3) = 0.0d0
+           lvec(4, 4) = 1.0d0
 
            rvec(0,0) = 1.0d0
            rvec(0,1) = h * W * eval(0) * a_minus
            rvec(0,2) = h * W * vv
            rvec(0,3) = h * W * a_minus - 1.0d0
+           rvec(0,4) = 0.0d0
 
            rvec(3,0) = 1.0d0
            rvec(3,1) = h * W * eval(3) * a_plus
            rvec(3,2) = h * W * vv
            rvec(3,3) = h * W * a_plus - 1.0d0
+           rvec(3,4) = 0.0d0
 
            rvec(1,0) = Kappa / (h * W)
            rvec(1,1) = uu
            rvec(1,2) = vv
            rvec(1,3) = 1.0d0 - rvec(1,0)
+           rvec(1,4) = 0.0d0
 
            rvec(2,0) = W * vv
            rvec(2,1) = 2.0d0 * h * W**2 * uu * vv
            rvec(2,2) = h * (1.0d0 + 2.0d0 * W**2 * vv**2)
            rvec(2,3) = 2.0d0 * h * W**2 * vv - W * vv
+           rvec(2,4) = 0.0d0
+
+           rvec(4,:3) = 0.0d0
+           rvec(4, 4) = 1.0d0
 
         else
             eval(0) = (vv * (1.0d0 - cs**2) - cs * &
@@ -214,6 +233,7 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
             eval(3) = (vv * (1.0d0 - cs**2) + cs * &
                  sqrt((1.0d0 - v2)*(1.0d0 - vv**2 - &
                  uu**2 * cs**2))) / (1.0d0 - v2*cs**2)
+            eval(4) = vv
 
             a_minus = (1.0d0 - vv**2) / (1.0d0 - vv * eval(0))
             a_plus  = (1.0d0- vv**2) / (1.0d0 - vv * eval(3))
@@ -239,6 +259,7 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
                 ( -vv + Kappa * a_plus * eval(3) - &
                   W**2 * uu**2 * (2.0d0 * Kappa - 1.0d0)*&
                                 (vv - a_plus * eval(3)) )
+            lvec(0, 4) = 0.0d0
 
             lvec(3, 0) =-h2OverDelta * &
                  ( h * W * a_minus * (vv - eval(0)) - &
@@ -249,45 +270,57 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
             lvec(3, 1) =-h2OverDelta * &
                  ( W**2 * uu * (2.0d0 * Kappa - 1.0d0)*&
                                  a_minus*(vv - eval(0)) )
-            lvec(3, 1) =-h2OverDelta * &
+            lvec(3, 2) =-h2OverDelta * &
                  ( 1.0d0 - Kappa * a_minus + &
                    W**2 *uu**2 * (2.0d0 * Kappa - 1.0d0) * &
                                  (1.0d0 - a_minus) )
-            lvec(3, 2) =-h2OverDelta * &
+            lvec(3, 3) =-h2OverDelta * &
                  ( -vv + Kappa * a_minus * eval(0) - &
                    W**2 * uu**2 * (2.0d0 * Kappa - 1.0d0) * &
                                  (vv - a_minus * eval(0)) )
+            lvec(3, 4) = 0.0d0
 
             lvec(1, 0) = -uu / (h * (1.0d0 - vv**2))
             lvec(1, 1) = 1.0d0 / h / (1.0d0 - vv**2) * (1.0d0 - vv**2)
             lvec(1, 2) = (uu * vv) / (h * (1.0d0 - vv**2))
             lvec(1, 3) = -uu / (h * (1.0d0 - vv**2))
+            lvec(1, 4) = 0.0d0
 
             lvec(2, 0) = W * ( h - W ) / (Kappa - 1.0d0)
             lvec(2, 1) = W * ( W * uu ) / (Kappa - 1.0d0)
             lvec(2, 2) = W * ( W * vv ) / (Kappa - 1.0d0)
             lvec(2, 3) = -W**2 / (Kappa - 1.0d0)
+            lvec(2, 4) = 0.0d0
 
+            lvec(4,:3) = 0.0d0
+            lvec(4, 4) = 1.0d0
 
             rvec(0,0) = 1.0d0
             rvec(0,1) = h * W * uu
             rvec(0,2) = h * W * eval(0) * a_minus
             rvec(0,3) = h * W * a_minus - 1.0d0
+            rvec(0,4) = 0.0d0
 
             rvec(3,0) = 1.0d0
             rvec(3,1) = h * W * uu
             rvec(3,2) = h * W * eval(3) * a_plus
             rvec(3,3) = h * W * a_plus - 1.0d0
+            rvec(4,0) = 0.0d0
 
             rvec(1,0) = W * uu
             rvec(1,1) = h * (1.0d0 + 2.0d0 * W**2 * uu**2)
             rvec(1,2) = 2.0d0 * h * W**2 * uu * vv
             rvec(1,3) = 2.0d0 * h * W**2 * vv - W * vv
+            rvec(1,4) = 0.0d0
 
             rvec(2,0) = Kappa / (h * W)
             rvec(2,1) = uu
             rvec(2,2) = vv
             rvec(2,3) = 1.0d0 - Kappa / (h * W)
+            rvec(2,4) = 0.0d0
+
+            rvec(4,:3) = 0.0d0
+            rvec(4, 4) = 1.0d0
 
         endif
 
@@ -334,7 +367,7 @@ subroutine states(idir, qx, qy, ng, dx, dt, &
         betar(1:2) = betar(1:2) * c
 
         ! construct the states
-        do m = 0, 3
+        do m = 0, nvar-1
            sum_l = dot_product(betal(:),rvec(:,m))
            sum_r = dot_product(betar(:),rvec(:,m))
 
@@ -645,14 +678,14 @@ end subroutine riemann_cgf
 
 
 subroutine riemann_RHLLE(idir, qx, qy, ng, &
-                        nvar, iD, iSx, iSy, itau, &
+                        nvar, iD, iSx, iSy, itau, iDX, &
                         gamma, c, U_l, U_r, V_l, V_r, F)
 
   implicit none
 
   integer, intent(in) :: idir
   integer, intent(in) :: qx, qy, ng
-  integer, intent(in) :: nvar, iD, iSx, iSy, itau
+  integer, intent(in) :: nvar, iD, iSx, iSy, itau, iDX
   double precision, intent(in) :: gamma, c
 
   ! 0-based indexing to match python
@@ -676,8 +709,8 @@ subroutine riemann_RHLLE(idir, qx, qy, ng, &
   double precision, parameter :: smallrho = 1.e-10
   double precision, parameter :: smallp = 1.e-10
 
-  double precision :: rho_l, un_l, ut_l, h_l, p_l, eps_l
-  double precision :: rho_r, un_r, ut_r, h_r, p_r, eps_r
+  double precision :: rho_l, un_l, ut_l, h_l, p_l, eps_l, X_l
+  double precision :: rho_r, un_r, ut_r, h_r, p_r, eps_r, X_r
   double precision :: cs_l, cs_r
   double precision :: cs_bar, v_bar, a_l, a_r, a_lm, a_rp
 
@@ -707,6 +740,8 @@ subroutine riemann_RHLLE(idir, qx, qy, ng, &
         eps_l = p_l / (rho_l * (gamma - 1.0d0))
         h_l = 1.0d0 + eps_l + p_l/rho_l
 
+        X_l = V_l(i,j,iDX) / V_l(i,j,iD)
+
         rho_r  = V_r(i,j,iD)
 
         if (idir == 1) then
@@ -721,6 +756,8 @@ subroutine riemann_RHLLE(idir, qx, qy, ng, &
         p_r = max(p_r, smallp)
         eps_r = p_r / (rho_r * (gamma - 1.0d0))
         h_r = 1.0d0 + eps_r + p_r/rho_r
+
+        X_r = V_r(i,j,iDX) / V_r(i,j,iD)
 
         ! compute the sound speeds
         cs_l = max(smallc, sqrt(gamma * (gamma - 1.0d0) * eps_l / (1.0d0 + gamma * eps_l)))
@@ -743,6 +780,9 @@ subroutine riemann_RHLLE(idir, qx, qy, ng, &
 
         F_l(itau) = (U_l(i,j,itau) + p_l) * un_l
         F_r(itau) = (U_r(i,j,itau) + p_r) * un_r
+
+        F_l(iDX) = U_l(i,j,iDX) * un_l
+        F_r(iDX) = U_r(i,j,iDX) * un_r
 
         cs_bar = 0.5d0 * (cs_l + cs_r)
         if (idir == 1) then

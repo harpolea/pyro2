@@ -69,6 +69,8 @@ def doit(solver_name, problem_name, param_file,
     # are running
     if solver_name == "lm_gr" and rp.get_param("lm-gr.react") != 0:
         sim = solver.SimulationReact(solver_name, problem_name, rp, timers=tc)
+    elif solver_name == "compressible_gr" and rp.get_param("compressible-gr.react") != 0:
+        sim = solver.SimulationReact(solver_name, problem_name, rp, timers=tc)
     else:
         sim = solver.Simulation(solver_name, problem_name, rp, timers=tc)
     #sim_py = solver.Simulation(solver_name, problem_name, rp, timers=tc, fortran=False)

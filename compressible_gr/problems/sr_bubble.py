@@ -22,11 +22,13 @@ def init_data(my_data, rp):
     Sx = my_data.get_var("Sx")
     Sy = my_data.get_var("Sy")
     tau = my_data.get_var("tau")
+    DX = my_data.get_var("DX")
     rho = np.zeros_like(D.d)
     u = np.zeros_like(D.d)
     v = np.zeros_like(D.d)
     h = np.zeros_like(D.d)
     p = np.zeros_like(D.d)
+    X = np.zeros_like(D.d)
 
     gamma = rp.get_param("eos.gamma")
     c = rp.get_param("eos.c")
@@ -51,6 +53,7 @@ def init_data(my_data, rp):
     v[:,:] = 0.0
     p[:,:] = K * rho ** gamma
     h[:,:] = 1. + p * gamma / (rho * (gamma - 1.))
+    X[:,:] = 0.0
 
     # set velocity on left side to non-zero
     idxl = myg.x2d <= 0.25*(xmin + xmax)
@@ -67,14 +70,13 @@ def init_data(my_data, rp):
             if (r <= r_pert):
                 # boost the specific internal energy, keeping the pressure
                 # constant, by dropping the density
-                eint = h[i,j] - p[i,j] / rho[i,j]
-
-                pres = rho[i,j] * eint * (gamma - 1.0)
+                eint = h[i,j] - 1. - p[i,j] / rho[i,j]
 
                 eint = eint * pert_amplitude_factor
-                rho[i,j] = pres / (eint * (gamma - 1.0))
+                rho[i,j] = p[i,j] / (eint * (gamma - 1.0))
 
-                h[i,j] = eint + pres / rho[i,j]
+                h[i,j] = 1. + eint + p[i,j] / rho[i,j]
+                X[i,j] = 1.0
 
             j += 1
         i += 1
@@ -82,9 +84,9 @@ def init_data(my_data, rp):
 
     for i in range(myg.qx):
         for j in range(myg.qy):
-            Qp = (rho[i,j], u[i,j], v[i,j], h[i,j], p[i,j])
+            Qp = (rho[i,j], u[i,j], v[i,j], h[i,j], p[i,j], X[i,j])
             Qc = prim_to_cons(Qp, c, gamma)
-            (D.d[i,j], Sx.d[i,j], Sy.d[i,j], tau.d[i,j]) = Qc
+            (D.d[i,j], Sx.d[i,j], Sy.d[i,j], tau.d[i,j], DX.d[i,j]) = Qc
 
 
 
