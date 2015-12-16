@@ -6,6 +6,7 @@ cfl = 0.8
 gamma = 1.66666666667    ; pres = rho ener (gamma - 1)
 c = 1.0        ; speed of light
 k_poly = 1.0   ; polytropic index
+mp_kb = 1.21147 ; e-8
 
 
 [compressible-gr]
@@ -24,3 +25,6 @@ grav = 0.0                ; gravitational acceleration (in y-direction)
 riemann = RHLLE            ; RHLLC or RHLLE
 
 react = 0
+
+[vis]
+dovis = 0

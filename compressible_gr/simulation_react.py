@@ -20,7 +20,7 @@ from compressible_gr.unsplitFluxes import *
 
 class SimulationReact(Simulation):
 
-    def calc_T(self, p, D, DX, rho):
+    def calc_T(self, p, D, X, rho):
         r"""
         Calculates the temperature assuming an ideal gas with a mixed composition and a constant ratio of specific heats:
         .. math::
@@ -43,29 +43,27 @@ class SimulationReact(Simulation):
             pressure
         D : ArrayIndexer object
             conservative density
-        DX : ArrayIndexer object
-            conservative density * mass fraction
+        X : ArrayIndexer object
+            mass fraction
         rho : ArrayIndexer object
             primitive density
         T : ArrayIndexer object
             temperature
         """
         myg = self.cc_data.grid
+        mp_kB = self.rp.get_param("eos.mp_kb")
 
         T = myg.scratch_array()
 
         # mean molecular weight = (2*(1-X) + 3/4 X)^-1
-        X = DX.d / D.d
-        mu = 4. / (8. * (1. - X) + 3. * X)
-        # FIXME: hack to drive reactions
-        mp_kB = 1.21147#e5#e-8
+        mu = 4. / (8. * (1. - X.d) + 3. * X.d)
 
         T.d[:,:] = p.d * mu * mp_kB / rho.d
 
         return T
 
 
-    def calc_Q_omega_dot(self, D, DX, rho, T):
+    def calc_Q_omega_dot(self, D, X, rho, T):
         r"""
         Calculates the energy generation rate according to eq. 2 of Cavecchi, Levin, Watts et al 2015 and the creation rate
 
@@ -73,8 +71,8 @@ class SimulationReact(Simulation):
         ----------
         D : ArrayIndexer object
             conservative density
-        DX : ArrayIndexer object
-            conservative density * mass fraction
+        X : ArrayIndexer object
+            mass fraction
         rho : ArrayIndexer object
             primitive density
         T : ArrayIndexer object
@@ -95,9 +93,7 @@ class SimulationReact(Simulation):
         T9 = T.d #* 1.e-9#1.e-9
         rho5 = rho.d #* 1.e-5
 
-        X = DX.d / D.d
-
-        Q.d[:,:] = 5.3 * rho5**2 * (X / T9)**3 * np.exp(-4.4 / T9)
+        Q.d[:,:] = 5.3 * rho5**2 * (X.d / T9)**3 * np.exp(-4.4 / T9)
 
         #print((np.exp(-4.4 / T9))[25:35,25:35])
 
@@ -146,6 +142,7 @@ class SimulationReact(Simulation):
         _u = np.zeros_like(D.d)
         _v = np.zeros_like(D.d)
         _p = np.zeros_like(D.d)
+        _X = np.zeros_like(D.d)
 
         # we need to compute the primitive speeds and sound speed
         for i in range(myg.qx):
@@ -155,28 +152,29 @@ class SimulationReact(Simulation):
                 nan_check(U, names)
                 V, _ = cons_to_prim(U, c, gamma)
 
-                _rho[i,j], _u[i,j], _v[i,j], _, _p[i,j], _ = V
+                _rho[i,j], _u[i,j], _v[i,j], _, _p[i,j], _X[i,j] = V
 
         rho = myg.scratch_array()
         u = myg.scratch_array()
         v = myg.scratch_array()
         p = myg.scratch_array()
+        X = myg.scratch_array()
         rho.d[:,:] = _rho
         u.d[:,:] = _u
         v.d[:,:] = _v
         p.d[:,:] = _p
+        X.d[:,:] = _X
 
-        T = self.calc_T(p, D, DX, rho)
+        T = self.calc_T(p, D, X, rho)
 
-        kB_mp = 8.254409#e7
+        mp_kB = self.rp.get_param("eos.mp_kb")
+        kB_mp = 1./mp_kB
         gamma = self.rp.get_param("eos.gamma")
         c = self.rp.get_param("eos.c")
 
-        Q, omega_dot = self.calc_Q_omega_dot(D, DX, rho, T)
+        Q, omega_dot = self.calc_Q_omega_dot(D, X, rho, T)
 
-        X = DX.d / D.d
-
-        h_T = kB_mp * gamma * (3. - 2. * X) / (6. * (gamma-1.))
+        h_T = kB_mp * gamma * (3. - 2. * X.d) / (6. * (gamma-1.))
         h_X = -kB_mp * T.d * gamma / (3. * (gamma-1.))
 
         blank = D.d * 0.0
@@ -225,7 +223,6 @@ class SimulationReact(Simulation):
         p = myg.scratch_array()
         h = myg.scratch_array()
         X = myg.scratch_array()
-        X.d[:,:] = DX.d / D.d
 
         for i in range(myg.qx):
             for j in range(myg.qy):
@@ -236,6 +233,9 @@ class SimulationReact(Simulation):
         # get the pressure
         magvel = myg.scratch_array()
         magvel.d[:,:] = np.sqrt(u**2 + v**2)
+
+        T = self.calc_T(p, D, X, rho)
+        T.d[:,:] = np.log(T.d)
 
         # access gamma from the cc_data object so we can use dovis
         # outside of a running simulation.
@@ -287,8 +287,8 @@ class SimulationReact(Simulation):
             onLeft = [0,2]
 
 
-        fields = [rho, magvel, p, X]
-        field_names = [r"$\rho$", r"$|u|$", "$p$", "$X$"]
+        fields = [rho, magvel, T, X]
+        field_names = [r"$\rho$", r"$|u|$", "$\ln(T)$", "$X$"]
         colours = ['blue', 'red', 'black', 'green']
 
         for n in range(4):
@@ -333,4 +333,4 @@ class SimulationReact(Simulation):
         plt.subplots_adjust(left=0.05, right=0.95, bottom=0.05, top=0.95, hspace=0.4, wspace=0.1)
         #plt.tight_layout()
 
-        plt.draw()
+        #plt.draw()

@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 import numpy as np
+import matplotlib # these two lines set the display so it works
+matplotlib.use('Agg') # when ssh into desktop
 import matplotlib.pyplot as plt
 import sys
 import os

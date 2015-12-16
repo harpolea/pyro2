@@ -6,7 +6,7 @@ tmax = 10000000000.0
 
 
 [io]
-basename = ../../Documents/Work/pyro/results/sr_bubble/sr_bubble_64_
+basename = results/sr_bubble/sr_bubble_64_ ;../../Documents/Work/pyro/results/sr_bubble/sr_bubble_64_
 n_out = 1                   ; number of timesteps between writing output files
 do_io = 1                   ; do we output at all?
 

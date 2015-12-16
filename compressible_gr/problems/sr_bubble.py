@@ -53,7 +53,7 @@ def init_data(my_data, rp):
     v[:,:] = 0.0
     p[:,:] = K * rho ** gamma
     h[:,:] = 1. + p * gamma / (rho * (gamma - 1.))
-    X[:,:] = 0.0
+    X[:,:] = 1.0
 
     # set velocity on left side to non-zero
     idxl = myg.x2d <= 0.25*(xmin + xmax)
@@ -76,7 +76,7 @@ def init_data(my_data, rp):
                 rho[i,j] = p[i,j] / (eint * (gamma - 1.0))
 
                 h[i,j] = 1. + eint + p[i,j] / rho[i,j]
-                X[i,j] = 1.0
+                X[i,j] = 0.0
 
             j += 1
         i += 1
