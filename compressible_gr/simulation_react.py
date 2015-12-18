@@ -99,6 +99,8 @@ class SimulationReact(Simulation):
 
         # Hnuc = |Delta q|omega_dot, where Delta q is the change in binding energy. q_He = 2.83007e4 keV, q_C=9.2161753e4 keV
         omega_dot.d[:,:] = Q.d #* 9.773577e10
+        # need to stop it getting bigger than one - this does this smoothly.
+        omega_dot.d[:,:] *= 0.5 * (1. - np.tanh(40. * (omega_dot.d - 1.)))
 
         # FIXME: hackkkkk
         #Q.d[:,:] *= 1.e12 # for bubble: 1.e9, else 1.e12
@@ -223,6 +225,7 @@ class SimulationReact(Simulation):
         p = myg.scratch_array()
         h = myg.scratch_array()
         X = myg.scratch_array()
+        _u = myg.scratch_array()
 
         for i in range(myg.qx):
             for j in range(myg.qy):
@@ -236,6 +239,7 @@ class SimulationReact(Simulation):
 
         T = self.calc_T(p, D, X, rho)
         T.d[:,:] = np.log(T.d)
+        _u.d[:,:] = u
 
         # access gamma from the cc_data object so we can use dovis
         # outside of a running simulation.
@@ -287,8 +291,8 @@ class SimulationReact(Simulation):
             onLeft = [0,2]
 
 
-        fields = [rho, magvel, T, X]
-        field_names = [r"$\rho$", r"$|u|$", "$\ln(T)$", "$X$"]
+        fields = [rho, _u, T, X]
+        field_names = [r"$\rho$", r"$u$", "$\ln(T)$", "$X$"]
         colours = ['blue', 'red', 'black', 'green']
 
         for n in range(4):
@@ -299,9 +303,10 @@ class SimulationReact(Simulation):
             ycntr = np.round(0.5 * myg.qy).astype(int)
             img = ax.imshow(np.transpose(v.v()),
                         interpolation="nearest", origin="lower",
-                        extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax])
+                        extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax], vmin=vmins[n], vmax=vmaxes[n])
             plt2 = ax2.plot(myg.x, v.d[:,ycntr], c=colours[n])
             ax2.set_xlim([myg.xmin, myg.xmax])
+
 
             #ax.set_xlabel("x")
             if n==3:
@@ -326,6 +331,7 @@ class SimulationReact(Simulation):
                 ax.xaxis.set_major_locator(plt.MaxNLocator(3))
                 ax2.xaxis.set_major_locator(plt.MaxNLocator(3))
 
+            ax2.set_ylim([vmins[n], vmaxes[n]])
             plt.colorbar(img, ax=ax, orientation=orientation, shrink=0.75)
 
 

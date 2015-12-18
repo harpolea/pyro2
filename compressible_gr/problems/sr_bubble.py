@@ -58,6 +58,10 @@ def init_data(my_data, rp):
     # set velocity on left side to non-zero
     idxl = myg.x2d <= 0.25*(xmin + xmax)
     u[idxl] = u_vel
+    rho[idxl] = 17.0
+    eint = 10.
+    p[idxl] = eint * (gamma - 1.) * rho[idxl]
+    h[idxl] = 1. + p[idxl] * gamma / (rho[idxl] * (gamma - 1.))
 
     i = myg.ilo
     while i <= myg.ihi:

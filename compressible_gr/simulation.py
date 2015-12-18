@@ -313,9 +313,10 @@ class Simulation(NullSimulation):
             ycntr = np.round(0.5 * myg.qy).astype(int)
             img = ax.imshow(np.transpose(v.v()),
                         interpolation="nearest", origin="lower",
-                        extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax])
+                        extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax], vmin=vmins[n], vmax=vmaxes[n])
             plt2 = ax2.plot(myg.x, v.d[:,ycntr], c=colours[n])
             ax2.set_xlim([myg.xmin, myg.xmax])
+            ax2.set_ylim([vmins[n], vmaxes[n]])
 
             #ax.set_xlabel("x")
             if n==3:
