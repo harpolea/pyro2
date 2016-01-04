@@ -14,9 +14,7 @@ import mesh.patch as patch
 from simulation_null import NullSimulation, grid_setup, bc_setup
 from compressible_gr.unsplitFluxes import *
 from util import profile
-import lm_gr.metric as metric
 import colormaps as cmaps
-from compressible_gr.unsplitFluxes import *
 
 class SimulationReact(Simulation):
 

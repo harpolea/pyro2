@@ -659,14 +659,14 @@ def W(u, v, c):
     """
     Lorentz factor
     """
-    W = 1. - (u**2 + v**2)/c**2
+    _W = 1. - (u**2 + v**2)/c**2
 
-    if W <= 0.:
-        print("Oops, Lorentz factor is imaginary, with denominator squared of {}".format(W))
+    if _W <= 0.:
+        print("Oops, Lorentz factor is imaginary, with denominator squared of {}".format(_W))
         print("u: {},  v: {}".format(u, v))
         raise ValueError
         return 1.e-10
-    return 1. / np.sqrt(W)
+    return 1. / np.sqrt(_W)
 
 def root_find_on_me1(p, Q, c, gamma):
     """
@@ -677,7 +677,6 @@ def root_find_on_me1(p, Q, c, gamma):
 
     pbar  = p
     if pbar > 0.:
-        pressure_local = pbar
         u_local = Sx / (tau + D + pbar)
         v_local = Sy / (tau + D + pbar)
 
@@ -698,21 +697,20 @@ def root_find_on_me2(p, Q, c, gamma):
     """
 
     D, Sx, Sy, tau = Q
-    p_bar = p
+    pbar = p
 
     if pbar > 0.:
-        p_local = p_bar
         u_local = Sx / (tau + D + pbar)
         v_local = Sy / (tau + D + pbar)
 
         v2 = (u_local**2 + v_local**2) / c**2
 
         if v2 < 1.:
-            W = W(u_local, v_local, c)
-            epsrho = (tau + D * (1. - W) + pbar * v2 / (v2 - 1.)) / W**2
+            _W = W(u_local, v_local, c)
+            epsrho = (tau + D * (1. - _W) + pbar * v2 / (v2 - 1.)) / _W**2
 
-            rho = D / W
-            h = 1. + pbar / (rho * (gamma - 1.)) + pbar / rho
+           # rho = D / _W
+            #h = 1. + pbar / (rho * (gamma - 1.)) + pbar / rho
 
             f = (gamma - 1.) * epsrho - pbar
             #df = v2 * ((gamma * pbar) / (rho * h)) - 1.

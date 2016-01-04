@@ -2,6 +2,7 @@
 # python2 plot_diff.py -s 1 compressible_gr sr_bubble ../../Documents/Work/pyro/results 128 0 250
 
 # this doesn't work amazingly, as the simulations were out of sync timewise by about dt = 1.e-4
+# could do this better by interpolating to line up the times better, but it would probably be easier to run the two simulations at the same time with exactly the same time steps.
 
 import numpy as np
 import matplotlib # these two lines set the display so it works
