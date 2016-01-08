@@ -122,9 +122,9 @@ def makeplot(myd, myd_burn, solver_name, problem_name, outfile, W, H, n=0, vmins
     _u_burn.d[:,:] = u_burn
 
     # set sim data to be difference of burnt and unburnt
-    for n in range(sim.vars.nvar):
-        var = sim.cc_data.get_var_by_index(n)
-        var_burn = sim_burn.cc_data.get_var_by_index(n)
+    for i in range(sim.vars.nvar):
+        var = sim.cc_data.get_var_by_index(i)
+        var_burn = sim_burn.cc_data.get_var_by_index(i)
 
         var.d[:,:] -= var_burn.d
 
@@ -177,7 +177,7 @@ def makeplot(myd, myd_burn, solver_name, problem_name, outfile, W, H, n=0, vmins
 
         ax.set_title(field_names[nn])
 
-        if not n in onLeft:
+        if not nn in onLeft:
             ax.yaxis.offsetText.set_visible(False)
             ax2.yaxis.offsetText.set_visible(False)
             if n > 0:
@@ -278,7 +278,7 @@ if __name__== "__main__":
 
     for i in range(start, end+1, step):
         base = basedir + "/" + problem + "/" + problem + "_" + str(resolution) + '_' + format(i, '04')
-        base_burn = basedir + "/" + problem + "/" + problem + "_burn_" + str(resolution) + '_' + format(i, '04')
+        base_burn = basedir + "/" + problem + "/" + problem + "_hllc_" + str(resolution) + '_' + format(i, '04')
         outfile = basedir + "/" + problem + "/" + problem + "_" + str(resolution) + '_diff_' + format(i, '04') + ".png"
         #outfile = "../../Work/pyro/results/kh_1024_" +  format(i, '04') + ".png"
 

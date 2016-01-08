@@ -15,6 +15,7 @@ from simulation_null import NullSimulation, grid_setup, bc_setup
 from compressible_gr.unsplitFluxes import *
 from util import profile
 import colormaps as cmaps
+from scipy.ndimage import median_filter
 
 class SimulationReact(Simulation):
 
@@ -224,6 +225,7 @@ class SimulationReact(Simulation):
         h = myg.scratch_array()
         X = myg.scratch_array()
         _u = myg.scratch_array()
+        S = myg.scratch_array()
 
         for i in range(myg.qx):
             for j in range(myg.qy):
@@ -231,12 +233,22 @@ class SimulationReact(Simulation):
                 Fp, cs = cons_to_prim(F, c, gamma)
                 rho.d[i,j], u[i,j], v[i,j], h.d[i,j], p.d[i,j], X.d[i,j] = Fp
 
-        # get the pressure
+        # get the velocity magnitude
         magvel = myg.scratch_array()
         magvel.d[:,:] = np.sqrt(u**2 + v**2)
 
+        def discrete_Laplacian(f):
+            return (f.ip(1) - 2.*f.v() + f.ip(-1)) / myg.dx**2 + \
+                   (f.jp(1) - 2.*f.v() + f.jp(-1)) / myg.dy**2
+
+        # Schlieren
+        S.v()[:,:] = np.log(abs(discrete_Laplacian(rho)))
+        S.d[S.d < -5] = -6.
+
+        S.d[:,:] = median_filter(S.d, 4)
+
         T = self.calc_T(p, D, X, rho)
-        T.d[:,:] = np.log(T.d)
+        #T.d[:,:] = np.log(T.d)
         _u.d[:,:] = u
 
         # access gamma from the cc_data object so we can use dovis
@@ -289,9 +301,10 @@ class SimulationReact(Simulation):
             onLeft = [0,2]
 
 
-        fields = [rho, _u, T, X]
-        field_names = [r"$\rho$", r"$u$", "$\ln(T)$", "$X$"]
+        fields = [rho, _u, T, S]
+        field_names = [r"$\rho$", r"$u$", r"$T$", r"$\ln(\mathcal{S})$"]
         colours = ['blue', 'red', 'black', 'green']
+        colourmaps = [None, None, None,  plt.get_cmap('Greys')]
 
         for n in range(4):
             ax = axes.flat[2*n]
@@ -301,7 +314,7 @@ class SimulationReact(Simulation):
             ycntr = np.round(0.5 * myg.qy).astype(int)
             img = ax.imshow(np.transpose(v.v()),
                         interpolation="nearest", origin="lower",
-                        extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax], vmin=vmins[n], vmax=vmaxes[n])
+                        extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax], vmin=vmins[n], vmax=vmaxes[n], cmap=colourmaps[n])
             plt2 = ax2.plot(myg.x, v.d[:,ycntr], c=colours[n])
             ax2.set_xlim([myg.xmin, myg.xmax])
 

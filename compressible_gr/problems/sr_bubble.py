@@ -11,6 +11,9 @@ def init_data(my_data, rp):
 
     msg.bold("initializing the bubble problem...")
 
+    if rp.get_param("io.do_io"):
+        print("Outputting to {}".format(rp.get_param("io.basename")))
+
     # make sure that we are passed a valid patch object
     if not isinstance(my_data, patch.CellCenterData2d):
         print("ERROR: patch invalid in bubble.py")
@@ -35,6 +38,8 @@ def init_data(my_data, rp):
     K = rp.get_param("eos.k_poly")
 
     dens_base = rp.get_param("sr-bubble.dens_base")
+    dens_left = rp.get_param("sr-bubble.dens_left")
+    eint_left = rp.get_param("sr-bubble.eint_left")
 
     x_pert = rp.get_param("sr-bubble.x_pert")
     y_pert = rp.get_param("sr-bubble.y_pert")
@@ -58,8 +63,8 @@ def init_data(my_data, rp):
     # set velocity on left side to non-zero
     idxl = myg.x2d <= 0.25*(xmin + xmax)
     u[idxl] = u_vel
-    rho[idxl] = 17.0
-    eint = 10.
+    rho[idxl] = dens_left
+    eint = eint_left
     p[idxl] = eint * (gamma - 1.) * rho[idxl]
     h[idxl] = 1. + p[idxl] * gamma / (rho[idxl] * (gamma - 1.))
 

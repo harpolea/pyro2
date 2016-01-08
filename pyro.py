@@ -116,6 +116,22 @@ def doit(solver_name, problem_name, param_file,
         plt.show(block=False)
         sim.dovis()
 
+    collide_time = 0.0
+    collided = True
+
+    # calculate time it takes for the bubble to collide.
+    # FIXME: put this somewhere else (e.g. compressible_gr sim_react?)
+    if solver_name == "compressible_gr" and problem_name == "sr_bubble":
+        x_pert = rp.get_param("sr-bubble.x_pert")
+        r = rp.get_param("sr-bubble.r_pert")
+        v_s = rp.get_param("sr-bubble.wave_speed")
+        xmin = rp.get_param("mesh.xmin")
+        xmax = rp.get_param("mesh.xmax")
+
+        x0 = 0.25*(xmin + xmax)
+        collide_time = (x_pert - r - x0) / v_s
+        collided = False
+
     while not sim.finished():
 
         # fill boundary conditions
@@ -139,6 +155,13 @@ def doit(solver_name, problem_name, param_file,
         if sim.cc_data.t + sim.dt > sim.tmax:
             sim.dt = sim.tmax - sim.cc_data.t
             #sim_py.dt = sim.tmax - sim.cc_data.t
+
+        # collided only set to false for sr_bubble, so don't need to check that here as well.
+        # Assumes takes more than 20 timesteps to reach bubble -
+        # will not work for a really coarse simulation.
+        if not collided and sim.cc_data.t > 0.95 * collide_time:
+            sim.smooth_lhs()
+            collided = True
 
         # evolve for a single timestep
         sim.evolve()

@@ -133,7 +133,7 @@ if __name__== "__main__":
         usage()
 
     for i in range(start, end+1, step):
-        base = basedir + "/" + problem + "/" + problem + "_burn_" + str(resolution) + '_' + format(i, '04')
+        base = basedir + "/" + problem + "/" + problem + "_" + str(resolution) + '_M5_' + format(i, '04')
         outfile = base + ".png"
         #outfile = "../../Work/pyro/results/kh_1024_" +  format(i, '04') + ".png"
 
@@ -144,8 +144,8 @@ if __name__== "__main__":
         # double bubble max and mins
         #vmins = [50., 0., -0.0002, -0.05]
         #vmaxes = [105., 0.0003, 0.0003, 0.05]
-        vmins = [5., 0., 1.7, -0.05]
-        vmaxes = [18., 0.45, 2.6, 1.05]
+        #vmins = [5., 0., 1.7, -0.05]
+        #vmaxes = [18., 0.45, 2.6, 1.05]
 
         try:
             file = base + ".pyro"
@@ -155,4 +155,4 @@ if __name__== "__main__":
 
         myg, myd = patch.read(file)
 
-        makeplot(myd, solver, problem, outfile, W, H, n=i, vmins=vmins, vmaxes=vmaxes)
+        makeplot(myd, solver, problem, outfile, W, H, n=i)#, vmins=vmins, vmaxes=vmaxes)

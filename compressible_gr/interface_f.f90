@@ -448,7 +448,7 @@ subroutine riemann_RHLLE(idir, qx, qy, ng, &
         p_l = max(p_l, smallp)
         eps_l = p_l / (rho_l * (gamma - 1.0d0))
         h_l = 1.0d0 + eps_l + p_l/rho_l
-        X_l = V_l(i,j,iDX) / V_l(i,j,iD)
+        X_l = V_l(i,j,iDX)
 
         rho_r  = V_r(i,j,iD)
 
@@ -464,7 +464,7 @@ subroutine riemann_RHLLE(idir, qx, qy, ng, &
         p_r = max(p_r, smallp)
         eps_r = p_r / (rho_r * (gamma - 1.0d0))
         h_r = 1.0d0 + eps_r + p_r/rho_r
-        X_r = V_r(i,j,iDX) / V_r(i,j,iD)
+        X_r = V_r(i,j,iDX)
 
         ! compute the sound speeds
         cs_l = max(smallc, sqrt(gamma * (gamma - 1.0d0) * eps_l / (1.0d0 + gamma * eps_l)))
@@ -588,7 +588,7 @@ subroutine riemann_RHLLC(idir, qx, qy, ng, &
         p_l = max(p_l, smallp)
         eps_l = p_l / (rho_l * (gamma - 1.0d0))
         h_l = 1.0d0 + eps_l + p_l/rho_l
-        X_l = V_l(i,j,iDX) / V_l(i,j,iD)
+        X_l = V_l(i,j,iDX)
 
         rho_r  = V_r(i,j,iD)
 
@@ -602,7 +602,7 @@ subroutine riemann_RHLLC(idir, qx, qy, ng, &
         p_r = max(p_r, smallp)
         eps_r = p_r / (rho_r * (gamma - 1.0d0))
         h_r = 1.0d0 + eps_r + p_r/rho_r
-        X_r = V_r(i,j,iDX) / V_r(i,j,iD)
+        X_r = V_r(i,j,iDX) 
 
         ! compute the sound speeds
         cs_l = max(smallc, sqrt(gamma * (gamma - 1.0d0) * eps_l / (1.0d0 + gamma * eps_l)))

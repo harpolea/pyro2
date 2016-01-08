@@ -169,6 +169,32 @@ class Simulation(NullSimulation):
     def burning_flux(self):
         return (self.cc_data.grid.scratch_array() for n in range(self.vars.nvar))
 
+    def smooth_lhs(self):
+        """
+        Smooths the state left of the shock to get rid of numerical
+        artifacts just before the wave collides with the bubble.
+        """
+        print('Smoothing left hand side variables')
+        x_pert = self.rp.get_param("sr-bubble.x_pert")
+        r = self.rp.get_param("sr-bubble.r_pert")
+
+        # location of bubble lhs edge
+        x_c = x_pert - r
+
+        myg = self.cc_data.grid
+
+        smooth_mask = (myg.x - myg.xmin) > 0.1 * (x_c - myg.xmin)
+        smooth_mask *= (myg.x - myg.xmin) < 0.98 * (x_c - myg.xmin)
+
+        avg_mask = (myg.x - myg.xmin) < 0.1 * (x_c - myg.xmin)
+
+        for n in range(self.vars.nvar):
+            var = self.cc_data.get_var_by_index(n)
+            # NOTE: might have mixed up axis here
+            avg = np.mean(var.d[avg_mask], axis=0)
+            var.d[smooth_mask] = avg[np.newaxis,:]
+
+
     def evolve(self):
         """
         Evolve the equations of compressible hydrodynamics through a
@@ -240,6 +266,7 @@ class Simulation(NullSimulation):
         rho = myg.scratch_array()
         p = myg.scratch_array()
         h = myg.scratch_array()
+        S = myg.scratch_array()
 
         for i in range(myg.qx):
             for j in range(myg.qy):
@@ -247,9 +274,17 @@ class Simulation(NullSimulation):
                 Fp, cs = cons_to_prim(F, c, gamma)
                 rho.d[i,j], u[i,j], v[i,j], h.d[i,j], p.d[i,j], _ = Fp
 
-        # get the pressure
+        # get the velocity magnitude
         magvel = myg.scratch_array()
         magvel.d[:,:] = np.sqrt(u**2 + v**2)
+
+        def discrete_Laplacian(f):
+            return (f.ip(1) - 2.*f.v() + f.ip(-1)) / myg.dx**2 + \
+                   (f.jp(1) - 2.*f.v() + f.jp(-1)) / myg.dy**2
+
+        # Schlieren
+        S.v()[:,:] = np.log(abs(discrete_Laplacian(rho)))
+        S.d[S.d < -5.] = -6.
 
         # access gamma from the cc_data object so we can use dovis
         # outside of a running simulation.
@@ -301,9 +336,10 @@ class Simulation(NullSimulation):
             onLeft = [0,2]
 
 
-        fields = [rho, magvel, p, h]
-        field_names = [r"$\rho$", r"$|u|$", "$p$", "$h$"]
+        fields = [rho, magvel, p, S]
+        field_names = [r"$\rho$", r"$|u|$", "$p$", "$\ln(\mathcal{S})$"]
         colours = ['blue', 'red', 'black', 'green']
+        colourmaps = [None, None, None, plt.get_cmap('Greys')]
 
         for n in range(4):
             ax = axes.flat[2*n]
@@ -313,7 +349,7 @@ class Simulation(NullSimulation):
             ycntr = np.round(0.5 * myg.qy).astype(int)
             img = ax.imshow(np.transpose(v.v()),
                         interpolation="nearest", origin="lower",
-                        extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax], vmin=vmins[n], vmax=vmaxes[n])
+                        extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax], vmin=vmins[n], vmax=vmaxes[n], cmap=colourmaps[n])
             plt2 = ax2.plot(myg.x, v.d[:,ycntr], c=colours[n])
             ax2.set_xlim([myg.xmin, myg.xmax])
             ax2.set_ylim([vmins[n], vmaxes[n]])
