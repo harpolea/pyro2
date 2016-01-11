@@ -128,9 +128,10 @@ import compressible_gr.eos as eos
 import compressible_gr.interface_f as interface_f
 import mesh.reconstruction_f as reconstruction_f
 import mesh.patch as patch
-from scipy.optimize import brentq
+from scipy.optimize import brentq, root
 import numpy as np
 import math
+from numba import jit
 
 from util import msg
 
@@ -194,11 +195,15 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, burning_source):
     p = myg.scratch_array()
     X = myg.scratch_array()
 
-    for i in range(myg.qx):
-        for j in range(myg.qy):
-            Q = (D.d[i,j], Sx.d[i,j], Sy.d[i,j], tau.d[i,j], DX.d[i,j])
-            Qp, c_s = cons_to_prim(Q, c, gamma)
-            (r.d[i,j], u.d[i,j], v.d[i,j], h.d[i,j], p.d[i,j], X.d[i,j]) = Qp
+    Q = (D.d, Sx.d, Sy.d, tau.d, DX.d)
+    Qp, _ = arr_cons_to_prim(Q, c, gamma, myg)
+    (r.d[:,:], u.d[:,:], v.d[:,:], h.d[:,:], p.d[:,:], X.d[:,:]) = Qp
+
+    #for i in range(myg.qx):
+    #    for j in range(myg.qy):
+    #        Q = (D.d[i,j], Sx.d[i,j], Sy.d[i,j], tau.d[i,j], DX.d[i,j])
+    #        Qp, c_s = cons_to_prim(Q, c, gamma)
+    #        (r.d[i,j], u.d[i,j], v.d[i,j], h.d[i,j], p.d[i,j], X.d[i,j]) = Qp
     #print(p.d)
     smallp = 1.e-10
     p.d = p.d.clip(smallp)   # apply a floor to the pressure
@@ -222,8 +227,6 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, burning_source):
         xi = reconstruction_f.flatten_multid(xi_x, xi_y, p.d, myg.qx, myg.qy, myg.ng)
     else:
         xi = 1.0
-
-
 
     # monotonized central differences in x-direction
     tm_limit = tc.timer("limiting")
@@ -321,30 +324,6 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, burning_source):
 
     #blank = U_xl.d[i,j,vars.iD] * 0.0
 
-    # construct primitives
-    for i in range(myg.qx):
-        for j in range(myg.qy):
-            Qc_xl = (U_xl.d[i,j,vars.iD], U_xl.d[i,j,vars.iSx], U_xl.d[i,j,vars.iSy], U_xl.d[i,j,vars.itau], U_xl.d[i,j,vars.iDX])
-
-            Qc_xr = (U_xr.d[i,j,vars.iD], U_xr.d[i,j,vars.iSx], U_xr.d[i,j,vars.iSy], U_xr.d[i,j,vars.itau], U_xr.d[i,j,vars.iDX])
-
-            Qc_yl = (U_yl.d[i,j,vars.iD], U_yl.d[i,j,vars.iSx], U_yl.d[i,j,vars.iSy], U_yl.d[i,j,vars.itau], U_yl.d[i,j,vars.iDX])
-
-            Qc_yr = (U_yr.d[i,j,vars.iD], U_yr.d[i,j,vars.iSx], U_yr.d[i,j,vars.iSy], U_yr.d[i,j,vars.itau], U_yr.d[i,j,vars.iDX])
-
-
-            Qp_xl, _ = cons_to_prim(Qc_xl, c, gamma)
-            (V_xl.d[i,j,vars.irho], V_xl.d[i,j,vars.iu], V_xl.d[i,j,vars.iv], _, V_xl.d[i,j,vars.ip], V_xl.d[i,j,vars.iX]) = Qp_xl
-
-            Qp_yl,_ = cons_to_prim(Qc_yl, c, gamma)
-            (V_yl.d[i,j,vars.irho], V_yl.d[i,j,vars.iu], V_yl.d[i,j,vars.iv],_, V_yl.d[i,j,vars.ip], V_yl.d[i,j,vars.iX]) = Qp_yl
-
-            Qp_yr,_ = cons_to_prim(Qc_yr, c, gamma)
-            (V_yr.d[i,j,vars.irho], V_yr.d[i,j,vars.iu], V_yr.d[i,j,vars.iv],_, V_yr.d[i,j,vars.ip], V_yr.d[i,j,vars.iX]) = Qp_yr
-
-            Qp_xr,_ = cons_to_prim(Qc_xr, c, gamma)
-            (V_xr.d[i,j,vars.irho], V_xr.d[i,j,vars.iu], V_xr.d[i,j,vars.iv],_, V_xr.d[i,j,vars.ip], V_xr.d[i,j,vars.iX]) = Qp_xr
-
     #=========================================================================
     # apply source terms (zero gravity, non-zero burning)
     #=========================================================================
@@ -387,6 +366,34 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, burning_source):
     # Sy_yr[i,j] += 0.5*dt*D[i,j]*grav
     #U_yr.v(buf=1, n=vars.iSy)[:,:] += 0.5*dt*D.v(buf=1)*grav
     #U_yr.v(buf=1, n=vars.itau)[:,:] += 0.5*dt*Sy.v(buf=1)*grav
+
+    #Qc_xl = (U_xl.d[:,:,vars.iD], U_xl.d[:,:,vars.iSx], U_xl.d[:,:,vars.iSy], U_xl.d[:,:,vars.itau], U_xl.d[:,:,vars.iDX])
+    #Qp_xl, _ = arr_cons_to_prim(Qc_xl, c, gamma, myg)
+    #(V_xl.d[:,:,vars.irho], V_xl.d[:,:,vars.iu], V_xl.d[:,:,vars.iv], _, V_xl.d[:,:,vars.ip], V_xl.d[:,:,vars.iX]) = Qp_xl
+
+    # construct primitives
+    for i in range(myg.qx):
+        for j in range(myg.qy):
+            Qc_xl = (U_xl.d[i,j,vars.iD], U_xl.d[i,j,vars.iSx], U_xl.d[i,j,vars.iSy], U_xl.d[i,j,vars.itau], U_xl.d[i,j,vars.iDX])
+
+            Qc_xr = (U_xr.d[i,j,vars.iD], U_xr.d[i,j,vars.iSx], U_xr.d[i,j,vars.iSy], U_xr.d[i,j,vars.itau], U_xr.d[i,j,vars.iDX])
+
+            Qc_yl = (U_yl.d[i,j,vars.iD], U_yl.d[i,j,vars.iSx], U_yl.d[i,j,vars.iSy], U_yl.d[i,j,vars.itau], U_yl.d[i,j,vars.iDX])
+
+            Qc_yr = (U_yr.d[i,j,vars.iD], U_yr.d[i,j,vars.iSx], U_yr.d[i,j,vars.iSy], U_yr.d[i,j,vars.itau], U_yr.d[i,j,vars.iDX])
+
+
+            Qp_xl, _ = cons_to_prim(Qc_xl, c, gamma)
+            (V_xl.d[i,j,vars.irho], V_xl.d[i,j,vars.iu], V_xl.d[i,j,vars.iv], _, V_xl.d[i,j,vars.ip], V_xl.d[i,j,vars.iX]) = Qp_xl
+
+            Qp_yl,_ = cons_to_prim(Qc_yl, c, gamma)
+            (V_yl.d[i,j,vars.irho], V_yl.d[i,j,vars.iu], V_yl.d[i,j,vars.iv],_, V_yl.d[i,j,vars.ip], V_yl.d[i,j,vars.iX]) = Qp_yl
+
+            Qp_yr,_ = cons_to_prim(Qc_yr, c, gamma)
+            (V_yr.d[i,j,vars.irho], V_yr.d[i,j,vars.iu], V_yr.d[i,j,vars.iv],_, V_yr.d[i,j,vars.ip], V_yr.d[i,j,vars.iX]) = Qp_yr
+
+            Qp_xr,_ = cons_to_prim(Qc_xr, c, gamma)
+            (V_xr.d[i,j,vars.irho], V_xr.d[i,j,vars.iu], V_xr.d[i,j,vars.iv],_, V_xr.d[i,j,vars.ip], V_xr.d[i,j,vars.iX]) = Qp_xr
 
 
     #=========================================================================
@@ -539,58 +546,82 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, burning_source):
 
     tm_riem.end()
 
-    #=========================================================================
-    # apply artificial viscosity
-    #=========================================================================
-    """
-    cvisc = rp.get_param("compressible-gr.cvisc")
-
-    _ax, _ay = interface_f.artificial_viscosity(
-        myg.qx, myg.qy, myg.ng, myg.dx, myg.dy,
-        cvisc, u.d, v.d)
-
-    avisco_x = patch.ArrayIndexer(d=_ax, grid=myg)
-    avisco_y = patch.ArrayIndexer(d=_ay, grid=myg)
-
-    b = (2,1)
-
-    # F_x = F_x + avisco_x * (U(i-1,j) - U(i,j))
-    F_x.v(buf=b, n=vars.iD)[:,:] += \
-        avisco_x.v(buf=b) * (D.ip(-1, buf=b) - D.v(buf=b))
-
-    F_x.v(buf=b, n=vars.iSx)[:,:] += \
-        avisco_x.v(buf=b) * (Sx.ip(-1, buf=b) - Sx.v(buf=b))
-
-    F_x.v(buf=b, n=vars.iSy)[:,:] += \
-        avisco_x.v(buf=b) * (Sy.ip(-1, buf=b) - Sy.v(buf=b))
-
-    F_x.v(buf=b, n=vars.itau)[:,:] += \
-        avisco_x.v(buf=b) * (tau.ip(-1, buf=b) - tau.v(buf=b))
-
-    # F_y = F_y + avisco_y * (U(i,j-1) - U(i,j))
-    F_y.v(buf=b, n=vars.iD)[:,:] += \
-        avisco_y.v(buf=b) * (D.jp(-1, buf=b) - D.v(buf=b))
-
-    F_y.v(buf=b, n=vars.iSx)[:,:] += \
-        avisco_y.v(buf=b) * (Sx.jp(-1, buf=b) - Sx.v(buf=b))
-
-    F_y.v(buf=b, n=vars.iSy)[:,:] += \
-        avisco_y.v(buf=b) * (Sy.jp(-1, buf=b) - Sy.v(buf=b))
-
-    F_y.v(buf=b, n=vars.itau)[:,:] += \
-        avisco_y.v(buf=b) * (tau.jp(-1, buf=b) - tau.v(buf=b))
-    """
-
     tm_flux.end()
 
     return F_x, F_y
+
+#@jit(nopython=True)
+def arr_cons_to_prim(Q, c, gamma, myg):
+    names = ['D', 'Sx', 'Sy', 'tau', 'DX']
+    #nan_check(Q, names)
+    (D, Sx, Sy, tau, DX) = Q
+
+    pmin = (Sx**2 + Sy**2)/c**2 - tau - D
+    pmax = (gamma - 1.) * tau
+
+    pmax[pmax < 0.] = np.fabs(pmax[pmax < 0.])
+    pmin[pmin > pmax] = abs(np.sqrt(Sx[pmin > pmax]**2 + Sy[pmin > pmax]**2)/c - tau[pmin > pmax] - D[pmin > pmax])
+
+    pmin[pmin < 0.] = 0.
+    #pmin[root_find_on_me1(pmin, Q, c, gamma) < 0.] = 0.
+    #pmin[math.isnan(pmin)] = 0.
+
+    #pmax[math.isnan(pmax)] = 0.
+    pmax[pmax == 0.] = 0.
+
+    pbar = 0.5 * (pmin + pmax)
+    p = np.zeros_like(pbar)
+    # try catch block on root finder in case pmin, pmax unsuitable
+
+    p = [[brentq(arr_root_find_on_me, pmin[i,j], pmax[i,j], args=(D[i,j], Sx[i,j], Sy[i,j], tau[i,j], c, gamma)) for j in range(myg.qy)] for i in range(myg.qx)]
+
+    #for i in range(myg.qx):
+    #    for j in range(myg.qy):
+    #        p[i,j] = brentq(arr_root_find_on_me, pmin[i,j], pmax[i,j], args=(D[i,j], Sx[i,j], Sy[i,j], tau[i,j], c, gamma))
+
+
+    u = Sx / (tau + D + p)
+    v = Sy / (tau + D + p)
+    #w = W(u, v, c)
+    v2 = (u**2 + v**2) / c**2
+    w = 1. / np.sqrt(1. - v2)
+
+    if np.any(v2 > 1.):
+        print('something is wrong here?')
+
+    rho = D / w
+    eps = (tau + D * (1. - w) + p * v2 / (v2 - 1.)) / (w**2 * rho)
+    h = 1. + eps + p / rho
+    c_s = np.sqrt(gamma * (gamma - 1.) * eps / (1. + gamma * eps))
+    X = DX / D
+
+    Qp = (rho, u, v, h, p, X)
+
+    return Qp, c_s
+
+#@jit
+def arr_root_find_on_me(pbar, D, Sx, Sy, tau, c, gamma):
+    """
+    Equation to root find on in order to find the primitive pressure.
+    """
+    if pbar > 0.:
+        u_local = Sx / (tau + D + pbar)
+        v_local = Sy / (tau + D + pbar)
+
+        v2 = (u_local**2 + v_local**2) / c**2
+        w = 1. / np.sqrt(1. - v2)
+        epsrho = (tau + D * (1. - w) + pbar * v2 / (v2 - 1.)) / w**2
+
+        return (gamma - 1.) * epsrho - pbar
+    else:
+        return 1.e6
 
 def cons_to_prim(Q, c, gamma):
     """
     Converts the given set Q of conservative variables into a set Qp of primitive variables.
     """
     names = ['D', 'Sx', 'Sy', 'tau', 'DX']
-    nan_check(Q, names)
+    #nan_check(Q, names)
     (D, Sx, Sy, tau, DX) = Q
 
     pmin = (Sx**2 + Sy**2)/c**2 - tau - D
@@ -602,11 +633,14 @@ def cons_to_prim(Q, c, gamma):
     if pmin > pmax:
         pmin = abs(np.sqrt(Sx**2 + Sy**2)/c - tau - D)
 
-    if pmin < 0. or root_find_on_me1(pmin, Q, c, gamma) < 0. or math.isnan(pmin):
-        pmin = 0.
+    #if pmin < 0. or root_find_on_me1(pmin, Q, c, gamma) < 0. or math.isnan(pmin):
+    #    pmin = 0.
 
-    if math.isnan(pmax) or pmax == 0.:
+    if pmax == 0.:
         pmax = c
+
+    #if math.isnan(pmax) or pmax == 0.:
+    #    pmax = c
 
     pbar = 0.5 * (pmin + pmax)
     # try catch block on root finder in case pmin, pmax unsuitable
@@ -620,8 +654,8 @@ def cons_to_prim(Q, c, gamma):
 
     u = Sx / (tau + D + p)
     v = Sy / (tau + D + p)
-    w = W(u, v, c)
     v2 = (u**2 + v**2) / c**2
+    w = 1. / np.sqrt(1. - v2)
 
     if v2 > 1.:
         print('something is wrong here?')
@@ -661,32 +695,31 @@ def W(u, v, c):
     """
     _W = 1. - (u**2 + v**2)/c**2
 
-    if _W <= 0.:
-        print("Oops, Lorentz factor is imaginary, with denominator squared of {}".format(_W))
-        print("u: {},  v: {}".format(u, v))
-        raise ValueError
-        return 1.e-10
+    #if _W <= 0.:
+    #    print("Oops, Lorentz factor is imaginary, with denominator squared of {}".format(_W))
+    #    print("u: {},  v: {}".format(u, v))
+    #    raise ValueError
+    #    return 1.e-10
     return 1. / np.sqrt(_W)
 
-def root_find_on_me1(p, Q, c, gamma):
+def root_find_on_me1(pbar, Q, c, gamma):
     """
     Equation to root find on in order to find the primitive pressure.
     """
 
     D, Sx, Sy, tau, _ = Q
 
-    pbar  = p
     if pbar > 0.:
         u_local = Sx / (tau + D + pbar)
         v_local = Sy / (tau + D + pbar)
 
         v2 = (u_local**2 + v_local**2) / c**2
-        w = W(u_local, v_local, c)
+        w = 1. / np.sqrt(1. - v2)
         epsrho = (tau + D * (1. - w) + pbar * v2 / (v2 - 1.)) / w**2
 
-        p_error = (gamma - 1.) * epsrho - pbar
+        return (gamma - 1.) * epsrho - pbar
     else:
-        p_error = 1.e6
+        return 1.e6
 
     return p_error
 

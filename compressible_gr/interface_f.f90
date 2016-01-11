@@ -602,7 +602,7 @@ subroutine riemann_RHLLC(idir, qx, qy, ng, &
         p_r = max(p_r, smallp)
         eps_r = p_r / (rho_r * (gamma - 1.0d0))
         h_r = 1.0d0 + eps_r + p_r/rho_r
-        X_r = V_r(i,j,iDX) 
+        X_r = V_r(i,j,iDX)
 
         ! compute the sound speeds
         cs_l = max(smallc, sqrt(gamma * (gamma - 1.0d0) * eps_l / (1.0d0 + gamma * eps_l)))
@@ -843,7 +843,6 @@ subroutine numFlux(idir, iD, iSx, iSy, itau, nvar, V_l, V_r, cs_l, cs_r, F_l, F_
     endif
 
 end subroutine numFlux
-
 
 subroutine artificial_viscosity(qx, qy, ng, dx, dy, &
                                 cvisc, u, v, avisco_x, avisco_y)

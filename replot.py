@@ -133,7 +133,7 @@ if __name__== "__main__":
         usage()
 
     for i in range(start, end+1, step):
-        base = basedir + "/" + problem + "/" + problem + "_" + str(resolution) + '_M5_' + format(i, '04')
+        base = basedir + "/" + problem + "/" + problem + "_" + str(resolution) + '_M10_' + format(i, '04')
         outfile = base + ".png"
         #outfile = "../../Work/pyro/results/kh_1024_" +  format(i, '04') + ".png"
 

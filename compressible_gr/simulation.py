@@ -286,6 +286,8 @@ class Simulation(NullSimulation):
         S.v()[:,:] = np.log(abs(discrete_Laplacian(rho)))
         S.d[S.d < -5.] = -6.
 
+        S.d[:,:] = median_filter(S.d, 4)
+
         # access gamma from the cc_data object so we can use dovis
         # outside of a running simulation.
 

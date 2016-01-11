@@ -89,7 +89,7 @@ class SimulationReact(Simulation):
         Q = myg.scratch_array()
         omega_dot = myg.scratch_array()
         # FIXME: hack to drive reactions
-        T9 = T.d #* 1.e-9#1.e-9
+        T9 = T.d * 10.#* 1.e-9#1.e-9
         rho5 = rho.d #* 1.e-5
 
         Q.d[:,:] = 5.3 * rho5**2 * (X.d / T9)**3 * np.exp(-4.4 / T9)
