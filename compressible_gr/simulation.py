@@ -135,19 +135,25 @@ class Simulation(NullSimulation):
         c = self.rp.get_param("eos.c")
         u = np.zeros_like(D.d)
         v = np.zeros_like(D.d)
+        rho = np.zeros_like(D.d)
+        p = np.zeros_like(D.d)
         cs = np.zeros_like(D.d)
 
-        # we need to compute the primitive speeds and sound speed
-        for i in range(myg.qx):
-            for j in range(myg.qy):
-                U = (D.d[i,j], Sx.d[i,j], Sy.d[i,j], tau.d[i,j], DX.d[i,j])
-                names = ['D', 'Sx', 'Sy', 'tau', 'DX']
-                # U here is wrong
-                nan_check(U, names)
-                V, cs[i,j] = cons_to_prim(U, c, gamma)
+        U = myg.scratch_array(self.vars.nvar)
+        U.d[:,:,self.vars.iD] = D.d
+        U.d[:,:,self.vars.iSx] = Sx.d
+        U.d[:,:,self.vars.iSy] = Sy.d
+        U.d[:,:,self.vars.itau] = tau.d
+        U.d[:,:,self.vars.iDX] = DX.d
 
-                _, u[i,j], v[i,j], _, _, _ = V
+        V = arr_cons_to_prim(U, c, gamma, myg, self.vars)
 
+        rho = V.d[:,:,self.vars.irho]
+        u = V.d[:,:,self.vars.iu]
+        v = V.d[:,:,self.vars.iv]
+        p = V.d[:,:,self.vars.ip]
+
+        cs = sound_speed(gamma, rho, p)
         # the timestep is min(dx/(|u| + cs), dy/(|v| + cs))
         maxvel = np.fabs(np.sqrt(u**2 + v**2)).max()
         maxcs = cs.max()
@@ -271,7 +277,7 @@ class Simulation(NullSimulation):
         for i in range(myg.qx):
             for j in range(myg.qy):
                 F = (D.d[i,j], Sx.d[i,j], Sy.d[i,j], tau.d[i,j], DX.d[i,j])
-                Fp, cs = cons_to_prim(F, c, gamma)
+                Fp = cons_to_prim(F, c, gamma)
                 rho.d[i,j], u[i,j], v[i,j], h.d[i,j], p.d[i,j], _ = Fp
 
         # get the velocity magnitude

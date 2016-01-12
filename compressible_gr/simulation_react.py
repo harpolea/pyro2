@@ -92,7 +92,7 @@ class SimulationReact(Simulation):
         T9 = T.d * 10.#* 1.e-9#1.e-9
         rho5 = rho.d #* 1.e-5
 
-        Q.d[:,:] = 5.3 * rho5**2 * (X.d / T9)**3 * np.exp(-4.4 / T9)
+        Q.d[:,:] = 5.3 * rho5**2 * ((1.-X.d) / T9)**3 * np.exp(-4.4 / T9)
 
         #print((np.exp(-4.4 / T9))[25:35,25:35])
 
@@ -129,6 +129,8 @@ class SimulationReact(Simulation):
         """
 
         myg = self.cc_data.grid
+        gamma = self.rp.get_param("eos.gamma")
+        c = self.rp.get_param("eos.c")
 
         # get conserved and primitive variables.
         D = self.cc_data.get_var("D")
@@ -137,34 +139,26 @@ class SimulationReact(Simulation):
         tau = self.cc_data.get_var("tau")
         DX = self.cc_data.get_var("DX")
 
-        gamma = self.rp.get_param("eos.gamma")
-        c = self.rp.get_param("eos.c")
-        _rho = np.zeros_like(D.d)
-        _u = np.zeros_like(D.d)
-        _v = np.zeros_like(D.d)
-        _p = np.zeros_like(D.d)
-        _X = np.zeros_like(D.d)
-
-        # we need to compute the primitive speeds and sound speed
-        for i in range(myg.qx):
-            for j in range(myg.qy):
-                U = (D.d[i,j], Sx.d[i,j], Sy.d[i,j], tau.d[i,j], DX.d[i,j])
-                names = ['D', 'Sx', 'Sy', 'tau', 'DX']
-                nan_check(U, names)
-                V, _ = cons_to_prim(U, c, gamma)
-
-                _rho[i,j], _u[i,j], _v[i,j], _, _p[i,j], _X[i,j] = V
+        U = myg.scratch_array(self.vars.nvar)
+        U.d[:,:,self.vars.iD] = D.d
+        U.d[:,:,self.vars.iSx] = Sx.d
+        U.d[:,:,self.vars.iSy] = Sy.d
+        U.d[:,:,self.vars.itau] = tau.d
+        U.d[:,:,self.vars.iDX] = DX.d
 
         rho = myg.scratch_array()
         u = myg.scratch_array()
         v = myg.scratch_array()
         p = myg.scratch_array()
         X = myg.scratch_array()
-        rho.d[:,:] = _rho
-        u.d[:,:] = _u
-        v.d[:,:] = _v
-        p.d[:,:] = _p
-        X.d[:,:] = _X
+
+        V = arr_cons_to_prim(U, c, gamma, myg, self.vars)
+
+        rho.d[:,:] = V.d[:,:,self.vars.irho]
+        u.d[:,:] = V.d[:,:,self.vars.iu]
+        v.d[:,:] = V.d[:,:,self.vars.iv]
+        p.d[:,:] = V.d[:,:,self.vars.ip]
+        X.d[:,:] = V.d[:,:,self.vars.iX]
 
         T = self.calc_T(p, D, X, rho)
 
@@ -230,7 +224,7 @@ class SimulationReact(Simulation):
         for i in range(myg.qx):
             for j in range(myg.qy):
                 F = (D.d[i,j], Sx.d[i,j], Sy.d[i,j], tau.d[i,j], DX.d[i,j])
-                Fp, cs = cons_to_prim(F, c, gamma)
+                Fp = cons_to_prim(F, c, gamma)
                 rho.d[i,j], u[i,j], v[i,j], h.d[i,j], p.d[i,j], X.d[i,j] = Fp
 
         # get the velocity magnitude
@@ -250,6 +244,13 @@ class SimulationReact(Simulation):
         T = self.calc_T(p, D, X, rho)
         #T.d[:,:] = np.log(T.d)
         _u.d[:,:] = u
+
+        Q = myg.scratch_array()
+        # FIXME: hack to drive reactions
+        T9 = T.d * 10.#* 1.e-9#1.e-9
+        rho5 = rho.d #* 1.e-5
+
+        Q.d[:,:] = 5.3 * rho5**2 * (X.d / T9)**3 * np.exp(-4.4 / T9)
 
         # access gamma from the cc_data object so we can use dovis
         # outside of a running simulation.
@@ -301,8 +302,8 @@ class SimulationReact(Simulation):
             onLeft = [0,2]
 
 
-        fields = [rho, _u, T, S]
-        field_names = [r"$\rho$", r"$u$", r"$T$", r"$\ln(\mathcal{S})$"]
+        fields = [rho, Q, T, S]
+        field_names = [r"$\rho$", r"$Q$", r"$T$", r"$\ln(\mathcal{S})$"]
         colours = ['blue', 'red', 'black', 'green']
         colourmaps = [None, None, None,  plt.get_cmap('Greys')]
 
