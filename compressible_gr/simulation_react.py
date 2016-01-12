@@ -89,17 +89,20 @@ class SimulationReact(Simulation):
         Q = myg.scratch_array()
         omega_dot = myg.scratch_array()
         # FIXME: hack to drive reactions
-        T9 = T.d * 10.#* 1.e-9#1.e-9
-        rho5 = rho.d #* 1.e-5
+        T9 = T.d * 1.e1#* 1.e-9#1.e-9
+        rho5 = rho.d * 1.e3#* 1.e-5
 
-        Q.d[:,:] = 5.3 * rho5**2 * ((1.-X.d) / T9)**3 * np.exp(-4.4 / T9)
+        Q.d[X.d < 1.] = rho5[X.d < 1.]**2 * ((1.-X.d[X.d < 1.]) / T9[X.d < 1.])**3 * np.exp(-4.4 / T9[X.d < 1.])
 
         #print((np.exp(-4.4 / T9))[25:35,25:35])
 
         # Hnuc = |Delta q|omega_dot, where Delta q is the change in binding energy. q_He = 2.83007e4 keV, q_C=9.2161753e4 keV
-        omega_dot.d[:,:] = Q.d #* 9.773577e10
+        omega_dot.d[:,:] = Q.d * 10.#* 9.773577e10
         # need to stop it getting bigger than one - this does this smoothly.
-        omega_dot.d[:,:] *= 0.5 * (1. - np.tanh(40. * (omega_dot.d - 1.)))
+        #omega_dot.d[:,:] *= 0.5 * (1. - np.tanh(40. * (omega_dot.d - 1.)))
+
+        # stop anything less than 0
+        omega_dot.d[omega_dot.d < 0.] = 0.
 
         # FIXME: hackkkkk
         #Q.d[:,:] *= 1.e12 # for bubble: 1.e9, else 1.e12
@@ -152,7 +155,7 @@ class SimulationReact(Simulation):
         p = myg.scratch_array()
         X = myg.scratch_array()
 
-        V = arr_cons_to_prim(U, c, gamma, myg, self.vars)
+        V = cons_to_prim(U, c, gamma, myg, self.vars)
 
         rho.d[:,:] = V.d[:,:,self.vars.irho]
         u.d[:,:] = V.d[:,:,self.vars.iu]
@@ -211,25 +214,32 @@ class SimulationReact(Simulation):
 
         gamma = self.cc_data.get_aux("gamma")
         c = self.cc_data.get_aux("c")
-        u = np.zeros_like(D.d)
-        v = np.zeros_like(D.d)
 
         rho = myg.scratch_array()
         p = myg.scratch_array()
-        h = myg.scratch_array()
         X = myg.scratch_array()
-        _u = myg.scratch_array()
+        u = myg.scratch_array()
+        v = myg.scratch_array()
         S = myg.scratch_array()
 
-        for i in range(myg.qx):
-            for j in range(myg.qy):
-                F = (D.d[i,j], Sx.d[i,j], Sy.d[i,j], tau.d[i,j], DX.d[i,j])
-                Fp = cons_to_prim(F, c, gamma)
-                rho.d[i,j], u[i,j], v[i,j], h.d[i,j], p.d[i,j], X.d[i,j] = Fp
+        U = myg.scratch_array(self.vars.nvar)
+        U.d[:,:,self.vars.iD] = D.d
+        U.d[:,:,self.vars.iSx] = Sx.d
+        U.d[:,:,self.vars.iSy] = Sy.d
+        U.d[:,:,self.vars.itau] = tau.d
+        U.d[:,:,self.vars.iDX] = DX.d
+
+        V = cons_to_prim(U, c, gamma, myg, self.vars)
+        rho.d[:,:] = V.d[:,:,self.vars.irho]
+        u.d[:,:] = V.d[:,:,self.vars.iu]
+        v.d[:,:] = V.d[:,:,self.vars.iv]
+        p.d[:,:] = V.d[:,:,self.vars.ip]
+        X.d[:,:] = V.d[:,:,self.vars.iX]
+
 
         # get the velocity magnitude
         magvel = myg.scratch_array()
-        magvel.d[:,:] = np.sqrt(u**2 + v**2)
+        magvel.d[:,:] = np.sqrt(u.d**2 + v.d**2)
 
         def discrete_Laplacian(f):
             return (f.ip(1) - 2.*f.v() + f.ip(-1)) / myg.dx**2 + \
@@ -243,14 +253,8 @@ class SimulationReact(Simulation):
 
         T = self.calc_T(p, D, X, rho)
         #T.d[:,:] = np.log(T.d)
-        _u.d[:,:] = u
 
-        Q = myg.scratch_array()
-        # FIXME: hack to drive reactions
-        T9 = T.d * 10.#* 1.e-9#1.e-9
-        rho5 = rho.d #* 1.e-5
-
-        Q.d[:,:] = 5.3 * rho5**2 * (X.d / T9)**3 * np.exp(-4.4 / T9)
+        Q, omega_dot = self.calc_Q_omega_dot(D, X, rho, T)
 
         # access gamma from the cc_data object so we can use dovis
         # outside of a running simulation.
@@ -302,8 +306,8 @@ class SimulationReact(Simulation):
             onLeft = [0,2]
 
 
-        fields = [rho, Q, T, S]
-        field_names = [r"$\rho$", r"$Q$", r"$T$", r"$\ln(\mathcal{S})$"]
+        fields = [rho, omega_dot, T, S]
+        field_names = [r"$\rho$", r"$\dot{\omega}$", r"$T$", r"$\ln(\mathcal{S})$"]
         colours = ['blue', 'red', 'black', 'green']
         colourmaps = [None, None, None,  plt.get_cmap('Greys')]
 

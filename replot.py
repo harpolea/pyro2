@@ -40,7 +40,7 @@ def makeplot(myd, solver_name, problem_name, outfile, W, H, n=0, vmins=[None, No
 
     if solver_name == "lm_gr" and rp.get_param("lm-gr.react") != 0:
         sim = solver.SimulationReact(solver_name, problem_name, rp)
-    elif solver_name == "compressible_gr" and rp.get_param("compressible-gr.react") != 0:
+    elif solver_name == "compressible_gr": # and rp.get_param("compressible-gr.react") != 0:
         sim = solver.SimulationReact(solver_name, problem_name, rp)
     else:
         sim = solver.Simulation(solver_name, problem_name, rp)

@@ -83,7 +83,6 @@ class Simulation(NullSimulation):
         my_data.register_var("tau", bc)
         my_data.register_var("DX", bc)
 
-
         # store the EOS gamma as an auxillary quantity so we can have a
         # self-contained object stored in output files to make plots.
         # store grav because we'll need that in some BCs
@@ -146,7 +145,7 @@ class Simulation(NullSimulation):
         U.d[:,:,self.vars.itau] = tau.d
         U.d[:,:,self.vars.iDX] = DX.d
 
-        V = arr_cons_to_prim(U, c, gamma, myg, self.vars)
+        V = cons_to_prim(U, c, gamma, myg, self.vars)
 
         rho = V.d[:,:,self.vars.irho]
         u = V.d[:,:,self.vars.iu]
@@ -218,11 +217,11 @@ class Simulation(NullSimulation):
 
         Flux_x, Flux_y = unsplitFluxes(self.cc_data, self.rp, self.vars, self.tc, self.dt, burning_source)
 
-
-        for i in range(myg.qx):
-            for j in range(myg.qy):
-                nan_check(Flux_x.d[i,j,:], ['fx0', 'fx1', 'fx2', 'fx3'])
-                nan_check(Flux_y.d[i,j,:], ['fy0', 'fy1', 'fy2', 'fy3'])
+        # took in nan checking for speed
+        #for i in range(myg.qx):
+        #    for j in range(myg.qy):
+        #        nan_check(Flux_x.d[i,j,:], ['fx0', 'fx1', 'fx2', 'fx3'])
+        #        nan_check(Flux_y.d[i,j,:], ['fy0', 'fy1', 'fy2', 'fy3'])
 
         # conservative update
         dtdx = self.dt / myg.dx

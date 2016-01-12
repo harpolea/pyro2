@@ -205,7 +205,7 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, burning_source):
     # ideally would do U = my_data.data, but for some reason that
     # is indexed [ivar, x, y] rather than [x, y, ivar]
 
-    V = arr_cons_to_prim(U, c, gamma, myg, vars)
+    V = cons_to_prim(U, c, gamma, myg, vars)
     r.d[:,:] = V.d[:,:,vars.irho]
     u.d[:,:] = V.d[:,:,vars.iu]
     v.d[:,:] = V.d[:,:,vars.iv]
@@ -359,10 +359,10 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, burning_source):
     U_yr.v(buf=1, n=vars.iDX)[:,:] += 0.5 * dt * DX_F.v(buf=1)
 
     # transform back to primitive variables.
-    V_xl = arr_cons_to_prim(U_xl, c, gamma, myg, vars)
-    V_xr = arr_cons_to_prim(U_xr, c, gamma, myg, vars)
-    V_yl = arr_cons_to_prim(U_yl, c, gamma, myg, vars)
-    V_yr = arr_cons_to_prim(U_yr, c, gamma, myg, vars)
+    V_xl = cons_to_prim(U_xl, c, gamma, myg, vars)
+    V_xr = cons_to_prim(U_xr, c, gamma, myg, vars)
+    V_yl = cons_to_prim(U_yl, c, gamma, myg, vars)
+    V_yr = cons_to_prim(U_yr, c, gamma, myg, vars)
 
 
     #=========================================================================
@@ -477,11 +477,10 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, burning_source):
     # overwrite with the fluxes normal to the interfaces
 
     # transform back to primitive variables.
-    V_xl = arr_cons_to_prim(U_xl, c, gamma, myg, vars)
-    V_xr = arr_cons_to_prim(U_xr, c, gamma, myg, vars)
-    V_yl = arr_cons_to_prim(U_yl, c, gamma, myg, vars)
-    V_yr = arr_cons_to_prim(U_yr, c, gamma, myg, vars)
-
+    V_xl = cons_to_prim(U_xl, c, gamma, myg, vars)
+    V_xr = cons_to_prim(U_xr, c, gamma, myg, vars)
+    V_yl = cons_to_prim(U_yl, c, gamma, myg, vars)
+    V_yr = cons_to_prim(U_yr, c, gamma, myg, vars)
 
     tm_riem.begin()
 
@@ -503,8 +502,8 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, burning_source):
     return F_x, F_y
 
 #@jit(nopython=True)
-def arr_cons_to_prim(Q, c, gamma, myg, vars):
-    names = ['D', 'Sx', 'Sy', 'tau', 'DX']
+def cons_to_prim(Q, c, gamma, myg, vars):
+
     D = Q.d[:,:,vars.iD]
     Sx = Q.d[:,:,vars.iSx]
     Sy = Q.d[:,:,vars.iSy]
@@ -543,10 +542,7 @@ def root_find_on_me(pbar, D, Sx, Sy, tau, c, gamma):
     Equation to root find on in order to find the primitive pressure.
     """
     if pbar > 0.:
-        u_local = Sx / (tau + D + pbar)
-        v_local = Sy / (tau + D + pbar)
-
-        v2 = (u_local**2 + v_local**2) / c**2
+        v2 = (Sx**2 + Sy**2) / (c * (tau + D + pbar))**2
         w = 1. / np.sqrt(1. - v2)
         epsrho = (tau + D * (1. - w) + pbar * v2 / (v2 - 1.)) / w**2
 
@@ -560,10 +556,7 @@ def arr_root_find_on_me(pbar, D, Sx, Sy, tau, c, gamma):
     This works on arrays.
     """
     if pbar[pbar > 0.]:
-        u_local = Sx / (tau + D + pbar)
-        v_local = Sy / (tau + D + pbar)
-
-        v2 = (u_local**2 + v_local**2) / c**2
+        v2 = (Sx**2 + Sy**2) / (c * (tau + D + pbar))**2
         w = 1. / np.sqrt(1. - v2)
         epsrho = (tau + D * (1. - w) + pbar * v2 / (v2 - 1.)) / w**2
 
@@ -571,9 +564,10 @@ def arr_root_find_on_me(pbar, D, Sx, Sy, tau, c, gamma):
     else:
         return 1.e6 * np.ones_like(pbar)
 
-
-
 def sound_speed(gamma, rho, p):
+    """
+    Calculates the relativistic sound speed given p, rho and gamma.
+    """
     eps = p / (rho * (gamma - 1.))
     return np.sqrt(gamma * (gamma - 1.) * eps / (1. + gamma * eps))
 
