@@ -128,10 +128,11 @@ import compressible_gr.eos as eos
 import compressible_gr.interface_f as interface_f
 import mesh.reconstruction_f as reconstruction_f
 import mesh.patch as patch
-from scipy.optimize import brentq, root
+from scipy.optimize import brentq
 import numpy as np
 import math
-from numba import jit
+import sys
+#from numba import jit
 
 from util import msg
 
@@ -522,7 +523,14 @@ def cons_to_prim(Q, c, gamma, myg, vars):
     pmin[arr_root_find_on_me(pmin, D, Sx, Sy, tau, c, gamma) < 0.] = 0.
     pmax[pmax == 0.] = c
 
-    V.d[:,:,vars.ip] = [[brentq(root_find_on_me, pmin[i,j], pmax[i,j], args=(D[i,j], Sx[i,j], Sy[i,j], tau[i,j], c, gamma)) for j in range(myg.qy)] for i in range(myg.qx)]
+    #V.d[:,:,vars.ip] = [[brentq(root_find_on_me, pmin[i,j], pmax[i,j], args=(D[i,j], Sx[i,j], Sy[i,j], tau[i,j], c, gamma)) for j in range(myg.qy)] for i in range(myg.qx)]
+    #i, j = 0,0
+    #a = interface_f.root_finding(pmin[i,j], D[i,j], Sx[i,j], Sy[i,j], tau[i,j], c, gamma)
+
+    #print('a: {}'.format(a), '  type: {}'.format(type(a)))
+    #sys.exit()
+
+    V.d[:,:,vars.ip] = [[brentq(interface_f.root_finding, pmin[i,j], pmax[i,j], args=(D[i,j], Sx[i,j], Sy[i,j], tau[i,j], c, gamma)) for j in range(myg.qy)] for i in range(myg.qx)]
 
     V.d[:,:,vars.iu] = Sx / (tau + D + V.d[:,:,vars.ip])
     V.d[:,:,vars.iv] = Sy / (tau + D + V.d[:,:,vars.ip])

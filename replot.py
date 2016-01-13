@@ -147,6 +147,10 @@ if __name__== "__main__":
         #vmins = [5., 0., 1.7, -0.05]
         #vmaxes = [18., 0.45, 2.6, 1.05]
 
+        # burning max and mins
+        vmins = [0., 0., 0., -6.]
+        vmaxes = [0.006, 20., 0.6, 2.]
+
         try:
             file = base + ".pyro"
             #file = "../../Work/pyro/results/kh_1024_" +  format(i, '04') + ".pyro"
@@ -155,4 +159,4 @@ if __name__== "__main__":
 
         myg, myd = patch.read(file)
 
-        makeplot(myd, solver, problem, outfile, W, H, n=i)#, vmins=vmins, vmaxes=vmaxes)
+        makeplot(myd, solver, problem, outfile, W, H, n=i, vmins=vmins, vmaxes=vmaxes)

@@ -92,22 +92,18 @@ class SimulationReact(Simulation):
         T9 = T.d * 1.e1#* 1.e-9#1.e-9
         rho5 = rho.d * 1.e3#* 1.e-5
 
+        # don't apply to X > 1 as will get negative Q
         Q.d[X.d < 1.] = rho5[X.d < 1.]**2 * ((1.-X.d[X.d < 1.]) / T9[X.d < 1.])**3 * np.exp(-4.4 / T9[X.d < 1.])
 
         #print((np.exp(-4.4 / T9))[25:35,25:35])
 
         # Hnuc = |Delta q|omega_dot, where Delta q is the change in binding energy. q_He = 2.83007e4 keV, q_C=9.2161753e4 keV
-        omega_dot.d[:,:] = Q.d * 10.#* 9.773577e10
+        omega_dot.d[:,:] = Q.d * 1.e3#* 9.773577e10
         # need to stop it getting bigger than one - this does this smoothly.
         #omega_dot.d[:,:] *= 0.5 * (1. - np.tanh(40. * (omega_dot.d - 1.)))
 
-        # stop anything less than 0
+        # stop anything less than 0 so don't have reverse reactions.
         omega_dot.d[omega_dot.d < 0.] = 0.
-
-        # FIXME: hackkkkk
-        #Q.d[:,:] *= 1.e12 # for bubble: 1.e9, else 1.e12
-        #omega_dot.d[:,:] *= 5. # for bubble: 5., else 1.e4
-        #print(omega_dot.d[20:30, 8:12])
 
         return Q, omega_dot
 
@@ -172,8 +168,8 @@ class SimulationReact(Simulation):
 
         Q, omega_dot = self.calc_Q_omega_dot(D, X, rho, T)
 
-        h_T = kB_mp * gamma * (3. - 2. * X.d) / (6. * (gamma-1.))
-        h_X = -kB_mp * T.d * gamma / (3. * (gamma-1.))
+        #h_T = kB_mp * gamma * (3. - 2. * X.d) / (6. * (gamma-1.))
+        #h_X = -kB_mp * T.d * gamma / (3. * (gamma-1.))
 
         blank = D.d * 0.0
 
@@ -187,7 +183,8 @@ class SimulationReact(Simulation):
         Sx_F.d[:,:] = D.d * Q.d * w * u.d
         Sy_F.d[:,:] = D.d * Q.d * w * v.d
 
-        tau_F.d[:,:] = D.d * Q.d * w
+        # negative energy flux as Q is like a potential energy that gets released when burning happens.
+        tau_F.d[:,:] = -D.d * Q.d * w
 
         DX_F.d[:,:] = D.d * omega_dot.d
 
