@@ -849,6 +849,8 @@ subroutine root_finding(pbar, D, Sx, Sy, tau, c, gamma)
     implicit none
     double precision, intent(inout) :: pbar
     double precision, intent(in) :: D, Sx, Sy, tau, c, gamma
+
+!f2py intent(in) :: pbar, D, Sx, Sy, tau, c, gamma
 !f2py intent(out) :: pbar
 
     double precision :: v2, w, epsrho
@@ -857,7 +859,7 @@ subroutine root_finding(pbar, D, Sx, Sy, tau, c, gamma)
     if (pbar > 0.0d0) then
         v2 = (Sx**2 + Sy**2) / (c * (tau + D + pbar))**2
         w = 1.0d0 / sqrt(1.0d0 - v2)
-        epsrho = (tau + D * (1.0d0 - w) + pbar * v2 / (v2 - 1.0d0)) / w**2
+        epsrho = (tau + D * (1.0d0 - w)) * (1.0d0 - v2) - pbar * v2
 
         pbar = (gamma - 1.0d0) * epsrho - pbar
     else

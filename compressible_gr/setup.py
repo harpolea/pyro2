@@ -10,3 +10,11 @@ ext = Extension("interface_f",
                 ["interface_f.f90"])
 
 setup(ext_modules=[ext])
+
+# cythoning does not speed up function (?)
+from distutils.core import setup, Extension
+from Cython.Build import cythonize
+
+cext = Extension("cons_to_prim", ["cons_to_prim.pyx"])
+
+setup(ext_modules=cythonize(cext))

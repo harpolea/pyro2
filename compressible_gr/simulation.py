@@ -10,6 +10,7 @@ import mesh.patch as patch
 from simulation_null import NullSimulation, grid_setup, bc_setup
 from compressible_gr.unsplitFluxes import *
 from util import profile
+import compressible_gr.cons_to_prim as cy
 
 
 class Variables(object):
@@ -145,7 +146,8 @@ class Simulation(NullSimulation):
         U.d[:,:,self.vars.itau] = tau.d
         U.d[:,:,self.vars.iDX] = DX.d
 
-        V = cons_to_prim(U, c, gamma, myg, self.vars)
+        V = myg.scratch_array(self.vars.nvar)
+        V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iSx, self.vars.iSy, self.vars.itau, self.vars.iDX)
 
         rho = V.d[:,:,self.vars.irho]
         u = V.d[:,:,self.vars.iu]

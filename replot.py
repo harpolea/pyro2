@@ -133,7 +133,7 @@ if __name__== "__main__":
         usage()
 
     for i in range(start, end+1, step):
-        base = basedir + "/" + problem + "/" + problem + "_" + str(resolution) + '_M5_' + format(i, '04')
+        base = basedir + "/" + problem + "/" + problem + "_" + str(resolution) + '_' + format(i, '04')
         outfile = base + ".png"
         #outfile = "../../Work/pyro/results/kh_1024_" +  format(i, '04') + ".png"
 
@@ -149,7 +149,10 @@ if __name__== "__main__":
 
         # burning max and mins
         vmins = [0., 0., 0., -6.]
+        # M10
         vmaxes = [0.006, 20., 0.6, 2.]
+        # M5
+        #vmaxes = [0.005, 10., 0.3, 2.]
 
         try:
             file = base + ".pyro"

@@ -132,6 +132,7 @@ from scipy.optimize import brentq
 import numpy as np
 import math
 import sys
+import compressible_gr.cons_to_prim as cy
 #from numba import jit
 
 from util import msg
@@ -205,8 +206,10 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, burning_source):
 
     # ideally would do U = my_data.data, but for some reason that
     # is indexed [ivar, x, y] rather than [x, y, ivar]
+    V = myg.scratch_array(vars.nvar)
 
-    V = cons_to_prim(U, c, gamma, myg, vars)
+    #V = cy.cons_to_prim(U, c, gamma, myg, vars)
+    V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau, vars.iDX)
     r.d[:,:] = V.d[:,:,vars.irho]
     u.d[:,:] = V.d[:,:,vars.iu]
     v.d[:,:] = V.d[:,:,vars.iv]
@@ -295,8 +298,8 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, burning_source):
     U_xr.d[:,:,vars.iD] = U_xr.d[:,:,vars.iD].clip(smallr)
 
     # transform interface states back into primitive variables
-    #V_xl = myg.scratch_array(vars.nvar)
-    #V_xr = myg.scratch_array(vars.nvar)
+    V_xl = myg.scratch_array(vars.nvar)
+    V_xr = myg.scratch_array(vars.nvar)
 
 
     #=========================================================================
@@ -327,8 +330,8 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, burning_source):
     U_yr.d[:,:,vars.iD] = U_yr.d[:,:,vars.iD].clip(smallr)
 
     # transform interface states back into conserved variables
-    #V_yl = myg.scratch_array(vars.nvar)
-    #V_yr = myg.scratch_array(vars.nvar)
+    V_yl = myg.scratch_array(vars.nvar)
+    V_yr = myg.scratch_array(vars.nvar)
 
     #blank = U_xl.d[i,j,vars.iD] * 0.0
 
@@ -360,10 +363,14 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, burning_source):
     U_yr.v(buf=1, n=vars.iDX)[:,:] += 0.5 * dt * DX_F.v(buf=1)
 
     # transform back to primitive variables.
-    V_xl = cons_to_prim(U_xl, c, gamma, myg, vars)
-    V_xr = cons_to_prim(U_xr, c, gamma, myg, vars)
-    V_yl = cons_to_prim(U_yl, c, gamma, myg, vars)
-    V_yr = cons_to_prim(U_yr, c, gamma, myg, vars)
+    #V_xl = cy.cons_to_prim(U_xl, c, gamma, myg, vars)
+    V_xl.d[:,:,:] = cy.cons_to_prim(U_xl.d, c, gamma, myg.qx, myg.qy, vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau, vars.iDX)
+    #V_xr = cy.cons_to_prim(U_xr, c, gamma, myg, vars)
+    V_xr.d[:,:,:] = cy.cons_to_prim(U_xr.d, c, gamma, myg.qx, myg.qy, vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau, vars.iDX)
+    #V_yl = cy.cons_to_prim(U_yl, c, gamma, myg, vars)
+    V_yl.d[:,:,:] = cy.cons_to_prim(U_yl.d, c, gamma, myg.qx, myg.qy, vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau, vars.iDX)
+    #V_yr = cy.cons_to_prim(U_yr, c, gamma, myg, vars)
+    V_yr.d[:,:,:] = cy.cons_to_prim(U_yr.d, c, gamma, myg.qx, myg.qy, vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau, vars.iDX)
 
 
     #=========================================================================
@@ -478,10 +485,14 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, burning_source):
     # overwrite with the fluxes normal to the interfaces
 
     # transform back to primitive variables.
-    V_xl = cons_to_prim(U_xl, c, gamma, myg, vars)
-    V_xr = cons_to_prim(U_xr, c, gamma, myg, vars)
-    V_yl = cons_to_prim(U_yl, c, gamma, myg, vars)
-    V_yr = cons_to_prim(U_yr, c, gamma, myg, vars)
+    #V_xl = cy.cons_to_prim(U_xl, c, gamma, myg, vars)
+    V_xl.d[:,:,:] = cy.cons_to_prim(U_xl.d, c, gamma, myg.qx, myg.qy, vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau, vars.iDX)
+    #V_xr = cy.cons_to_prim(U_xr, c, gamma, myg, vars)
+    V_xr.d[:,:,:] = cy.cons_to_prim(U_xr.d, c, gamma, myg.qx, myg.qy, vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau, vars.iDX)
+    #V_yl = cy.cons_to_prim(U_yl, c, gamma, myg, vars)
+    V_yl.d[:,:,:] = cy.cons_to_prim(U_yl.d, c, gamma, myg.qx, myg.qy, vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau, vars.iDX)
+    #V_yr = cy.cons_to_prim(U_yr, c, gamma, myg, vars)
+    V_yr.d[:,:,:] = cy.cons_to_prim(U_yr.d, c, gamma, myg.qx, myg.qy, vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau, vars.iDX)
 
     tm_riem.begin()
 
@@ -523,13 +534,6 @@ def cons_to_prim(Q, c, gamma, myg, vars):
     pmin[arr_root_find_on_me(pmin, D, Sx, Sy, tau, c, gamma) < 0.] = 0.
     pmax[pmax == 0.] = c
 
-    #V.d[:,:,vars.ip] = [[brentq(root_find_on_me, pmin[i,j], pmax[i,j], args=(D[i,j], Sx[i,j], Sy[i,j], tau[i,j], c, gamma)) for j in range(myg.qy)] for i in range(myg.qx)]
-    #i, j = 0,0
-    #a = interface_f.root_finding(pmin[i,j], D[i,j], Sx[i,j], Sy[i,j], tau[i,j], c, gamma)
-
-    #print('a: {}'.format(a), '  type: {}'.format(type(a)))
-    #sys.exit()
-
     V.d[:,:,vars.ip] = [[brentq(interface_f.root_finding, pmin[i,j], pmax[i,j], args=(D[i,j], Sx[i,j], Sy[i,j], tau[i,j], c, gamma)) for j in range(myg.qy)] for i in range(myg.qx)]
 
     V.d[:,:,vars.iu] = Sx / (tau + D + V.d[:,:,vars.ip])
@@ -537,11 +541,12 @@ def cons_to_prim(Q, c, gamma, myg, vars):
     v2 = (V.d[:,:,vars.iu]**2 + V.d[:,:,vars.iv]**2) / c**2
     w = 1. / np.sqrt(1. - v2)
 
-    if np.any(v2 > 1.):
-        print('something is wrong here?')
+    #if np.any(v2 > 1.):
+    #     print('something is wrong here?')
 
     V.d[:,:,vars.irho] = D / w
     V.d[:,:,vars.iX] = DX / D
+
     return V
 
 #@jit
