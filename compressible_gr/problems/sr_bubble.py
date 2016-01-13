@@ -50,7 +50,6 @@ def init_data(my_data, rp):
     xmin = rp.get_param("mesh.xmin")
     xmax = rp.get_param("mesh.xmax")
 
-    # set the density to be stratified in the y-direction
     myg = my_data.grid
 
     rho[:,:] = dens_base

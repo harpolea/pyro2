@@ -1,26 +1,26 @@
 [driver]
-max_steps = 500
-tmax = 0.5
-splitting = unsplit
+max_steps = 1000
+tmax = 10000000000.0
 
 
 [compressible-gr]
-limiter = 2
-cvisc = 0.1
+react = 1                  ; reactions = 1, no reactions != 1
+riemann = RHLLC            ; RHLLC or RHLLE
 
 
 [io]
-basename = sedov_unsplit_
-tplot = 0.01
-
-
-[eos]
-gamma = 1.4
+basename = ../../Documents/Work/pyro/results/compressible_kh/kh_256_
+n_out = 10                   ; number of timesteps between writing to output files
+do_io = 1                   ; do we output at all? 1 = yes
 
 
 [mesh]
-nx = 256
-ny = 128
+#nx = 256
+#ny = 128
+nx = 512
+ny = 256
+#nx = 1024
+#ny = 512
 xmax = 2.0
 ymax = 1.0
 
@@ -32,12 +32,8 @@ yrboundary = outflow
 
 
 [kh]
-rho_1 = 1
-v_1 = -1.0
+rho_1 = 0.001
+v_1 = -0.2
 
-rho_2 = 2
-v_2 = 1.0
-
-
-[vis]
-dovis = 1
+rho_2 = 0.002
+v_2 = 0.2

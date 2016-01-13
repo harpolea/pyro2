@@ -208,7 +208,6 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, burning_source):
     # is indexed [ivar, x, y] rather than [x, y, ivar]
     V = myg.scratch_array(vars.nvar)
 
-    #V = cy.cons_to_prim(U, c, gamma, myg, vars)
     V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau, vars.iDX)
     r.d[:,:] = V.d[:,:,vars.irho]
     u.d[:,:] = V.d[:,:,vars.iu]
@@ -265,7 +264,6 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, burning_source):
     ldelta_DXy = xi * limitFunc(2, DX.d, myg.qx, myg.qy, myg.ng)
 
     tm_limit.end()
-
 
 
     #=========================================================================
@@ -363,13 +361,9 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, burning_source):
     U_yr.v(buf=1, n=vars.iDX)[:,:] += 0.5 * dt * DX_F.v(buf=1)
 
     # transform back to primitive variables.
-    #V_xl = cy.cons_to_prim(U_xl, c, gamma, myg, vars)
     V_xl.d[:,:,:] = cy.cons_to_prim(U_xl.d, c, gamma, myg.qx, myg.qy, vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau, vars.iDX)
-    #V_xr = cy.cons_to_prim(U_xr, c, gamma, myg, vars)
     V_xr.d[:,:,:] = cy.cons_to_prim(U_xr.d, c, gamma, myg.qx, myg.qy, vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau, vars.iDX)
-    #V_yl = cy.cons_to_prim(U_yl, c, gamma, myg, vars)
     V_yl.d[:,:,:] = cy.cons_to_prim(U_yl.d, c, gamma, myg.qx, myg.qy, vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau, vars.iDX)
-    #V_yr = cy.cons_to_prim(U_yr, c, gamma, myg, vars)
     V_yr.d[:,:,:] = cy.cons_to_prim(U_yr.d, c, gamma, myg.qx, myg.qy, vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau, vars.iDX)
 
 
@@ -485,13 +479,9 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, burning_source):
     # overwrite with the fluxes normal to the interfaces
 
     # transform back to primitive variables.
-    #V_xl = cy.cons_to_prim(U_xl, c, gamma, myg, vars)
     V_xl.d[:,:,:] = cy.cons_to_prim(U_xl.d, c, gamma, myg.qx, myg.qy, vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau, vars.iDX)
-    #V_xr = cy.cons_to_prim(U_xr, c, gamma, myg, vars)
     V_xr.d[:,:,:] = cy.cons_to_prim(U_xr.d, c, gamma, myg.qx, myg.qy, vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau, vars.iDX)
-    #V_yl = cy.cons_to_prim(U_yl, c, gamma, myg, vars)
     V_yl.d[:,:,:] = cy.cons_to_prim(U_yl.d, c, gamma, myg.qx, myg.qy, vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau, vars.iDX)
-    #V_yr = cy.cons_to_prim(U_yr, c, gamma, myg, vars)
     V_yr.d[:,:,:] = cy.cons_to_prim(U_yr.d, c, gamma, myg.qx, myg.qy, vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau, vars.iDX)
 
     tm_riem.begin()
@@ -512,70 +502,6 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, burning_source):
     tm_flux.end()
 
     return F_x, F_y
-
-#@jit(nopython=True)
-def cons_to_prim(Q, c, gamma, myg, vars):
-
-    D = Q.d[:,:,vars.iD]
-    Sx = Q.d[:,:,vars.iSx]
-    Sy = Q.d[:,:,vars.iSy]
-    tau = Q.d[:,:,vars.itau]
-    DX = Q.d[:,:,vars.iDX]
-
-    V = myg.scratch_array(vars.nvar)
-
-    pmin = (Sx**2 + Sy**2)/c**2 - tau - D
-    pmax = (gamma - 1.) * tau
-
-    pmax[pmax < 0.] = np.fabs(pmax[pmax < 0.])
-    pmin[pmin > pmax] = abs(np.sqrt(Sx[pmin > pmax]**2 + Sy[pmin > pmax]**2)/c - tau[pmin > pmax] - D[pmin > pmax])
-
-    pmin[pmin < 0.] = 0.
-    pmin[arr_root_find_on_me(pmin, D, Sx, Sy, tau, c, gamma) < 0.] = 0.
-    pmax[pmax == 0.] = c
-
-    V.d[:,:,vars.ip] = [[brentq(interface_f.root_finding, pmin[i,j], pmax[i,j], args=(D[i,j], Sx[i,j], Sy[i,j], tau[i,j], c, gamma)) for j in range(myg.qy)] for i in range(myg.qx)]
-
-    V.d[:,:,vars.iu] = Sx / (tau + D + V.d[:,:,vars.ip])
-    V.d[:,:,vars.iv] = Sy / (tau + D + V.d[:,:,vars.ip])
-    v2 = (V.d[:,:,vars.iu]**2 + V.d[:,:,vars.iv]**2) / c**2
-    w = 1. / np.sqrt(1. - v2)
-
-    #if np.any(v2 > 1.):
-    #     print('something is wrong here?')
-
-    V.d[:,:,vars.irho] = D / w
-    V.d[:,:,vars.iX] = DX / D
-
-    return V
-
-#@jit
-def root_find_on_me(pbar, D, Sx, Sy, tau, c, gamma):
-    """
-    Equation to root find on in order to find the primitive pressure.
-    """
-    if pbar > 0.:
-        v2 = (Sx**2 + Sy**2) / (c * (tau + D + pbar))**2
-        w = 1. / np.sqrt(1. - v2)
-        epsrho = (tau + D * (1. - w) + pbar * v2 / (v2 - 1.)) / w**2
-
-        return (gamma - 1.) * epsrho - pbar
-    else:
-        return 1.e6
-
-def arr_root_find_on_me(pbar, D, Sx, Sy, tau, c, gamma):
-    """
-    Equation to root find on in order to find the primitive pressure.
-    This works on arrays.
-    """
-    if pbar[pbar > 0.]:
-        v2 = (Sx**2 + Sy**2) / (c * (tau + D + pbar))**2
-        w = 1. / np.sqrt(1. - v2)
-        epsrho = (tau + D * (1. - w) + pbar * v2 / (v2 - 1.)) / w**2
-
-        return (gamma - 1.) * epsrho - pbar
-    else:
-        return 1.e6 * np.ones_like(pbar)
 
 def sound_speed(gamma, rho, p):
     """

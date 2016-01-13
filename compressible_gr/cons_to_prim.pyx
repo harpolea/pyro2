@@ -4,6 +4,11 @@ import numpy as np
 cimport numpy as np
 
 def cons_to_prim(np.ndarray[double, ndim=3] Q, float c, double gamma, int qx, int qy, int nvar, int iD, int iSx, int iSy, int itau, int iDX):
+    """
+    Cython implementation of code to change the vector of conservative variables (D, Sx, Sy, tau, DX) into the vector of primitive variables (rho, u, v, p, X). Root finder brentq is applied to the fortran function root_finding from interface_f.
+
+    Main looping done as a list comprehension as this is faster than nested for loops in pure python - not so sure this is the case for cython?
+    """
 
     cdef np.ndarray[double, ndim=2] D = Q[:,:,iD]
     cdef np.ndarray[double, ndim=2] Sx = Q[:,:,iSx]
@@ -23,15 +28,13 @@ def cons_to_prim(np.ndarray[double, ndim=3] Q, float c, double gamma, int qx, in
     pmin[arr_root_find_on_me(pmin, D, Sx, Sy, tau, c, gamma) < 0.] = 0.
     pmax[pmax == 0.] = c
 
+    # NOTE: would it be quicker to do this as loops in cython??
     V[:,:,itau] = [[brentq(interface_f.root_finding, pmin[i,j], pmax[i,j], args=(D[i,j], Sx[i,j], Sy[i,j], tau[i,j], c, gamma)) for j in range(qy)] for i in range(qx)]
 
     V[:,:,iSx] = Sx / (tau + D + V[:,:,itau])
     V[:,:,iSy] = Sy / (tau + D + V[:,:,itau])
-    cdef np.ndarray[double, ndim=2] v2 = (V[:,:,iSx]**2 + V[:,:,iSy]**2) / c**2
-    cdef np.ndarray[double, ndim=2] w = 1. / np.sqrt(1. - v2)
 
-    #if np.any(v2 > 1.):
-    #     print('something is wrong here?')
+    cdef np.ndarray[double, ndim=2] w = 1. / np.sqrt(1. - (V[:,:,iSx]**2 + V[:,:,iSy]**2) / c**2)
 
     V[:,:,iD] = D / w
     V[:,:,iDX] = DX / D
@@ -44,11 +47,13 @@ def arr_root_find_on_me(np.ndarray[double, ndim=2] pbar, np.ndarray[double, ndim
     This works on arrays.
     """
     cdef np.ndarray[double, ndim=2] v2, w, epsrho
-    if pbar[pbar > 0.]:
-        v2 = (Sx**2 + Sy**2) / (c * (tau + D + pbar))**2
-        w = 1. / np.sqrt(1. - v2)
-        epsrho = (tau + D * (1. - w) + pbar * v2 / (v2 - 1.)) / w**2
+    #if pbar[pbar > 0.]:
+    v2 = (Sx**2 + Sy**2) / (c * (tau + D + pbar))**2
+    w = 1. / np.sqrt(1. - v2)
+    epsrho = (tau + D * (1. - w) + pbar * v2 / (v2 - 1.)) / w**2
 
-        return (gamma - 1.) * epsrho - pbar
-    else:
-        return 1.e6 * np.ones_like(pbar)
+    #neg_p = (pbar <= 0.)
+    return (gamma - 1.) * epsrho - pbar
+    #pbar[neg_p] = 1.e6
+
+    #return pbar

@@ -16,6 +16,7 @@ from compressible_gr.unsplitFluxes import *
 from util import profile
 import colormaps as cmaps
 from scipy.ndimage import median_filter
+import compressible_gr.cons_to_prim as cy
 
 class SimulationReact(Simulation):
 
@@ -98,7 +99,12 @@ class SimulationReact(Simulation):
         #print((np.exp(-4.4 / T9))[25:35,25:35])
 
         # Hnuc = |Delta q|omega_dot, where Delta q is the change in binding energy. q_He = 2.83007e4 keV, q_C=9.2161753e4 keV
-        omega_dot.d[:,:] = Q.d * 1.e3#* 9.773577e10
+        # sr_bubble:
+        #omega_dot.d[:,:] = Q.d * 1.e3#* 9.773577e10
+
+        # kh:
+        omega_dot.d[:,:] = Q.d * 1.e5
+
         # need to stop it getting bigger than one - this does this smoothly.
         #omega_dot.d[:,:] *= 0.5 * (1. - np.tanh(40. * (omega_dot.d - 1.)))
 
@@ -151,7 +157,8 @@ class SimulationReact(Simulation):
         p = myg.scratch_array()
         X = myg.scratch_array()
 
-        V = cons_to_prim(U, c, gamma, myg, self.vars)
+        V = myg.scratch_array(self.vars.nvar)
+        V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iSx, self.vars.iSy, self.vars.itau, self.vars.iDX)
 
         rho.d[:,:] = V.d[:,:,self.vars.irho]
         u.d[:,:] = V.d[:,:,self.vars.iu]
@@ -173,7 +180,7 @@ class SimulationReact(Simulation):
 
         blank = D.d * 0.0
 
-        w = 1 / np.sqrt(1 - (u.d**2 + v.d**2)/c**2)
+        w = 1. / np.sqrt(1. - (u.d**2 + v.d**2)/c**2)
 
         Sx_F = myg.scratch_array()
         Sy_F = myg.scratch_array()
@@ -226,13 +233,14 @@ class SimulationReact(Simulation):
         U.d[:,:,self.vars.itau] = tau.d
         U.d[:,:,self.vars.iDX] = DX.d
 
-        V = cons_to_prim(U, c, gamma, myg, self.vars)
+        V = myg.scratch_array(self.vars.nvar)
+        V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iSx, self.vars.iSy, self.vars.itau, self.vars.iDX)
+
         rho.d[:,:] = V.d[:,:,self.vars.irho]
         u.d[:,:] = V.d[:,:,self.vars.iu]
         v.d[:,:] = V.d[:,:,self.vars.iv]
         p.d[:,:] = V.d[:,:,self.vars.ip]
         X.d[:,:] = V.d[:,:,self.vars.iX]
-
 
         # get the velocity magnitude
         magvel = myg.scratch_array()
@@ -253,6 +261,13 @@ class SimulationReact(Simulation):
 
         Q, omega_dot = self.calc_Q_omega_dot(D, X, rho, T)
 
+        vort = myg.scratch_array()
+
+        dv = 0.5 * (v.ip(1) - v.ip(-1)) / myg.dx
+        du = 0.5 * (u.jp(1) - u.jp(-1)) / myg.dy
+
+        vort.v()[:,:] = dv - du
+
         # access gamma from the cc_data object so we can use dovis
         # outside of a running simulation.
 
@@ -266,7 +281,7 @@ class SimulationReact(Simulation):
         sparseX = 0
         allYlabel = 1
 
-        if L_x > 2*L_y:
+        if L_x >= 2*L_y:
 
             # we want 4 rows:
             #  rho
@@ -303,10 +318,10 @@ class SimulationReact(Simulation):
             onLeft = [0,2]
 
 
-        fields = [rho, omega_dot, T, S]
-        field_names = [r"$\rho$", r"$\dot{\omega}$", r"$T$", r"$\ln(\mathcal{S})$"]
+        fields = [rho, omega_dot, X, vort]
+        field_names = [r"$\rho$", r"$\dot{\omega}$", r"$X$", r"$\nabla\times u$"]
         colours = ['blue', 'red', 'black', 'green']
-        colourmaps = [None, None, None,  plt.get_cmap('Greys')]
+        colourmaps = [None, None, None,  None]#plt.get_cmap('Greys')]
 
         for n in range(4):
             ax = axes.flat[2*n]
