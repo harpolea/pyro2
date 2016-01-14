@@ -12,7 +12,7 @@ import mesh.patch as patch
 
 class Metric:
 
-    def __init__(self, cellData, rp, alpha, beta, gamma):
+    def __init__(self, cellData, rp, alpha, beta, gamma, cartesian):
         """
         Initialize the Metric object. This is a standard 2+1 metric
 
@@ -36,6 +36,7 @@ class Metric:
         self.beta = beta
         self.W = 1.  # Lorentz factor.
         self.gamma = gamma
+        self.cartesian = cartesian
 
         # store christoffels here as for time-independent metric these shall not change.
         myg = self.cc_data.grid
@@ -189,21 +190,37 @@ class Metric:
         R = self.rp.get_param("lm-gr.radius")
         c = self.rp.get_param("lm-gr.c")
 
-        # For simple time-lagged metric, only have 7 non-zero (4 unique) christoffels.
-        # t_tr
-        christls[0, 0, 2] = g / (self.alpha.d[x[2]]**2 * c**2 * R)
-        # t_rt
-        christls[0, 2, 0] = christls[0, 0, 2]
-        # r_tt
-        christls[2, 0, 0] = g * self.alpha.d[x[2]]**2 / (c**2 * R)
-        # r_xx
-        christls[2, 1, 1] = g / (c**2 * R * self.alpha.d[x[2]]**2)
-        # r_rr
-        christls[2, 2, 2] = -christls[2, 1, 1]
-        # x_xr
-        christls[1, 1, 2] = christls[2, 2, 2]
-        # x_rx
-        christls[1, 2, 1] = christls[2, 2, 2]
+        if self.cartesian:
+            # For simple time-lagged metric, only have 7 non-zero (4 unique) christoffels.
+            # t_tr
+            christls[0, 0, 2] = g / (self.alpha.d[x[2]]**2 * c**2 * R)
+            # t_rt
+            christls[0, 2, 0] = christls[0, 0, 2]
+            # r_tt
+            christls[2, 0, 0] = g * self.alpha.d[x[2]]**2 / (c**2 * R)
+            # r_xx
+            christls[2, 1, 1] = g / (c**2 * R * self.alpha.d[x[2]]**2)
+            # r_rr
+            christls[2, 2, 2] = -christls[2, 1, 1]
+            # x_xr
+            christls[1, 1, 2] = christls[2, 2, 2]
+            # x_rx
+            christls[1, 2, 1] = christls[2, 2, 2]
+        else: # spherical polar
+            # t_tr
+            christls[0, 0, 2] = g / (self.alpha.d[x[2]]**2 * c**2 * R)
+            # t_rt
+            christls[0, 2, 0] = christls[0, 0, 2]
+            # r_tt
+            christls[2, 0, 0] = g * self.alpha.d[x[2]]**2 / (c**2 * R)
+            # r_theta theta
+            christls[2, 1, 1] = -R * self.alpha.d[x[2]]**2 * (1. + g/c**2)
+            # r_rr
+            christls[2, 2, 2] = -g * self.alpha.d[x[2]]**2 / (R * c**2)
+            # theta_theta r
+            christls[1, 1, 2] = self.alpha.d[x[2]]**2 * (1. + g/c**2) / R
+            # theta_r theta
+            christls[1, 2, 1] = christls[1, 1, 2]
 
         # For non-simple, we have to do more icky stuff including time and
         # space

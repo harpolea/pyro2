@@ -91,19 +91,19 @@ class SimulationReact(Simulation):
         omega_dot = myg.scratch_array()
         # FIXME: hack to drive reactions
         T9 = T.d * 1.e1#* 1.e-9#1.e-9
-        rho5 = rho.d * 1.e3#* 1.e-5
+        rho5 = rho.d * 1.e3
 
         # don't apply to X > 1 as will get negative Q
         Q.d[X.d < 1.] = rho5[X.d < 1.]**2 * ((1.-X.d[X.d < 1.]) / T9[X.d < 1.])**3 * np.exp(-4.4 / T9[X.d < 1.])
 
-        #print((np.exp(-4.4 / T9))[25:35,25:35])
-
         # Hnuc = |Delta q|omega_dot, where Delta q is the change in binding energy. q_He = 2.83007e4 keV, q_C=9.2161753e4 keV
         # sr_bubble:
-        #omega_dot.d[:,:] = Q.d * 1.e3#* 9.773577e10
-
-        # kh:
-        omega_dot.d[:,:] = Q.d * 1.e5
+        if self.problem_name == 'sr_bubble':
+            omega_dot.d[:,:] = Q.d * 1.e3#* 9.773577e10
+        elif self.problem_name == 'kh':
+            omega_dot.d[:,:] = Q.d * 1.e11
+        else:
+            omega_dot.d[:,:] = Q * 1.e3
 
         # need to stop it getting bigger than one - this does this smoothly.
         #omega_dot.d[:,:] *= 0.5 * (1. - np.tanh(40. * (omega_dot.d - 1.)))
@@ -250,12 +250,6 @@ class SimulationReact(Simulation):
             return (f.ip(1) - 2.*f.v() + f.ip(-1)) / myg.dx**2 + \
                    (f.jp(1) - 2.*f.v() + f.jp(-1)) / myg.dy**2
 
-        # Schlieren
-        S.v()[:,:] = np.log(abs(discrete_Laplacian(rho)))
-        S.d[S.d < -5] = -6.
-
-        S.d[:,:] = median_filter(S.d, 4)
-
         T = self.calc_T(p, D, X, rho)
         #T.d[:,:] = np.log(T.d)
 
@@ -295,7 +289,6 @@ class SimulationReact(Simulation):
 
             onLeft = list(range(self.vars.nvar))
 
-
         elif L_y > 2.*L_x:
 
             # we want 4 columns:  rho  |U|  p  e
@@ -315,26 +308,58 @@ class SimulationReact(Simulation):
             fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
             plt.subplots_adjust(hspace=0.25)
 
-            onLeft = [0,2]
+            onLeft = [0, 2]
 
+        xcntr = np.round(0.5 * myg.qx).astype(int)
+        ycntr = np.round(0.5 * myg.qy).astype(int)
 
-        fields = [rho, omega_dot, X, vort]
-        field_names = [r"$\rho$", r"$\dot{\omega}$", r"$X$", r"$\nabla\times u$"]
+        if self.problem_name == 'kh':
+            fields = [rho, omega_dot, X, vort]
+            field_names = [r"$\rho$", r"$\dot{\omega}$", r"$X$", r"$\nabla\times u$"]
+            colourmaps = [plt.get_cmap('viridis'), plt.get_cmap('viridis'), plt.get_cmap('viridis'),  plt.get_cmap('viridis')]
+
+        elif self.problem_name == 'sr_bubble':
+            # Schlieren
+            S.v()[:,:] = np.log(abs(discrete_Laplacian(rho)))
+            # low pass and median filters to clean up plot
+            S.d[S.d < -5] = -6.
+            S.d[:,:] = median_filter(S.d, 4)
+
+            fields = [rho, omega_dot, X, S]
+            field_names = [r"$\rho$", r"$\dot{\omega}$", r"$X$", r"$\ln|\mathcal{S}|$"]
+            colourmaps = [plt.get_cmap('viridis'), plt.get_cmap('viridis'), plt.get_cmap('viridis'),  plt.get_cmap('Greys')]
+
+        else:
+            fields = [rho, omega_dot, X, vort]
+            field_names = [r"$\rho$", r"$\dot{\omega}$", r"$X$", r"$\nabla\times u$"]
+            colourmaps = [plt.get_cmap('viridis'), plt.get_cmap('viridis'), plt.get_cmap('viridis'),  plt.get_cmap('viridis')]
+
+        # colours of line plots
         colours = ['blue', 'red', 'black', 'green']
-        colourmaps = [None, None, None,  None]#plt.get_cmap('Greys')]
 
         for n in range(4):
             ax = axes.flat[2*n]
             ax2 = axes.flat[2*n+1]
 
             v = fields[n]
-            ycntr = np.round(0.5 * myg.qy).astype(int)
             img = ax.imshow(np.transpose(v.v()),
                         interpolation="nearest", origin="lower",
                         extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax], vmin=vmins[n], vmax=vmaxes[n], cmap=colourmaps[n])
-            plt2 = ax2.plot(myg.x, v.d[:,ycntr], c=colours[n])
-            ax2.set_xlim([myg.xmin, myg.xmax])
 
+            # line plots
+            if self.problem_name == 'kh':
+                # shall do a slice vertically rather than horizontally here.
+                x2 = myg.y
+                y2 = v.d[xcntr,:]
+            elif self.problem_name == 'sr_bubble':
+                x2 = myg.x
+                y2 = v.d[:,ycntr]
+            else:
+                x2 = myg.x
+                y2 = v.d[:,ycntr]
+
+            plt2 = ax2.plot(x2, y2, c=colours[n])
+            ax2.set_xlim([min(x2), max(x2)])
 
             #ax.set_xlabel("x")
             if n==3:

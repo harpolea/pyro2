@@ -1,23 +1,23 @@
 # simple inputs files for the four-corner problem.
 
 [driver]
-max_steps = 3
+max_steps = 1200
 tmax = 10000000000.0
 
 
 [io]
-basename = ../../Documents/Work/pyro/results/sr_bubble/sr_bubble_128_M5_
+basename = ../../Documents/Work/pyro/results/sr_bubble/sr_bubble_512_M10_
 n_out = 10                   ; number of timesteps between writing to output files
 do_io = 1                   ; do we output at all? 1 = yes
 
 
 [mesh]
-nx = 384
-ny = 128
+#nx = 384
+#ny = 128
 #nx = 768
 #ny = 256
-#nx = 1536
-#ny = 512
+nx = 1536
+ny = 512
 xmax = 12.0
 ymax = 4.0
 
@@ -36,17 +36,17 @@ pert_amplitude_factor = 2.0
 dens_base = 0.001           ; density in unshocked fluid
 
 # M5
-dens_left = 0.00374538           ; density in shocked fluid on left
-u_vel = 0.40899067               ; velocity of shock
-eint_left = 0.12057025           ; internal energy of shocked fluid on left
-wave_speed = 0.540738070436     ; speed the wave will travel at
+#dens_left = 0.00374538           ; density in shocked fluid on left
+#u_vel = 0.40899067               ; velocity of shock
+#eint_left = 0.12057025           ; internal energy of shocked fluid on left
+#wave_speed = 0.540738070436     ; speed the wave will travel at
 
 
 # M10
-#dens_left = 0.00464586           ; density in shocked fluid on left
-#u_vel = 0.66199458               ; velocity of shock
-#eint_left = 0.3654102           ; internal energy of shocked fluid on left
-#wave_speed = 0.789337037964     ; speed the wave will travel at
+dens_left = 0.00464586           ; density in shocked fluid on left
+u_vel = 0.66199458               ; velocity of shock
+eint_left = 0.3654102           ; internal energy of shocked fluid on left
+wave_speed = 0.789337037964     ; speed the wave will travel at
 
 [compressible-gr]
 react = 1                  ; reactions = 1, no reactions != 1

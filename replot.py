@@ -132,29 +132,37 @@ if __name__== "__main__":
     except:
         usage()
 
-    for i in range(start, end+1, step):
-        base = basedir + "/compressible_" + problem + "/" + problem + "_" + str(resolution) + '_' + format(i, '04')
-        outfile = base + ".png"
-        #outfile = "../../Work/pyro/results/kh_1024_" +  format(i, '04') + ".png"
-
-        # bubble max and mins
-        #vmins = [90., 0., -0.00075, -0.2]
-        #vmaxes = [105., 0.0021, 0.0021, 0.2]
-
-        # double bubble max and mins
-        #vmins = [50., 0., -0.0002, -0.05]
-        #vmaxes = [105., 0.0003, 0.0003, 0.05]
-        #vmins = [5., 0., 1.7, -0.05]
-        #vmaxes = [18., 0.45, 2.6, 1.05]
-
-        # burning max and mins
-        #vmins = [0., 0., 0., -6.]
-        # M10
-        #vmaxes = [0.006, 20., 0.6, 2.]
-        # M5
-        #vmaxes = [0.005, 10., 0.3, 2.]
+    # compressible_gr
+    if solver == "compressible_gr":
+        if problem == "kh":
+            vmins = [0.00144, 0., 0., -1.2]
+            vmaxes = [0.00151, 1.1, 1., 0.1]
+        elif problem == "sr_bubble":
+            vmins = [0., 0., 0., -6.]
+            # M10
+            #vmaxes = [0.006, 20., 1., 2.]
+            # M5
+            vmaxes = [0.005, None, 1., 2.]
+    elif solver == "lm_gr":
+        if problem == "bubble":
+            vmins = [90., 0., -0.00075, -0.2]
+            vmaxes = [105., 0.0021, 0.0021, 0.2]
+        elif problem == "double_bubble":
+            vmins = [50., 0., -0.0002, -0.05]
+            vmaxes = [105., 0.0003, 0.0003, 0.05]
+            #vmins = [5., 0., 1.7, -0.05]
+            #vmaxes = [18., 0.45, 2.6, 1.05]
+    else:
         vmins = [None, None, None, None]
         vmaxes = [None, None, None, None]
+
+
+    for i in range(start, end+1, step):
+        if solver == "compressible_gr" and problem == 'kh':
+            base = basedir + "/compressible_" + problem + "/" + problem + "_" + str(resolution) + '_' + format(i, '04')
+        else:
+            base = basedir + "/" + problem + "/" + problem + "_" + str(resolution) + '_' + format(i, '04')
+        outfile = base + ".png"
 
         try:
             file = base + ".pyro"

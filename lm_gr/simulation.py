@@ -299,6 +299,7 @@ class Simulation(NullSimulation):
             print('Gravity is very low (', g, ') - make sure the speed of light is high enough to cope.')
 
         R = self.rp.get_param("lm-gr.radius")
+        cartesian = self.rp.get_param("lm-gr.cartesian")
 
         alpha = Basestate(myg.ny, ng=myg.ng)
 
@@ -314,7 +315,7 @@ class Simulation(NullSimulation):
             (R * c**2) * np.eye(2)[np.newaxis, np.newaxis, :, :]
 
         self.metric = metric.Metric(self.cc_data, self.rp, alpha, beta,
-                                    gamma_matrix)
+                                    gamma_matrix, cartesian)
 
         u0 = self.metric.calcu0()
 

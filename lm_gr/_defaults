@@ -5,6 +5,7 @@ grav = 40.0
 c = 10.0
 radius = 1000.0
 react = 1                ; reactions? (0 = no, 1 = yes)
+cartesian = 1            ; cartesian or spherical polar coordinates? (0 = no, 1 = yes)
 
 
 [eos]

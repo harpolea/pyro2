@@ -48,7 +48,8 @@ def init_data(my_data, rp):
     ymin = rp.get_param("mesh.ymin")
     ymax = rp.get_param("mesh.ymax")
 
-    yctr = 0.5 * (ymin + ymax)
+    # moved this up from the centre as nothing interesting was happening in the top part and all the swirly stuff was sinking to the bottom
+    yctr = 0.75 * (ymin + ymax)
 
     L_x = xmax - xmin
 
@@ -68,7 +69,11 @@ def init_data(my_data, rp):
 
     p[:,:] = K * rho ** gamma
     h[:,:] = 1. + p * gamma / (rho * (gamma - 1.))
-    v[:,:] = 5.e-1 * v_1 * np.sin(4. * math.pi * (myg.x[:, np.newaxis] + 0.5 * L_x) / L_x)
+    v[:,:] = 0.5 * v_1 * np.sin(4. * math.pi * (myg.x[:, np.newaxis] + 0.5 * L_x) / L_x)
+
+    # adding a small upwards velocity to stop sinking.
+    v[:,:] += 2.5e-3
+
     (D.d[:,:], Sx.d[:,:], Sy.d[:,:], tau.d[:,:], DX.d[:,:]) = prim_to_cons((rho, u, v, h, p, X), c, gamma)
 
 

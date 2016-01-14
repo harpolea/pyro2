@@ -133,7 +133,6 @@ import numpy as np
 import math
 import sys
 import compressible_gr.cons_to_prim as cy
-#from numba import jit
 
 from util import msg
 
@@ -147,6 +146,9 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, burning_source):
 
     The runtime parameter grav is assumed to be the gravitational
     acceleration in the y-direction
+
+    Conservative to primitive conversion done using a cython function:
+    computation now dominated completely by brentq.
 
     Parameters
     ----------

@@ -1,5 +1,5 @@
 [driver]
-max_steps = 1000
+max_steps = 10000
 tmax = 10000000000.0
 
 
@@ -10,7 +10,7 @@ riemann = RHLLC            ; RHLLC or RHLLE
 
 [io]
 basename = ../../Documents/Work/pyro/results/compressible_kh/kh_256_
-n_out = 10                   ; number of timesteps between writing to output files
+n_out = 50                   ; number of timesteps between writing to output files
 do_io = 1                   ; do we output at all? 1 = yes
 
 
@@ -32,8 +32,8 @@ yrboundary = outflow
 
 
 [kh]
-rho_1 = 0.001
-v_1 = -0.2
+rho_1 = 0.00145
+v_1 = -0.005
 
-rho_2 = 0.002
-v_2 = 0.2
+rho_2 = 0.00155
+v_2 = 0.005
