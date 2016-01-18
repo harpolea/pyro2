@@ -190,7 +190,7 @@ class SimulationReact(Simulation):
         T9 = T.d #* 1.e-9#1.e-9
         D5 = D.d #* 1.e-5
 
-        Q.d[:,:] = 5.3 * (D5 / u0.d)**2 * (DX.d/D.d / T9)**3 * np.exp(-4.4 / T9)
+        Q.d[:,:] = 5.3 * (D5 / u0.d)**2 * ((1.-DX.d/D.d) * DX.d/D.d / T9)**3 * np.exp(-4.4 / T9)
 
         #print((np.exp(-4.4 / T9))[25:35,25:35])
 
@@ -198,8 +198,12 @@ class SimulationReact(Simulation):
         omega_dot.d[:,:] = Q.d #* 9.773577e10
 
         # FIXME: hackkkkk
-        #Q.d[:,:] *= 1.e12 # for bubble: 1.e9, else 1.e12
-        #omega_dot.d[:,:] *= 5. # for bubble: 5., else 1.e4
+        if self.problem_name == 'bubble':
+            Q.d[:,:] *= 1.e9
+            omega_dot.d[:,:] *= 5.
+        else:
+            Q.d[:,:] *= 1.e12
+            omega_dot.d[:,:] *= 1.e4
 
         return Q, omega_dot
 

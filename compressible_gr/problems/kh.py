@@ -72,7 +72,7 @@ def init_data(my_data, rp):
     v[:,:] = 0.5 * v_1 * np.sin(4. * math.pi * (myg.x[:, np.newaxis] + 0.5 * L_x) / L_x)
 
     # adding a small upwards velocity to stop sinking.
-    v[:,:] += 2.5e-3
+    v[:,:] += 4.e-3
 
     (D.d[:,:], Sx.d[:,:], Sy.d[:,:], tau.d[:,:], DX.d[:,:]) = prim_to_cons((rho, u, v, h, p, X), c, gamma)
 

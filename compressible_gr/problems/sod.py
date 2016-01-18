@@ -5,11 +5,15 @@ import sys
 import mesh.patch as patch
 from compressible_gr.unsplitFluxes import *
 from util import msg
+import numpy as np
 
 def init_data(my_data, rp):
     """ initialize the sod problem """
 
     msg.bold("initializing the sod problem...")
+
+    if rp.get_param("io.do_io"):
+        print("Outputting to {}".format(rp.get_param("io.basename")))
 
     # make sure that we are passed a valid patch object
     if not isinstance(my_data, patch.CellCenterData2d):
@@ -19,6 +23,7 @@ def init_data(my_data, rp):
 
     gamma = rp.get_param("eos.gamma")
     c = rp.get_param("eos.c")
+    #K = rp.get_param("eos.k_poly")
 
     # get the sod parameters
     dens_left = rp.get_param("sod.dens_left")
@@ -35,11 +40,13 @@ def init_data(my_data, rp):
     Sx = my_data.get_var("Sx")
     Sy = my_data.get_var("Sy")
     tau = my_data.get_var("tau")
+    DX = my_data.get_var("DX")
     rho = np.zeros_like(D.d)
     u = np.zeros_like(D.d)
     v = np.zeros_like(D.d)
     h = np.zeros_like(D.d)
     p = np.zeros_like(D.d)
+    X = np.zeros_like(D.d)
 
     myg = my_data.grid
 
@@ -66,6 +73,7 @@ def init_data(my_data, rp):
         u[idxl] = u_left
         v[idxl] = 0.0
         p[idxl] = p_left
+        X[idxl] = 1.0
 
         # right
         idxr = myg.x2d > xctr
@@ -84,6 +92,7 @@ def init_data(my_data, rp):
         u[idxb] = 0.0
         v[idxb] = u_left
         p[idxb] = p_left
+        X[idxb] = 1.0
 
         # top
         idxt = myg.y2d > yctr
@@ -95,11 +104,7 @@ def init_data(my_data, rp):
 
     h[:,:] = 1. + p * gamma / (rho * (gamma - 1.))
 
-    for i in range(myg.qx):
-        for j in range(myg.qy):
-            Qp = (rho[i,j], u[i,j], v[i,j], h[i,j], p[i,j])
-            Qc = prim_to_cons(Qp, c, gamma)
-            (D.d[i,j], Sx.d[i,j], Sy.d[i,j], tau.d[i,j]) = Qc
+    (D.d[:,:], Sx.d[:,:], Sy.d[:,:], tau.d[:,:], DX.d[:,:]) = prim_to_cons((rho, u, v, h, p, X), c, gamma)
 
 
 def finalize():

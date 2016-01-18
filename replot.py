@@ -135,14 +135,20 @@ if __name__== "__main__":
     # compressible_gr
     if solver == "compressible_gr":
         if problem == "kh":
-            vmins = [0.00144, 0., 0., -1.2]
-            vmaxes = [0.00151, 1.1, 1., 0.1]
+            vmins = [0.001488, 0., 0., -0.5]
+            vmaxes = [0.00150, 1.1, 1., 0.1]
         elif problem == "sr_bubble":
             vmins = [0., 0., 0., -6.]
             # M10
             #vmaxes = [0.006, 20., 1., 2.]
             # M5
             vmaxes = [0.005, None, 1., 2.]
+        elif problem == 'sod':
+            vmins = [0., 0., 0., 0.]
+            vmaxes = [1., 1., 1., None]
+        else:
+            vmins = [None, None, None, None]
+            vmaxes = [None, None, None, None]
     elif solver == "lm_gr":
         if problem == "bubble":
             vmins = [90., 0., -0.00075, -0.2]
@@ -152,6 +158,9 @@ if __name__== "__main__":
             vmaxes = [105., 0.0003, 0.0003, 0.05]
             #vmins = [5., 0., 1.7, -0.05]
             #vmaxes = [18., 0.45, 2.6, 1.05]
+        else:
+            vmins = [None, None, None, None]
+            vmaxes = [None, None, None, None]
     else:
         vmins = [None, None, None, None]
         vmaxes = [None, None, None, None]

@@ -1,5 +1,10 @@
 """
 TODO: see if can make this a singleton class for the case where the metric is time-independent.
+
+NOTE: in future, might want to inherit from base Metric class and
+implement everything separately for different subclasses. In this case,
+alpha and beta will be defined in the class itself rather than passed
+in to the constructor.
 """
 
 from __future__ import print_function
@@ -169,8 +174,6 @@ class Metric:
     def christoffels(self, x):
         """
         Calculates the Christoffel symbols of the metric at the given point.
-
-        TODO: un-hardcode these
 
         Parameters
         ----------

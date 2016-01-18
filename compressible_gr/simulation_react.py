@@ -102,8 +102,10 @@ class SimulationReact(Simulation):
             omega_dot.d[:,:] = Q.d * 1.e3#* 9.773577e10
         elif self.problem_name == 'kh':
             omega_dot.d[:,:] = Q.d * 1.e11
+        elif self.problem_name == 'sod':
+            omega_dot.d[:,:] = Q.d
         else:
-            omega_dot.d[:,:] = Q * 1.e3
+            omega_dot.d[:,:] = Q.d
 
         # need to stop it getting bigger than one - this does this smoothly.
         #omega_dot.d[:,:] *= 0.5 * (1. - np.tanh(40. * (omega_dot.d - 1.)))
@@ -253,8 +255,6 @@ class SimulationReact(Simulation):
         T = self.calc_T(p, D, X, rho)
         #T.d[:,:] = np.log(T.d)
 
-        Q, omega_dot = self.calc_Q_omega_dot(D, X, rho, T)
-
         vort = myg.scratch_array()
 
         dv = 0.5 * (v.ip(1) - v.ip(-1)) / myg.dx
@@ -314,6 +314,7 @@ class SimulationReact(Simulation):
         ycntr = np.round(0.5 * myg.qy).astype(int)
 
         if self.problem_name == 'kh':
+            Q, omega_dot = self.calc_Q_omega_dot(D, X, rho, T)
             fields = [rho, omega_dot, X, vort]
             field_names = [r"$\rho$", r"$\dot{\omega}$", r"$X$", r"$\nabla\times u$"]
             colourmaps = [plt.get_cmap('viridis'), plt.get_cmap('viridis'), plt.get_cmap('viridis'),  plt.get_cmap('viridis')]
@@ -329,7 +330,14 @@ class SimulationReact(Simulation):
             field_names = [r"$\rho$", r"$\dot{\omega}$", r"$X$", r"$\ln|\mathcal{S}|$"]
             colourmaps = [plt.get_cmap('viridis'), plt.get_cmap('viridis'), plt.get_cmap('viridis'),  plt.get_cmap('Greys')]
 
+        elif self.problem_name == 'sod':
+            Q, omega_dot = self.calc_Q_omega_dot(D, X, rho, T)
+            fields = [rho, p, X, omega_dot]
+            field_names = [r"$\rho$", r"$p$", r"$X$", r"$\dot{\omega}$"]
+            colourmaps = [plt.get_cmap('viridis'), plt.get_cmap('viridis'), plt.get_cmap('viridis'),  plt.get_cmap('viridis')]
+
         else:
+            Q, omega_dot = self.calc_Q_omega_dot(D, X, rho, T)
             fields = [rho, omega_dot, X, vort]
             field_names = [r"$\rho$", r"$\dot{\omega}$", r"$X$", r"$\nabla\times u$"]
             colourmaps = [plt.get_cmap('viridis'), plt.get_cmap('viridis'), plt.get_cmap('viridis'),  plt.get_cmap('viridis')]

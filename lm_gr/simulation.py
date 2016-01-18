@@ -620,8 +620,9 @@ class Simulation(NullSimulation):
              gxx[np.newaxis,:] * chrls[:,:,1,2,2]) * u.d * v.d)
 
         # check drp0 is not zero
-        mask = (abs(drp0.d2d()) > 1.e-15)
-        mom_source_r.d[mask] -=  drp0.d2d()[mask] / (Dh.d[mask]*u0.d[mask])
+        mask = (abs(drp0.d2df(myg.qx)) > 1.e-15)
+        #print(drp0.d2d())
+        mom_source_r.d[mask] -=  drp0.d2df(myg.qx)[mask] / (Dh.d[mask]*u0.d[mask])
 
         #mom_source_r.d[:,:] -=  drp0.d[np.newaxis,:] / (Dh.d[:,:]*u0.d[:,:])
 
@@ -1128,7 +1129,10 @@ class Simulation(NullSimulation):
 
         # check reactions
         _, omega_dot = self.calc_Q_omega_dot()
-        dt_react = 1./omega_dot.v().max()
+        if omega_dot.v().max() < 1.e-15:
+            dt_react = 1.e30
+        else:
+            dt_react = 1./omega_dot.v().max()
 
         dt_buoy = np.sqrt(2.0 * myg.dx / max(F_buoy, 1.e-12))
         self.dt = min(dt, dt_buoy, dt_react)
