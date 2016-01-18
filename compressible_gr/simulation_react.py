@@ -90,7 +90,7 @@ class SimulationReact(Simulation):
         Q = myg.scratch_array()
         omega_dot = myg.scratch_array()
         # FIXME: hack to drive reactions
-        T9 = T.d * 1.e1#* 1.e-9#1.e-9
+        T9 = T.d * 1.e1
         rho5 = rho.d * 1.e3
 
         # don't apply to X > 1 as will get negative Q
@@ -103,6 +103,7 @@ class SimulationReact(Simulation):
         elif self.problem_name == 'kh':
             omega_dot.d[:,:] = Q.d * 1.e11
         elif self.problem_name == 'sod':
+            #Q.d[:,:] *= 2.
             omega_dot.d[:,:] = Q.d
         else:
             omega_dot.d[:,:] = Q.d
@@ -332,8 +333,8 @@ class SimulationReact(Simulation):
 
         elif self.problem_name == 'sod':
             Q, omega_dot = self.calc_Q_omega_dot(D, X, rho, T)
-            fields = [rho, p, X, omega_dot]
-            field_names = [r"$\rho$", r"$p$", r"$X$", r"$\dot{\omega}$"]
+            fields = [rho, T, X, omega_dot]
+            field_names = [r"$\rho$", r"$T$", r"$X$", r"$\dot{\omega}$"]
             colourmaps = [plt.get_cmap('viridis'), plt.get_cmap('viridis'), plt.get_cmap('viridis'),  plt.get_cmap('viridis')]
 
         else:
