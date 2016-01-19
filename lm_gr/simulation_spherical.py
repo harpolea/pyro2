@@ -1,30 +1,3 @@
-"""
-TODO: MAKE IT POSSIBLE TO START A PROGRAM FROM EXISTING OUTPUT FILE?
-e.g. maybe do a dump of EVERYTHING at the end of the program so that it's possible to read this in and set up the problem in the state it left off.
-
-TODO: D ln u0/Dt term in momentum equation?
-
-FIXME: check edge/cell-centred/time-centred quantities used correctly
-
-CHANGED: moved tov update in steps 4 and 8 to after the Dh0 update as it is a
-function of Dh0
-
-TODO: not entirely sure about the lateral averaging of D, Dh to get the base states in steps 4 and 8
-
-CHANGED: made python3 compliable (for the most part - f2py doesn't seem to be able to work too well with python3)
-
-TODO: nose testing!
-
-Run with a profiler using
-    python -m cProfile -o pyro.prof pyro.py
-then view using
-    snakeviz pyro.prof
-
-All the keyword arguments of functions default to None as their default values
-will be member variables which cannot be accessed in the function's argument
-list.
-"""
-
 from __future__ import print_function
 
 import sys
@@ -39,141 +12,20 @@ import lm_gr.LM_gr_interface_f as lm_interface_f
 import mesh.reconstruction_f as reconstruction_f
 import mesh.patch as patch
 from simulation_null import NullSimulation, grid_setup, bc_setup
+from lm_gr.simulation import *
+from lm_gr.simulation_react import *
 import multigrid.variable_coeff_MG as vcMG
+import multigrid.rect_MG as rectMG
 from util import profile
 import lm_gr.metric as metric
 import colormaps as cmaps
 
 
-class Basestate(object):
-    """
-    Basestate is a class for the 1d base states. It has much the same indexing functionality as the 2d Grid2d class, as well as functions that allow easy conversion of the 1d arrays to 2d.
-    """
-    def __init__(self, ny, ng=0, d=None):
-        self.ny = ny
-        self.ng = ng
-        self.qy = ny + 2 * ng
-
-        if d is None:
-            self.d = np.zeros((self.qy), dtype=np.float64)
-        else:
-            self.d = d
-
-        self.jlo = ng
-        self.jhi = ng + ny - 1
-
-    def d2d(self):
-        """
-        Returns 2d version of entire 1d data array
-        """
-        return self.d[np.newaxis, :]
-
-    def d2df(self, qx):
-        """
-        fortran compliable version
-        FIXME: is there any benefit to using the above version? Otherwise, just scrap that and keep this one?
-        """
-        return np.array([self.d, ] * qx)
-
-    def v(self, buf=0):
-        """
-        Data array without the ghost cells (i.e. just the interior cells)
-        """
-        return self.d[self.jlo-buf:self.jhi+1+buf]
-
-    def v2d(self, buf=0):
-        """
-        2d version of the interior data.
-        """
-        return self.d[np.newaxis,self.jlo-buf:self.jhi+1+buf]
-
-    def v2df(self, qx, buf=0):
-        """
-        fortran compliable version
-        """
-        return np.array(self.d[self.jlo-buf:self.jhi+1+buf, ] * qx)
-
-    def v2dp(self, shift, buf=0):
-        """
-        2d version of the data array, shifted in the y direction and without ghost cells
-        """
-        return self.d[np.newaxis,self.jlo+shift-buf:self.jhi+1+shift+buf]
-
-    def v2dpf(self, qx, shift, buf=0):
-        """
-        fortran compliable version
-        """
-        return np.array(self.d[self.jlo+shift-buf:self.jhi+1+shift+buf, ] * qx)
-
-    def jp(self, shift, buf=0):
-        """
-        1d shifted without ghost cells
-        """
-        return self.d[self.jlo-buf+shift:self.jhi+1+buf+shift]
-
-    def copy(self):
-        """
-        Return a deep (?) copy of the object.
-        """
-        return Basestate(self.ny, ng=self.ng, d=self.d.copy())
-
-    def __add__(self, other):
-        """
-        Overrides standard addition
-        """
-        if isinstance(other, Basestate):
-            return Basestate(self.ny, ng=self.ng, d=self.d + other.d)
-        else:
-            return Basestate(self.ny, ng=self.ng, d=self.d + other)
-
-    def __radd__(self, other):
-        return self.__add__(other)
-
-    def __sub__(self, other):
-        if isinstance(other, Basestate):
-            return Basestate(self.ny, ng=self.ng, d=self.d - other.d)
-        else:
-            return Basestate(self.ny, ng=self.ng, d=self.d - other)
-
-    def __mul__(self, other):
-        if isinstance(other, Basestate):
-            return Basestate(self.ny, ng=self.ng, d=self.d * other.d)
-        else:
-            return Basestate(self.ny, ng=self.ng, d=self.d * other)
-
-    def __rmul__(self, other):
-        return self.__mul__(other)
-
-    def __truediv__(self, other):
-        if isinstance(other, Basestate):
-            return Basestate(self.ny, ng=self.ng, d=self.d / other.d)
-        else:
-            return Basestate(self.ny, ng=self.ng, d=self.d / other)
-
-    def __div__(self, other):
-        if isinstance(other, Basestate):
-            return Basestate(self.ny, ng=self.ng, d=self.d / other.d)
-        else:
-            return Basestate(self.ny, ng=self.ng, d=self.d / other)
-
-    def __rdiv__(self, other):
-        if isinstance(other, Basestate):
-            return Basestate(self.ny, ng=self.ng, d=other.d / self.d)
-        else:
-            return Basestate(self.ny, ng=self.ng, d=other / self.d)
-
-    def __rtruediv__(self, other):
-        if isinstance(other, Basestate):
-            return Basestate(self.ny, ng=self.ng, d=other.d / self.d)
-        else:
-            return Basestate(self.ny, ng=self.ng, d=other / self.d)
-
-
-class Simulation(NullSimulation):
+class SimulationSpherical(SimulationReact):
 
     def __init__(self, solver_name, problem_name, rp, timers=None, fortran=True):
         """
-        Initialize the Simulation object
+        Initialize the SimulationSpherical object
 
         Parameters
         ----------
@@ -192,13 +44,10 @@ class Simulation(NullSimulation):
             python one.
         """
 
-        NullSimulation.__init__(self, solver_name, problem_name, rp, timers=timers)
+        SimulationReact.__init__(self, solver_name, problem_name, rp, timers=timers, fortran=fortran)
 
-        self.base = {}
-        self.aux_data = None
-        self.metric = None
-        self.dt_old = 1.
-        self.fortran = fortran
+        self.r2d = []
+        self.r2v = []
 
 
     def initialize(self):
@@ -207,99 +56,15 @@ class Simulation(NullSimulation):
         and set the initial conditions for the chosen problem.
         """
 
-        myg = grid_setup(self.rp, ng=4)
-
-        bc_dens, bc_xodd, bc_yodd = bc_setup(self.rp)
-
-        my_data = patch.CellCenterData2d(myg)
-
-        my_data.register_var("density", bc_dens)
-        my_data.register_var("enthalpy", bc_dens)
-        my_data.register_var("x-velocity", bc_xodd)
-        my_data.register_var("y-velocity", bc_yodd)
-
-        # phi -- used for the projections.  The boundary conditions
-        # here depend on velocity.  At a wall or inflow, we already
-        # have the velocity we want on the boundary, so we want
-        # Neumann (dphi/dn = 0).  For outflow, we want Dirichlet (phi
-        # = 0) -- this ensures that we do not introduce any tangental
-        # acceleration.
-        bcs = []
-        # CHANGED: I think the neumann/dirichlet thing here was the wrong way around?
-        for bc in [self.rp.get_param("mesh.xlboundary"),
-                   self.rp.get_param("mesh.xrboundary"),
-                   self.rp.get_param("mesh.ylboundary"),
-                   self.rp.get_param("mesh.yrboundary")]:
-            if bc == "periodic":
-                bctype = "periodic"
-            elif bc in ["reflect", "slipwall"]:
-        #        bctype = "neumann"
-                 bctype = "dirichlet"
-            elif bc in ["outflow"]:
-        #        bctype = "dirichlet"
-                 bctype = "neumann"
-            bcs.append(bctype)
-
-        bc_phi = patch.BCObject(xlb=bcs[0], xrb=bcs[1], ylb=bcs[2], yrb=bcs[3])
-
-        # CHANGED: tried setting phi BCs to same as density?
-        #my_data.register_var("phi-MAC", bc_phi)
-        #my_data.register_var("phi", bc_phi)
-        #my_data.register_var("phi-MAC", bc_dens) # moved to aux_data
-
-        # mass fraction: starts as zero, burns to 1
-        my_data.register_var("mass-frac", bc_dens)
-
-        # passive scalar that is advected along - this is actually going to be the scalar times the density, so be careful when plotting at the end
-        my_data.register_var("scalar", bc_dens)
-
-        # temperature
-        my_data.register_var("temperature", bc_dens)
-
-        my_data.create()
-
-        self.cc_data = my_data
-
-        # some auxillary data that we'll need to fill GC in, but isn't
-        # really part of the main solution
-        aux_data = patch.CellCenterData2d(myg)
-
-        # we'll keep the internal energy around just as a diagnostic
-        aux_data.register_var("eint", bc_dens)
-
-        aux_data.register_var("coeff", bc_dens)
-        aux_data.register_var("source_y", bc_yodd)
-        aux_data.register_var("old_source_y", bc_yodd)
-        aux_data.register_var("plot_me", bc_yodd) # somewhere to store data for plotting
-        aux_data.register_var("phi", bc_dens)
-        aux_data.register_var("phi-MAC", bc_dens)
-
-        # gradp -- used in the projection and interface states.  We'll do the
-        # same BCs as density
-        aux_data.register_var("gradp_x", bc_dens)
-        aux_data.register_var("gradp_y", bc_dens)
-
-        aux_data.create()
-        self.aux_data = aux_data
-
-        #  1-d base state
-        self.base["D0"] = Basestate(myg.ny, ng=myg.ng)
-        self.base["Dh0"] = Basestate(myg.ny, ng=myg.ng)
-        self.base["p0"] = Basestate(myg.ny, ng=myg.ng)
-        self.base["old_p0"] = Basestate(myg.ny, ng=myg.ng)
-        self.base["U0"] = Basestate(myg.ny, ng=myg.ng)
-        self.base["U0_old_half"] = Basestate(myg.ny, ng=myg.ng)
-        # U0(t=0) = 0 as an initial approximation
-
-        # add metric
-        g = self.rp.get_param("lm-gr.grav")
-        c = self.rp.get_param("lm-gr.c")
-
-        if g < 1.e-5:
-            print('Gravity is very low (', g, ') - make sure the speed of light is high enough to cope.')
+        super(SimulationSpherical, self).initialize()
 
         R = self.rp.get_param("lm-gr.radius")
+        myg = self.cc_data.grid
 
+        self.r2d = myg.y2d + R
+        self.r2v = r2d[myg.ilo:myg.ihi+1, myg.jlo:myg.jhi+1]
+
+        # set up spherical metric
         alpha = Basestate(myg.ny, ng=myg.ng)
 
         # r = y + R, where r is measured from the centre of the star,
@@ -309,326 +74,16 @@ class Simulation(NullSimulation):
         beta = [0., 0.]
 
         gamma_matrix = np.zeros((myg.qx, myg.qy, 2, 2), dtype=np.float64)
-        gamma_matrix[:, :, :,:] = 1. + 2. * g * \
+        gamma_matrix[:,:,:,:] = 1. + 2. * g * \
             (1. - myg.y[np.newaxis, :, np.newaxis, np.newaxis] / R) / \
             (R * c**2) * np.eye(2)[np.newaxis, np.newaxis, :, :]
 
+        gamma_matrix[:,:,1,1] *= (myg.y2d + R)
+
         self.metric = metric.Metric(self.cc_data, self.rp, alpha, beta,
-                                    gamma_matrix)
+                                    gamma_matrix, cartesian=False)
 
         u0 = self.metric.calcu0()
-
-        # now set the initial conditions for the problem
-        exec(self.problem_name + '.init_data(self.cc_data, self.aux_data, self.base, self.rp, self.metric)')
-
-        # Construct zeta
-        gamma = self.rp.get_param("eos.gamma")
-        self.base["zeta"] = Basestate(myg.ny, ng=myg.ng)
-        D0 = self.base["D0"]
-        self.base["zeta"].d[:] = D0.d
-
-        # we'll also need zeta on vertical edges -- on the domain edges,
-        # just do piecewise constant
-        self.base["zeta-edges"] = Basestate(myg.ny, ng=myg.ng)
-        self.base["zeta-edges"].jp(1)[:] = \
-            0.5 * (self.base["zeta"].v() + self.base["zeta"].jp(1))
-        self.base["zeta-edges"].d[myg.jlo] = self.base["zeta"].d[myg.jlo]
-        self.base["zeta-edges"].d[myg.jhi+1] = self.base["zeta"].d[myg.jhi]
-
-        # initialise source
-        S = self.aux_data.get_var("source_y")
-        S = self.compute_S()
-        oldS = self.aux_data.get_var("old_source_y")
-        oldS = myg.scratch_array(data=S.d)
-
-
-    # This is basically unused now.
-    @staticmethod
-    def make_prime(a, a0):
-        """
-        Returns the perturbation to the base state.
-
-        Parameters
-        ----------
-        a : Grid2d
-            2d full state
-        a0 : Basestate
-            Corresponing 1d base state
-
-        Returns
-        -------
-        make_prime : Grid2d
-            2d perturbation, :math: `a-a_0`
-        """
-        return a - a0.v2d(buf=a0.ng)
-
-
-    @staticmethod
-    def smooth_neighbours(a, mask):
-        """
-        Returns smoothed version of state: points satisfying logical input will be replaced by gaussian smoothing of their immediate neighbours.
-
-        Parameters
-        ----------
-        a : Grid2d
-            2d full state
-        mask : logical
-            logical mask of which points to smooth
-
-        Returns
-        -------
-        smooth_neighbours : float array
-        """
-
-        a.v()[mask] = ((a.jp(1)[mask] + a.jp(-1)[mask] + a.ip(1)[mask] +
-                        a.ip(-1)[mask]) * 26. + (a.ip_jp(1,1)[mask] +
-                        a.ip_jp(-1,1)[mask] + a.ip_jp(1,-1)[mask] +
-                        a.ip_jp(-1,-1)[mask]) * 16. + a.v()[mask]) / 209.
-
-
-    @staticmethod
-    def lateral_average(a):
-        r"""
-        Calculates and returns the lateral average of a, assuming that stuff is
-        to be averaged in the :math: `x` direction.
-
-        Parameters
-        ----------
-        a : float array
-            2d array to be laterally averaged
-
-        Returns
-        -------
-        lateral_average : float array
-            lateral average of a
-        """
-        return np.mean(a, axis=0, dtype=np.float64)
-
-
-    def update_zeta(self, D0=None, zeta=None, u=None, v=None, u0=None):
-        """
-        Updates zeta in the interior and on the edges.
-        Assumes all other variables are up to date.
-
-        Parameters
-        ----------
-        D0 : Basestate object, optional
-            base state (relativistic) density
-        zeta : Basestate object, optional
-            zeta
-        u : ArrayIndexer object, optional
-            horizontal velocity
-        v : ArrayIndexer object, optional
-            vertical velocity
-        u0 : ArrayIndexer object, optional
-            timelike component of the 4-velocity
-        """
-
-        myg = self.cc_data.grid
-        if D0 is None:
-            D0 = self.base["D0"]
-        if u0 is None:
-            u0 = self.metric.calcu0(u=u, v=v)
-        if zeta is None:
-            zeta = self.base["zeta"]
-        zeta_edges = self.base["zeta-edges"]
-
-        try:
-            zeta.d[:] = D0.d
-        except FloatingPointError:
-            print('D0: ', np.max(D0.d))
-            print('u0: ', np.max(u0.d))
-
-        # calculate edges
-        zeta_edges.jp(1)[:] = 0.5 * (zeta.v() + zeta.jp(1))
-        zeta_edges.d[myg.jlo] = zeta.d[myg.jlo]
-        zeta_edges.d[myg.jhi+1] = zeta.d[myg.jhi]
-
-
-    def compute_S(self, u=None, v=None, u0=None, p0=None, Q=None, D=None):
-        r"""
-        :math: `S = -\Gamma^\mu_(\mu \nu) U^\nu + \frac{D (\gamma-1)}{u^0 \gamma^2 p} H`  (see eq 6.34, 6.37 in LowMachGR).
-        base["source-y"] is not updated here as it's sometimes necessary to
-        calculate projections of `S` (e.g. `S^{n*}`) and not `S^n`
-
-        Parameters
-        ----------
-        u : ArrayIndexer object, optional
-            horizontal velocity
-        v : ArrayIndexer object, optional
-            vertical velocity
-        u0 : ArrayIndexer object, optional
-            timelike component of the 4-velocity
-        p0 : ArrayIndexer object, optional
-            base-state pressure
-        Q : ArrayIndexer object, optional
-            nuclear heating rate
-        D : ArrayIndexer object, optional
-            full density state
-
-        Returns
-        -------
-        S : ArrayIndexer object
-        """
-        myg = self.cc_data.grid
-        S = myg.scratch_array()
-        if u is None:
-            u = self.cc_data.get_var("x-velocity")
-        if v is None:
-            v = self.cc_data.get_var("y-velocity")
-        if u0 is None:
-            u0 = self.metric.calcu0(u=u, v=v)
-        if p0 is None:
-            p0 = self.base["p0"]
-        gamma = self.rp.get_param("eos.gamma")
-
-        #chrls = np.array([[self.metric.christoffels([self.cc_data.t, i, j])
-        #                   for j in range(myg.qy)] for i in range(myg.qx)])
-        # time-independent metric
-        chrls = self.metric.chrls
-
-        S.d[:,:] = -(chrls[:,:,0,0,0] + chrls[:,:,1,1,0] + chrls[:,:,2,2,0] +
-            (chrls[:,:,0,0,1] + chrls[:,:,1,1,1] + chrls[:,:,2,2,1]) * u.d +
-            (chrls[:,:,0,0,2] + chrls[:,:,1,1,2] + chrls[:,:,2,2,2]) * v.d)
-
-        return S
-
-
-    def constraint_source(self, u=None, v=None, S=None, zeta=None, p0=None):
-        r"""
-        calculate the source terms in the constraint, :math: `\zeta(S - \frac{dp}{dt}/ \Gamma_1 p)`
-
-        Parameters
-        ----------
-        u : ArrayIndexer object, optional
-            horizontal velocity
-        v : ArrayIndexer object, optional
-            vertical velocity
-        S : ArrayIndexer object, optional
-            source term
-        zeta : ArrayIndexer object, optional
-            :math:`zeta`
-        p0 : ArrayIndexer object, optional
-            base state pressure
-
-        Returns
-        -------
-        constraint : ArrayIndexer object
-            :math: `\zeta(S - \frac{dp}{dt}/ \Gamma_1 p)`
-        """
-        myg = self.cc_data.grid
-        # get parameters
-        g = self.rp.get_param("lm-gr.grav")
-        c = self.rp.get_param("lm-gr.c")
-        R = self.rp.get_param("lm-gr.radius")
-        gamma = self.rp.get_param("eos.gamma")
-        #if u is None:
-        #    u = self.cc_data.get_var("x-velocity")
-        #if v is None:
-        #    v = self.cc_data.get_var("y-velocity")
-        if zeta is None:
-            zeta = self.base["zeta"]
-        if S is None:
-            S = self.aux_data.get_var("source_y")
-        if p0 is None:
-            p0 = self.base["p0"]
-        dp0dt = Basestate(myg.ny, ng=myg.ng)
-        # calculate dp0dt
-        # FIXME: assumed it's 0 for now
-
-        constraint = myg.scratch_array()
-        # assumed adiabatic EoS so that Gamma_1 = gamma
-        constraint.d[:,:] = zeta.d2df(myg.qx) * \
-            (S.d - dp0dt.d2df(myg.qx) / (gamma * p0.d2df(myg.qx)))
-
-        return constraint
-
-
-    def calc_mom_source(self, u=None, v=None, Dh=None, Dh0=None, u0=None):
-        r"""
-        calculate the source terms in the momentum equation.
-        This works only for the metric :math: `ds^2 = -a^2 dt^2 + 1/a^2 (dx^2 + dr^2)`
-
-        FIXME: need the D_t ln u0 term?
-
-        CHANGED: lowered first index of christoffels
-
-        TODO: make this more general. This definitely needs to be done with
-        einsum or something rather than by hand
-
-        Parameters
-        ----------
-        u : ArrayIndexer object, optional
-            horizontal velocity
-        v : ArrayIndexer object, optional
-            vertical velocity
-        Dh : ArrayIndexer object, optional
-            density * enthalpy full state
-        Dh0: ArrayIndexer object, optional
-            density * enthalpy base state
-        u0 : ArrayIndexer object, optional
-            timelike component of the 4-velocity
-
-        Returns
-        -------
-        mom_source : ArrayIndexer object
-            :math:`\Gamma_{\rho \nu j} U^\nu U^\rho -
-                    \frac{\partial_j p_0}{Dh u_0}`
-        """
-        myg = self.cc_data.grid
-        if u is None:
-            u = self.cc_data.get_var("x-velocity")
-        if v is None:
-            v = self.cc_data.get_var("y-velocity")
-        if Dh is None:
-            Dh = self.cc_data.get_var("enthalpy")
-        if Dh0 is None:
-            Dh0 = self.base["Dh0"]
-        if u0 is None:
-            u0 = self.metric.calcu0(u=u, v=v)
-        mom_source_r = myg.scratch_array()
-        mom_source_x = myg.scratch_array()
-        gtt = -(self.metric.alpha.d)**2
-        gxx = 1. / self.metric.alpha.d**2
-        grr = gxx
-        drp0 = self.drp0(Dh0=Dh0, u=u, v=v, u0=u0)
-
-        #chrls = np.array([[self.metric.christoffels([self.cc_data.t, i, j])
-        #                   for j in range(myg.qy)] for i in range(myg.qx)])
-        # time-independent metric
-        chrls = self.metric.chrls
-
-        # note metric components needed to lower the christoffel symbols
-        mom_source_x.d[:,:] = (gtt[np.newaxis,:] * chrls[:,:,0,0,1] +
-            (gxx[np.newaxis,:] * chrls[:,:,1,0,1] +
-             gtt[np.newaxis,:] * chrls[:,:,0,1,1]) * u.d +
-            (grr[np.newaxis,:] * chrls[:,:,2,0,1] +
-             gtt[np.newaxis,:] * chrls[:,:,0,2,1]) * v.d +
-            gxx[np.newaxis,:] * chrls[:,:,1,1,1] * u.d**2 +
-            grr[np.newaxis,:] * chrls[:,:,2,2,1] * v.d**2 +
-            (grr[np.newaxis,:] * chrls[:,:,2,1,1] +
-             gxx[np.newaxis,:] * chrls[:,:,1,2,1]) * u.d * v.d)
-        mom_source_r.d[:,:] = (gtt[np.newaxis,:] * chrls[:,:,0,0,2] +
-            (gxx[np.newaxis,:] * chrls[:,:,1,0,2] +
-             gtt[np.newaxis,:] * chrls[:,:,0,1,2]) * u.d +
-            (grr[np.newaxis,:] * chrls[:,:,2,0,2] +
-             gtt[np.newaxis,:] * chrls[:,:,0,2,2]) * v.d +
-            gxx[np.newaxis,:] * chrls[:,:,1,1,2] * u.d**2 +
-            grr[np.newaxis,:] * chrls[:,:,2,2,2] * v.d**2 +
-            (grr[np.newaxis,:] * chrls[:,:,2,1,2] +
-             gxx[np.newaxis,:] * chrls[:,:,1,2,2]) * u.d * v.d)
-
-        # check drp0 is not zero
-        mask = (abs(drp0.d2df(myg.qx)) > 1.e-15)
-        #print(drp0.d2d())
-        mom_source_r.d[mask] -=  drp0.d2df(myg.qx)[mask] / (Dh.d[mask]*u0.d[mask])
-
-        #mom_source_r.d[:,:] -=  drp0.d[np.newaxis,:] / (Dh.d[:,:]*u0.d[:,:])
-
-        mom_source_x.d[:,:] *=  self.metric.alpha.d2d()**2
-        mom_source_r.d[:,:] *=  self.metric.alpha.d2d()**2
-
-        return mom_source_x, mom_source_r
 
 
     def calc_psi(self, S=None, U0=None, p0=None, old_p0=None):
@@ -664,481 +119,16 @@ class Simulation(NullSimulation):
         if old_p0 is None:
             old_p0 = self.base["old_p0"]
 
-        psi = Basestate(myg.ny, ng=myg.ng)
+        psi = super(SimulationSpherical, self).calc_psi(S=S, U0=U0, p0=p0, old_p0=old_p0)
 
-        psi.v(buf=myg.ng-1)[:] = gamma * 0.25 * \
-            (p0.v(buf=myg.ng-1) + old_p0.v(buf=myg.ng-1)) * \
-            (self.lateral_average(S.v(buf=myg.ng-1)) -
-             (U0.jp(1, buf=myg.ng-1) - U0.jp(-1, buf=myg.ng-1)))
+        #psi.v(buf=myg.ng-1)[:] = gamma * 0.25 * \
+        #    (p0.v(buf=myg.ng-1) + old_p0.v(buf=myg.ng-1)) * \
+        #    (self.lateral_average(S.v(buf=myg.ng-1)) -
+        #     (U0.jp(1, buf=myg.ng-1) - U0.jp(-1, buf=myg.ng-1)))
+
+        # really confused what this does?
 
         return psi
-
-    def calc_T(self, p0=None, D=None, DX=None, u=None, v=None, u0=None, T=None):
-        r"""
-        Calculates the temperature assuming an ideal gas with a mixed composition and a constant ratio of specific heats:
-        .. math::
-
-            p = \rho e (\gamma -1) = \frac{\rho k_B T}{\mu m_p}
-
-        The mean molecular weight, :math: `\mu`, is given by
-        .. math::
-
-            \mu = \left(\sum_k \frac{X_k}{A_k}\right)^{-1}
-
-        We model the system as being made purely of helium which burns into carbon. X is the fraction of carbon, so we can write
-        .. math::
-
-            \mu = (2+4X)^{-1}
-
-        Parameters
-        ----------
-        p0 : ArrayIndexer object, optional
-            base state pressure
-        D : ArrayIndexer object, optional
-            full state density
-        DX : ArrayIndexer object, optional
-            density * mass fraction full state
-        u : ArrayIndexer object, optional
-            horizontal velocity
-        v : ArrayIndexer object, optional
-            vertical velocity
-        u0 : ArrayIndexer object, optional
-            timelike component of the 4-velocity
-        T : ArrayIndexer object, optional
-            temperature
-        """
-        return
-
-
-    def calc_Q_omega_dot(self, D=None, DX=None, u=None, v=None, u0=None, T=None):
-        r"""
-        Calculates the energy generation rate according to eq. 2 of Cavecchi, Levin, Watts et al 2015 and the creation rate
-
-        Parameters
-        ----------
-        D : ArrayIndexer object, optional
-            full state density
-        DX : ArrayIndexer object, optional
-            density * mass fraction full state
-        u : ArrayIndexer object, optional
-            horizontal velocity
-        v : ArrayIndexer object, optional
-            vertical velocity
-        u0 : ArrayIndexer object, optional
-            timelike component of the 4-velocity
-        T : ArrayIndexer object, optional
-            temperature
-
-        Returns
-        -------
-        Q : ArrayIndexer object
-            nuclear heating rate
-        omega_dot : ArrayIndexer object
-            species creation rate
-        """
-        myg = self.cc_data.grid
-        Q = myg.scratch_array()
-        omega_dot = myg.scratch_array()
-
-        return Q, omega_dot
-
-    def base_state_forcing(self, U0_half=None, U0_old_half=None, Dh0=None, Dh0_old=None, u=None, v=None, u0=None):
-        r"""
-        calculate the base state velocity forcing term from 2C
-        This works only for the metric :math: `ds^2 = -a^2 dt^2 + 1/a^2 (dx^2 + dr^2)`
-
-        Parameters
-        ----------
-        U0_half : ArrayIndexer object, optional
-            time-centred base state velocity
-        U0_old_half : ArrayIndexer object, optional
-            previous time-centred base state velocity
-        Dh0 : ArrayIndexer object, optional
-            density * enthalpy base state
-        Dh0 : ArrayIndexer object, optional
-            previous density * enthalpy base state
-        u : ArrayIndexer object, optional
-            horizontal velocity
-        v : ArrayIndexer object, optional
-            vertical velocity
-        u0 : ArrayIndexer object, optional
-            timelike component of the 4-velocity
-
-        Returns
-        -------
-        drpi : ArrayIndexer object
-            base state velocity forcing term
-        """
-        myg = self.cc_data.grid
-        drpi = myg.scratch_array()
-        if U0_half is None:
-            U0_half = self.base["U0"]
-        if U0_old_half is None:
-            U0_old_half = self.base["U0"]
-        if Dh0 is None:
-            Dh0 = self.base["Dh0"]
-        if Dh0_old is None:
-            Dh0_old = self.base["Dh0"]
-        if u0 is None:
-            u0 = self.metric.calcu0(u=u, v=v)
-        Dh0_half = 0.5 * (Dh0_old + Dh0)
-
-        drp0 = self.drp0(Dh0=Dh0_half, u=u, v=v, u0=u0)
-        grr = 1. / self.metric.alpha.d**2
-
-        #chrls = np.array([[self.metric.christoffels([self.cc_data.t, i, j])
-        #                   for j in range(myg.qy)] for i in range(myg.qx)])
-        # time-independent metric
-        chrls = self.metric.chrls
-
-        U0_star = Basestate(myg.ny, ng=myg.ng)
-        U0_star.d[:] = (self.dt * U0_old_half.d +
-                        self.dt_old * U0_half.d) / (self.dt + self.dt_old)
-
-        drU0_old_half = Basestate(myg.ny, ng=myg.ng)
-        drU0_half = Basestate(myg.ny, ng=myg.ng)
-        drU0_star = Basestate(myg.ny, ng=myg.ng)
-        drU0_old_half.d[1:-1] = (U0_old_half.d[2:] -
-                                 U0_old_half.d[:-2]) / (2. * myg.dy)
-        drU0_half.d[1:-1] = (U0_half.d[2:] -
-                                 U0_half.d[:-2]) / (2. * myg.dy)
-        drU0_star.d[:] = (self.dt * drU0_half.d +
-                    self.dt_old * drU0_half.d) / (self.dt + self.dt_old)
-
-        drp0_old_half = Basestate(myg.ny, ng=myg.ng)
-        drp0_half = Basestate(myg.ny, ng=myg.ng)
-        drp0_star = Basestate(myg.ny, ng=myg.ng)
-        # don't have an old p0 atm - just ignore for now
-        drp0_star.d[:] = drp0.d
-
-        drpi.d[:,:] = \
-            -0.5*(U0_half.d2d() - U0_old_half.d2d())/(self.dt + self.dt_old) -\
-            U0_star.d2d() * drU0_star.d2d() - drp0_star.d2d() / (Dh0_half.d * u0.d) + \
-            grr * chrls[:,:,2,2,0] * U0_star.d2d()**2
-
-        return drpi
-
-
-    def react_state(self, S=None, D=None, Dh=None, DX=None, p0=None, T=None, scalar=None, Dh0=None, u=None, v=None, u0=None):
-        """
-        gravitational source terms in the continuity equation (called react
-        state to mirror MAESTRO as here they just have source terms from the
-        reactions)
-
-        Parameters
-        ----------
-        S : ArrayIndexer object, optional
-            source term
-        D : ArrayIndexer object, optional
-            density full state
-        Dh : ArrayIndexer object, optional
-            density * enthalpy full state
-        DX : ArrayIndexer object, optional
-            density * species mass fraction full state
-        p0 : ArrayIndexer object, optional
-            base state pressure
-        T : ArrayIndexer object, optional
-            temperature
-        scalar : ArrayIndexer object, optional
-            passive advective scalar (* density)
-        Dh0 : ArrayIndexer object, optional
-            density * enthalpy base state
-        u : ArrayIndexer object, optional
-            horizontal velocity
-        v : ArrayIndexer object, optional
-            vertical velocity
-        u0 : ArrayIndexer object, optional
-            timelike component of the 4-velocity
-        """
-        myg = self.cc_data.grid
-
-        if D is None:
-            D = self.cc_data.get_var("density")
-        if Dh is None:
-            Dh = self.cc_data.get_var("enthalpy")
-        if DX is None:
-            DX = self.cc_data.get_var("mass-frac")
-        if scalar is None:
-            scalar = self.cc_data.get_var("scalar")
-        if v is None:
-            v = self.cc_data.get_var("y-velocity")
-        if u0 is None:
-            u0 = self.metric.calcu0(u=u, v=v)
-        drp0 = self.drp0(Dh0=Dh0, u=u, v=v, u0=u0)
-        if S is None:
-            S = self.aux_data.get_var("source_y")
-
-        Dh.d[:,:] += 0.5 * self.dt * (S.d * Dh.d + u0.d * v.d * drp0.d2d())
-
-        D.d[:,:] += 0.5 * self.dt * (S.d * D.d)
-
-        scalar.d[:,:] += 0.5 * self.dt * (S.d * scalar.d)
-
-
-    def advect_base_density(self, D0=None, U0=None):
-        r"""
-        Updates the base state density through one timestep. Eq. 6.131:
-        .. math::
-
-            D_{0j}^\text{out} = D_{0j}^\text{in} - \frac{\Delta t}{\Delta r}\left[\left(D_0^{\text{out},n+\sfrac{1}{2}} U_0^\text{in}\right)_{j+\sfrac{1}{2}} - \left(D_0^{\text{out},n+\sfrac{1}{2}} U_0^\text{in}\right)_{j-\sfrac{1}{2}}\right]
-
-        This is incorrect as need to use edge based :math: `D`, as found in the
-        evolve function.
-
-        Parameters
-        ----------
-        D0 : ArrayIndexer object, optional
-            density base state
-        U0 : ArrayIndexer object, optional
-            base state velocity
-        """
-        myg = self.cc_data.grid
-        if D0 is None:
-            D0 = self.base["D0"]
-        dt = self.dt
-        dr = myg.dy
-        if U0 is None:
-            U0 = self.base["U0"]
-        # FIXME: time-centred edge states
-
-        D0.v()[:] += -(D0.jp(1) * U0.jp(1) - D0.jp(-1) * U0.jp(-1)) * 0.25 * dt / dr
-
-    def advect_scalar(self):
-        """
-        Advects the scalar very naively.
-        """
-        myg = self.cc_data.grid
-        scalar = self.cc_data.get_var("scalar")
-        u = self.cc_data.get_var("x-velocity")
-        v = self.cc_data.get_var("y-velocity")
-        dt = self.dt
-        dx = myg.dx
-        dr = myg.dy
-
-        scalar.v()[:,:] += \
-            -(scalar.ip(1)*u.ip(1) - scalar.ip(-1)*u.ip(-1))*0.5*dt / dx \
-            -(scalar.jp(1)*v.jp(1) - scalar.jp(-1)*v.jp(-1))*0.5*dt / dr
-
-        self.cc_data.fill_BC("scalar")
-
-
-    def enforce_tov(self, p0=None, Dh0=None, u=None, v=None, u0=None):
-        r"""
-        enforces the TOV equation. This is the GR equivalent of enforce_hse.
-        Eq. 6.133.
-        .. math::
-
-            p_{0,j+1}^\text{out} = p_{0,j}^\text{in} + \frac{\Delta r}{2} \left(\partial_r p_{0,j+1} + \partial_r p_{0,j} \right)
-
-        Parameters
-        ----------
-        p0 : ArrayIndexer object, optional
-            base state pressure
-        Dh0 : ArrayIndexer object, optional
-            density * enthalpy base state
-        u : ArrayIndexer object, optional
-            horizontal velocity
-        v : ArrayIndexer object, optional
-            vertical velocity
-        u0 : ArrayIndexer object, optional
-            timelike component of the 4-velocity
-        """
-        myg = self.cc_data.grid
-        if p0 is None:
-            p0 = self.base["p0"]
-        old_p0 = self.base["old_p0"]
-        old_p0 = Basestate(myg.ny, ng=myg.ng)
-        old_p0.d[:] = p0.d
-        drp0 = self.drp0(Dh0=Dh0, u=u, v=v, u0=u0)
-
-        p0.d[1:] = p0.d[:-1] + 0.5 * self.cc_data.grid.dy * \
-                   (drp0.d[1:] + drp0.d[:-1])
-
-
-    def drp0(self, Dh0=None, u=None, v=None, u0=None):
-        """
-        Calculate drp0 as it's messy using eq 6.136
-
-        Parameters
-        ----------
-        Dh0 : ArrayIndexer object, optional
-            density * enthalpy base state
-        u : ArrayIndexer object, optional
-            horizontal velocity
-        v : ArrayIndexer object, optional
-            vertical velocity
-        u0 : ArrayIndexer object, optional
-            timelike component of the 4-velocity
-        """
-        myg = self.cc_data.grid
-        if Dh0 is None:
-            Dh0 = self.base["Dh0"]
-        # TODO: maybe instead of averaging u0, should calculate it
-        # based on U0?
-        if u0 is None:
-            u0 = self.metric.calcu0(u=u, v=v)
-        u01d = Basestate(myg.ny, ng=myg.ng)
-        u01d.d[:] = self.lateral_average(u0.d)
-        alpha = self.metric.alpha
-        g = self.rp.get_param("lm-gr.grav")
-        c = self.rp.get_param("lm-gr.c")
-        R = self.rp.get_param("lm-gr.radius")
-
-        drp0 = Basestate(myg.ny, ng=myg.ng)
-
-        drp0.d[:] = -Dh0.d * g / (R * c**2 * alpha.d**2 * u01d.d)
-
-        return drp0
-
-
-    def advect_base_enthalpy(self, Dh0=None, S=None, U0=None, u=None, v=None, u0=None):
-        r"""
-        updates base state enthalpy throung one timestep using eq. 6.134
-
-        .. math::
-
-            (Dh)_{0j}^\text{out}
-                = (Dh)_{0j}^\text{in} - \frac{\Delta t}{\Delta r}\left(\left[(Dh)_0^{n+\sfrac{1}{2}} U_0^\text{in}\right]_{j+\sfrac{1}{2}} - \left[(Dh)_0^{n+\sfrac{1}{2}} U_0^\text{in}\right]_{j-\sfrac{1}{2}}\right) + \Delta tu^0\psi_j^\text{in}
-
-        Parameters
-        ----------
-        Dh0 : ArrayIndexer object, optional
-            density * enthalpy base state
-        S : ArrayIndexer object, optional
-            source term
-        U0 : ArrayIndexer object, optional
-            base state velocity
-        u : ArrayIndexer object, optional
-            horizontal velocity
-        v : ArrayIndexer object, optional
-            vertical velocity
-        u0 : ArrayIndexer object, optional
-            timelike component of the 4-velocity
-        """
-        myg = self.cc_data.grid
-        if Dh0 is None:
-            Dh0 = self.base["Dh0"]
-        dt = self.dt
-        dr = myg.dy
-        if U0 is None:
-            U0 = self.base["U0"]
-        if S is None:
-            S = self.aux_data.get_var("source_y")
-        psi = self.calc_psi(U0=U0, S=S)
-        if u0 is None:
-            u0 = self.metric.calcu0(u=u, v=v)
-
-        # FIXME: find out how to find the time-centred edge
-        # states and use them here?
-        # CHANGED: add psi
-
-        Dh0.v()[:] += -(Dh0.jp(1) * U0.jp(1) - Dh0.jp(-1) * U0.jp(-1)) * 0.25 * dt / dr + \
-                      dt * self.lateral_average(u0.v()) * psi.v()
-                      # dt * U0.v() * self.drp0().v() + \
-
-
-    def compute_base_velocity(self, U0=None, p0=None, S=None, Dh0=None, u=None, v=None, u0=None):
-        r"""
-        Calculates the base velocity using eq. 6.138
-
-        .. math::
-
-            \frac{ U^\text{out}_{0,j+\sfrac{1}{2}} -  U^\text{out}_{0,j-\sfrac{1}{2}}}{\Delta r} = \left(\bar{S}^\text{in} - \frac{1}{\bar{\Gamma}_1^\text{in} p_0^\text{in}}\psi^\text{in}\right)_j
-
-        Parameters
-        ----------
-        U0 : ArrayIndexer object, optional
-            base state velocity
-        p0 : ArrayIndexer object, optional
-            base state pressure
-        S : ArrayIndexer object, optional
-            source term
-        Dh0 : ArrayIndexer object, optional
-            density * enthalpy base state
-        u : ArrayIndexer object, optional
-            horizontal velocity
-        v : ArrayIndexer object, optional
-            vertical velocity
-        u0 : ArrayIndexer object, optional
-            timelike component of the 4-velocity
-        """
-        myg = self.cc_data.grid
-        if p0 is None:
-            p0 = self.base["p0"]
-        dt = self.dt
-        dr = myg.dy
-        if U0 is None:
-            U0 = self.base["U0"]
-        gamma = self.rp.get_param("eos.gamma")
-        drp0 = self.drp0(Dh0=Dh0, u=u, v=v, u0=u0)
-        if S is None:
-            S = self.aux_data.get_var("source_y")
-
-        Sbar = self.lateral_average(S.d)
-        U0.d[0] = 0.
-        # FIXME: fix cell-centred / edge-centred indexing.
-        U0.d[1:] = U0.d[:-1] + dr * (Sbar[:-1] - U0.d[:-1] * drp0.d[:-1] /
-                                     (gamma * p0.d[:-1]))
-
-
-    def compute_timestep(self, u0=None):
-        """
-        The timestep() function computes the advective timestep
-        (CFL) constraint.  The CFL constraint says that information
-        cannot propagate further than one zone per timestep.
-
-        We use the driver.cfl parameter to control what fraction of the CFL
-        step we actually take.
-
-        Parameters
-        ----------
-        u0 : ArrayIndexer object, optional
-            timelike component of the 4-velocity
-        """
-
-        self.dt_old = self.dt
-
-        myg = self.cc_data.grid
-
-        cfl = self.rp.get_param("driver.cfl")
-
-        u = self.cc_data.get_var("x-velocity")
-        v = self.cc_data.get_var("y-velocity")
-
-        # the timestep is min(dx/|u|, dy|v|)
-        xtmp = ytmp = 1.e33
-        if not abs(u).max() < 1.e-25:
-            xtmp = myg.dx / abs(u.v()).max()
-        if not abs(v).max() < 1.e-25:
-            ytmp = myg.dy / abs(v.v()).max()
-
-        dt = cfl * min(xtmp, ytmp)
-
-        # We need an alternate timestep that accounts for buoyancy, to
-        # handle the case where the velocity is initially zero.
-        Dh0 = self.base["Dh0"]
-        if u0 is None:
-            u0 = self.metric.calcu0(u=u, v=v)
-
-        drp0 = self.drp0(Dh0=Dh0, u=u, v=v, u0=u0)
-
-        _, mom_source_r = self.calc_mom_source(u0=u0)
-
-        F_buoy = np.max(np.abs(mom_source_r.v()))
-
-        # check reactions
-        _, omega_dot = self.calc_Q_omega_dot()
-        if omega_dot.v().max() < 1.e-15:
-            dt_react = 1.e30
-        else:
-            dt_react = 1./omega_dot.v().max()
-
-        dt_buoy = np.sqrt(2.0 * myg.dx / max(F_buoy, 1.e-12))
-        self.dt = min(dt, dt_buoy, dt_react)
-        if self.dt > 1.e30:
-            self.dt = 100.
-        if self.verbose > 0:
-            print("timestep is {}".format(self.dt))
 
 
     def preevolve(self):
@@ -1185,25 +175,25 @@ class Simulation(NullSimulation):
 
         # next create the multigrid object.  We defined phi with
         # the right BCs previously
-        mg = vcMG.VarCoeffCCMG2d(myg.nx, myg.ny,
-                                 xl_BC_type=self.aux_data.BCs["phi"].xlb,
-                                 xr_BC_type=self.aux_data.BCs["phi"].xrb,
-                                 yl_BC_type=self.aux_data.BCs["phi"].ylb,
-                                 yr_BC_type=self.aux_data.BCs["phi"].yrb,
-                                 xmin=myg.xmin, xmax=myg.xmax,
-                                 ymin=myg.ymin, ymax=myg.ymax,
-                                 coeffs=coeff,
-                                 coeffs_bc=self.cc_data.BCs["density"],
-                                 verbose=0)
+        mg = rectMG.RectMG2d(myg.nx, myg.ny,
+                             xl_BC_type=self.aux_data.BCs["phi"].xlb,
+                             xr_BC_type=self.aux_data.BCs["phi"].xrb,
+                             yl_BC_type=self.aux_data.BCs["phi"].ylb,
+                             yr_BC_type=self.aux_data.BCs["phi"].yrb,
+                             xmin=myg.xmin, xmax=myg.xmax,
+                             ymin=myg.ymin, ymax=myg.ymax,
+                             coeffs=coeff,
+                             coeffs_bc=self.cc_data.BCs["density"],
+                             verbose=0)
 
         # first compute div{zeta U}
         div_zeta_U = mg.soln_grid.scratch_array()
 
         # u/v are cell-centered, divU is cell-centered
         div_zeta_U.v()[:,:] = \
-            0.5 * zeta.v2df(myg.qx) * (u.ip(1) - u.ip(-1)) / myg.dx + \
+            0.5 * zeta.v2df(myg.qx) * (u.ip(1) - u.ip(-1)) / (myg.dx * self.r2v) + \
             0.5 * (zeta.v2dpf(myg.qx, 1) * v.jp(1) - \
-            zeta.v2dpf(myg.qx, -1) * v.jp(-1)) / myg.dy
+            zeta.v2dpf(myg.qx, -1) * v.jp(-1)) / myg.dy +  zeta.v2df(myg.qx) * u.v() / (self.r2v * np.tan(myg.x2v)) + 2. * zeta.v2df(myg.qx) * v.v() / self.r2v
 
         # solve D (zeta^2/Dh u0) G (phi/zeta) = D( zeta U )
         constraint = self.constraint_source()
@@ -1444,34 +434,28 @@ class Simulation(NullSimulation):
         coeff.v(buf=1)[:,:] *= zeta.v2d(buf=1)**2
 
         # create the multigrid object
-        mg = vcMG.VarCoeffCCMG2d(myg.nx, myg.ny,
-                                 xl_BC_type=self.aux_data.BCs["phi-MAC"].xlb,
-                                 xr_BC_type=self.aux_data.BCs["phi-MAC"].xrb,
-                                 yl_BC_type=self.aux_data.BCs["phi-MAC"].ylb,
-                                 yr_BC_type=self.aux_data.BCs["phi-MAC"].yrb,
-                                 xmin=myg.xmin, xmax=myg.xmax,
-                                 ymin=myg.ymin, ymax=myg.ymax,
-                                 coeffs=coeff,
-                                 coeffs_bc=self.cc_data.BCs["density"],
-                                 verbose=0)
+        mg = rectMG.RectMG2d(myg.nx, myg.ny,
+                             xl_BC_type=self.aux_data.BCs["phi-MAC"].xlb,
+                             xr_BC_type=self.aux_data.BCs["phi-MAC"].xrb,
+                             yl_BC_type=self.aux_data.BCs["phi-MAC"].ylb,
+                             yr_BC_type=self.aux_data.BCs["phi-MAC"].yrb,
+                             xmin=myg.xmin, xmax=myg.xmax,
+                             ymin=myg.ymin, ymax=myg.ymax,
+                             coeffs=coeff,
+                             coeffs_bc=self.cc_data.BCs["density"],
+                             verbose=0)
 
         # first compute div{zeta U}
         div_zeta_U = mg.soln_grid.scratch_array()
 
         # MAC velocities are edge-centered.  div{zeta U} is cell-centered.
-        if cartesian:
-            div_zeta_U.v()[:,:] = \
-                zeta.v2d() * (u_MAC.ip(1) - u_MAC.v()) / myg.dx + \
-                (zeta_edges.v2dp(1) * v_MAC.jp(1) -
-                 zeta_edges.v2d() * v_MAC.v()) / myg.dy
-        else:
-            div_zeta_U.v()[:,:] = \
-                zeta.v2d() * (u_MAC.ip(1) - u_MAC.v()) / (myg.dx + \
-                self.r2d) + zeta.v2d() * u.v() / (np.tan(myg.x2d) * \
-                self.r2d) + \
-                (zeta_edges.v2dp(1) * v_MAC.jp(1) - \
-                zeta_edges.v2d() * v_MAC.v()) / myg.dy + \
-                2. * zeta.v2d() * v.v() / self.r2d
+        div_zeta_U.v()[:,:] = \
+            zeta.v2d() * (u_MAC.ip(1) - u_MAC.v()) / (myg.dx + \
+            self.r2v) + zeta.v2d() * u.v() / (np.tan(myg.x2v) * \
+            self.r2v) + \
+            (zeta_edges.v2dp(1) * v_MAC.jp(1) - \
+            zeta_edges.v2d() * v_MAC.v()) / myg.dy + \
+            2. * zeta.v2d() * v.v() / self.r2v
 
         # careful: this makes u0_MAC edge-centred.
         u0_MAC = self.metric.calcu0(u=u_MAC, v=v_MAC)
@@ -1573,7 +557,7 @@ class Simulation(NullSimulation):
         D02d.v()[:,:] -= self.dt*(
             #  (D v)_y
             (D0_yint.jp(1) * U0_half_star.jp(1)[np.newaxis,:] - \
-             D0_yint.v() * U0_half_star.v2d())/myg.dy)
+             D0_yint.v() * U0_half_star.v2d())/myg.dy + 2. * D0.v2d() * U0_half_star.v2d() / self.r2v)
 
         # predict to edges
         D0_2a_star = Basestate(myg.ny, ng=myg.ng)
@@ -1615,24 +599,24 @@ class Simulation(NullSimulation):
 
         scalar_2_star.v()[:,:] -= self.dt * (
             #  (psi D u)_x
-            (scalar_xint.ip(1) * u_MAC.ip(1) - scalar_xint.v() * u_MAC.v())/myg.dx +
+            (scalar_xint.ip(1) * u_MAC.ip(1) - scalar_xint.v() * u_MAC.v())/(myg.dx * self.r2v) + scalar_1.v() / (self.r2v * np.tan(myg.x2v)) +
             #  (psi D v)_y
             (scalar_yint.jp(1)*(v_MAC.jp(1) + U0_half_star.jp(1)[np.newaxis,:]) -
-             scalar_yint.v() * (v_MAC.v() + U0_half_star.v2d())) / myg.dy )
+             scalar_yint.v() * (v_MAC.v() + U0_half_star.v2d())) / myg.dy  + 2. * scalar_1.v() * (v.v() + U0_half_star.v2d()) / self.r2v)
 
         DX_2_star.v()[:,:] -= self.dt * (
             #  (X D u)_x
-            (DX_xint.ip(1) * u_MAC.ip(1) - DX_xint.v() * u_MAC.v())/myg.dx +
+            (DX_xint.ip(1) * u_MAC.ip(1) - DX_xint.v() * u_MAC.v())/(myg.dx * self.r2v) + DX_1.v() * u.v() / (self.r2v * np.tan(myg.x2v)) +
             #  (X D v)_y
             (DX_yint.jp(1)*(v_MAC.jp(1) + U0_half_star.jp(1)[np.newaxis,:]) -
-             DX_yint.v() * (v_MAC.v() + U0_half_star.v2d())) / myg.dy )
+             DX_yint.v() * (v_MAC.v() + U0_half_star.v2d())) / myg.dy  + 2. * DX_1.v() * (v.v() + U0_half_star.v2d()) / self.r2v)
 
         D_2_star.v()[:,:] -= self.dt * (
             #  (D u)_x
-            (D_xint.ip(1) * u_MAC.ip(1) - D_xint.v() * u_MAC.v())/myg.dx +
+            (D_xint.ip(1) * u_MAC.ip(1) - D_xint.v() * u_MAC.v())/(myg.dx * self.r2v) + D_1.v() * u.v() / (self.r2v * np.tan(myg.x2v)) +
             #  (D v)_y
             (D_yint.jp(1)*(v_MAC.jp(1) + U0_half_star.jp(1)[np.newaxis,:]) -
-             D_yint.v() * (v_MAC.v() + U0_half_star.v2d())) / myg.dy )
+             D_yint.v() * (v_MAC.v() + U0_half_star.v2d())) / myg.dy + 2. * D_1.v() * (v.v() + U0_half_star.v2d()) / self.r2v)
 
         D0_star = Basestate(myg.ny, ng=myg.ng)
         D0_star.d[:] = D0_2a_star.d
@@ -1666,7 +650,7 @@ class Simulation(NullSimulation):
         Dh02d.v()[:,:] += -self.dt * (
             #  (D v)_y
             (Dh0_yint.jp(1) * U0_half_star.jp(1)[np.newaxis,:] - \
-             Dh0_yint.v() * U0_half_star.v2d())/myg.dy) + \
+             Dh0_yint.v() * U0_half_star.v2d())/myg.dy + 2. * Dh0.v2df(myg.qx) * (v.v() + U0_half_star.v2d()) / self.r2v) + \
             self.dt * u0_MAC.v() * psi.v()
 
         # predict to edges
@@ -1698,10 +682,11 @@ class Simulation(NullSimulation):
         # 4Hii.
         Dh_2_star.v()[:,:] += -self.dt * (
             #  (D u)_x
-            (Dh_xint.ip(1)*u_MAC.ip(1) - Dh_xint.v()*u_MAC.v())/myg.dx +
+            (Dh_xint.ip(1)*u_MAC.ip(1) - Dh_xint.v()*u_MAC.v())/(myg.dx * self.r2v) + Dh_1.v() * u.v() / (self.r2v * np.tan(myg.x2v)) +
             #  (D v)_y
             (Dh_yint.jp(1)*(v_MAC.jp(1) + U0_half_star.jp(1)[np.newaxis,:]) -\
-             Dh_yint.v() * (v_MAC.v() + U0_half_star.v2d())) / myg.dy ) + \
+             Dh_yint.v() * (v_MAC.v() + U0_half_star.v2d())) / myg.dy  + \
+            + 2. * Dh_1.v() * (v.v() + U0_half_star.v2d()) / self.r2v) +\
             self.dt * u0_MAC.v() * v_MAC.v() * drp0.v2d() + \
             self.dt * u0_MAC.v() * psi.v()
 
@@ -1896,7 +881,7 @@ class Simulation(NullSimulation):
         D02d.v()[:,:] -= self.dt * (
             #  (D v)_y
             (D0_yint.jp(1) * U0_half.jp(1)[np.newaxis,:] -
-             D0_yint.v() * U0_half.v2d())/myg.dy)
+             D0_yint.v() * U0_half.v2d())/myg.dy + 2. * D0.v2df(myg.qx) * (v.v() + U0_half.v2d()) / self.r2v)
 
         # predict to edges
         D0_2a = Basestate(myg.ny, ng=myg.ng)
@@ -1938,26 +923,26 @@ class Simulation(NullSimulation):
 
         D_2.v()[:,:] -= self.dt * (
             #  (D u)_x
-            (D_xint.ip(1)*u_MAC.ip(1) - D_xint.v()*u_MAC.v())/myg.dx +
+            (D_xint.ip(1)*u_MAC.ip(1) - D_xint.v()*u_MAC.v())/(myg.dx * self.r2v) + D_1.v() * u.v() / (self.r2v * np.tan(myg.x2v)) +
             #  (D v)_y
             (D_yint.jp(1)*(v_MAC.jp(1) + U0_half.jp(1)[np.newaxis,:]) -\
-             D_yint.v() * (v_MAC.v() + U0_half.v2d())) / myg.dy )
+             D_yint.v() * (v_MAC.v() + U0_half.v2d())) / myg.dy + 2. * D_1.v() * (v.v() + U0_half.v2d()) / self.r2v)
 
         DX_2.v()[:,:] -= self.dt * (
             #  (X D u)_x
-            (DX_xint.ip(1) * u_MAC.ip(1) - DX_xint.v() * u_MAC.v())/myg.dx +
+            (DX_xint.ip(1) * u_MAC.ip(1) - DX_xint.v() * u_MAC.v())/(myg.dx * self.r2v) + DX_1.v() * u.v() / (self.r2v * np.tan(myg.x2v)) +
             #  (X D v)_y
             (DX_yint.jp(1)*(v_MAC.jp(1) + U0_half.jp(1)[np.newaxis,:]) -
-             DX_yint.v() * (v_MAC.v() + U0_half.v2d())) / myg.dy )
+             DX_yint.v() * (v_MAC.v() + U0_half.v2d())) / myg.dy + 2. * DX_1.v() * (v.v() + U0_half.v2d()) / self.r2v)
 
         scalar_2.v()[:,:] -= self.dt * (
             #  (D u)_x
             (scalar_xint.ip(1) * u_MAC.ip(1) -
-             scalar_xint.v() * u_MAC.v()) / myg.dx +
+             scalar_xint.v() * u_MAC.v()) / (myg.dx * self.r2v) + scalar_1.v() / (self.r2v * np.tan(myg.x2v)) +
             #  (D v)_y
             (scalar_yint.jp(1) * (v_MAC.jp(1) +
              U0_half.jp(1)[np.newaxis,:]) -
-             scalar_yint.v() * (v_MAC.v() + U0_half.v2d())) / myg.dy )
+             scalar_yint.v() * (v_MAC.v() + U0_half.v2d())) / myg.dy + 2. * scalar_1.v() * (v.v() + U0_half.v2d()) / self.r2v)
 
         # 8D
         D0.v()[:] = self.lateral_average(D_2.v())
@@ -1992,7 +977,7 @@ class Simulation(NullSimulation):
         Dh02d.v()[:,:] += -self.dt * (
             #  (D v)_y
             (Dh0_yint.jp(1) * U0_half.jp(1)[np.newaxis,:] -
-             Dh0_yint.v() * U0_half.v2d())/myg.dy) + \
+             Dh0_yint.v() * U0_half.v2d())/myg.dy + 2. * Dh0.v2df(myg.qx) * (v.v() + U0_half.v2d()) / self.r2v) + \
             self.dt * u0.v() * psi.v()
         Dh0.v()[:] = self.lateral_average(Dh02d.v())
 
@@ -2019,10 +1004,10 @@ class Simulation(NullSimulation):
 
         Dh_2.v()[:,:] += -self.dt * (
             #  (D u)_x
-            (Dh_xint.ip(1)*u_MAC.ip(1) - Dh_xint.v()*u_MAC.v())/myg.dx +
+            (Dh_xint.ip(1)*u_MAC.ip(1) - Dh_xint.v()*u_MAC.v())(myg.dx * self.r2v) + Dh_1.v() * u.v() / (self.r2v * np.tan(myg.x2v)) +
             #  (D v)_y
             (Dh_yint.jp(1)*(v_MAC.jp(1) + U0_half.jp(1)[np.newaxis,:]) -\
-             Dh_yint.v() * (v_MAC.v() + U0_half.v2d())) / myg.dy) + \
+             Dh_yint.v() * (v_MAC.v() + U0_half.v2d())) / myg.dy + 2. * Dh_1.v() * (v.v() + U0_half.v2d()) / self.r2v) + \
             self.dt * u0_MAC.v() * v_MAC.v() * drp0.v2d() + \
             self.dt * u0_MAC.v() * psi.v()
 
@@ -2084,24 +1069,25 @@ class Simulation(NullSimulation):
         coeff.d[:,:] *= zeta_half.d2d()**2
 
         # create the multigrid object
-        mg = vcMG.VarCoeffCCMG2d(myg.nx, myg.ny,
-                                 xl_BC_type=self.aux_data.BCs["phi"].xlb,
-                                 xr_BC_type=self.aux_data.BCs["phi"].xrb,
-                                 yl_BC_type=self.aux_data.BCs["phi"].ylb,
-                                 yr_BC_type=self.aux_data.BCs["phi"].yrb,
-                                 xmin=myg.xmin, xmax=myg.xmax,
-                                 ymin=myg.ymin, ymax=myg.ymax,
-                                 coeffs=coeff,
-                                 coeffs_bc=self.cc_data.BCs["density"],
-                                 verbose=0)
+        mg = rectMG.RectMG2d(myg.nx, myg.ny,
+                             xl_BC_type=self.aux_data.BCs["phi"].xlb,
+                             xr_BC_type=self.aux_data.BCs["phi"].xrb,
+                             yl_BC_type=self.aux_data.BCs["phi"].ylb,
+                             yr_BC_type=self.aux_data.BCs["phi"].yrb,
+                             xmin=myg.xmin, xmax=myg.xmax,
+                             ymin=myg.ymin, ymax=myg.ymax,
+                             coeffs=coeff,
+                             coeffs_bc=self.cc_data.BCs["density"],
+                             verbose=0)
 
         # first compute div{zeta U}
 
         # u/v are cell-centered, divU is cell-centered
         # this bit seems to use U^n+1 rather than U_MAC
         div_zeta_U.v()[:,:] = \
-            0.5 * zeta_half.v2d() * (u.ip(1) - u.ip(-1))/myg.dx + \
-            0.5 * (zeta_half.v2dp(1)*v.jp(1) - zeta_half.v2dp(-1)*v.jp(-1))/myg.dy
+            0.5 * zeta_half.v2d() * (u.ip(1) - u.ip(-1)) / (myg.dx * self.r2v) + \
+            0.5 * (zeta_half.v2dp(1) * v.jp(1) - \
+            zeta_half.v2dp(-1) * v.jp(-1)) / myg.dy + zeta_half.v2d() * u.v() / (self.r2v * np.tan(myg.x2v)) + zeta_half.v2d() * 2. * v.v() / self.r2v
 
         # FIXME: check this is using the correct S - might need to be time-centred
         # U or U_MAC??
@@ -2186,30 +1172,38 @@ class Simulation(NullSimulation):
         D = self.cc_data.get_var("density")
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
+
+        DX = self.cc_data.get_var("mass-frac")
         scalar = self.cc_data.get_var("scalar")
+        T = self.cc_data.get_var("temperature")
 
         #plot_me = self.aux_data.get_var("plot_me")
 
         myg = self.cc_data.grid
 
         psi = myg.scratch_array(data=scalar.d/D.d)
+        X = myg.scratch_array(data=DX.d/D.d)
+        logT = myg.scratch_array(data=np.log(T.d))
 
         magvel = np.sqrt(u**2 + v**2)
 
         vort = myg.scratch_array()
 
-        dv = 0.5 * (v.ip(1) - v.ip(-1)) / myg.dx
-        du = 0.5 * (u.jp(1) - u.jp(-1)) / myg.dy
+        dv = 0.5 * (v.ip(1) - v.ip(-1)) / (myg.dx * self.r2v) + v.v() / (self.r2v * np.tan(myg.x2v))
+        du = 0.5 * (u.jp(1) - u.jp(-1)) / myg.dy + 2. * u.v() / self.r2v
 
         vort.v()[:,:] = dv - du
 
         fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.3)
 
-        fields = [D, v, psi, magvel]
-        field_names = [r"$D$", r"$v$", r"$\psi$", r"$|U|$"]
+        fields = [D, X, u, logT]
+        field_names = [r"$D$", r"$X$", r"$u$", r"$\ln T$"]
         colourmaps = [cmaps.magma_r, cmaps.magma, cmaps.viridis_r,
                       cmaps.magma]
+
+        #vmaxes = [0.05, 1.0, 0.64, None]
+        #vmins = [0.0, 0.95, 0.0, 3.0]
 
         for n in range(len(fields)):
             ax = axes.flat[n]

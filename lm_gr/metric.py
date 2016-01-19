@@ -17,7 +17,7 @@ import mesh.patch as patch
 
 class Metric:
 
-    def __init__(self, cellData, rp, alpha, beta, gamma, cartesian):
+    def __init__(self, cellData, rp, alpha, beta, gamma, cartesian=True):
         """
         Initialize the Metric object. This is a standard 2+1 metric
 

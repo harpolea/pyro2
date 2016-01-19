@@ -10,13 +10,15 @@ import matplotlib.pyplot as plt
 
 import multigrid.edge_coeffs as ec
 import multigrid.MG as MG
-import multigrid.general_MG as general_MG
+import multigrid.variable_coeff_MG as var_MG
 from copy import deepcopy
+import math
+import mesh.patch as patch
 
 np.set_printoptions(precision=3, linewidth=128)
 
 
-class RectMG2d(general_MG.GeneralMG2d):
+class RectMG2d(var_MG.VarCoeffCCMG2d):
     """
     this is a multigrid solver that supports our general elliptic
     equation.
@@ -39,7 +41,7 @@ class RectMG2d(general_MG.GeneralMG2d):
                  yl_BC=None, yr_BC=None,
                  nsmooth=10, nsmooth_bottom=50,
                  verbose=0,
-                 coeffs=None,
+                 coeffs=None, coeffs_bc=None,
                  true_function=None, vis=0, vis_title=""):
         """
         here, coeffs is a CCData2d object
@@ -48,7 +50,7 @@ class RectMG2d(general_MG.GeneralMG2d):
         self.nx = nx
         self.ny = ny
 
-        self.ng = ng
+        self.ng = 1
 
         self.xmin = xmin
         self.xmax = xmax
@@ -56,8 +58,8 @@ class RectMG2d(general_MG.GeneralMG2d):
         self.ymin = ymin
         self.ymax = ymax
 
-        self.alpha = alpha
-        self.beta = beta
+        self.alpha = 0.0
+        self.beta = 0.0
 
         self.nsmooth = nsmooth
         self.nsmooth_bottom = nsmooth_bottom
@@ -125,10 +127,11 @@ class RectMG2d(general_MG.GeneralMG2d):
 
             self.grids[i].register_var("f", bc)
             self.grids[i].register_var("r", bc)
+            aux_field = ["coeffs"]
+            aux_bc = [coeffs_bc]
 
-            if not aux_field == None:
-                for f, b in zip(aux_field, aux_bc):
-                    self.grids[i].register_var(f, b)
+            for f, b in zip(aux_field, aux_bc):
+                self.grids[i].register_var(f, b)
 
             self.grids[i].create()
 
@@ -175,35 +178,35 @@ class RectMG2d(general_MG.GeneralMG2d):
         self.vis_title = vis_title
         self.frame = 0
 
-        # the coefficents come in a dictionary.  Set the coefficients
-        # and restrict them down the hierarchy we only need to do this
-        # once.  We need to hold the original coeffs in our grid so we
-        # can do a ghost cell fill.
-        for c in ["alpha", "beta", "gamma_x", "gamma_y"]:
-            v = self.grids[self.nlevels-1].get_var(c)
-            v.v()[:,:] = coeffs.get_var(c).v()
+        # set the coefficients and restrict them down the hierarchy
+        # we only need to do this once.  We need to hold the original
+        # coeffs in our grid so we can do a ghost cell fill.
+        c = self.grids[self.nlevels-1].get_var("coeffs")
+        c.v()[:,:] = coeffs.v()[:,:]
 
-            self.grids[self.nlevels-1].fill_BC(c)
+        self.grids[self.nlevels-1].fill_BC("coeffs")
 
-            n = self.nlevels-2
-            while n >= 0:
-                f_patch = self.grids[n+1]
-                c_patch = self.grids[n]
+        self.edge_coeffs = []
 
-                coeffs_c = c_patch.get_var(c)
-                coeffs_c.v()[:,:] = f_patch.restrict(c).v()
-
-                self.grids[n].fill_BC(c)
-                n -= 1
-
-
-        # put the beta coefficients on edges
-        beta = self.grids[self.nlevels-1].get_var("beta")
-        self.beta_edge.insert(0, ec.EdgeCoeffs(self.grids[self.nlevels-1].grid, beta))
+        # put the coefficients on edges
+        self.edge_coeffs.insert(0, ec.EdgeCoeffs(self.grids[self.nlevels-1].grid, c))
 
         n = self.nlevels-2
         while n >= 0:
-            self.beta_edge.insert(0, self.beta_edge[0].restrict())
+
+            # create the edge coefficients on level n by restricting from the
+            # finer grid
+            f_patch = self.grids[n+1]
+            c_patch = self.grids[n]
+
+            coeffs_c = c_patch.get_var("coeffs")
+            coeffs_c.v()[:,:] = f_patch.restrict("coeffs").v()
+
+            self.grids[n].fill_BC("coeffs")
+
+            # put the coefficients on edges
+            self.edge_coeffs.insert(0, self.edge_coeffs[0].restrict())
+
             n -= 1
 
 
@@ -302,7 +305,6 @@ class RectMG2d(general_MG.GeneralMG2d):
 
             bP.fill_BC("v")
 
-
             # ascending part
             for level in range(1,self.nlevels):
 
@@ -375,27 +377,50 @@ class RectMG2d(general_MG.GeneralMG2d):
     def cG(self):
         """
         Implements conjugate gradient method for bottom solve.
+
+        This is based off the method found here https://en.wikipedia.org/wiki/Conjugate_gradient_method
         """
 
         bP = self.grids[0]
+        myg = bP.grid
 
         self._compute_residual(0)
 
         r = bP.get_var("r")
-        p = deepcopy(r)
+        p = myg.scratch_array()
+        p.v()[:,:] = r.v()[:,:]
+        rfl = r.v().flatten()
         xfl = bP.get_var("v").v().flatten()
-        myg = bP.grid
-        rsold = np.inner(p.v().flatten(), p.v().flatten())
 
-        def Ax(y):
-            return self.alpha * y.v() - \
-                self.beta * ((y.ip(-1) + y.ip(1) - 2*y.v())/myg.dx**2 +
-                             (y.jp(-1) + y.jp(1) - 2*y.v())/myg.dy**2)
-        for i in range(len(p.v().flatten())):
-            Ap = Ax(p.v().flatten())
+        rsold = np.inner(rfl, rfl)
+
+        eta_x = self.edge_coeffs[0].x.d
+        eta_y = self.edge_coeffs[0].y.d
+
+        def L_eta_phi(y):
+            return (
+                # eta_{i+1/2,j} (phi_{i+1,j} - phi_{i,j})
+                eta_x[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] *
+                (y[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
+                 y[myg.ilo  :myg.ihi+1,myg.jlo:myg.jhi+1]) -
+                # eta_{i-1/2,j} (phi_{i,j} - phi_{i-1,j})
+                eta_x[myg.ilo  :myg.ihi+1,myg.jlo:myg.jhi+1] *
+                (y[myg.ilo  :myg.ihi+1,myg.jlo:myg.jhi+1] -
+                 y[myg.ilo-1:myg.ihi  ,myg.jlo:myg.jhi+1]) +
+                # eta_{i,j+1/2} (phi_{i,j+1} - phi_{i,j})
+                eta_y[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2]*
+                (y[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] -  # y-diff
+                 y[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1]) -
+                # eta_{i,j-1/2} (phi_{i,j} - phi_{i,j-1})
+                eta_y[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1]*
+                (y[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1] -
+                 y[myg.ilo:myg.ihi+1,myg.jlo-1:myg.jhi  ]) )
+
+        for i in range(len(rfl)):
+            Ap = L_eta_phi(p.d).flatten()
             a = rsold / np.inner(p.v().flatten(), Ap)
-            xfl[:] += a * p.v().flatten()
-            rfl = r.v().flatten() - a * Ap
+            xfl += a * p.v().flatten()
+            rfl -= a * Ap
             rsnew = np.inner(rfl, rfl)
             if np.sqrt(rsnew) < 1.e10:
                 break
@@ -404,3 +429,35 @@ class RectMG2d(general_MG.GeneralMG2d):
 
         x = bP.get_var("v")
         x.v()[:,:] = np.reshape(xfl, (myg.nx, myg.ny))
+
+    def get_solution_gradient_sph(self, r2v, grid=None):
+        """
+        Return the gradient of the solution after doing the MG solve.  The
+        x- and y-components are returned in separate arrays.
+
+        If a grid object is passed in, then the gradient is computed on that
+        grid.  Note: the passed-in grid must have the same dx, dy
+
+        Returns
+        -------
+        out : ndarray, ndarray
+
+        """
+
+        myg = self.soln_grid
+
+        if grid is None:
+            og = self.soln_grid
+        else:
+            og = grid
+            assert og.dx == myg.dx and og.dy == myg.dy
+
+        v = self.grids[self.nlevels-1].get_var("v")
+
+        gx = og.scratch_array()
+        gy = og.scratch_array()
+
+        gx.v()[:,:] = 0.5*(v.ip(1) - v.ip(-1))/(myg.dx * r2v) + v.v() * (np.tan(myg.x2v) * r2v)
+        gy.v()[:,:] = 0.5*(v.jp(1) - v.jp(-1))/myg.dy + 2. * v.v() / r2v
+
+        return gx, gy

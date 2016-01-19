@@ -562,11 +562,13 @@ class Grid2d():
         x2d = np.repeat(self.x, self.qy)
         x2d.shape = (self.qx, self.qy)
         self.x2d = x2d
+        self.x2v = self.x2d[self.ilo:self.ihi+1, self.jlo:self.jhi+1]
 
         y2d = np.repeat(self.y, self.qx)
         y2d.shape = (self.qy, self.qx)
         y2d = np.transpose(y2d)
         self.y2d = y2d
+        self.y2v = self.y2d[self.ilo:self.ihi+1, self.jlo:self.jhi+1]
 
 
     def scratch_array(self, nvar=1, data=None):

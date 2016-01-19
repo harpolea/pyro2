@@ -14,6 +14,7 @@ import mesh.patch as patch
 from simulation_null import NullSimulation, grid_setup, bc_setup
 from lm_gr.simulation import *
 import multigrid.variable_coeff_MG as vcMG
+import multigrid.rect_MG as rectMG
 from util import profile
 import lm_gr.metric as metric
 import colormaps as cmaps

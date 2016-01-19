@@ -27,11 +27,11 @@ gamma = 1.66666666667
 
 [mesh]
 nx = 64
-ny = 64
-#xmax = 3.1415926535        ; hemisphere, so pi.
-#ymax = 0.0337318           ; this is about 50m
-xmax = 0.03
-ymax = 0.03
+ny = 8
+xmax = 3.1415926535        ; hemisphere, so pi.
+ymax = 0.0337318           ; this is about 50m
+#xmax = 0.03
+#ymax = 0.03
 
 xlboundary = periodic
 xrboundary = periodic
