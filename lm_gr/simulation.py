@@ -1133,7 +1133,7 @@ class Simulation(NullSimulation):
         else:
             dt_react = 1./omega_dot.v().max()
 
-        dt_buoy = np.sqrt(2.0 * myg.dx / max(F_buoy, 1.e-12))
+        dt_buoy = np.sqrt(2.0 * myg.dy / max(F_buoy, 1.e-12))
         self.dt = min(dt, dt_buoy, dt_react)
         if self.dt > 1.e30:
             self.dt = 100.

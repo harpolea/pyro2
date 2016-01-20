@@ -1,5 +1,5 @@
 [driver]
-max_steps = 1
+max_steps = 1000
 tmax = 1000000000.
 
 # we're using units where M_solar = c = G = 1
@@ -7,14 +7,14 @@ tmax = 1000000000.
 [lm-gr]
 limiter = 4
 c = 1.0
-grav = 0.148
+grav = 0.0   ;0.148
 cartesian = 0  ; cartesian or spherical polar coordinates? (0 = no, 1 = yes)
-radius = 6.75  ; 10 km
+radius = 600.75  ; 10 km
 
 
 [io]
-basename = ../../Documents/Work/pyro/results/ns/ns_64_   ; basename for output files
-n_out = 1                   ; number of timesteps between writing output files
+basename = ../../Documents/Work/pyro/results/ns/ns_32_   ; basename for output files
+n_out = 50                   ; number of timesteps between writing output files
 do_io = 1                   ; do we output at all?
 
 [vis]
@@ -26,15 +26,16 @@ store_images = 0           ; store vis images to files (1=yes, 0=no)
 gamma = 1.66666666667
 
 [mesh]
-nx = 64
-ny = 8
-xmax = 3.1415926535        ; hemisphere, so pi.
+nx = 32
+ny = 128
+xmin = 0.5
+xmax = 0.6       ;
 ymax = 0.0337318           ; this is about 50m
 #xmax = 0.03
 #ymax = 0.03
 
-xlboundary = periodic
-xrboundary = periodic
+xlboundary = outflow
+xrboundary = outflow
 
 ylboundary = outflow
 yrboundary = outflow
@@ -43,9 +44,12 @@ yrboundary = outflow
 [ns]
 rho_1 = 1.0e5
 v_1 = 1.0e-3
+#v_1 = 0.0
 
-rho_2 = 1.01e5
+rho_2 = 1.1e5
 v_2 = -1.0e-3
+#rho_2 = 1.0e5
+#v_2 = 0.0
 
 [driver]
 cfl = 0.25

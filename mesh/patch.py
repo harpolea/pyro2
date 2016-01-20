@@ -487,7 +487,7 @@ class Grid2d():
     """
 
     def __init__ (self, nx, ny, ng=1, \
-                  xmin=0.0, xmax=1.0, ymin=0.0, ymax=1.0):
+                  xmin=0.0, xmax=1.0, ymin=0.0, ymax=1.0, R=0.0):
         """
         Create a Grid2d object.
 
@@ -570,6 +570,10 @@ class Grid2d():
         self.y2d = y2d
         self.y2v = self.y2d[self.ilo:self.ihi+1, self.jlo:self.jhi+1]
 
+        self.R = R
+        self.r2d = self.y2d + self.R
+        self.r2v = self.r2d[self.ilo:self.ihi+1, self.jlo:self.jhi+1]
+
 
     def scratch_array(self, nvar=1, data=None):
         """
@@ -600,7 +604,7 @@ class Grid2d():
         """
         return Grid2d(self.nx/N, self.ny/N, ng=self.ng,
                       xmin=self.xmin, xmax=self.xmax,
-                      ymin=self.ymin, ymax=self.ymax)
+                      ymin=self.ymin, ymax=self.ymax, R=self.R)
 
 
     def fine_like(self, N):
@@ -610,7 +614,7 @@ class Grid2d():
         """
         return Grid2d(self.nx*N, self.ny*N, ng=self.ng,
                       xmin=self.xmin, xmax=self.xmax,
-                      ymin=self.ymin, ymax=self.ymax)
+                      ymin=self.ymin, ymax=self.ymax, R=self.R)
 
 
     def __str__(self):
@@ -623,7 +627,7 @@ class Grid2d():
         result = (self.nx == other.nx and self.ny == other.ny and
                   self.ng == other.ng and
                   self.xmin == other.xmin and self.xmax == other.xmax and
-                  self.ymin == other.ymin and self.ymax == other.ymax)
+                  self.ymin == other.ymin and self.ymax == other.ymax and self.R == other.R)
 
         return result
 

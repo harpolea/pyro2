@@ -268,7 +268,6 @@ class VarCoeffCCMG2d(MG.CellCenterMG2d):
         eta_x = self.edge_coeffs[level].x.d
         eta_y = self.edge_coeffs[level].y.d
 
-
         # compute the residual
         # r = f - L_eta phi
         """
@@ -286,20 +285,20 @@ class VarCoeffCCMG2d(MG.CellCenterMG2d):
 
         L_eta_phi = (
             # eta_{i+1/2,j} (phi_{i+1,j} - phi_{i,j})
-            eta_x[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1]* \
+            eta_x[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] *
             (v[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
-             v[myg.ilo  :myg.ihi+1,myg.jlo:myg.jhi+1]) - \
+             v[myg.ilo  :myg.ihi+1,myg.jlo:myg.jhi+1]) -
             # eta_{i-1/2,j} (phi_{i,j} - phi_{i-1,j})
-            eta_x[myg.ilo  :myg.ihi+1,myg.jlo:myg.jhi+1]* \
+            eta_x[myg.ilo  :myg.ihi+1,myg.jlo:myg.jhi+1] *
             (v[myg.ilo  :myg.ihi+1,myg.jlo:myg.jhi+1] -
-             v[myg.ilo-1:myg.ihi  ,myg.jlo:myg.jhi+1]) + \
+             v[myg.ilo-1:myg.ihi  ,myg.jlo:myg.jhi+1]) +
             # eta_{i,j+1/2} (phi_{i,j+1} - phi_{i,j})
-            eta_y[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2]* \
+            eta_y[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] *
             (v[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] -  # y-diff
-             v[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1]) - \
+             v[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1]) -
             # eta_{i,j-1/2} (phi_{i,j} - phi_{i,j-1})
-            eta_y[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1]* \
+            eta_y[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1] *
             (v[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1] -
-             v[myg.ilo:myg.ihi+1,myg.jlo-1:myg.jhi  ]) )
+             v[myg.ilo:myg.ihi+1,myg.jlo-1:myg.jhi  ]))
 
         r.v()[:,:] = f.v() - L_eta_phi

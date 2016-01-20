@@ -8,12 +8,13 @@ from __future__ import print_function
 import numpy as np
 import matplotlib.pyplot as plt
 
-import multigrid.edge_coeffs as ec
+import multigrid.edge_coeffs_sph as ec
 import multigrid.MG as MG
 import multigrid.variable_coeff_MG as var_MG
 from copy import deepcopy
 import math
 import mesh.patch as patch
+from lm_gr.simulation import Basestate
 
 np.set_printoptions(precision=3, linewidth=128)
 
@@ -42,7 +43,7 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
                  nsmooth=10, nsmooth_bottom=50,
                  verbose=0,
                  coeffs=None, coeffs_bc=None,
-                 true_function=None, vis=0, vis_title=""):
+                 true_function=None, vis=0, vis_title="", R=0.0):
         """
         here, coeffs is a CCData2d object
         """
@@ -107,7 +108,7 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
 
             # create the grid
             my_grid = patch.Grid2d(nx_t, ny_t, ng=self.ng,
-                                   xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
+                                   xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, R=R)
 
             # add a CellCenterData2d object for this level to our list
             self.grids.append(patch.CellCenterData2d(my_grid, dtype=np.float64))
@@ -189,7 +190,7 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
         self.edge_coeffs = []
 
         # put the coefficients on edges
-        self.edge_coeffs.insert(0, ec.EdgeCoeffs(self.grids[self.nlevels-1].grid, c))
+        self.edge_coeffs.insert(0, ec.EdgeCoeffsSpherical(self.grids[self.nlevels-1].grid, c))
 
         n = self.nlevels-2
         while n >= 0:
@@ -383,6 +384,8 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
 
         bP = self.grids[0]
         myg = bP.grid
+        dx = myg.dx
+        dy = myg.dy
 
         self._compute_residual(0)
 
@@ -399,30 +402,33 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
 
         def L_eta_phi(y):
             return (
-                # eta_{i+1/2,j} (phi_{i+1,j} - phi_{i,j})
+                (# eta_{i+1/2,j} (phi_{i+1,j} - phi_{i,j})
                 eta_x[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] *
                 (y[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
                  y[myg.ilo  :myg.ihi+1,myg.jlo:myg.jhi+1]) -
                 # eta_{i-1/2,j} (phi_{i,j} - phi_{i-1,j})
                 eta_x[myg.ilo  :myg.ihi+1,myg.jlo:myg.jhi+1] *
                 (y[myg.ilo  :myg.ihi+1,myg.jlo:myg.jhi+1] -
-                 y[myg.ilo-1:myg.ihi  ,myg.jlo:myg.jhi+1]) +
-                # eta_{i,j+1/2} (phi_{i,j+1} - phi_{i,j})
-                eta_y[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2]*
+                 y[myg.ilo-1:myg.ihi  ,myg.jlo:myg.jhi+1]) ) / (dx * myg.r2v * np.sin(myg.x2v)) +
+                (# eta_{i,j+1/2} (phi_{i,j+1} - phi_{i,j})
+                eta_y[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] *
                 (y[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] -  # y-diff
-                 y[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1]) -
+                 y[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1])-
                 # eta_{i,j-1/2} (phi_{i,j} - phi_{i,j-1})
-                eta_y[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1]*
+                eta_y[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1] *
                 (y[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1] -
-                 y[myg.ilo:myg.ihi+1,myg.jlo-1:myg.jhi  ]) )
+                 y[myg.ilo:myg.ihi+1,myg.jlo-1:myg.jhi  ])) / (dy * myg.r2v**2) )
 
         for i in range(len(rfl)):
             Ap = L_eta_phi(p.d).flatten()
-            a = rsold / np.inner(p.v().flatten(), Ap)
+            if rsold == 0.0:
+                a = 0.0
+            else:
+                a = rsold / np.inner(p.v().flatten(), Ap)
             xfl += a * p.v().flatten()
             rfl -= a * Ap
             rsnew = np.inner(rfl, rfl)
-            if np.sqrt(rsnew) < 1.e10:
+            if np.sqrt(rsnew) < 1.e-10:
                 break
             p.v()[:,:] = np.reshape(rfl + (rsnew / rsold) * p.v().flatten(), (myg.nx, myg.ny))
             rsold = rsnew
@@ -430,13 +436,16 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
         x = bP.get_var("v")
         x.v()[:,:] = np.reshape(xfl, (myg.nx, myg.ny))
 
-    def get_solution_gradient_sph(self, r2v, grid=None):
+
+    def get_solution_gradient_sph(self, g, c, grid=None):
         """
         Return the gradient of the solution after doing the MG solve.  The
         x- and y-components are returned in separate arrays.
 
-        If a grid object is passed in, then the gradient is computed on that
-        grid.  Note: the passed-in grid must have the same dx, dy
+        If a grid object is passed in, then the gradient is computed on
+        that grid.
+
+        grad f = df/dr e_r + (1/r) df/dtheta e_theta
 
         Returns
         -------
@@ -457,7 +466,53 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
         gx = og.scratch_array()
         gy = og.scratch_array()
 
-        gx.v()[:,:] = 0.5*(v.ip(1) - v.ip(-1))/(myg.dx * r2v) + v.v() * (np.tan(myg.x2v) * r2v)
-        gy.v()[:,:] = 0.5*(v.jp(1) - v.jp(-1))/myg.dy + 2. * v.v() / r2v
+        alphasq = Basestate(og.ny, ng=og.ng)
+        alphasq.d[:] = 1. - 2. * g * (1. - og.y[:]/og.R) / (og.R * c**2)
+
+        g_xx = alphasq.d2df(og.qx) / og.r2d**2
+        g_yy = alphasq.d2df(og.qx)
+
+        gx.v()[:,:] = 0.5 * g_xx[og.ilo:og.ihi+1,og.jlo:og.jhi+1] * (v.ip(1) - v.ip(-1)) / (og.dx * og.r2v)
+        gy.v()[:,:] = 0.5 * g_yy[og.ilo:og.ihi+1,og.jlo:og.jhi+1] *(v.jp(1) - v.jp(-1)) / og.dy
 
         return gx, gy
+
+
+    def _compute_residual(self, level):
+        """ compute the residual and store it in the r variable"""
+
+        v = self.grids[level].get_var("v").d
+        f = self.grids[level].get_var("f")
+        r = self.grids[level].get_var("r")
+
+        myg = self.grids[level].grid
+
+        eta_x = self.edge_coeffs[level].x.d
+        eta_y = self.edge_coeffs[level].y.d
+
+        dx = myg.dx
+        dy = myg.dy
+
+        # compute the residual
+        # r = f - L_eta phi
+        L_eta_phi = (
+            (# eta_{i+1/2,j} (phi_{i+1,j} - phi_{i,j})
+            eta_x[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] *
+            (v[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
+             v[myg.ilo  :myg.ihi+1,myg.jlo:myg.jhi+1]) -
+            # eta_{i-1/2,j} (phi_{i,j} - phi_{i-1,j})
+            eta_x[myg.ilo  :myg.ihi+1,myg.jlo:myg.jhi+1] *
+            (v[myg.ilo  :myg.ihi+1,myg.jlo:myg.jhi+1] -
+             v[myg.ilo-1:myg.ihi  ,myg.jlo:myg.jhi+1]) ) / (dx * myg.r2v * np.sin(myg.x2v)) +
+            (# eta_{i,j+1/2} (phi_{i,j+1} - phi_{i,j})
+            eta_y[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] *
+            (v[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] -  # y-diff
+             v[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1])-
+            # eta_{i,j-1/2} (phi_{i,j} - phi_{i,j-1})
+            eta_y[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1] *
+            (v[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1] -
+             v[myg.ilo:myg.ihi+1,myg.jlo-1:myg.jhi  ])) / (dy * myg.r2v**2) )
+
+        #print('L_eta_phi: {}'.format(L_eta_phi))
+
+        r.v()[:,:] = f.v() - L_eta_phi

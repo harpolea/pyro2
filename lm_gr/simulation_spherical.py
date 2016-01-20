@@ -21,7 +21,7 @@ import lm_gr.metric as metric
 import colormaps as cmaps
 
 
-class SimulationSpherical(SimulationReact):
+class SimulationSpherical(Simulation):
 
     def __init__(self, solver_name, problem_name, rp, timers=None, fortran=True):
         """
@@ -44,10 +44,13 @@ class SimulationSpherical(SimulationReact):
             python one.
         """
 
-        SimulationReact.__init__(self, solver_name, problem_name, rp, timers=timers, fortran=fortran)
+        super(SimulationSpherical, self).__init__(solver_name, problem_name, rp, timers=timers, fortran=fortran)
 
         self.r2d = []
         self.r2v = []
+        self.r = []
+        self.thp = []
+        self.thm = []
 
 
     def initialize(self):
@@ -56,13 +59,103 @@ class SimulationSpherical(SimulationReact):
         and set the initial conditions for the chosen problem.
         """
 
-        super(SimulationSpherical, self).initialize()
-
+        g = self.rp.get_param("lm-gr.grav")
+        c = self.rp.get_param("lm-gr.c")
         R = self.rp.get_param("lm-gr.radius")
-        myg = self.cc_data.grid
 
-        self.r2d = myg.y2d + R
-        self.r2v = r2d[myg.ilo:myg.ihi+1, myg.jlo:myg.jhi+1]
+        if g < 1.e-5:
+            print('Gravity is very low (', g, ') - make sure the speed of light is high enough to cope.')
+
+        myg = grid_setup(self.rp, ng=4, R=R)
+
+        bc_dens, bc_xodd, bc_yodd = bc_setup(self.rp)
+
+        my_data = patch.CellCenterData2d(myg)
+
+        my_data.register_var("density", bc_dens)
+        my_data.register_var("enthalpy", bc_dens)
+        my_data.register_var("x-velocity", bc_xodd)
+        my_data.register_var("y-velocity", bc_yodd)
+
+        # phi -- used for the projections.  The boundary conditions
+        # here depend on velocity.  At a wall or inflow, we already
+        # have the velocity we want on the boundary, so we want
+        # Neumann (dphi/dn = 0).  For outflow, we want Dirichlet (phi
+        # = 0) -- this ensures that we do not introduce any tangental
+        # acceleration.
+        bcs = []
+        # CHANGED: I think the neumann/dirichlet thing here was the wrong way around?
+        for bc in [self.rp.get_param("mesh.xlboundary"),
+                   self.rp.get_param("mesh.xrboundary"),
+                   self.rp.get_param("mesh.ylboundary"),
+                   self.rp.get_param("mesh.yrboundary")]:
+            if bc == "periodic":
+                bctype = "periodic"
+            elif bc in ["reflect", "slipwall"]:
+        #        bctype = "neumann"
+                 bctype = "dirichlet"
+            elif bc in ["outflow"]:
+        #        bctype = "dirichlet"
+                 bctype = "neumann"
+            bcs.append(bctype)
+
+        bc_phi = patch.BCObject(xlb=bcs[0], xrb=bcs[1], ylb=bcs[2], yrb=bcs[3])
+
+        # CHANGED: tried setting phi BCs to same as density?
+        #my_data.register_var("phi-MAC", bc_phi)
+        #my_data.register_var("phi", bc_phi)
+        #my_data.register_var("phi-MAC", bc_dens) # moved to aux_data
+
+        # mass fraction: starts as zero, burns to 1
+        my_data.register_var("mass-frac", bc_dens)
+
+        # passive scalar that is advected along - this is actually going to be the scalar times the density, so be careful when plotting at the end
+        my_data.register_var("scalar", bc_dens)
+
+        # temperature
+        my_data.register_var("temperature", bc_dens)
+
+        my_data.create()
+
+        self.cc_data = my_data
+
+        # some auxillary data that we'll need to fill GC in, but isn't
+        # really part of the main solution
+        aux_data = patch.CellCenterData2d(myg)
+
+        # we'll keep the internal energy around just as a diagnostic
+        aux_data.register_var("eint", bc_dens)
+
+        aux_data.register_var("coeff", bc_dens)
+        aux_data.register_var("source_y", bc_yodd)
+        aux_data.register_var("old_source_y", bc_yodd)
+        aux_data.register_var("plot_me", bc_yodd) # somewhere to store data for plotting
+        aux_data.register_var("phi", bc_dens)
+        aux_data.register_var("phi-MAC", bc_dens)
+
+        # gradp -- used in the projection and interface states.  We'll do the
+        # same BCs as density
+        aux_data.register_var("gradp_x", bc_dens)
+        aux_data.register_var("gradp_y", bc_dens)
+
+        aux_data.create()
+        self.aux_data = aux_data
+
+        #  1-d base state
+        self.base["D0"] = Basestate(myg.ny, ng=myg.ng)
+        self.base["Dh0"] = Basestate(myg.ny, ng=myg.ng)
+        self.base["p0"] = Basestate(myg.ny, ng=myg.ng)
+        self.base["old_p0"] = Basestate(myg.ny, ng=myg.ng)
+        self.base["U0"] = Basestate(myg.ny, ng=myg.ng)
+        self.base["U0_old_half"] = Basestate(myg.ny, ng=myg.ng)
+        # U0(t=0) = 0 as an initial approximation
+
+        # add metric
+        self.r2d = myg.r2d
+        self.r2v = myg.r2v
+        self.r = myg.y + R
+        self.thp = myg.x2v + 0.5 * myg.dx
+        self.thm = myg.x2v - 0.5 * myg.dx
 
         # set up spherical metric
         alpha = Basestate(myg.ny, ng=myg.ng)
@@ -78,12 +171,36 @@ class SimulationSpherical(SimulationReact):
             (1. - myg.y[np.newaxis, :, np.newaxis, np.newaxis] / R) / \
             (R * c**2) * np.eye(2)[np.newaxis, np.newaxis, :, :]
 
-        gamma_matrix[:,:,1,1] *= (myg.y2d + R)
+        # g_theta theta = r^2 / alpha^2
+        gamma_matrix[:,:,1,1] *= (myg.y2d + R)**2
 
         self.metric = metric.Metric(self.cc_data, self.rp, alpha, beta,
                                     gamma_matrix, cartesian=False)
 
         u0 = self.metric.calcu0()
+
+        # now set the initial conditions for the problem
+        exec(self.problem_name + '.init_data(self.cc_data, self.aux_data, self.base, self.rp, self.metric)')
+
+        # Construct zeta
+        gamma = self.rp.get_param("eos.gamma")
+        self.base["zeta"] = Basestate(myg.ny, ng=myg.ng)
+        D0 = self.base["D0"]
+        self.base["zeta"].d[:] = D0.d
+
+        # we'll also need zeta on vertical edges -- on the domain edges,
+        # just do piecewise constant
+        self.base["zeta-edges"] = Basestate(myg.ny, ng=myg.ng)
+        self.base["zeta-edges"].jp(1)[:] = \
+            0.5 * (self.base["zeta"].v() + self.base["zeta"].jp(1))
+        self.base["zeta-edges"].d[myg.jlo] = self.base["zeta"].d[myg.jlo]
+        self.base["zeta-edges"].d[myg.jhi+1] = self.base["zeta"].d[myg.jhi]
+
+        # initialise source
+        S = self.aux_data.get_var("source_y")
+        S = self.compute_S()
+        oldS = self.aux_data.get_var("old_source_y")
+        oldS = myg.scratch_array(data=S.d)
 
 
     def calc_psi(self, S=None, U0=None, p0=None, old_p0=None):
@@ -119,16 +236,58 @@ class SimulationSpherical(SimulationReact):
         if old_p0 is None:
             old_p0 = self.base["old_p0"]
 
-        psi = super(SimulationSpherical, self).calc_psi(S=S, U0=U0, p0=p0, old_p0=old_p0)
+        psi = Basestate(myg.ny, ng=myg.ng)
 
-        #psi.v(buf=myg.ng-1)[:] = gamma * 0.25 * \
-        #    (p0.v(buf=myg.ng-1) + old_p0.v(buf=myg.ng-1)) * \
-        #    (self.lateral_average(S.v(buf=myg.ng-1)) -
-        #     (U0.jp(1, buf=myg.ng-1) - U0.jp(-1, buf=myg.ng-1)))
-
-        # really confused what this does?
+        psi.v(buf=myg.ng-1)[:] = gamma * 0.25 * \
+            (p0.v(buf=myg.ng-1) + old_p0.v(buf=myg.ng-1)) * \
+            (self.lateral_average(S.v(buf=myg.ng-1)) -
+             (U0.jp(1, buf=myg.ng-1) * self.r[myg.jlo-myg.ng+2:myg.jhi+myg.ng+1]**2 - U0.jp(-1, buf=myg.ng-1)* self.r[myg.jlo-myg.ng:myg.jhi+myg.ng-1]**2) / self.r[myg.jlo-myg.ng+1:myg.jhi+myg.ng]**2)
 
         return psi
+
+    def compute_base_velocity(self, U0=None, p0=None, S=None, Dh0=None, u=None, v=None, u0=None):
+        r"""
+        Calculates the base velocity using eq. 6.138
+
+        .. math::
+
+            \frac{ U^\text{out}_{0,j+\sfrac{1}{2}} -  U^\text{out}_{0,j-\sfrac{1}{2}}}{\Delta r} = \left(\bar{S}^\text{in} - \frac{1}{\bar{\Gamma}_1^\text{in} p_0^\text{in}}\psi^\text{in}\right)_j
+
+        Parameters
+        ----------
+        U0 : ArrayIndexer object, optional
+            base state velocity
+        p0 : ArrayIndexer object, optional
+            base state pressure
+        S : ArrayIndexer object, optional
+            source term
+        Dh0 : ArrayIndexer object, optional
+            density * enthalpy base state
+        u : ArrayIndexer object, optional
+            horizontal velocity
+        v : ArrayIndexer object, optional
+            vertical velocity
+        u0 : ArrayIndexer object, optional
+            timelike component of the 4-velocity
+        """
+        myg = self.cc_data.grid
+        if p0 is None:
+            p0 = self.base["p0"]
+        dt = self.dt
+        dr = myg.dy
+        if U0 is None:
+            U0 = self.base["U0"]
+        gamma = self.rp.get_param("eos.gamma")
+        drp0 = self.drp0(Dh0=Dh0, u=u, v=v, u0=u0)
+        if S is None:
+            S = self.aux_data.get_var("source_y")
+
+        Sbar = self.lateral_average(S.d)
+        U0.d[0] = 0.
+        # FIXME: fix cell-centred / edge-centred indexing.
+        U0.d[1:] = U0.d[:-1] + dr * (Sbar[:-1] - U0.d[:-1] * drp0.d[:-1] /
+                                     (gamma * p0.d[:-1])) + \
+                   dr * 2. * U0.d[:-1] / self.r[:-1]
 
 
     def preevolve(self):
@@ -173,6 +332,10 @@ class SimulationSpherical(SimulationReact):
         except FloatingPointError:
             print('zeta: ', np.max(zeta.d))
 
+        R = self.rp.get_param("lm-gr.radius")
+        g = self.rp.get_param("lm-gr.grav")
+        c = self.rp.get_param("lm-gr.c")
+
         # next create the multigrid object.  We defined phi with
         # the right BCs previously
         mg = rectMG.RectMG2d(myg.nx, myg.ny,
@@ -184,16 +347,16 @@ class SimulationSpherical(SimulationReact):
                              ymin=myg.ymin, ymax=myg.ymax,
                              coeffs=coeff,
                              coeffs_bc=self.cc_data.BCs["density"],
-                             verbose=0)
+                             verbose=0, R=R)
 
         # first compute div{zeta U}
         div_zeta_U = mg.soln_grid.scratch_array()
 
         # u/v are cell-centered, divU is cell-centered
         div_zeta_U.v()[:,:] = \
-            0.5 * zeta.v2df(myg.qx) * (u.ip(1) - u.ip(-1)) / (myg.dx * self.r2v) + \
+            0.5 * zeta.v2df(myg.qx) * (np.sin(myg.x2v + myg.dx) * u.ip(1) - np.sin(myg.x2v - myg.dx) * u.ip(-1)) / (myg.dx * self.r2v * np.sin(myg.x2v)) + \
             0.5 * (zeta.v2dpf(myg.qx, 1) * v.jp(1) - \
-            zeta.v2dpf(myg.qx, -1) * v.jp(-1)) / myg.dy +  zeta.v2df(myg.qx) * u.v() / (self.r2v * np.tan(myg.x2v)) + 2. * zeta.v2df(myg.qx) * v.v() / self.r2v
+            zeta.v2dpf(myg.qx, -1) * v.jp(-1)) / myg.dy + 2. * zeta.v2df(myg.qx) * v.v() / self.r2v
 
         # solve D (zeta^2/Dh u0) G (phi/zeta) = D( zeta U )
         constraint = self.constraint_source()
@@ -210,7 +373,7 @@ class SimulationSpherical(SimulationReact):
         # velocities
         # FIXME: this update only needs to be done on the interior
         # cells -- not ghost cells
-        gradp_x, gradp_y = mg.get_solution_gradient(grid=myg)
+        gradp_x, gradp_y = mg.get_solution_gradient_sph(g, c, grid=myg)
         #pdb.set_trace()
 
         coeff = 1. / (Dh * u0)
@@ -283,6 +446,8 @@ class SimulationSpherical(SimulationReact):
         scalar = self.cc_data.get_var("scalar")
         T = self.cc_data.get_var("temperature")
 
+        #print('start of evolve, us: {}'.format(u.d[-10:, -10:]))
+
         u0 = self.metric.calcu0()
 
         # note: the base state quantities do not have valid ghost cells
@@ -300,6 +465,8 @@ class SimulationSpherical(SimulationReact):
 
         oldS = self.aux_data.get_var("old_source_y")
         plot_me = self.aux_data.get_var("plot_me")
+
+        R = self.rp.get_param("lm-gr.radius")
 
         #---------------------------------------------------------------------
         # create the limited slopes of D, Dh, u and v (in both directions)
@@ -389,6 +556,7 @@ class SimulationSpherical(SimulationReact):
         self.aux_data.fill_BC("coeff")
 
         g = self.rp.get_param("lm-gr.grav")
+        c = self.rp.get_param("lm-gr.c")
 
         mom_source_x, mom_source_r = self.calc_mom_source(Dh=Dh, u0=u0)
 
@@ -412,6 +580,8 @@ class SimulationSpherical(SimulationReact):
         v_MAC = patch.ArrayIndexer(d=_vm, grid=myg)
         # v_MAC is very small here but at least it's non-zero
         # entire thing sourced by Gamma^t_tr
+
+        #print('start of step 3, v_MAC: {}'.format(v_MAC.d[-10:, -10:]))
 
         #---------------------------------------------------------------------
         # do a MAC projection to make the advective velocities divergence
@@ -443,16 +613,15 @@ class SimulationSpherical(SimulationReact):
                              ymin=myg.ymin, ymax=myg.ymax,
                              coeffs=coeff,
                              coeffs_bc=self.cc_data.BCs["density"],
-                             verbose=0)
+                             verbose=0, R=R)
 
         # first compute div{zeta U}
         div_zeta_U = mg.soln_grid.scratch_array()
 
         # MAC velocities are edge-centered.  div{zeta U} is cell-centered.
         div_zeta_U.v()[:,:] = \
-            zeta.v2d() * (u_MAC.ip(1) - u_MAC.v()) / (myg.dx + \
-            self.r2v) + zeta.v2d() * u.v() / (np.tan(myg.x2v) * \
-            self.r2v) + \
+            zeta.v2d() * (np.sin(self.thp) * u_MAC.ip(1) - np.sin(self.thm) * u_MAC.v()) / (myg.dx * \
+            self.r2v * np.sin(myg.x2v)) + \
             (zeta_edges.v2dp(1) * v_MAC.jp(1) - \
             zeta_edges.v2d() * v_MAC.v()) / myg.dy + \
             2. * zeta.v2d() * v.v() / self.r2v
@@ -471,7 +640,7 @@ class SimulationSpherical(SimulationReact):
         #phi_MAC = self.cc_data.get_var("phi-MAC")
         phi_MAC = self.aux_data.get_var("phi-MAC")
         phi_MAC.d[:,:] = mg.get_solution(grid=myg).d
-        gradp_MAC_x, gradp_MAC_y = mg.get_solution_gradient(grid=myg)
+        gradp_MAC_x, gradp_MAC_y = mg.get_solution_gradient_sph(g, c, grid=myg)
 
         coeff = self.aux_data.get_var("coeff")
         # FIXME: is this u0 or u0_MAC?
@@ -504,11 +673,17 @@ class SimulationSpherical(SimulationReact):
         u_MAC.v(buf=b)[:,:] -= coeff_x.v(buf=b) * \
             gradp_MAC_x.v(buf=b)
 
+        #print('before add gradp, v_MAC: {}'.format(v_MAC.d[-20:-10, -20:-10]))
+
         b = (0, 0, 0, 1)
         #v_MAC.v(buf=b)[:,:] -= coeff_y.v(buf=b) * \
         #    (phi_MAC.v(buf=b) - phi_MAC.jp(-1, buf=b)) / myg.dy
         v_MAC.v(buf=b)[:,:] -= coeff_y.v(buf=b) * \
             gradp_MAC_y.v(buf=b)
+
+        #print('end of step 3, coeff_y: {}'.format(1.e4*coeff_y.d[-20:-10, -20:-10]))
+        #print('end of step 3, gradp_MAC_y: {}'.format(gradp_MAC_y.d[-20:-10, -20:-10]))
+        #print('end of step 3, v_MAC: {}'.format(v_MAC.d[-20:-10, -20:-10]))
 
         #u0_MAC = self.metric.calcu0(u=u_MAC, v=v_MAC)
         #---------------------------------------------------------------------
@@ -599,21 +774,21 @@ class SimulationSpherical(SimulationReact):
 
         scalar_2_star.v()[:,:] -= self.dt * (
             #  (psi D u)_x
-            (scalar_xint.ip(1) * u_MAC.ip(1) - scalar_xint.v() * u_MAC.v())/(myg.dx * self.r2v) + scalar_1.v() / (self.r2v * np.tan(myg.x2v)) +
+            (np.sin(self.thp) * scalar_xint.ip(1) * u_MAC.ip(1) - np.sin(self.thm) * scalar_xint.v() * u_MAC.v())/(myg.dx * self.r2v * np.sin(myg.x2v)) +
             #  (psi D v)_y
             (scalar_yint.jp(1)*(v_MAC.jp(1) + U0_half_star.jp(1)[np.newaxis,:]) -
              scalar_yint.v() * (v_MAC.v() + U0_half_star.v2d())) / myg.dy  + 2. * scalar_1.v() * (v.v() + U0_half_star.v2d()) / self.r2v)
 
         DX_2_star.v()[:,:] -= self.dt * (
             #  (X D u)_x
-            (DX_xint.ip(1) * u_MAC.ip(1) - DX_xint.v() * u_MAC.v())/(myg.dx * self.r2v) + DX_1.v() * u.v() / (self.r2v * np.tan(myg.x2v)) +
+            (np.sin(self.thp) * DX_xint.ip(1) * u_MAC.ip(1) - np.sin(self.thm) * DX_xint.v() * u_MAC.v())/(myg.dx * self.r2v * np.sin(myg.x2v)) +
             #  (X D v)_y
             (DX_yint.jp(1)*(v_MAC.jp(1) + U0_half_star.jp(1)[np.newaxis,:]) -
              DX_yint.v() * (v_MAC.v() + U0_half_star.v2d())) / myg.dy  + 2. * DX_1.v() * (v.v() + U0_half_star.v2d()) / self.r2v)
 
         D_2_star.v()[:,:] -= self.dt * (
             #  (D u)_x
-            (D_xint.ip(1) * u_MAC.ip(1) - D_xint.v() * u_MAC.v())/(myg.dx * self.r2v) + D_1.v() * u.v() / (self.r2v * np.tan(myg.x2v)) +
+            (np.sin(self.thp) * D_xint.ip(1) * u_MAC.ip(1) - np.sin(self.thm) * D_xint.v() * u_MAC.v())/(myg.dx * self.r2v * np.sin(myg.x2v)) +
             #  (D v)_y
             (D_yint.jp(1)*(v_MAC.jp(1) + U0_half_star.jp(1)[np.newaxis,:]) -
              D_yint.v() * (v_MAC.v() + U0_half_star.v2d())) / myg.dy + 2. * D_1.v() * (v.v() + U0_half_star.v2d()) / self.r2v)
@@ -682,10 +857,10 @@ class SimulationSpherical(SimulationReact):
         # 4Hii.
         Dh_2_star.v()[:,:] += -self.dt * (
             #  (D u)_x
-            (Dh_xint.ip(1)*u_MAC.ip(1) - Dh_xint.v()*u_MAC.v())/(myg.dx * self.r2v) + Dh_1.v() * u.v() / (self.r2v * np.tan(myg.x2v)) +
+            (np.sin(self.thp) * Dh_xint.ip(1)*u_MAC.ip(1) - np.sin(self.thm) * Dh_xint.v()*u_MAC.v())/(myg.dx * self.r2v * np.sin(myg.dx)) +
             #  (D v)_y
             (Dh_yint.jp(1)*(v_MAC.jp(1) + U0_half_star.jp(1)[np.newaxis,:]) -\
-             Dh_yint.v() * (v_MAC.v() + U0_half_star.v2d())) / myg.dy  + \
+             Dh_yint.v() * (v_MAC.v() + U0_half_star.v2d())) / myg.dy + \
             + 2. * Dh_1.v() * (v.v() + U0_half_star.v2d()) / self.r2v) +\
             self.dt * u0_MAC.v() * v_MAC.v() * drp0.v2d() + \
             self.dt * u0_MAC.v() * psi.v()
@@ -923,22 +1098,22 @@ class SimulationSpherical(SimulationReact):
 
         D_2.v()[:,:] -= self.dt * (
             #  (D u)_x
-            (D_xint.ip(1)*u_MAC.ip(1) - D_xint.v()*u_MAC.v())/(myg.dx * self.r2v) + D_1.v() * u.v() / (self.r2v * np.tan(myg.x2v)) +
+            (np.sin(self.thp) * D_xint.ip(1)*u_MAC.ip(1) - np.sin(self.thm) * D_xint.v()*u_MAC.v())/(myg.dx * self.r2v * np.sin(myg.x2v)) +
             #  (D v)_y
             (D_yint.jp(1)*(v_MAC.jp(1) + U0_half.jp(1)[np.newaxis,:]) -\
              D_yint.v() * (v_MAC.v() + U0_half.v2d())) / myg.dy + 2. * D_1.v() * (v.v() + U0_half.v2d()) / self.r2v)
 
         DX_2.v()[:,:] -= self.dt * (
             #  (X D u)_x
-            (DX_xint.ip(1) * u_MAC.ip(1) - DX_xint.v() * u_MAC.v())/(myg.dx * self.r2v) + DX_1.v() * u.v() / (self.r2v * np.tan(myg.x2v)) +
+            (np.sin(self.thp) * DX_xint.ip(1) * u_MAC.ip(1) - np.sin(self.thm) * DX_xint.v() * u_MAC.v())/(myg.dx * self.r2v * np.sin(myg.x2v)) +
             #  (X D v)_y
             (DX_yint.jp(1)*(v_MAC.jp(1) + U0_half.jp(1)[np.newaxis,:]) -
              DX_yint.v() * (v_MAC.v() + U0_half.v2d())) / myg.dy + 2. * DX_1.v() * (v.v() + U0_half.v2d()) / self.r2v)
 
         scalar_2.v()[:,:] -= self.dt * (
             #  (D u)_x
-            (scalar_xint.ip(1) * u_MAC.ip(1) -
-             scalar_xint.v() * u_MAC.v()) / (myg.dx * self.r2v) + scalar_1.v() / (self.r2v * np.tan(myg.x2v)) +
+            (np.sin(self.thp) * scalar_xint.ip(1) * u_MAC.ip(1) -
+             np.sin(self.thm) * scalar_xint.v() * u_MAC.v()) / (myg.dx * self.r2v * np.sin(myg.x2v)) +
             #  (D v)_y
             (scalar_yint.jp(1) * (v_MAC.jp(1) +
              U0_half.jp(1)[np.newaxis,:]) -
@@ -1004,7 +1179,7 @@ class SimulationSpherical(SimulationReact):
 
         Dh_2.v()[:,:] += -self.dt * (
             #  (D u)_x
-            (Dh_xint.ip(1)*u_MAC.ip(1) - Dh_xint.v()*u_MAC.v())(myg.dx * self.r2v) + Dh_1.v() * u.v() / (self.r2v * np.tan(myg.x2v)) +
+            (np.sin(self.thp) * Dh_xint.ip(1)*u_MAC.ip(1) - np.sin(self.thm) * Dh_xint.v()*u_MAC.v()) / (myg.dx * self.r2v * np.sin(myg.x2v)) +
             #  (D v)_y
             (Dh_yint.jp(1)*(v_MAC.jp(1) + U0_half.jp(1)[np.newaxis,:]) -\
              Dh_yint.v() * (v_MAC.v() + U0_half.v2d())) / myg.dy + 2. * Dh_1.v() * (v.v() + U0_half.v2d()) / self.r2v) + \
@@ -1078,16 +1253,16 @@ class SimulationSpherical(SimulationReact):
                              ymin=myg.ymin, ymax=myg.ymax,
                              coeffs=coeff,
                              coeffs_bc=self.cc_data.BCs["density"],
-                             verbose=0)
+                             verbose=0, R=R)
 
         # first compute div{zeta U}
 
         # u/v are cell-centered, divU is cell-centered
         # this bit seems to use U^n+1 rather than U_MAC
         div_zeta_U.v()[:,:] = \
-            0.5 * zeta_half.v2d() * (u.ip(1) - u.ip(-1)) / (myg.dx * self.r2v) + \
+            0.5 * zeta_half.v2d() * (np.sin(myg.x2v + myg.dx) * u.ip(1) - np.sin(myg.x2v - myg.dx) * u.ip(-1)) / (myg.dx * self.r2v * np.sin(myg.x2v)) + \
             0.5 * (zeta_half.v2dp(1) * v.jp(1) - \
-            zeta_half.v2dp(-1) * v.jp(-1)) / myg.dy + zeta_half.v2d() * u.v() / (self.r2v * np.tan(myg.x2v)) + zeta_half.v2d() * 2. * v.v() / self.r2v
+            zeta_half.v2dp(-1) * v.jp(-1)) / myg.dy + 2. * zeta_half.v2d() * v.v() / self.r2v
 
         # FIXME: check this is using the correct S - might need to be time-centred
         # U or U_MAC??
@@ -1108,7 +1283,7 @@ class SimulationSpherical(SimulationReact):
 
         # get the cell-centered gradient of p and update the velocities
         # this differs depending on what we projected.
-        gradphi_x, gradphi_y = mg.get_solution_gradient(grid=myg)
+        gradphi_x, gradphi_y = mg.get_solution_gradient_sph(g, c, grid=myg)
 
         # U = U - (zeta/Dh u0) grad (phi)
         # alpha^2 as need to raise grad.
@@ -1189,16 +1364,20 @@ class SimulationSpherical(SimulationReact):
 
         vort = myg.scratch_array()
 
-        dv = 0.5 * (v.ip(1) - v.ip(-1)) / (myg.dx * self.r2v) + v.v() / (self.r2v * np.tan(myg.x2v))
-        du = 0.5 * (u.jp(1) - u.jp(-1)) / myg.dy + 2. * u.v() / self.r2v
+        R = self.rp.get_param("lm-gr.radius")
+
+        r2v = myg.y2d[myg.ilo:myg.ihi+1, myg.jlo:myg.jhi+1] + R
+
+        dv = 0.5 * (v.ip(1) - v.ip(-1)) / (myg.dx * r2v) + v.v() / (r2v * np.tan(myg.x2v))
+        du = 0.5 * (u.jp(1) - u.jp(-1)) / myg.dy + 2. * u.v() / r2v
 
         vort.v()[:,:] = dv - du
 
         fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.3)
 
-        fields = [D, X, u, logT]
-        field_names = [r"$D$", r"$X$", r"$u$", r"$\ln T$"]
+        fields = [D, X, u, vort]
+        field_names = [r"$D$", r"$X$", r"$u$", r"$\nabla\times u$"]
         colourmaps = [cmaps.magma_r, cmaps.magma, cmaps.viridis_r,
                       cmaps.magma]
 
@@ -1213,7 +1392,7 @@ class SimulationSpherical(SimulationReact):
 
             img = ax.imshow(np.transpose(f.v()),
                             interpolation="nearest", origin="lower",
-                            extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax],
+                            extent=[myg.xmin, myg.xmax, myg.ymin,  myg.ymax],
                             vmin=vmins[n], vmax=vmaxes[n], cmap=cmap)
 
             ax.set_xlabel(r"$x$")

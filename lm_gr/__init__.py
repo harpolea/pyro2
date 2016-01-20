@@ -21,3 +21,4 @@ The projections are done using multigrid
 
 from .simulation import *
 from .simulation_react import *
+from .simulation_spherical import *

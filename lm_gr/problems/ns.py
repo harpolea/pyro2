@@ -59,15 +59,15 @@ def init_data(my_data, aux_data, base, rp, metric):
     # + 0.5*rho*v**2, where eint is the specific internal energy
     # (erg/g)
     u.d[:,:] = u_1 - u_m * np.exp((myg.y[np.newaxis,:] - yctr)/L_x)
-    v.d[:,:] = 5.e-1 * u_1 * np.sin(4. * math.pi * (myg.x[:, np.newaxis]+0.5*L)/L)
+    #v.d[:,:] = 5.e-1 * u_1 * np.sin(4. * math.pi * (myg.x[:, np.newaxis]+0.5*L)/L)
     dens.d[:,:] = rho_1 - rho_m * np.exp((myg.y[np.newaxis,:] - yctr)/L_x)
-    scalar.d[:,:] = 0.
+    scalar.d[:,:] = 1.
     DX.d[:,:] = 1.
 
     idx = (myg.y2d[:,:] > yctr)
     dens.d[idx] = rho_2 + rho_m * np.exp((-myg.y2d[idx] + yctr)/L_x)
     u.d[idx] = u_2 + u_m * np.exp((-myg.y2d[idx] + yctr)/L_x)
-    scalar.d[idx] = 1. #+ 0.5 * np.exp((-myg.y2d[idx] + 0.5)/L_x)
+    scalar.d[idx] = 0. #+ 0.5 * np.exp((-myg.y2d[idx] + 0.5)/L_x)
     DX.d[idx] = 0.
 
     #dens.v()[:, :] *= \
@@ -76,7 +76,7 @@ def init_data(my_data, aux_data, base, rp, metric):
 
     pres = myg.scratch_array()
 
-    print('density: {}'.format(dens.d[5,2:]))
+    #print('density: {}'.format(dens.d[5,2:]))
     pres.d[:,:] = K * dens.d**gamma
     eint.d[:,:] = pres.d / (gamma - 1.0) / dens.d
     enth.d[:, :] = 1. + eint.d + pres.d / dens.d

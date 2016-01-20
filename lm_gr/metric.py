@@ -13,6 +13,7 @@ import numpy as np
 import sys
 from util import msg
 import mesh.patch as patch
+import traceback
 #from lm_gr.problems import *
 
 class Metric:
@@ -48,6 +49,8 @@ class Metric:
         self.chrls = np.array([[self.christoffels([0, i, j])
                            for j in range(myg.qy)] for i in range(myg.qx)])
 
+        #self.inverse = self.inverse_metric()
+
         np.seterr(invalid='raise')  # raise numpy warnings as errors
 
     def dets(self):
@@ -75,6 +78,16 @@ class Metric:
                           for i in range(0, myg.qx)]
 
         return sg, sgamma
+
+    def inverse_metric(self):
+        r"""
+        Returns components of the inverse metric, assuming it's diagonal
+        for now.
+        """
+        if cartesian:
+            return np.array([[np.diag([-1./self.alpha[i,j]**2, alpha[i,j]**2, alpha[i,j]**2]) for j in range(0,myg.qy)] for i in range(0, myg.qx)])
+        else:
+            return np.array([[np.diag([-1./self.alpha[i,j]**2, alpha[i,j]**2, alpha[i,j]**2/myg.r2d[i,j]]) for j in range(0,myg.qy)] for i in range(0, myg.qx)])
 
     # cannot use numba here as it doesn't support list comprehensions :(
     def calcW(self, u=None, v=None):
@@ -122,10 +135,10 @@ class Metric:
             W.d[:, :] = 1. / np.sqrt(W.d)
         except FloatingPointError:
             msg.bold('\nError!')
-            print('Tried to take the square root of a negative Lorentz \
-                  factor! \nTry checking your velocities?\n')
+            print('Tried to take the square root of a negative Lorentz factor! \nTry checking your velocities?\n')
             print((u.d[-10:, -10:]**2 + v.d[-10:, -10:]**2)/c**2)
-            print(u.d.min(), v.d.min())
+            print('umin: {},  vmin: {}'.format(u.d.min(), v.d.min()))
+            traceback.print_stack()
             sys.exit()
 
         return W
