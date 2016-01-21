@@ -25,8 +25,8 @@ class EdgeCoeffsSpherical(EdgeCoeffs):
             eta_x.v(buf=b)[:,:] = 0.5*(eta.ip(-1, buf=b) + eta.v(buf=b))
             eta_y.v(buf=b)[:,:] = 0.5*(eta.jp(-1, buf=b) + eta.v(buf=b))
 
-            eta_x *= np.sin(g.x2d) / g.dx
-            eta_y *= g.r2d**2 / g.dy
+            eta_x *= np.sin(g.x2d - 0.5*g.dx) / g.dx
+            eta_y *= (g.r2d - 0.5*g.dy)**2 / g.dy
 
             self.x = eta_x
             self.y = eta_y
@@ -66,10 +66,10 @@ class EdgeCoeffsSpherical(EdgeCoeffs):
         # redo the normalization
         mask = (c_x_x.d > 0.)
         c_edge_coeffs.x = cg.scratch_array()
-        c_edge_coeffs.x.d[mask] = c_eta_x.d[mask] * fg.dx * np.sin(cg.x2d[mask]) / (cg.dx * np.sin(c_x_x.d[mask]))
+        c_edge_coeffs.x.d[mask] = c_eta_x.d[mask] * fg.dx * np.sin(cg.x2d[mask] - 0.5*cg.dx) / (cg.dx * np.sin(c_x_x.d[mask] - 0.5*fg.dx))
 
         mask = (c_x_x.d > 0.)
         c_edge_coeffs.y = cg.scratch_array()
-        c_edge_coeffs.y.d[mask] = c_eta_y.d[mask] * fg.dy * cg.r2d[mask]**2 /(cg.dy * c_r_y.d[mask]**2)
+        c_edge_coeffs.y.d[mask] = c_eta_y.d[mask] * fg.dy * (cg.r2d[mask] - 0.5*cg.dy)**2 /(cg.dy * (c_r_y.d[mask] - 0.5*fg.dy)**2)
 
         return c_edge_coeffs

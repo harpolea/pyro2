@@ -469,7 +469,8 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
         alphasq = Basestate(og.ny, ng=og.ng)
         alphasq.d[:] = 1. - 2. * g * (1. - og.y[:]/og.R) / (og.R * c**2)
 
-        g_xx = alphasq.d2df(og.qx) / og.r2d**2
+        # FIXME: do we need the r**2 here??
+        g_xx = alphasq.d2df(og.qx) #/ og.r2d**2
         g_yy = alphasq.d2df(og.qx)
 
         gx.v()[:,:] = 0.5 * g_xx[og.ilo:og.ihi+1,og.jlo:og.jhi+1] * (v.ip(1) - v.ip(-1)) / (og.dx * og.r2v)

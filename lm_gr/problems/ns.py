@@ -11,6 +11,9 @@ def init_data(my_data, aux_data, base, rp, metric):
 
     msg.bold("initializing the neutron star problem...")
 
+    if rp.get_param("io.do_io"):
+        print("Outputting to {}".format(rp.get_param("io.basename")))
+
     # make sure that we are passed a valid patch object
     if not isinstance(my_data, patch.CellCenterData2d):
         print(my_data.__class__)
@@ -47,7 +50,7 @@ def init_data(my_data, aux_data, base, rp, metric):
 
     yctr = 0.5*(ymin + ymax)
     L_y = ymax - ymin
-    L_x = 0.025*(ymax - ymin)
+    L_x = 0.05*(ymax - ymin)
     L = xmax - xmin
     rho_m = 0.5 * (rho_1 - rho_2)
     u_m = 0.5 * (u_1 - u_2)
@@ -59,7 +62,7 @@ def init_data(my_data, aux_data, base, rp, metric):
     # + 0.5*rho*v**2, where eint is the specific internal energy
     # (erg/g)
     u.d[:,:] = u_1 - u_m * np.exp((myg.y[np.newaxis,:] - yctr)/L_x)
-    #v.d[:,:] = 5.e-1 * u_1 * np.sin(4. * math.pi * (myg.x[:, np.newaxis]+0.5*L)/L)
+    v.d[:,:] = 1.e-2 * u_1 * np.sin(4. * math.pi * (myg.x[:, np.newaxis]+0.5*L)/L)
     dens.d[:,:] = rho_1 - rho_m * np.exp((myg.y[np.newaxis,:] - yctr)/L_x)
     scalar.d[:,:] = 1.
     DX.d[:,:] = 1.

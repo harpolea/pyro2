@@ -1,5 +1,5 @@
 [driver]
-max_steps = 1000
+max_steps = 10000
 tmax = 1000000000.
 
 # we're using units where M_solar = c = G = 1
@@ -13,8 +13,8 @@ radius = 600.75  ; 10 km
 
 
 [io]
-basename = ../../Documents/Work/pyro/results/ns/ns_32_   ; basename for output files
-n_out = 50                   ; number of timesteps between writing output files
+basename = ../../Documents/Work/pyro/results/ns/ns_64_   ; basename for output files
+n_out = 5                   ; number of timesteps between writing output files
 do_io = 1                   ; do we output at all?
 
 [vis]
@@ -26,10 +26,14 @@ store_images = 0           ; store vis images to files (1=yes, 0=no)
 gamma = 1.66666666667
 
 [mesh]
-nx = 32
-ny = 128
-xmin = 0.5
-xmax = 0.6       ;
+#nx = 128
+#ny = 512
+nx = 64
+ny = 256
+#nx = 32
+#ny = 128
+xmin = 0.2
+xmax = 1.0       ;
 ymax = 0.0337318           ; this is about 50m
 #xmax = 0.03
 #ymax = 0.03
@@ -46,7 +50,7 @@ rho_1 = 1.0e5
 v_1 = 1.0e-3
 #v_1 = 0.0
 
-rho_2 = 1.1e5
+rho_2 = 1.01e5
 v_2 = -1.0e-3
 #rho_2 = 1.0e5
 #v_2 = 0.0

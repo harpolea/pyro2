@@ -8,7 +8,7 @@ import pdb
 import math
 
 from lm_gr.problems import *
-import lm_gr.LM_gr_interface_f as lm_interface_f
+import lm_gr.LM_gr_interface_sph_f as lm_interface_sph_f
 import mesh.reconstruction_f as reconstruction_f
 import mesh.patch as patch
 from simulation_null import NullSimulation, grid_setup, bc_setup
@@ -172,7 +172,7 @@ class SimulationSpherical(Simulation):
             (R * c**2) * np.eye(2)[np.newaxis, np.newaxis, :, :]
 
         # g_theta theta = r^2 / alpha^2
-        gamma_matrix[:,:,1,1] *= (myg.y2d + R)**2
+        gamma_matrix[:,:,1,1] *= myg.r2d**2
 
         self.metric = metric.Metric(self.cc_data, self.rp, alpha, beta,
                                     gamma_matrix, cartesian=False)
@@ -244,6 +244,92 @@ class SimulationSpherical(Simulation):
              (U0.jp(1, buf=myg.ng-1) * self.r[myg.jlo-myg.ng+2:myg.jhi+myg.ng+1]**2 - U0.jp(-1, buf=myg.ng-1)* self.r[myg.jlo-myg.ng:myg.jhi+myg.ng-1]**2) / self.r[myg.jlo-myg.ng+1:myg.jhi+myg.ng]**2)
 
         return psi
+
+    def calc_mom_source(self, u=None, v=None, Dh=None, Dh0=None, u0=None):
+        r"""
+        calculate the source terms in the momentum equation.
+        This works only for the metric :math: `ds^2 = -a^2 dt^2 + 1/a^2 (dx^2 + dr^2)`
+
+        FIXME: need the D_t ln u0 term?
+
+        CHANGED: lowered first index of christoffels
+
+        TODO: make this more general. This definitely needs to be done with
+        einsum or something rather than by hand
+
+        Parameters
+        ----------
+        u : ArrayIndexer object, optional
+            horizontal velocity
+        v : ArrayIndexer object, optional
+            vertical velocity
+        Dh : ArrayIndexer object, optional
+            density * enthalpy full state
+        Dh0: ArrayIndexer object, optional
+            density * enthalpy base state
+        u0 : ArrayIndexer object, optional
+            timelike component of the 4-velocity
+
+        Returns
+        -------
+        mom_source : ArrayIndexer object
+            :math:`\Gamma_{\rho \nu j} U^\nu U^\rho -
+                    \frac{\partial_j p_0}{Dh u_0}`
+        """
+        myg = self.cc_data.grid
+        if u is None:
+            u = self.cc_data.get_var("x-velocity")
+        if v is None:
+            v = self.cc_data.get_var("y-velocity")
+        if Dh is None:
+            Dh = self.cc_data.get_var("enthalpy")
+        if Dh0 is None:
+            Dh0 = self.base["Dh0"]
+        if u0 is None:
+            u0 = self.metric.calcu0(u=u, v=v)
+        mom_source_r = myg.scratch_array()
+        mom_source_x = myg.scratch_array()
+        gtt = -(self.metric.alpha.d)**2
+        gxx = 1. / self.metric.alpha.d**2
+        grr = gxx * myg.r2d**2
+        drp0 = self.drp0(Dh0=Dh0, u=u, v=v, u0=u0)
+
+        #chrls = np.array([[self.metric.christoffels([self.cc_data.t, i, j])
+        #                   for j in range(myg.qy)] for i in range(myg.qx)])
+        # time-independent metric
+        chrls = self.metric.chrls
+
+        # note metric components needed to lower the christoffel symbols
+        mom_source_x.d[:,:] = (gtt[np.newaxis,:] * chrls[:,:,0,0,1] +
+            (gxx[np.newaxis,:] * chrls[:,:,1,0,1] +
+             gtt[np.newaxis,:] * chrls[:,:,0,1,1]) * u.d +
+            (grr[np.newaxis,:] * chrls[:,:,2,0,1] +
+             gtt[np.newaxis,:] * chrls[:,:,0,2,1]) * v.d +
+            gxx[np.newaxis,:] * chrls[:,:,1,1,1] * u.d**2 +
+            grr[np.newaxis,:] * chrls[:,:,2,2,1] * v.d**2 +
+            (grr[np.newaxis,:] * chrls[:,:,2,1,1] +
+             gxx[np.newaxis,:] * chrls[:,:,1,2,1]) * u.d * v.d)/grr[np.newaxis,:]
+        mom_source_r.d[:,:] = (gtt[np.newaxis,:] * chrls[:,:,0,0,2] +
+            (gxx[np.newaxis,:] * chrls[:,:,1,0,2] +
+             gtt[np.newaxis,:] * chrls[:,:,0,1,2]) * u.d +
+            (grr[np.newaxis,:] * chrls[:,:,2,0,2] +
+             gtt[np.newaxis,:] * chrls[:,:,0,2,2]) * v.d +
+            gxx[np.newaxis,:] * chrls[:,:,1,1,2] * u.d**2 +
+            grr[np.newaxis,:] * chrls[:,:,2,2,2] * v.d**2 +
+            (grr[np.newaxis,:] * chrls[:,:,2,1,2] +
+             gxx[np.newaxis,:] * chrls[:,:,1,2,2]) * u.d * v.d)/gxx[np.newaxis,:]
+
+        # check drp0 is not zero
+        mask = (abs(drp0.d2df(myg.qx)) > 1.e-15)
+        #print(drp0.d2d())
+        mom_source_r.d[mask] -=  drp0.d2df(myg.qx)[mask] / (Dh.d[mask]*u0.d[mask])
+
+        #mom_source_r.d[:,:] -=  drp0.d[np.newaxis,:] / (Dh.d[:,:]*u0.d[:,:])
+
+        mom_source_x.d[:,:] *=  self.metric.alpha.d2d()**2
+        mom_source_r.d[:,:] *=  self.metric.alpha.d2d()**2
+
+        return mom_source_x, mom_source_r
 
     def compute_base_velocity(self, U0=None, p0=None, S=None, Dh0=None, u=None, v=None, u0=None):
         r"""
@@ -567,9 +653,9 @@ class SimulationSpherical(Simulation):
         ###########################
         #gradp_x.d[:,:] = 1.
         #gradp_y.d[:,:] = 1.
-        _um, _vm = lm_interface_f.mac_vels(myg.qx, myg.qy, myg.ng,
+        _um, _vm = lm_interface_sph_f.mac_vels(myg.qx, myg.qy, myg.ng,
                                            myg.dx, myg.dy, self.dt,
-                                           u.d, v.d,
+                                           myg.r2d, u.d, v.d,
                                            ldelta_ux, ldelta_vx,
                                            ldelta_uy, ldelta_vy,
                                            coeff.d*gradp_x.d,
@@ -693,8 +779,9 @@ class SimulationSpherical(Simulation):
         # FIXME: this is not exactly 4B - be careful with perturbed density
         ldelta_rx = limitFunc(1, D_1.d, myg.qx, myg.qy, myg.ng)
         ldelta_ry = limitFunc(2, D_1.d, myg.qx, myg.qy, myg.ng)
-        _rx, _ry = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
+        _rx, _ry = lm_interface_sph_f.rho_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
+                                             myg.x2d, myg.r2d,
                                              D_1.d, u_MAC.d, v_MAC.d,
                                              ldelta_rx, ldelta_ry)
 
@@ -702,8 +789,9 @@ class SimulationSpherical(Simulation):
         ldelta_px = limitFunc(1, psi_1.d, myg.qx, myg.qy, myg.ng)
         ldelta_py = limitFunc(2, psi_1.d, myg.qx, myg.qy, myg.ng)
         no_source = myg.scratch_array()
-        _px, _py = lm_interface_f.psi_states(myg.qx, myg.qy, myg.ng,
+        _px, _py = lm_interface_sph_f.psi_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
+                                             myg.r2d,
                                              psi_1.d, u_MAC.d, v_MAC.d,
                                              ldelta_px, ldelta_py, no_source.d)
 
@@ -712,15 +800,17 @@ class SimulationSpherical(Simulation):
         ldelta_Xx = limitFunc(1, X_1.d, myg.qx, myg.qy, myg.ng)
         ldelta_Xy = limitFunc(2, X_1.d, myg.qx, myg.qy, myg.ng)
         _, omega_dot = self.calc_Q_omega_dot(D=D_1, DX=DX_1, u=u_MAC, v=v_MAC, u0=u0_MAC, T=T_1)
-        _Xx, _Xy = lm_interface_f.psi_states(myg.qx, myg.qy, myg.ng,
+        _Xx, _Xy = lm_interface_sph_f.psi_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
+                                             myg.r2d,
                                              X_1.d, u_MAC.d, v_MAC.d,
                                              ldelta_Xx, ldelta_Xy, omega_dot.d)
         # x component of U0 is zero
         U0_x = myg.scratch_array()
         # is U0 edge-centred?
-        _r0x, _r0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
+        _r0x, _r0y = lm_interface_sph_f.rho_states(myg.qx, myg.qy, myg.ng,
                                             myg.dx, myg.dy, self.dt,
+                                            myg.x2d, myg.r2d,
                                             D0.d2df(myg.qx), U0_x.d, U0_half_star.d2df(myg.qx),
                                             ldelta_r0x, ldelta_r0y)
 
@@ -742,8 +832,9 @@ class SimulationSpherical(Simulation):
         ldelta_r0x = limitFunc(1, D0_2a_star.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
         ldelta_r0y = limitFunc(2, D0_2a_star.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
 
-        _r0x, _r0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
+        _r0x, _r0y = lm_interface_sph_f.rho_states(myg.qx, myg.qy, myg.ng,
                                             myg.dx, myg.dy, self.dt,
+                                            myg.x2d, myg.r2d,
                                             D0_2a_star.d2df(myg.qx), U0_x.d, U0_half_star.d2df(myg.qx),
                                             ldelta_r0x, ldelta_r0y)
         D0_2a_xint = patch.ArrayIndexer(d=_r0x, grid=myg)
@@ -808,12 +899,14 @@ class SimulationSpherical(Simulation):
         ldelta_ex = limitFunc(1, Dh_1.d, myg.qx, myg.qy, myg.ng)
         ldelta_ey = limitFunc(2, Dh_1.d, myg.qx, myg.qy, myg.ng)
 
-        _ex, _ey = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
+        _ex, _ey = lm_interface_sph_f.rho_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
+                                             myg.x2d, myg.r2d,
                                              Dh_1.d, u_MAC.d, v_MAC.d,
                                              ldelta_ex, ldelta_ey)
-        _e0x, _e0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
+        _e0x, _e0y = lm_interface_sph_f.rho_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
+                                             myg.x2d, myg.r2d,
                                              Dh0.d2df(myg.qx), U0_x.d, U0_half_star.d2df(myg.qx),
                                              ldelta_e0x, ldelta_e0y)
 
@@ -836,8 +929,9 @@ class SimulationSpherical(Simulation):
         ldelta_e0x = limitFunc(1, Dh0_star.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
         ldelta_e0y = limitFunc(2, Dh0_star.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
 
-        _e0x, _e0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
+        _e0x, _e0y = lm_interface_sph_f.rho_states(myg.qx, myg.qy, myg.ng,
                                             myg.dx, myg.dy, self.dt,
+                                            myg.x2d, myg.r2d,
                                             Dh0_star.d2df(myg.qx), U0_x.d, U0_half_star.d2df(myg.qx),
                                             ldelta_e0x, ldelta_e0y)
         Dh0_star_xint = patch.ArrayIndexer(d=_r0x, grid=myg)
@@ -929,9 +1023,9 @@ class SimulationSpherical(Simulation):
         self.aux_data.fill_BC("coeff")
 
         _ux, _vx, _uy, _vy = \
-               lm_interface_f.states(myg.qx, myg.qy, myg.ng,
+               lm_interface_sph_f.states(myg.qx, myg.qy, myg.ng,
                                      myg.dx, myg.dy, self.dt,
-                                     u.d, v.d,
+                                     myg.r2d, u.d, v.d,
                                      ldelta_ux, ldelta_vx,
                                      ldelta_uy, ldelta_vy,
                                      coeff.d*gradp_x.d, coeff.d*gradp_y.d,
@@ -959,14 +1053,16 @@ class SimulationSpherical(Simulation):
         # advect MAC velocities to get cell-centred quantities
 
         advect_x.v()[:,:] = \
-            0.5*(u_MAC.v() + u_MAC.ip(1))*(u_xint.ip(1) - u_xint.v())/myg.dx +\
+            0.5*(u_MAC.v() + u_MAC.ip(1))*(u_xint.ip(1) - u_xint.v())/(myg.dx * myg.r2v) +\
             0.5*(v_MAC.v() + v_MAC.jp(1))*(u_yint.jp(1) - u_yint.v())/myg.dy
 
         advect_y.v()[:,:] = \
-            0.5*(u_MAC.v() + u_MAC.ip(1))*(v_xint.ip(1) - v_xint.v())/myg.dx +\
+            0.5*(u_MAC.v() + u_MAC.ip(1))*(v_xint.ip(1) - v_xint.v())/(myg.dx * myg.r2v) +\
             0.5*(v_MAC.v() + v_MAC.jp(1))*(v_yint.jp(1) - v_yint.v())/myg.dy
 
         proj_type = self.rp.get_param("lm-gr.proj_type")
+
+        #print('7. before add gradp, u: {}'.format(u.d[-20:-10, -20:-10]))
 
         ###########################
 
@@ -979,12 +1075,14 @@ class SimulationSpherical(Simulation):
         if proj_type == 1:
             u.v()[:,:] -= (self.dt * advect_x.v() + self.dt * gradp_x.v())
             # FIXME: add back in!
-            #v.v()[:,:] -= (self.dt * advect_y.v() + self.dt * gradp_y.v())
+            v.v()[:,:] -= (self.dt * advect_y.v() + self.dt * gradp_y.v())
 
         elif proj_type == 2:
             u.v()[:,:] -= self.dt * advect_x.v()
             # FIXME: add back in!
-            #v.v()[:,:] -= self.dt * advect_y.v()
+            v.v()[:,:] -= self.dt * advect_y.v()
+
+        #print('7. after add gradp, u: {}'.format(u.d[-20:-10, -20:-10]))
 
         # add on source term
         # do we want to use Dh half star here maybe?
@@ -992,6 +1090,8 @@ class SimulationSpherical(Simulation):
         mom_source_x, mom_source_r = self.calc_mom_source(Dh=Dh_star, Dh0=Dh0_star, u=u, v=v, u0=u0)
         u.d[:,:] += self.dt * mom_source_x.d
         v.d[:,:] += self.dt * mom_source_r.d
+
+        #print('7. after add mom_source, u: {}'.format(u.d[-20:-10, -20:-10]))
 
         u0 = self.metric.calcu0(u=u, v=v)
 
@@ -1021,12 +1121,14 @@ class SimulationSpherical(Simulation):
         ldelta_ey = limitFunc(2, Dh_1.d,myg.qx, myg.qy, myg.ng)
         ldelta_e0y = limitFunc(2, Dh0.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
 
-        _rx, _ry = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
+        _rx, _ry = lm_interface_sph_f.rho_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
+                                             myg.x2d, myg.r2d,
                                              D_1.d, u_MAC.d, v_MAC.d,
                                              ldelta_rx, ldelta_ry)
-        _r0x, _r0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
+        _r0x, _r0y = lm_interface_sph_f.rho_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
+                                             myg.x2d, myg.r2d,
                                              D0.d2df(myg.qx), U0_x.d,
                                              U0_half.d2df(myg.qx),
                                              ldelta_r0x, ldelta_r0y)
@@ -1034,8 +1136,9 @@ class SimulationSpherical(Simulation):
         psi_1.d[:,:] = scalar_1.d / D_1.d
         ldelta_px = limitFunc(1, psi_1.d, myg.qx, myg.qy, myg.ng)
         ldelta_py = limitFunc(2, psi_1.d, myg.qx, myg.qy, myg.ng)
-        _px, _py = lm_interface_f.psi_states(myg.qx, myg.qy, myg.ng,
+        _px, _py = lm_interface_sph_f.psi_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
+                                             myg.r2d,
                                              psi_1.d, u_MAC.d, v_MAC.d,
                                              ldelta_px, ldelta_py, no_source.d)
 
@@ -1043,8 +1146,9 @@ class SimulationSpherical(Simulation):
         ldelta_Xx = limitFunc(1, X_1.d, myg.qx, myg.qy, myg.ng)
         ldelta_Xy = limitFunc(2, X_1.d, myg.qx, myg.qy, myg.ng)
         _, omega_dot = self.calc_Q_omega_dot(D=D_1, DX=DX_1, u=u_MAC, v=v_MAC, u0=u0_MAC, T=T_1)
-        _Xx, _Xy = lm_interface_f.psi_states(myg.qx, myg.qy, myg.ng,
+        _Xx, _Xy = lm_interface_sph_f.psi_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
+                                             myg.r2d,
                                              X_1.d, u_MAC.d, v_MAC.d,
                                              ldelta_Xx, ldelta_Xy, omega_dot.d)
 
@@ -1066,8 +1170,9 @@ class SimulationSpherical(Simulation):
         ldelta_r0x = limitFunc(1, D0_2a.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
         ldelta_r0y = limitFunc(2, D0_2a.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
 
-        _r0x, _r0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
+        _r0x, _r0y = lm_interface_sph_f.rho_states(myg.qx, myg.qy, myg.ng,
                                             myg.dx, myg.dy, self.dt,
+                                            myg.x2d, myg.r2d,
                                             D0_2a.d2df(myg.qx), U0_x.d, U0_half_star.d2df(myg.qx),
                                             ldelta_r0x, ldelta_r0y)
         D0_2a_xint = patch.ArrayIndexer(d=_r0x, grid=myg)
@@ -1131,12 +1236,14 @@ class SimulationSpherical(Simulation):
         # CHANGED: this step is in 4G but not 8G, so going to assume that this is a mistake?
         Dh0.v()[:] = self.lateral_average(Dh_1.v())
 
-        _ex, _ey = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
+        _ex, _ey = lm_interface_sph_f.rho_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
+                                             myg.x2d, myg.r2d,
                                              Dh_1.d, u_MAC.d, v_MAC.d,
                                              ldelta_ex, ldelta_ey)
-        _e0x, _e0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
+        _e0x, _e0y = lm_interface_sph_f.rho_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
+                                             myg.x2d, myg.r2d,
                                              Dh0.d2df(myg.qx), U0_x.d, U0_half.d2df(myg.qx),
                                              ldelta_e0x, ldelta_e0y)
 
@@ -1160,8 +1267,9 @@ class SimulationSpherical(Simulation):
         ldelta_e0x = limitFunc(1, Dh0.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
         ldelta_e0y = limitFunc(2, Dh0.d2df(myg.qx), myg.qx, myg.qy, myg.ng)
 
-        _e0x, _e0y = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
+        _e0x, _e0y = lm_interface_sph_f.rho_states(myg.qx, myg.qy, myg.ng,
                                             myg.dx, myg.dy, self.dt,
+                                            myg.x2d, myg.r2d,
                                             Dh0.d2df(myg.qx), U0_x.d, U0_half_star.d2df(myg.qx),
                                             ldelta_e0x, ldelta_e0y)
         Dh0_n1_xint = patch.ArrayIndexer(d=_r0x, grid=myg)
@@ -1376,8 +1484,8 @@ class SimulationSpherical(Simulation):
         fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.3)
 
-        fields = [D, X, u, vort]
-        field_names = [r"$D$", r"$X$", r"$u$", r"$\nabla\times u$"]
+        fields = [D, X, v, vort]
+        field_names = [r"$D$", r"$X$", r"$v$", r"$\nabla\times u$"]
         colourmaps = [cmaps.magma_r, cmaps.magma, cmaps.viridis_r,
                       cmaps.magma]
 
@@ -1392,7 +1500,7 @@ class SimulationSpherical(Simulation):
 
             img = ax.imshow(np.transpose(f.v()),
                             interpolation="nearest", origin="lower",
-                            extent=[myg.xmin, myg.xmax, myg.ymin,  myg.ymax],
+                            extent=[myg.xmin, myg.xmax, 10.*myg.ymin,  10.*myg.ymax],
                             vmin=vmins[n], vmax=vmaxes[n], cmap=cmap)
 
             ax.set_xlabel(r"$x$")
