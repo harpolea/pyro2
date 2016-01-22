@@ -84,10 +84,11 @@ class Metric:
         Returns components of the inverse metric, assuming it's diagonal
         for now.
         """
-        if cartesian:
-            return np.array([[np.diag([-1./self.alpha[i,j]**2, alpha[i,j]**2, alpha[i,j]**2]) for j in range(0,myg.qy)] for i in range(0, myg.qx)])
+        myg = self.cc_data.grid
+        if self.cartesian:
+            return np.array([[np.diag([-1./self.alpha.d[i,j]**2, self.alpha.d[i,j]**2, self.alpha.d[i,j]**2]) for j in range(0,myg.qy)] for i in range(0, myg.qx)])
         else:
-            return np.array([[np.diag([-1./self.alpha[i,j]**2, alpha[i,j]**2, alpha[i,j]**2/myg.r2d[i,j]]) for j in range(0,myg.qy)] for i in range(0, myg.qx)])
+            return np.array([[np.diag([-1./self.alpha.d[i,j]**2, self.alpha.d[i,j]**2, self.alpha.d[i,j]**2/myg.r2d[i,j]]) for j in range(0,myg.qy)] for i in range(0, myg.qx)])
 
     # cannot use numba here as it doesn't support list comprehensions :(
     def calcW(self, u=None, v=None):
@@ -125,11 +126,13 @@ class Metric:
         Vs = np.array([[np.array([u.d[i,j], v.d[i,j]]) + self.beta
             for j in range(myg.qy)] for i in range(myg.qx)])
 
-        W.d[:,:] = np.array([[ np.dot(np.dot(Vs[i,j,:],
+        Vs[:,:,:] /= self.alpha.d2d()[:,:,np.newaxis]**2
+
+        W.d[:,:] = np.array([[ np.inner(np.inner(Vs[i,j,:],
             self.gamma[i,j,:,:]), np.transpose(Vs[i,j,:]))
             for j in range(myg.qy)] for i in range(myg.qx)])
 
-        W.d[:,:] = 1. - W.d / (self.alpha.d2d()**2 * c**2)
+        W.d[:,:] = 1. - W.d / c**2
 
         try:
             W.d[:, :] = 1. / np.sqrt(W.d)
@@ -137,8 +140,14 @@ class Metric:
             msg.bold('\nError!')
             print('Tried to take the square root of a negative Lorentz factor! \nTry checking your velocities?\n')
             print((u.d[-10:, -10:]**2 + v.d[-10:, -10:]**2)/c**2)
-            print('umin: {},  vmin: {}'.format(u.d.min(), v.d.min()))
+            print('umin: {}, umax: {}, vmin: {}, vmax:{}'.format(u.d.min(), u.d.max(), v.d.min(), v.d.max()))
             traceback.print_stack()
+            np.set_printoptions(threshold=np.nan)
+            #mag_vel = u.d**2 + v.d**2
+            W.d[:,:] = np.array([[ np.inner(np.inner(Vs[i,j,:],
+                self.gamma[i,j,:,:]), np.transpose(Vs[i,j,:]))
+                for j in range(myg.qy)] for i in range(myg.qx)])
+            print(W.d)
             sys.exit()
 
         return W

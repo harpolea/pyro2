@@ -61,15 +61,16 @@ def init_data(my_data, aux_data, base, rp, metric):
     # initialize the components, remember, that ener here is rho*eint
     # + 0.5*rho*v**2, where eint is the specific internal energy
     # (erg/g)
-    u.d[:,:] = u_1 - u_m * np.exp((myg.y[np.newaxis,:] - yctr)/L_x)
-    v.d[:,:] = 1.e-2 * u_1 * np.sin(4. * math.pi * (myg.x[:, np.newaxis]+0.5*L)/L)
+    u.d[:,:] = u_1/myg.r2d - u_m/myg.r2d * np.exp((myg.y[np.newaxis,:] - yctr)/L_x)
+    # FIXME: deactivated
+    #v.d[:,:] = 1.e-4 * u_1 * np.sin(4. * math.pi * (myg.x[:, np.newaxis]+0.5*L)/L)
     dens.d[:,:] = rho_1 - rho_m * np.exp((myg.y[np.newaxis,:] - yctr)/L_x)
     scalar.d[:,:] = 1.
     DX.d[:,:] = 1.
 
     idx = (myg.y2d[:,:] > yctr)
     dens.d[idx] = rho_2 + rho_m * np.exp((-myg.y2d[idx] + yctr)/L_x)
-    u.d[idx] = u_2 + u_m * np.exp((-myg.y2d[idx] + yctr)/L_x)
+    u.d[idx] = u_2/myg.r2d[idx] + u_m/myg.r2d[idx] * np.exp((-myg.y2d[idx] + yctr)/L_x)
     scalar.d[idx] = 0. #+ 0.5 * np.exp((-myg.y2d[idx] + 0.5)/L_x)
     DX.d[idx] = 0.
 

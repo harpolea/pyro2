@@ -13,7 +13,6 @@ import compare
 import mesh.patch as patch
 from util import msg, profile, runparams
 
-
 def doit(solver_name, problem_name, param_file,
          other_commands=None,
          comp_bench=False, make_bench=False):
@@ -79,6 +78,7 @@ def doit(solver_name, problem_name, param_file,
     #sim_py = solver.Simulation(solver_name, problem_name, rp, timers=tc, fortran=False)
 
     sim.initialize()
+    dt_old = fix_dt
 
     # get the timestep
     if fix_dt > 0.0:

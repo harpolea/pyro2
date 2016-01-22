@@ -9,7 +9,7 @@ limiter = 4
 c = 1.0
 grav = 0.0   ;0.148
 cartesian = 0  ; cartesian or spherical polar coordinates? (0 = no, 1 = yes)
-radius = 600.75  ; 10 km
+radius = 60.75  ; 10 km
 
 
 [io]
@@ -28,10 +28,10 @@ gamma = 1.66666666667
 [mesh]
 #nx = 128
 #ny = 512
-nx = 64
-ny = 256
-#nx = 32
-#ny = 128
+#nx = 64
+#ny = 256
+nx = 32
+ny = 64
 xmin = 0.2
 xmax = 1.0       ;
 ymax = 0.0337318           ; this is about 50m
@@ -50,9 +50,9 @@ rho_1 = 1.0e5
 v_1 = 1.0e-3
 #v_1 = 0.0
 
-rho_2 = 1.01e5
-v_2 = -1.0e-3
-#rho_2 = 1.0e5
+#rho_2 = 1.01e5
+v_2 = 1.0e-3
+rho_2 = 1.0e5
 #v_2 = 0.0
 
 [driver]

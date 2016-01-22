@@ -24,7 +24,7 @@ class EdgeCoeffs(object):
             eta_y /= g.dy**2
 
             self.x = eta_x
-            self.y = eta_y
+            self.y = eta_y 
 
 
     def restrict(self):

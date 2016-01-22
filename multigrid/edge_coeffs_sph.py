@@ -1,4 +1,5 @@
 """
+FIXME: desperately need to attach a metric to grid class.
 """
 from multigrid.edge_coeffs import *
 import numpy as np
@@ -8,9 +9,13 @@ class EdgeCoeffsSpherical(EdgeCoeffs):
     a simple container class to hold edge-centered coefficients
     and restrict them to coarse levels
     """
-    def __init__(self, g, eta, empty=False):
+    def __init__(self, g, eta, grav, c, empty=False):
 
         self.grid = g
+        self.alphasq = g.scratch_array()
+        self.alphasq.d[:,:] = 1. - 2. * grav * (1. - g.y2d/g.R) / (g.R * c**2)
+        self.grav = grav
+        self.c = c
 
         if not empty:
             eta_x = g.scratch_array()
@@ -22,10 +27,10 @@ class EdgeCoeffsSpherical(EdgeCoeffs):
 
             b = (0,1)
 
-            eta_x.v(buf=b)[:,:] = 0.5*(eta.ip(-1, buf=b) + eta.v(buf=b))
-            eta_y.v(buf=b)[:,:] = 0.5*(eta.jp(-1, buf=b) + eta.v(buf=b))
+            eta_x.v(buf=b)[:,:] = 0.5*(eta.ip(-1, buf=b)*self.alphasq.ip(-1, buf=b) + eta.v(buf=b) * self.alphasq.v(buf=b))
+            eta_y.v(buf=b)[:,:] = 0.5*(eta.jp(-1, buf=b)*self.alphasq.jp(-1, buf=b) + eta.v(buf=b) * self.alphasq.v(buf=b))
 
-            eta_x *= np.sin(g.x2d - 0.5*g.dx) / g.dx
+            eta_x *= np.sin(g.x2d - 0.5*g.dx) / (g.dx * (g.r2d - 0.5*g.dy)**3)
             eta_y *= (g.r2d - 0.5*g.dy)**2 / g.dy
 
             self.x = eta_x
@@ -39,8 +44,10 @@ class EdgeCoeffsSpherical(EdgeCoeffs):
         """
 
         cg = self.grid.coarse_like(2)
+        cgalphasq = cg.scratch_array()
+        cgalphasq.d[:,:] = 1. - 2. * self.grav * (1. - cg.y2d/cg.R) / (cg.R * self.c**2)
 
-        c_edge_coeffs = EdgeCoeffsSpherical(cg, None, empty=True)
+        c_edge_coeffs = EdgeCoeffsSpherical(cg, None, self.grav, self.c, empty=True)
 
         c_eta_x = cg.scratch_array()
         c_eta_y = cg.scratch_array()
@@ -66,7 +73,7 @@ class EdgeCoeffsSpherical(EdgeCoeffs):
         # redo the normalization
         mask = (c_x_x.d > 0.)
         c_edge_coeffs.x = cg.scratch_array()
-        c_edge_coeffs.x.d[mask] = c_eta_x.d[mask] * fg.dx * np.sin(cg.x2d[mask] - 0.5*cg.dx) / (cg.dx * np.sin(c_x_x.d[mask] - 0.5*fg.dx))
+        c_edge_coeffs.x.d[mask] = c_eta_x.d[mask] * fg.dx * (c_r_y.d[mask] - 0.5*fg.dy)**3 * np.sin(cg.x2d[mask] - 0.5*cg.dx) / (cg.dx * (cg.r2d[mask] - 0.5*cg.dy)**3 * np.sin(c_x_x.d[mask] - 0.5*fg.dx))
 
         mask = (c_x_x.d > 0.)
         c_edge_coeffs.y = cg.scratch_array()

@@ -901,10 +901,13 @@ class CellCenterData2d():
                 # FIXME: not sure this is correct - copied over from y direction
                 #for i in range(self.grid.ilo):
                 #    self.data[n,i,:] = self.data[n,self.grid.ilo,:]
-                self.data[n,:self.grid.ilo,:] = self.data[np.newaxis,n,self.grid.ilo,:] #np.transpose(np.tile(self.data[n,self.grid.ilo,:], (self.grid.ng,1)))
+                self.data[n,:self.grid.ilo,:] =  self.data[n,self.grid.ilo,np.newaxis,:] #np.transpose(np.tile(self.data[n,self.grid.ilo,:], (self.grid.ng,1)))
             else:
                 self.data[n,self.grid.ilo-1,:] = \
                     self.data[n,self.grid.ilo,:] - self.grid.dx*self.BCs[name].xl_value[:]
+            if name == "x-velocity":
+                #np.set_printoptions(threshold=np.nan)
+                print('-x boundary: {}'.format(self.data[n,:,:]))
 
         elif self.BCs[name].xlb == "reflect-even":
 
@@ -935,10 +938,13 @@ class CellCenterData2d():
             if self.BCs[name].xr_value == None:
                 #for i in range(self.grid.ihi+1, self.grid.nx+2*self.grid.ng):
                 #    self.data[n,i,:] = self.data[n,self.grid.ihi,:]
-                self.data[n,self.grid.ihi+1:,:] = self.data[np.newaxis,n,self.grid.ihi,:] #np.transpose(np.tile(self.data[n,self.grid.ihi,:], (self.grid.ng,1)))
+                self.data[n,self.grid.ihi+1:,:] = self.data[n,self.grid.ihi,np.newaxis,:] #np.transpose(np.tile(self.data[n,self.grid.ihi,:], (self.grid.ng,1)))
             else:
                 self.data[n,self.grid.ihi+1,:] = \
                     self.data[n,self.grid.ihi,:] + self.grid.dx*self.BCs[name].xr_value[:]
+
+            if name == "x-velocity":
+                print('+x boundary: {}'.format(self.data[n,self.grid.ihi+1:,:]))
 
         elif self.BCs[name].xrb == "reflect-even":
 
@@ -980,6 +986,9 @@ class CellCenterData2d():
                 self.data[n,:,self.grid.jlo-1] = \
                     self.data[n,:,self.grid.jlo] - self.grid.dy*self.BCs[name].yl_value[:]
 
+            if name == "x-velocity":
+                print('-y boundary: {}'.format(self.data[n,:,:self.grid.jlo]))
+
         elif self.BCs[name].ylb == "reflect-even":
 
             #for j in range(self.grid.jlo):
@@ -1020,6 +1029,9 @@ class CellCenterData2d():
                 self.data[n,:,self.grid.jhi+1] = \
                     self.data[n,:,self.grid.jhi] + self.grid.dy*self.BCs[name].yr_value[:]
 
+            if name == "x-velocity":
+                print('+y boundary: {}'.format(self.data[n,:,self.grid.jhi+1:]))
+
         elif self.BCs[name].yrb == "reflect-even":
 
             #for j in range(self.grid.ng):
@@ -1046,7 +1058,7 @@ class CellCenterData2d():
 
             #for j in range(self.grid.jhi+1, 2*self.grid.ng + self.grid.ny):
             #    self.data[n,:,j] = self.data[n,:,j-self.grid.jhi-1+self.grid.ng]
-            self.dat[n,:,self.grid.jhi+1:] = self.data[n,:,:self.grid.jlo+1]
+            self.data[n,:,self.grid.jhi+1:] = self.data[n,:,:self.grid.jlo+1]
 
         else:
             if self.BCs[name].yrb in extBCs.keys():

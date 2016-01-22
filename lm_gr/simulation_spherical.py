@@ -93,10 +93,10 @@ class SimulationSpherical(Simulation):
                 bctype = "periodic"
             elif bc in ["reflect", "slipwall"]:
         #        bctype = "neumann"
-                 bctype = "dirichlet"
+                bctype = "dirichlet"
             elif bc in ["outflow"]:
         #        bctype = "dirichlet"
-                 bctype = "neumann"
+                bctype = "neumann"
             bcs.append(bctype)
 
         bc_phi = patch.BCObject(xlb=bcs[0], xrb=bcs[1], ylb=bcs[2], yrb=bcs[3])
@@ -172,7 +172,8 @@ class SimulationSpherical(Simulation):
             (R * c**2) * np.eye(2)[np.newaxis, np.newaxis, :, :]
 
         # g_theta theta = r^2 / alpha^2
-        gamma_matrix[:,:,1,1] *= myg.r2d**2
+        # [:,:,0,0] because coords are (x,y) --> (theta, r)
+        gamma_matrix[:,:,0,0] *= myg.r2d**2
 
         self.metric = metric.Metric(self.cc_data, self.rp, alpha, beta,
                                     gamma_matrix, cartesian=False)
@@ -290,9 +291,12 @@ class SimulationSpherical(Simulation):
         mom_source_r = myg.scratch_array()
         mom_source_x = myg.scratch_array()
         gtt = -(self.metric.alpha.d)**2
-        gxx = 1. / self.metric.alpha.d**2
-        grr = gxx * myg.r2d**2
+        grr = 1. / self.metric.alpha.d**2
+        gxx = grr * myg.r2d**2
         drp0 = self.drp0(Dh0=Dh0, u=u, v=v, u0=u0)
+
+        print('u: {}'.format(u.d))
+        #print('Dh: {}'.format(Dh.d))
 
         #chrls = np.array([[self.metric.christoffels([self.cc_data.t, i, j])
         #                   for j in range(myg.qy)] for i in range(myg.qx)])
@@ -308,7 +312,7 @@ class SimulationSpherical(Simulation):
             gxx[np.newaxis,:] * chrls[:,:,1,1,1] * u.d**2 +
             grr[np.newaxis,:] * chrls[:,:,2,2,1] * v.d**2 +
             (grr[np.newaxis,:] * chrls[:,:,2,1,1] +
-             gxx[np.newaxis,:] * chrls[:,:,1,2,1]) * u.d * v.d)/grr[np.newaxis,:]
+             gxx[np.newaxis,:] * chrls[:,:,1,2,1]) * u.d * v.d)/gxx[np.newaxis,:]
         mom_source_r.d[:,:] = (gtt[np.newaxis,:] * chrls[:,:,0,0,2] +
             (gxx[np.newaxis,:] * chrls[:,:,1,0,2] +
              gtt[np.newaxis,:] * chrls[:,:,0,1,2]) * u.d +
@@ -317,11 +321,10 @@ class SimulationSpherical(Simulation):
             gxx[np.newaxis,:] * chrls[:,:,1,1,2] * u.d**2 +
             grr[np.newaxis,:] * chrls[:,:,2,2,2] * v.d**2 +
             (grr[np.newaxis,:] * chrls[:,:,2,1,2] +
-             gxx[np.newaxis,:] * chrls[:,:,1,2,2]) * u.d * v.d)/gxx[np.newaxis,:]
+             gxx[np.newaxis,:] * chrls[:,:,1,2,2]) * u.d * v.d)/grr[np.newaxis,:]
 
         # check drp0 is not zero
         mask = (abs(drp0.d2df(myg.qx)) > 1.e-15)
-        #print(drp0.d2d())
         mom_source_r.d[mask] -=  drp0.d2df(myg.qx)[mask] / (Dh.d[mask]*u0.d[mask])
 
         #mom_source_r.d[:,:] -=  drp0.d[np.newaxis,:] / (Dh.d[:,:]*u0.d[:,:])
@@ -395,6 +398,8 @@ class SimulationSpherical(Simulation):
         v = self.cc_data.get_var("y-velocity")
         scalar = self.cc_data.get_var("scalar")
 
+        print('preevolve u: {}'.format(u.d))
+
         self.cc_data.fill_BC("density")
         self.cc_data.fill_BC("enthalpy")
         self.cc_data.fill_BC("x-velocity")
@@ -433,7 +438,7 @@ class SimulationSpherical(Simulation):
                              ymin=myg.ymin, ymax=myg.ymax,
                              coeffs=coeff,
                              coeffs_bc=self.cc_data.BCs["density"],
-                             verbose=0, R=R)
+                             verbose=0, R=R, cc=c, grav=g)
 
         # first compute div{zeta U}
         div_zeta_U = mg.soln_grid.scratch_array()
@@ -473,13 +478,18 @@ class SimulationSpherical(Simulation):
         #gradp_x.d[:,:] = 1.
         #gradp_y.d[:,:] = 1.
 
+        print('before gradp u: {}'.format(u.d))
+
         # CHANGED: multiplied by dt to match same thing done at end of evolve.
         # FIXME: WTF IS IT DOING HERE?????
         u.v()[:,:] -= self.dt * coeff.v() * gradp_x.v()
         #v.v()[:,:] -= self.dt * coeff.v() * gradp_y.v()
 
+        print('after gradp u: {}'.format(u.d))
+
         # fill the ghostcells
         self.cc_data.fill_BC("x-velocity")
+        print('after ghosting u: {}'.format(u.d))
         self.cc_data.fill_BC("y-velocity")
 
         # c. now get an approximation to gradp at n-1/2 by going through the
@@ -489,8 +499,12 @@ class SimulationSpherical(Simulation):
         orig_data = patch.cell_center_data_clone(self.cc_data)
         orig_aux = patch.cell_center_data_clone(self.aux_data)
 
+        print('before timestep u: {}'.format(u.d))
+
         # get the timestep
         self.compute_timestep(u0=u0)
+
+        print('before evolve u: {}'.format(u.d))
 
         # evolve
         self.evolve()
@@ -584,6 +598,8 @@ class SimulationSpherical(Simulation):
         scalar_1 = myg.scratch_array(data=scalar.d)
         T_1 = myg.scratch_array(data=T.d)
         self.react_state(D=D_1, Dh=Dh_1, DX=DX_1, T=T_1, scalar=scalar_1, u0=u0)
+
+        print('1. u: {}'.format(u.d))
 
         #---------------------------------------------------------------------
         # 2. Compute provisional S, U0 and base state forcing
@@ -699,7 +715,7 @@ class SimulationSpherical(Simulation):
                              ymin=myg.ymin, ymax=myg.ymax,
                              coeffs=coeff,
                              coeffs_bc=self.cc_data.BCs["density"],
-                             verbose=0, R=R)
+                             verbose=0, R=R, cc=c, grav=g)
 
         # first compute div{zeta U}
         div_zeta_U = mg.soln_grid.scratch_array()
@@ -980,6 +996,9 @@ class SimulationSpherical(Simulation):
         #---------------------------------------------------------------------
         # 5. React state through dt/2
         #---------------------------------------------------------------------
+
+        print('5.  u_MAC: {}'.format(u_MAC.d[-20:-10, -20:-10]))
+        print('5.  v_MAC: {}'.format(v_MAC.d[-20:-10, -20:-10]))
         D_star = myg.scratch_array(data=D_2_star.d)
         Dh_star = myg.scratch_array(data=Dh_2_star.d)
         DX_star = myg.scratch_array(data=DX_2_star.d)
@@ -1361,7 +1380,7 @@ class SimulationSpherical(Simulation):
                              ymin=myg.ymin, ymax=myg.ymax,
                              coeffs=coeff,
                              coeffs_bc=self.cc_data.BCs["density"],
-                             verbose=0, R=R)
+                             verbose=0, R=R, cc=c, grav=g)
 
         # first compute div{zeta U}
 
@@ -1484,8 +1503,8 @@ class SimulationSpherical(Simulation):
         fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.3)
 
-        fields = [D, X, v, vort]
-        field_names = [r"$D$", r"$X$", r"$v$", r"$\nabla\times u$"]
+        fields = [D, X, v, u]
+        field_names = [r"$D$", r"$X$", r"$v$", r"$u$"]
         colourmaps = [cmaps.magma_r, cmaps.magma, cmaps.viridis_r,
                       cmaps.magma]
 

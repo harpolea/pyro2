@@ -7,7 +7,6 @@ from __future__ import print_function
 
 import numpy as np
 import matplotlib.pyplot as plt
-
 import multigrid.edge_coeffs_sph as ec
 import multigrid.MG as MG
 import multigrid.variable_coeff_MG as var_MG
@@ -15,6 +14,7 @@ from copy import deepcopy
 import math
 import mesh.patch as patch
 from lm_gr.simulation import Basestate
+from util import msg
 
 np.set_printoptions(precision=3, linewidth=128)
 
@@ -43,7 +43,7 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
                  nsmooth=10, nsmooth_bottom=50,
                  verbose=0,
                  coeffs=None, coeffs_bc=None,
-                 true_function=None, vis=0, vis_title="", R=0.0):
+                 true_function=None, vis=0, vis_title="", R=0.0, cc=1.0, grav=0.0):
         """
         here, coeffs is a CCData2d object
         """
@@ -190,7 +190,7 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
         self.edge_coeffs = []
 
         # put the coefficients on edges
-        self.edge_coeffs.insert(0, ec.EdgeCoeffsSpherical(self.grids[self.nlevels-1].grid, c))
+        self.edge_coeffs.insert(0, ec.EdgeCoeffsSpherical(self.grids[self.nlevels-1].grid, c, grav, cc))
 
         n = self.nlevels-2
         while n >= 0:
@@ -209,6 +209,152 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
             self.edge_coeffs.insert(0, self.edge_coeffs[0].restrict())
 
             n -= 1
+
+
+    def smooth(self, level, nsmooth, fortran=True):
+        """
+        Use red-black Gauss-Seidel iterations to smooth the solution
+        at a given level.  This is used at each stage of the V-cycle
+        (up and down) in the MG solution, but it can also be called
+        directly to solve the elliptic problem (although it will take
+        many more iterations).
+
+        Parameters
+        ----------
+        level : int
+            The level in the MG hierarchy to smooth the solution
+        nsmooth : int
+            The number of r-b Gauss-Seidel smoothing iterations to perform
+
+        """
+
+        v = self.grids[level].get_var("v")
+        f = self.grids[level].get_var("f")
+
+        myg = self.grids[level].grid
+
+        eta_x = self.edge_coeffs[level].x.d
+        eta_y = self.edge_coeffs[level].y.d
+
+        self.grids[level].fill_BC("v")
+
+        # print( "min/max c: {}, {}".format(np.min(c), np.max(c)))
+        # print( "min/max eta_x: {}, {}".format(np.min(eta_x), np.max(eta_x)))
+        # print( "min/max eta_y: {}, {}".format(np.min(eta_y), np.max(eta_y)))
+
+
+        # do red-black G-S
+        for i in range(nsmooth):
+
+            # do the red black updating in four decoupled groups
+            #
+            #
+            #        |       |       |
+            #      --+-------+-------+--
+            #        |       |       |
+            #        |   4   |   3   |
+            #        |       |       |
+            #      --+-------+-------+--
+            #        |       |       |
+            #   jlo  |   1   |   2   |
+            #        |       |       |
+            #      --+-------+-------+--
+            #        |  ilo  |       |
+            #
+            # groups 1 and 3 are done together, then we need to
+            # fill ghost cells, and then groups 2 and 4
+
+            for n, (ix, iy) in enumerate([(0,0), (1,1), (1,0), (0,1)]):
+
+
+                #CHANGED: This has been running slow, so have gone back to #old style indexing
+
+                #denom = (eta_x.ip_jp(1+ix, iy, s=2) + eta_x.ip_jp(ix, iy, s=2) +
+                #         eta_y.ip_jp(ix, 1+iy, s=2) + eta_y.ip_jp(ix, iy, s=2) )
+
+                #v.ip_jp(ix, iy, s=2)[:,:] = ( -f.ip_jp(ix, iy, s=2) +
+                    # eta_{i+1/2,j} phi_{i+1,j}
+                #    eta_x.ip_jp(1+ix, iy, s=2) * v.ip_jp(1+ix, iy, s=2) +
+                    # eta_{i-1/2,j} phi_{i-1,j}
+                #    eta_x.ip_jp(ix, iy, s=2) * v.ip_jp(-1+ix, iy, s=2) +
+                    # eta_{i,j+1/2} phi_{i,j+1}
+                #    eta_y.ip_jp(ix, 1+iy, s=2) * v.ip_jp(ix, 1+iy, s=2) +
+                    # eta_{i,j-1/2} phi_{i,j-1}
+                #    eta_y.ip_jp(ix, iy, s=2) * v.ip_jp(ix, -1+iy, s=2) ) / denom
+
+                denom = (
+                    (eta_x[myg.ilo+1+ix:myg.ihi+2:2,
+                          myg.jlo+iy  :myg.jhi+1:2] +
+                    #
+                    eta_x[myg.ilo+ix  :myg.ihi+1:2,
+                          myg.jlo+iy  :myg.jhi+1:2]) /
+                    (myg.r2d[myg.ilo+ix  :myg.ihi+1:2,
+                             myg.jlo+iy  :myg.jhi+1:2] *
+                     np.sin(myg.x2d[myg.ilo+ix  :myg.ihi+1:2,
+                            myg.jlo+iy  :myg.jhi+1:2]) * myg.dx) +
+                    #
+                    (eta_y[myg.ilo+ix  :myg.ihi+1:2,
+                          myg.jlo+1+iy:myg.jhi+2:2] +
+                    #
+                    eta_y[myg.ilo+ix  :myg.ihi+1:2,
+                          myg.jlo+iy  :myg.jhi+1:2]) /
+                    (myg.r2d[myg.ilo+ix  :myg.ihi+1:2,
+                             myg.jlo+iy  :myg.jhi+1:2]**2 * myg.dx))
+
+                v.d[myg.ilo+ix:myg.ihi+1:2,myg.jlo+iy:myg.jhi+1:2] = (
+                    -f.d[myg.ilo+ix:myg.ihi+1:2,
+                         myg.jlo+iy:myg.jhi+1:2] +
+                    # eta_{i+1/2,j} phi_{i+1,j}
+                    (eta_x[myg.ilo+1+ix:myg.ihi+2:2,
+                          myg.jlo+iy  :myg.jhi+1:2] *
+                    v.d[myg.ilo+1+ix:myg.ihi+2:2,
+                      myg.jlo+iy  :myg.jhi+1:2] +
+                    # eta_{i-1/2,j} phi_{i-1,j}
+                    eta_x[myg.ilo+ix:myg.ihi+1:2,
+                          myg.jlo+iy:myg.jhi+1:2]*
+                    v.d[myg.ilo-1+ix:myg.ihi  :2,
+                      myg.jlo+iy  :myg.jhi+1:2]) /
+                    (myg.r2d[myg.ilo+ix  :myg.ihi+1:2,
+                             myg.jlo+iy  :myg.jhi+1:2] *
+                     np.sin(myg.x2d[myg.ilo+ix  :myg.ihi+1:2,
+                            myg.jlo+iy  :myg.jhi+1:2]) * myg.dx) +
+                    # eta_{i,j+1/2} phi_{i,j+1}
+                    (eta_y[myg.ilo+ix:myg.ihi+1:2,
+                          myg.jlo+1+iy:myg.jhi+2:2]*
+                    v.d[myg.ilo+ix  :myg.ihi+1:2,
+                      myg.jlo+1+iy:myg.jhi+2:2] +
+                    # eta_{i,j-1/2} phi_{i,j-1}
+                    eta_y[myg.ilo+ix:myg.ihi+1:2,
+                          myg.jlo+iy:myg.jhi+1:2]*
+                    v.d[myg.ilo+ix  :myg.ihi+1:2,
+                      myg.jlo-1+iy:myg.jhi  :2]) /
+                    (myg.r2d[myg.ilo+ix  :myg.ihi+1:2,
+                             myg.jlo+iy  :myg.jhi+1:2]**2 *
+                             myg.dx)) / denom
+
+                if n == 1 or n == 3:
+                    self.grids[level].fill_BC("v")
+
+                if self.vis == 1:
+                    plt.clf()
+
+                    plt.subplot(221)
+                    self._draw_solution()
+
+                    plt.subplot(222)
+                    self._draw_V()
+
+                    plt.subplot(223)
+                    self._draw_main_solution()
+
+                    plt.subplot(224)
+                    self._draw_main_error()
+
+                    plt.suptitle(self.vis_title, fontsize=18)
+
+                    plt.draw()
+                    plt.savefig("mg_%4.4d.png" % (self.frame))
+                    self.frame += 1
 
 
     def solve(self, rtol = 1.e-11, fortran=True):
@@ -273,13 +419,11 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
                 # smooth on the current level
                 self.smooth(level, self.nsmooth, fortran=fortran)
 
-
                 # compute the residual
                 self._compute_residual(level)
 
                 if self.verbose:
                     print("  after G-S, residual L2: {}".format(fP.get_var("r").norm() ))
-
 
                 # restrict the residual down to the RHS of the coarser level
                 f_coarse = cP.get_var("f")
@@ -425,9 +569,11 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
                 a = 0.0
             else:
                 a = rsold / np.inner(p.v().flatten(), Ap)
+            #print('a: {}'.format(a))
             xfl += a * p.v().flatten()
             rfl -= a * Ap
             rsnew = np.inner(rfl, rfl)
+            #print('rsnew: {}'.format(rsnew))
             if np.sqrt(rsnew) < 1.e-10:
                 break
             p.v()[:,:] = np.reshape(rfl + (rsnew / rsold) * p.v().flatten(), (myg.nx, myg.ny))
@@ -496,6 +642,8 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
 
         # compute the residual
         # r = f - L_eta phi
+        # I think this needs g^rr, g^theta theta before both of the
+        # phi derivatives?
         L_eta_phi = (
             (# eta_{i+1/2,j} (phi_{i+1,j} - phi_{i,j})
             eta_x[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] *
