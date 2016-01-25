@@ -17,8 +17,10 @@ from lm_gr.simulation_react import *
 import multigrid.variable_coeff_MG as vcMG
 import multigrid.rect_MG as rectMG
 from util import profile
-import lm_gr.metric as metric
+import mesh.metric as metric
 import colormaps as cmaps
+from functools import partial
+import importlib
 
 
 class SimulationSpherical(Simulation):
@@ -158,30 +160,39 @@ class SimulationSpherical(Simulation):
         self.thm = myg.x2v - 0.5 * myg.dx
 
         # set up spherical metric
-        alpha = Basestate(myg.ny, ng=myg.ng)
+        #alpha = Basestate(myg.ny, ng=myg.ng)
 
         # r = y + R, where r is measured from the centre of the star,
         # R is the star's radius and y is measured from the surface
-        alpha.d[:] = np.sqrt(1. - 2. * g * (1. - myg.y[:]/R) / (R * c**2))
+        def alpha(g, R, c, grid):
+            a = Basestate(grid.ny, ng=grid.ng)
+            a.d[:] = np.sqrt(1. - 2. * g * (1. - grid.y[:]/R) / (R * c**2))
+            return a
+        #alpha.d[:] = np.sqrt(1. - 2. * g * (1. - myg.y[:]/R) / (R * c**2))
 
         beta = [0., 0.]
 
-        gamma_matrix = np.zeros((myg.qx, myg.qy, 2, 2), dtype=np.float64)
-        gamma_matrix[:,:,:,:] = 1. + 2. * g * \
-            (1. - myg.y[np.newaxis, :, np.newaxis, np.newaxis] / R) / \
-            (R * c**2) * np.eye(2)[np.newaxis, np.newaxis, :, :]
+        def gamma_matrix(g, R, c, grid):
+            gamma_matrix = np.zeros((grid.qx, grid.qy, 2, 2), dtype=np.float64)
+            gamma_matrix[:,:,:,:] = 1. + 2. * g * \
+                (1. - grid.y[np.newaxis, :, np.newaxis, np.newaxis] / R) / \
+                (R * c**2) * np.eye(2)[np.newaxis, np.newaxis, :, :]
+            gamma_matrix[:,:,0,0] *= grid.r2d**2
+            return gamma_matrix
 
         # g_theta theta = r^2 / alpha^2
         # [:,:,0,0] because coords are (x,y) --> (theta, r)
-        gamma_matrix[:,:,0,0] *= myg.r2d**2
+        #gamma_matrix[:,:,0,0] *= myg.r2d**2
 
-        self.metric = metric.Metric(self.cc_data, self.rp, alpha, beta,
-                                    gamma_matrix, cartesian=False)
+        #self.metric = metric.Metric(self.cc_data, self.rp, alpha, beta,
+        #                            gamma_matrix, cartesian=False)
+        myg.initialise_metric(self.rp, partial(alpha, g, R, c), beta, partial(gamma_matrix, g, R, c), cartesian=False)
 
-        u0 = self.metric.calcu0()
+        u0 = myg.metric.calcu0()
 
         # now set the initial conditions for the problem
-        exec(self.problem_name + '.init_data(self.cc_data, self.aux_data, self.base, self.rp, self.metric)')
+        #exec(self.problem_name + '.init_data(self.cc_data, self.aux_data, self.base, self.rp, myg.metric)')
+        getattr(importlib.import_module(self.solver_name + '.problems.' + self.problem_name), 'init_data' )(self.cc_data, self.aux_data, self.base, self.rp, myg.metric)
 
         # Construct zeta
         gamma = self.rp.get_param("eos.gamma")
@@ -287,11 +298,11 @@ class SimulationSpherical(Simulation):
         if Dh0 is None:
             Dh0 = self.base["Dh0"]
         if u0 is None:
-            u0 = self.metric.calcu0(u=u, v=v)
+            u0 = myg.metric.calcu0(u=u, v=v)
         mom_source_r = myg.scratch_array()
         mom_source_x = myg.scratch_array()
-        gtt = -(self.metric.alpha.d)**2
-        grr = 1. / self.metric.alpha.d**2
+        gtt = -(myg.metric.alpha(myg).d)**2
+        grr = 1. / myg.metric.alpha(myg).d**2
         gxx = grr * myg.r2d**2
         drp0 = self.drp0(Dh0=Dh0, u=u, v=v, u0=u0)
 
@@ -301,7 +312,7 @@ class SimulationSpherical(Simulation):
         #chrls = np.array([[self.metric.christoffels([self.cc_data.t, i, j])
         #                   for j in range(myg.qy)] for i in range(myg.qx)])
         # time-independent metric
-        chrls = self.metric.chrls
+        chrls = myg.metric.chrls
 
         # note metric components needed to lower the christoffel symbols
         mom_source_x.d[:,:] = (gtt[np.newaxis,:] * chrls[:,:,0,0,1] +
@@ -329,8 +340,8 @@ class SimulationSpherical(Simulation):
 
         #mom_source_r.d[:,:] -=  drp0.d[np.newaxis,:] / (Dh.d[:,:]*u0.d[:,:])
 
-        mom_source_x.d[:,:] *=  self.metric.alpha.d2d()**2
-        mom_source_r.d[:,:] *=  self.metric.alpha.d2d()**2
+        mom_source_x.d[:,:] *=  myg.metric.alpha(myg).d2d()**2
+        mom_source_r.d[:,:] *=  myg.metric.alpha(myg).d2d()**2
 
         return mom_source_x, mom_source_r
 
@@ -415,7 +426,7 @@ class SimulationSpherical(Simulation):
         self.react_state()
 
         # the coefficent for the elliptic equation is zeta^2/Dh u0
-        u0 = self.metric.calcu0()
+        u0 = myg.metric.calcu0()
         coeff = 1. / (Dh * u0)
         zeta = self.base["zeta"]
         try:
@@ -438,7 +449,7 @@ class SimulationSpherical(Simulation):
                              ymin=myg.ymin, ymax=myg.ymax,
                              coeffs=coeff,
                              coeffs_bc=self.cc_data.BCs["density"],
-                             verbose=0, R=R, cc=c, grav=g)
+                             verbose=0, R=R, cc=c, grav=g, rp=self.rp)
 
         # first compute div{zeta U}
         div_zeta_U = mg.soln_grid.scratch_array()
@@ -464,7 +475,7 @@ class SimulationSpherical(Simulation):
         # velocities
         # FIXME: this update only needs to be done on the interior
         # cells -- not ghost cells
-        gradp_x, gradp_y = mg.get_solution_gradient_sph(g, c, grid=myg)
+        gradp_x, gradp_y = mg.get_solution_gradient_sph(grid=myg)
         #pdb.set_trace()
 
         coeff = 1. / (Dh * u0)
@@ -548,7 +559,7 @@ class SimulationSpherical(Simulation):
 
         #print('start of evolve, us: {}'.format(u.d[-10:, -10:]))
 
-        u0 = self.metric.calcu0()
+        u0 = myg.metric.calcu0()
 
         # note: the base state quantities do not have valid ghost cells
         self.update_zeta(u0=u0)
@@ -715,7 +726,7 @@ class SimulationSpherical(Simulation):
                              ymin=myg.ymin, ymax=myg.ymax,
                              coeffs=coeff,
                              coeffs_bc=self.cc_data.BCs["density"],
-                             verbose=0, R=R, cc=c, grav=g)
+                             verbose=0, R=R, cc=c, grav=g, rp=self.rp)
 
         # first compute div{zeta U}
         div_zeta_U = mg.soln_grid.scratch_array()
@@ -729,7 +740,7 @@ class SimulationSpherical(Simulation):
             2. * zeta.v2d() * v.v() / self.r2v
 
         # careful: this makes u0_MAC edge-centred.
-        u0_MAC = self.metric.calcu0(u=u_MAC, v=v_MAC)
+        u0_MAC = myg.metric.calcu0(u=u_MAC, v=v_MAC)
         constraint = self.constraint_source(u=u_MAC, v=v_MAC, S=S_t_centred)
 
         # solve the Poisson problem
@@ -742,11 +753,11 @@ class SimulationSpherical(Simulation):
         #phi_MAC = self.cc_data.get_var("phi-MAC")
         phi_MAC = self.aux_data.get_var("phi-MAC")
         phi_MAC.d[:,:] = mg.get_solution(grid=myg).d
-        gradp_MAC_x, gradp_MAC_y = mg.get_solution_gradient_sph(g, c, grid=myg)
+        gradp_MAC_x, gradp_MAC_y = mg.get_solution_gradient_sph(grid=myg)
 
         coeff = self.aux_data.get_var("coeff")
         # FIXME: is this u0 or u0_MAC?
-        coeff.d[:,:] = self.metric.alpha.d2d()**2 / (Dh.d * u0.d)
+        coeff.d[:,:] = myg.metric.alpha(myg).d2d()**2 / (Dh.d * u0.d)
         coeff.d[:,:] *= zeta.d2d()
         self.aux_data.fill_BC("coeff")
 
@@ -1112,7 +1123,7 @@ class SimulationSpherical(Simulation):
 
         #print('7. after add mom_source, u: {}'.format(u.d[-20:-10, -20:-10]))
 
-        u0 = self.metric.calcu0(u=u, v=v)
+        u0 = myg.metric.calcu0(u=u, v=v)
 
         self.cc_data.fill_BC("x-velocity")
         self.cc_data.fill_BC("y-velocity")
@@ -1380,7 +1391,7 @@ class SimulationSpherical(Simulation):
                              ymin=myg.ymin, ymax=myg.ymax,
                              coeffs=coeff,
                              coeffs_bc=self.cc_data.BCs["density"],
-                             verbose=0, R=R, cc=c, grav=g)
+                             verbose=0, R=R, cc=c, grav=g, rp=self.rp)
 
         # first compute div{zeta U}
 
@@ -1410,12 +1421,12 @@ class SimulationSpherical(Simulation):
 
         # get the cell-centered gradient of p and update the velocities
         # this differs depending on what we projected.
-        gradphi_x, gradphi_y = mg.get_solution_gradient_sph(g, c, grid=myg)
+        gradphi_x, gradphi_y = mg.get_solution_gradient_sph(grid=myg)
 
         # U = U - (zeta/Dh u0) grad (phi)
         # alpha^2 as need to raise grad.
         coeff = 1.0 / (Dh_half * u0)
-        coeff.d[:,:] *=  self.metric.alpha.d2d()**2
+        coeff.d[:,:] *=  myg.metric.alpha(myg).d2d()**2
         coeff.d[:,:] *= zeta_half.d2d()
 
         ###########################

@@ -16,7 +16,7 @@ from lm_gr.simulation import *
 import multigrid.variable_coeff_MG as vcMG
 import multigrid.rect_MG as rectMG
 from util import profile
-import lm_gr.metric as metric
+import mesh.metric as metric
 import colormaps as cmaps
 
 class SimulationReact(Simulation):
@@ -76,7 +76,7 @@ class SimulationReact(Simulation):
         if v is None:
             v = self.cc_data.get_var("y-velocity")
         if u0 is None:
-            u0 = self.metric.calcu0(u=u, v=v)
+            u0 = myg.metric.calcu0(u=u, v=v)
         if p0 is None:
             p0 = self.base["p0"]
         if Q is None:
@@ -85,7 +85,7 @@ class SimulationReact(Simulation):
             D = self.cc_data.get_var("density")
         gamma = self.rp.get_param("eos.gamma")
 
-        chrls = self.metric.chrls
+        chrls = myg.metric.chrls
 
         S.d[:,:] = super(SimulationReact, self).compute_S(u=u, v=v, u0=u0, p0=p0).d
 
@@ -136,7 +136,7 @@ class SimulationReact(Simulation):
         if DX is None:
             DX = self.cc_data.get_var("mass-frac")
         if u0 is None:
-            u0 = self.metric.calcu0(u=u, v=v)
+            u0 = myg.metric.calcu0(u=u, v=v)
         if T is None:
             T = self.cc_data.get_var("temperature")
 
@@ -182,7 +182,7 @@ class SimulationReact(Simulation):
         if DX is None:
             DX = self.cc_data.get_var("mass-frac")
         if u0 is None:
-            u0 = self.metric.calcu0(u=u, v=v)
+            u0 = myg.metric.calcu0(u=u, v=v)
         if T is None:
             T = self.cc_data.get_var("temperature")
         Q = myg.scratch_array()
@@ -253,7 +253,7 @@ class SimulationReact(Simulation):
         if v is None:
             v = self.cc_data.get_var("y-velocity")
         if u0 is None:
-            u0 = self.metric.calcu0(u=u, v=v)
+            u0 = myg.metric.calcu0(u=u, v=v)
         drp0 = self.drp0(Dh0=Dh0, u=u, v=v, u0=u0)
         if S is None:
             S = self.aux_data.get_var("source_y")

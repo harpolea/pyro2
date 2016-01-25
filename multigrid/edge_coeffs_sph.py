@@ -9,13 +9,11 @@ class EdgeCoeffsSpherical(EdgeCoeffs):
     a simple container class to hold edge-centered coefficients
     and restrict them to coarse levels
     """
-    def __init__(self, g, eta, grav, c, empty=False):
+    def __init__(self, g, eta, empty=False):
 
         self.grid = g
         self.alphasq = g.scratch_array()
-        self.alphasq.d[:,:] = 1. - 2. * grav * (1. - g.y2d/g.R) / (g.R * c**2)
-        self.grav = grav
-        self.c = c
+        self.alphasq.d[:,:] = g.metric.alpha(g).d2d()**2
 
         if not empty:
             eta_x = g.scratch_array()
@@ -45,9 +43,9 @@ class EdgeCoeffsSpherical(EdgeCoeffs):
 
         cg = self.grid.coarse_like(2)
         cgalphasq = cg.scratch_array()
-        cgalphasq.d[:,:] = 1. - 2. * self.grav * (1. - cg.y2d/cg.R) / (cg.R * self.c**2)
+        cgalphasq.d[:,:] = cg.metric.alpha(cg).d2d()**2
 
-        c_edge_coeffs = EdgeCoeffsSpherical(cg, None, self.grav, self.c, empty=True)
+        c_edge_coeffs = EdgeCoeffsSpherical(cg, None, empty=True)
 
         c_eta_x = cg.scratch_array()
         c_eta_y = cg.scratch_array()

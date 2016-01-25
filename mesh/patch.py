@@ -42,6 +42,7 @@ except:
 
 from util import msg
 import copy
+import mesh.metric as metric
 
 #from numba import jit
 
@@ -574,6 +575,14 @@ class Grid2d():
         self.r2d = self.y2d + self.R
         self.r2v = self.r2d[self.ilo:self.ihi+1, self.jlo:self.jhi+1]
 
+        self.metric = None
+
+    def initialise_metric(self, rp, alpha, beta, gamma, cartesian=True):
+        """
+        Initialise metric. This is a separate function as only need to do it for relativistic systems.
+        """
+        self.metric = metric.Metric(self, rp, alpha, beta, gamma, cartesian)
+
 
     def scratch_array(self, nvar=1, data=None):
         """
@@ -602,9 +611,14 @@ class Grid2d():
         return a new grid object coarsened by a factor n, but with
         all the other properties the same
         """
-        return Grid2d(self.nx/N, self.ny/N, ng=self.ng,
+        g = Grid2d(self.nx/N, self.ny/N, ng=self.ng,
                       xmin=self.xmin, xmax=self.xmax,
                       ymin=self.ymin, ymax=self.ymax, R=self.R)
+
+        if self.metric is not None:
+            g.initialise_metric(self.metric.rp, self.metric.alpha, self.metric.beta, self.metric.gamma, self.metric.cartesian)
+
+        return g
 
 
     def fine_like(self, N):
@@ -612,9 +626,14 @@ class Grid2d():
         return a new grid object finer by a factor n, but with
         all the other properties the same
         """
-        return Grid2d(self.nx*N, self.ny*N, ng=self.ng,
+        g = Grid2d(self.nx*N, self.ny*N, ng=self.ng,
                       xmin=self.xmin, xmax=self.xmax,
                       ymin=self.ymin, ymax=self.ymax, R=self.R)
+
+        if self.metric is not None:
+            g.initialise_metric(self.metric.rp, self.metric.alpha, self.metric.beta, self.metric.gamma, self.metric.cartesian)
+
+        return g
 
 
     def __str__(self):

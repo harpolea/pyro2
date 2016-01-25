@@ -15,6 +15,7 @@ import math
 import mesh.patch as patch
 from lm_gr.simulation import Basestate
 from util import msg
+import mesh.metric as metric
 
 np.set_printoptions(precision=3, linewidth=128)
 
@@ -43,7 +44,7 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
                  nsmooth=10, nsmooth_bottom=50,
                  verbose=0,
                  coeffs=None, coeffs_bc=None,
-                 true_function=None, vis=0, vis_title="", R=0.0, cc=1.0, grav=0.0):
+                 true_function=None, vis=0, vis_title="", R=0.0, cc=1.0, grav=0.0, rp=None):
         """
         here, coeffs is a CCData2d object
         """
@@ -61,6 +62,8 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
 
         self.alpha = 0.0
         self.beta = 0.0
+
+        self.rp = rp
 
         self.nsmooth = nsmooth
         self.nsmooth_bottom = nsmooth_bottom
@@ -109,6 +112,13 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
             # create the grid
             my_grid = patch.Grid2d(nx_t, ny_t, ng=self.ng,
                                    xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, R=R)
+
+            # set up metric - use the fact that coeffs is a CCData2d object already which will have a grid
+            my_grid.initialise_metric(self.rp,
+                coeffs.g.metric.alpha,
+                coeffs.g.metric.beta,
+                coeffs.g.metric.gamma,
+                cartesian=coeffs.g.metric.cartesian)
 
             # add a CellCenterData2d object for this level to our list
             self.grids.append(patch.CellCenterData2d(my_grid, dtype=np.float64))
@@ -190,7 +200,7 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
         self.edge_coeffs = []
 
         # put the coefficients on edges
-        self.edge_coeffs.insert(0, ec.EdgeCoeffsSpherical(self.grids[self.nlevels-1].grid, c, grav, cc))
+        self.edge_coeffs.insert(0, ec.EdgeCoeffsSpherical(self.grids[self.nlevels-1].grid, c))
 
         n = self.nlevels-2
         while n >= 0:
@@ -583,7 +593,7 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
         x.v()[:,:] = np.reshape(xfl, (myg.nx, myg.ny))
 
 
-    def get_solution_gradient_sph(self, g, c, grid=None):
+    def get_solution_gradient_sph(self, grid=None):
         """
         Return the gradient of the solution after doing the MG solve.  The
         x- and y-components are returned in separate arrays.
@@ -613,7 +623,7 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
         gy = og.scratch_array()
 
         alphasq = Basestate(og.ny, ng=og.ng)
-        alphasq.d[:] = 1. - 2. * g * (1. - og.y[:]/og.R) / (og.R * c**2)
+        alphasq.d[:] = myg.metric.alpha(og).d**2
 
         # FIXME: do we need the r**2 here??
         g_xx = alphasq.d2df(og.qx) #/ og.r2d**2

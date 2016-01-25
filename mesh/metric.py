@@ -12,13 +12,11 @@ from __future__ import print_function
 import numpy as np
 import sys
 from util import msg
-import mesh.patch as patch
 import traceback
-#from lm_gr.problems import *
 
 class Metric:
 
-    def __init__(self, cellData, rp, alpha, beta, gamma, cartesian=True):
+    def __init__(self, grid, rp, alpha, beta, gamma, cartesian=True):
         """
         Initialize the Metric object. This is a standard 2+1 metric
 
@@ -36,7 +34,7 @@ class Metric:
             spatial 2-metric
         """
 
-        self.cc_data = cellData
+        self.grid = grid
         self.rp = rp
         self.alpha = alpha
         self.beta = beta
@@ -45,7 +43,7 @@ class Metric:
         self.cartesian = cartesian
 
         # store christoffels here as for time-independent metric these shall not change.
-        myg = self.cc_data.grid
+        myg = self.grid
         self.chrls = np.array([[self.christoffels([0, i, j])
                            for j in range(myg.qy)] for i in range(myg.qx)])
 
@@ -63,7 +61,7 @@ class Metric:
         sg, sgamma : float array
             square roots of the 2- and 2+1-metric determinants on grid
         """
-        myg = self.cc_data.grid
+        myg = self.grid
         sg = myg.scratch_array()
         sgamma = myg.scratch_array()
 
@@ -84,11 +82,12 @@ class Metric:
         Returns components of the inverse metric, assuming it's diagonal
         for now.
         """
-        myg = self.cc_data.grid
+        myg = self.grid
+        alpha = self.alpha(myg)
         if self.cartesian:
-            return np.array([[np.diag([-1./self.alpha.d[i,j]**2, self.alpha.d[i,j]**2, self.alpha.d[i,j]**2]) for j in range(0,myg.qy)] for i in range(0, myg.qx)])
+            return np.array([[np.diag([-1./alpha.d[i,j]**2, alpha.d[i,j]**2, alpha.d[i,j]**2]) for j in range(0,myg.qy)] for i in range(0, myg.qx)])
         else:
-            return np.array([[np.diag([-1./self.alpha.d[i,j]**2, self.alpha.d[i,j]**2, self.alpha.d[i,j]**2/myg.r2d[i,j]]) for j in range(0,myg.qy)] for i in range(0, myg.qx)])
+            return np.array([[np.diag([-1./alpha.d[i,j]**2, alpha.d[i,j]**2, alpha.d[i,j]**2/myg.r2d[i,j]]) for j in range(0,myg.qy)] for i in range(0, myg.qx)])
 
     # cannot use numba here as it doesn't support list comprehensions :(
     def calcW(self, u=None, v=None):
@@ -115,21 +114,25 @@ class Metric:
         W : float array
             Lorentz factor on grid
         """
-        myg = self.cc_data.grid
+        myg = self.grid
         W = myg.scratch_array()
         if u is None:
-            u = self.cc_data.get_var("x-velocity")
+            #u = self.cc_data.get_var("x-velocity")
+            u = myg.scratch_array()
         if v is None:
-            v = self.cc_data.get_var("y-velocity")
+            #v = self.cc_data.get_var("y-velocity")
+            v = myg.scratch_array()
         c = self.rp.get_param("lm-gr.c")
+        alpha = self.alpha(myg)
+        gamma = self.gamma(myg)
 
         Vs = np.array([[np.array([u.d[i,j], v.d[i,j]]) + self.beta
             for j in range(myg.qy)] for i in range(myg.qx)])
 
-        Vs[:,:,:] /= self.alpha.d2d()[:,:,np.newaxis]**2
+        Vs[:,:,:] /= alpha.d2d()[:,:,np.newaxis]**2
 
         W.d[:,:] = np.array([[ np.inner(np.inner(Vs[i,j,:],
-            self.gamma[i,j,:,:]), np.transpose(Vs[i,j,:]))
+            gamma[i,j,:,:]), np.transpose(Vs[i,j,:]))
             for j in range(myg.qy)] for i in range(myg.qx)])
 
         W.d[:,:] = 1. - W.d / c**2
@@ -145,7 +148,7 @@ class Metric:
             np.set_printoptions(threshold=np.nan)
             #mag_vel = u.d**2 + v.d**2
             W.d[:,:] = np.array([[ np.inner(np.inner(Vs[i,j,:],
-                self.gamma[i,j,:,:]), np.transpose(Vs[i,j,:]))
+                gamma[i,j,:,:]), np.transpose(Vs[i,j,:]))
                 for j in range(myg.qy)] for i in range(myg.qx)])
             print(W.d)
             sys.exit()
@@ -164,8 +167,9 @@ class Metric:
         """
 
         W = self.calcW(u=u, v=v)
-        myg = self.cc_data.grid
-        u0 = myg.scratch_array(data=W.d/self.alpha.d2d())
+        myg = self.grid
+        alpha = self.alpha(myg)
+        u0 = myg.scratch_array(data=W.d/alpha.d2d())
 
         return u0
 
@@ -186,10 +190,10 @@ class Metric:
         """
 
         met = np.diag([-1., 1., 1.])  # flat default
-        met[0, 0] = -self.alpha.d[x[2]]**2 + np.dot(self.beta, self.beta)
+        met[0, 0] = -self.alpha(self.grid).d[x[2]]**2 + np.dot(self.beta, self.beta)
         met[0, 1:] = np.transpose(self.beta)
         met[1:, 0] = self.beta
-        met[1:, 1:] = self.gamma[x[1], x[2], :, :]
+        met[1:, 1:] = self.gamma(self.grid)[x[1], x[2], :, :]
 
         return met
 
@@ -214,17 +218,18 @@ class Metric:
         g = self.rp.get_param("lm-gr.grav")
         R = self.rp.get_param("lm-gr.radius")
         c = self.rp.get_param("lm-gr.c")
+        alpha = self.alpha(self.grid)
 
         if self.cartesian:
             # For simple time-lagged metric, only have 7 non-zero (4 unique) christoffels.
             # t_tr
-            christls[0, 0, 2] = g / (self.alpha.d[x[2]]**2 * c**2 * R)
+            christls[0, 0, 2] = g / (alpha.d[x[2]]**2 * c**2 * R)
             # t_rt
             christls[0, 2, 0] = christls[0, 0, 2]
             # r_tt
-            christls[2, 0, 0] = g * self.alpha.d[x[2]]**2 / (c**2 * R)
+            christls[2, 0, 0] = g * alpha.d[x[2]]**2 / (c**2 * R)
             # r_xx
-            christls[2, 1, 1] = g / (c**2 * R * self.alpha.d[x[2]]**2)
+            christls[2, 1, 1] = g / (c**2 * R * alpha.d[x[2]]**2)
             # r_rr
             christls[2, 2, 2] = -christls[2, 1, 1]
             # x_xr
@@ -233,17 +238,17 @@ class Metric:
             christls[1, 2, 1] = christls[2, 2, 2]
         else: # spherical polar
             # t_tr
-            christls[0, 0, 2] = g / (self.alpha.d[x[2]]**2 * c**2 * R)
+            christls[0, 0, 2] = g / (alpha.d[x[2]]**2 * c**2 * R)
             # t_rt
             christls[0, 2, 0] = christls[0, 0, 2]
             # r_tt
-            christls[2, 0, 0] = g * self.alpha.d[x[2]]**2 / (c**2 * R)
+            christls[2, 0, 0] = g * alpha.d[x[2]]**2 / (c**2 * R)
             # r_theta theta
-            christls[2, 1, 1] = -R * self.alpha.d[x[2]]**2 * (1. + g/c**2)
+            christls[2, 1, 1] = -R * alpha.d[x[2]]**2 * (1. + g/c**2)
             # r_rr
-            christls[2, 2, 2] = -g * self.alpha.d[x[2]]**2 / (R * c**2)
+            christls[2, 2, 2] = -g * alpha.d[x[2]]**2 / (R * c**2)
             # theta_theta r
-            christls[1, 1, 2] = self.alpha.d[x[2]]**2 * (1. + g/c**2) / R
+            christls[1, 1, 2] = alpha.d[x[2]]**2 * (1. + g/c**2) / R
             # theta_r theta
             christls[1, 2, 1] = christls[1, 1, 2]
 
