@@ -1,5 +1,6 @@
 import mesh.patch as patch
 from util import profile
+import importlib
 
 def grid_setup(rp, ng=1, R=0.0):
     nx = rp.get_param("mesh.nx")
@@ -150,5 +151,6 @@ class NullSimulation(object):
         finalize() method.
         """
         # there should be a cleaner way of doing this
-        exec("import {}".format(self.solver_name))
-        exec("{}.{}.finalize()".format(self.solver_name, self.problem_name))
+        getattr(importlib.import_module(self.solver_name + '.problems.' + self.problem_name), 'finalize' )
+        #exec("import {}".format(self.solver_name))
+        #exec("{}.{}.finalize()".format(self.solver_name, self.problem_name))

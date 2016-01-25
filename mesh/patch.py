@@ -924,9 +924,9 @@ class CellCenterData2d():
             else:
                 self.data[n,self.grid.ilo-1,:] = \
                     self.data[n,self.grid.ilo,:] - self.grid.dx*self.BCs[name].xl_value[:]
-            if name == "x-velocity":
+            #if name == "x-velocity":
                 #np.set_printoptions(threshold=np.nan)
-                print('-x boundary: {}'.format(self.data[n,:,:]))
+                #print('-x boundary: {}'.format(self.data[n,:,:]))
 
         elif self.BCs[name].xlb == "reflect-even":
 
@@ -962,8 +962,8 @@ class CellCenterData2d():
                 self.data[n,self.grid.ihi+1,:] = \
                     self.data[n,self.grid.ihi,:] + self.grid.dx*self.BCs[name].xr_value[:]
 
-            if name == "x-velocity":
-                print('+x boundary: {}'.format(self.data[n,self.grid.ihi+1:,:]))
+            #if name == "x-velocity":
+                #print('+x boundary: {}'.format(self.data[n,self.grid.ihi+1:,:]))
 
         elif self.BCs[name].xrb == "reflect-even":
 
@@ -1005,8 +1005,8 @@ class CellCenterData2d():
                 self.data[n,:,self.grid.jlo-1] = \
                     self.data[n,:,self.grid.jlo] - self.grid.dy*self.BCs[name].yl_value[:]
 
-            if name == "x-velocity":
-                print('-y boundary: {}'.format(self.data[n,:,:self.grid.jlo]))
+            #if name == "x-velocity":
+                #print('-y boundary: {}'.format(self.data[n,:,:self.grid.jlo]))
 
         elif self.BCs[name].ylb == "reflect-even":
 
@@ -1048,8 +1048,8 @@ class CellCenterData2d():
                 self.data[n,:,self.grid.jhi+1] = \
                     self.data[n,:,self.grid.jhi] + self.grid.dy*self.BCs[name].yr_value[:]
 
-            if name == "x-velocity":
-                print('+y boundary: {}'.format(self.data[n,:,self.grid.jhi+1:]))
+            #if name == "x-velocity":
+                #print('+y boundary: {}'.format(self.data[n,:,self.grid.jhi+1:]))
 
         elif self.BCs[name].yrb == "reflect-even":
 
@@ -1195,7 +1195,16 @@ class CellCenterData2d():
         This stores a representation of the entire object.
         """
         pF = open(filename + ".pyro", "wb")
-        pickle.dump(self, pF, pickle.HIGHEST_PROTOCOL)
+
+        # I think it refuses to pickle because the metric contains functions for some of its variables :(
+        cp = copy.deepcopy(self)
+        gamma = cp.grid.metric.gamma(cp.grid)
+        alpha = cp.grid.metric.alpha(cp.grid)
+
+        cp.grid.metric.gamma = gamma
+        cp.grid.metric.alpha = alpha
+        
+        pickle.dump(cp, pF, pickle.HIGHEST_PROTOCOL)
         pF.close()
 
 

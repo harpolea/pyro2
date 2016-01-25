@@ -990,7 +990,12 @@ class Simulation(NullSimulation):
             u0 = myg.metric.calcu0(u=u, v=v)
         u01d = Basestate(myg.ny, ng=myg.ng)
         u01d.d[:] = self.lateral_average(u0.d)
-        alpha = myg.metric.alpha(myg)
+
+        if isinstance(myg.metric.alpha, partial):
+            alpha = myg.metric.alpha(myg)
+        else:
+            alpha = myg.metric.alpha
+        
         g = self.rp.get_param("lm-gr.grav")
         c = self.rp.get_param("lm-gr.c")
         R = self.rp.get_param("lm-gr.radius")

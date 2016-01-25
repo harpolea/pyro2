@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import sys
 import os
 import getopt
+import importlib
 
 import mesh.patch as patch
 from util import runparams, msg
@@ -15,7 +16,8 @@ from util import runparams, msg
 
 def makeplot(myd, solver_name, problem_name, outfile, W, H, n=0, vmins=[None, None, None, None], vmaxes=[None, None, None, None]):
 
-    exec ('import ' + solver_name + ' as solver')
+    #exec ('import ' + solver_name + ' as solver')
+    solver = importlib.import_module(solver_name)
 
     rp = runparams.RuntimeParameters()
     rp.load_params("_defaults")

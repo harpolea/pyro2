@@ -309,7 +309,7 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
                     eta_y[myg.ilo+ix  :myg.ihi+1:2,
                           myg.jlo+iy  :myg.jhi+1:2]) /
                     (myg.r2d[myg.ilo+ix  :myg.ihi+1:2,
-                             myg.jlo+iy  :myg.jhi+1:2]**2 * myg.dx))
+                             myg.jlo+iy  :myg.jhi+1:2]**2 * myg.dy))
 
                 v.d[myg.ilo+ix:myg.ihi+1:2,myg.jlo+iy:myg.jhi+1:2] = (
                     -f.d[myg.ilo+ix:myg.ihi+1:2,
@@ -340,7 +340,7 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
                       myg.jlo-1+iy:myg.jhi  :2]) /
                     (myg.r2d[myg.ilo+ix  :myg.ihi+1:2,
                              myg.jlo+iy  :myg.jhi+1:2]**2 *
-                             myg.dx)) / denom
+                             myg.dy)) / denom
 
                 if n == 1 or n == 3:
                     self.grids[level].fill_BC("v")
@@ -575,6 +575,7 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
 
         for i in range(len(rfl)):
             Ap = L_eta_phi(p.d).flatten()
+            #print('Ap: {}'.format(Ap))
             if rsold == 0.0:
                 a = 0.0
             else:
@@ -583,7 +584,7 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
             xfl += a * p.v().flatten()
             rfl -= a * Ap
             rsnew = np.inner(rfl, rfl)
-            #print('rsnew: {}'.format(rsnew))
+            #print('rsold: {}'.format(rsnew))
             if np.sqrt(rsnew) < 1.e-10:
                 break
             p.v()[:,:] = np.reshape(rfl + (rsnew / rsold) * p.v().flatten(), (myg.nx, myg.ny))
@@ -626,7 +627,7 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
         alphasq.d[:] = myg.metric.alpha(og).d**2
 
         # FIXME: do we need the r**2 here??
-        g_xx = alphasq.d2df(og.qx) #/ og.r2d**2
+        g_xx = alphasq.d2df(og.qx) / og.r2d**2
         g_yy = alphasq.d2df(og.qx)
 
         gx.v()[:,:] = 0.5 * g_xx[og.ilo:og.ihi+1,og.jlo:og.jhi+1] * (v.ip(1) - v.ip(-1)) / (og.dx * og.r2v)

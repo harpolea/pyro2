@@ -301,12 +301,18 @@ class SimulationSpherical(Simulation):
             u0 = myg.metric.calcu0(u=u, v=v)
         mom_source_r = myg.scratch_array()
         mom_source_x = myg.scratch_array()
-        gtt = -(myg.metric.alpha(myg).d)**2
-        grr = 1. / myg.metric.alpha(myg).d**2
+
+        if isinstance(myg.metric.alpha, partial):
+            alpha = myg.metric.alpha(myg)
+        else:
+            alpha = myg.metric.alpha
+
+        gtt = -(alpha.d)**2
+        grr = 1. / alpha.d**2
         gxx = grr * myg.r2d**2
         drp0 = self.drp0(Dh0=Dh0, u=u, v=v, u0=u0)
 
-        print('u: {}'.format(u.d))
+        #print('u: {}'.format(u.d))
         #print('Dh: {}'.format(Dh.d))
 
         #chrls = np.array([[self.metric.christoffels([self.cc_data.t, i, j])
@@ -340,8 +346,8 @@ class SimulationSpherical(Simulation):
 
         #mom_source_r.d[:,:] -=  drp0.d[np.newaxis,:] / (Dh.d[:,:]*u0.d[:,:])
 
-        mom_source_x.d[:,:] *=  myg.metric.alpha(myg).d2d()**2
-        mom_source_r.d[:,:] *=  myg.metric.alpha(myg).d2d()**2
+        mom_source_x.d[:,:] *=  alpha.d2d()**2
+        mom_source_r.d[:,:] *=  alpha.d2d()**2
 
         return mom_source_x, mom_source_r
 
@@ -409,7 +415,7 @@ class SimulationSpherical(Simulation):
         v = self.cc_data.get_var("y-velocity")
         scalar = self.cc_data.get_var("scalar")
 
-        print('preevolve u: {}'.format(u.d))
+        #print('preevolve u: {}'.format(u.d))
 
         self.cc_data.fill_BC("density")
         self.cc_data.fill_BC("enthalpy")
@@ -489,18 +495,18 @@ class SimulationSpherical(Simulation):
         #gradp_x.d[:,:] = 1.
         #gradp_y.d[:,:] = 1.
 
-        print('before gradp u: {}'.format(u.d))
+        #print('before gradp u: {}'.format(u.d))
 
         # CHANGED: multiplied by dt to match same thing done at end of evolve.
         # FIXME: WTF IS IT DOING HERE?????
         u.v()[:,:] -= self.dt * coeff.v() * gradp_x.v()
         #v.v()[:,:] -= self.dt * coeff.v() * gradp_y.v()
 
-        print('after gradp u: {}'.format(u.d))
+        #print('after gradp u: {}'.format(u.d))
 
         # fill the ghostcells
         self.cc_data.fill_BC("x-velocity")
-        print('after ghosting u: {}'.format(u.d))
+        #print('after ghosting u: {}'.format(u.d))
         self.cc_data.fill_BC("y-velocity")
 
         # c. now get an approximation to gradp at n-1/2 by going through the
@@ -510,12 +516,12 @@ class SimulationSpherical(Simulation):
         orig_data = patch.cell_center_data_clone(self.cc_data)
         orig_aux = patch.cell_center_data_clone(self.aux_data)
 
-        print('before timestep u: {}'.format(u.d))
+        #print('before timestep u: {}'.format(u.d))
 
         # get the timestep
         self.compute_timestep(u0=u0)
 
-        print('before evolve u: {}'.format(u.d))
+        #print('before evolve u: {}'.format(u.d))
 
         # evolve
         self.evolve()
@@ -558,6 +564,7 @@ class SimulationSpherical(Simulation):
         T = self.cc_data.get_var("temperature")
 
         #print('start of evolve, us: {}'.format(u.d[-10:, -10:]))
+        myg = self.cc_data.grid
 
         u0 = myg.metric.calcu0()
 
@@ -571,8 +578,6 @@ class SimulationSpherical(Simulation):
         U0 = self.base["U0"]
 
         phi = self.aux_data.get_var("phi")
-
-        myg = self.cc_data.grid
 
         oldS = self.aux_data.get_var("old_source_y")
         plot_me = self.aux_data.get_var("plot_me")
@@ -610,7 +615,7 @@ class SimulationSpherical(Simulation):
         T_1 = myg.scratch_array(data=T.d)
         self.react_state(D=D_1, Dh=Dh_1, DX=DX_1, T=T_1, scalar=scalar_1, u0=u0)
 
-        print('1. u: {}'.format(u.d))
+        #print('1. u: {}'.format(u.d))
 
         #---------------------------------------------------------------------
         # 2. Compute provisional S, U0 and base state forcing
@@ -1008,8 +1013,8 @@ class SimulationSpherical(Simulation):
         # 5. React state through dt/2
         #---------------------------------------------------------------------
 
-        print('5.  u_MAC: {}'.format(u_MAC.d[-20:-10, -20:-10]))
-        print('5.  v_MAC: {}'.format(v_MAC.d[-20:-10, -20:-10]))
+        #print('5.  u_MAC: {}'.format(u_MAC.d[-20:-10, -20:-10]))
+        #print('5.  v_MAC: {}'.format(v_MAC.d[-20:-10, -20:-10]))
         D_star = myg.scratch_array(data=D_2_star.d)
         Dh_star = myg.scratch_array(data=Dh_2_star.d)
         DX_star = myg.scratch_array(data=DX_2_star.d)

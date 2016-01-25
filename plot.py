@@ -3,6 +3,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
+import importlib
 import getopt
 
 import mesh.patch as patch
@@ -11,7 +12,8 @@ import mesh.patch as patch
 
 def makeplot(myd, solver_name, outfile, W, H):
 
-    exec 'import ' + solver_name + ' as solver'
+    #exec 'import ' + solver_name + ' as solver'
+    solver = importlib.import_module(solver_name)
 
     sim = solver.Simulation(solver_name, None, None)
     sim.cc_data = myd
@@ -61,14 +63,10 @@ if __name__== "__main__":
 
     try: solver = next[0]
     except: usage()
-        
+
     try: file = next[1]
     except: usage()
 
     myg, myd = patch.read(file)
 
     makeplot(myd, solver, outfile, W, H)
-
-
-
-

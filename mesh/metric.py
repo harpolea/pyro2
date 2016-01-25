@@ -13,6 +13,8 @@ import numpy as np
 import sys
 from util import msg
 import traceback
+from inspect import isfunction
+from functools import partial
 
 class Metric:
 
@@ -123,8 +125,14 @@ class Metric:
             #v = self.cc_data.get_var("y-velocity")
             v = myg.scratch_array()
         c = self.rp.get_param("lm-gr.c")
-        alpha = self.alpha(myg)
-        gamma = self.gamma(myg)
+
+        # check whether alpha, gamma are functools.partial objects
+        if isinstance(self.alpha, partial):
+            alpha = self.alpha(myg)
+            gamma = self.gamma(myg)
+        else:
+            alpha = self.alpha
+            gamma = self.gamma
 
         Vs = np.array([[np.array([u.d[i,j], v.d[i,j]]) + self.beta
             for j in range(myg.qy)] for i in range(myg.qx)])
@@ -168,7 +176,12 @@ class Metric:
 
         W = self.calcW(u=u, v=v)
         myg = self.grid
-        alpha = self.alpha(myg)
+
+        if isinstance(self.alpha, partial):
+            alpha = self.alpha(myg)
+        else:
+            alpha = self.alpha
+
         u0 = myg.scratch_array(data=W.d/alpha.d2d())
 
         return u0
@@ -218,7 +231,10 @@ class Metric:
         g = self.rp.get_param("lm-gr.grav")
         R = self.rp.get_param("lm-gr.radius")
         c = self.rp.get_param("lm-gr.c")
-        alpha = self.alpha(self.grid)
+        if isinstance(self.alpha, partial):
+            alpha = self.alpha(self.grid)
+        else:
+            alpha = self.alpha
 
         if self.cartesian:
             # For simple time-lagged metric, only have 7 non-zero (4 unique) christoffels.

@@ -104,6 +104,7 @@ class Simulation(NullSimulation):
 
         # initial conditions for the problem
         exec(self.problem_name + '.init_data(self.cc_data, self.rp)')
+        getattr(importlib.import_module(self.solver_name + '.problems.' + self.problem_name), 'init_data' )(self.cc_data, self.rp)
 
         self.cc_data.fill_BC_all()
 
