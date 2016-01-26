@@ -1,6 +1,3 @@
-"""
-FIXME: desperately need to attach a metric to grid class.
-"""
 from multigrid.edge_coeffs import *
 import numpy as np
 from functools import partial
@@ -29,10 +26,14 @@ class EdgeCoeffsSpherical(EdgeCoeffs):
 
             b = (0,1)
 
-            eta_x.v(buf=b)[:,:] = 0.5*(eta.ip(-1, buf=b)*self.alphasq.ip(-1, buf=b) + eta.v(buf=b) * self.alphasq.v(buf=b))
-            eta_y.v(buf=b)[:,:] = 0.5*(eta.jp(-1, buf=b)*self.alphasq.jp(-1, buf=b) + eta.v(buf=b) * self.alphasq.v(buf=b))
+            eta_x.v(buf=b)[:,:] = 0.5 * (
+                eta.ip(-1, buf=b) * self.alphasq.ip(-1, buf=b) / g.r2d[:-1,g.jlo:g.jhi+2]**2 +
+                eta.v(buf=b) * self.alphasq.v(buf=b) / g.r2d[1:,g.jlo:g.jhi+2]**2)
+            eta_y.v(buf=b)[:,:] = 0.5 * (
+                eta.jp(-1, buf=b) * self.alphasq.jp(-1, buf=b) +
+                eta.v(buf=b) * self.alphasq.v(buf=b))
 
-            eta_x *= np.sin(g.x2d - 0.5*g.dx) / (g.dx * g.r2d**3)
+            eta_x *= np.sin(g.x2d - 0.5*g.dx) / (g.dx * g.r2d)
             eta_y *= (g.r2d - 0.5*g.dy)**2 / g.dy
 
             self.x = eta_x

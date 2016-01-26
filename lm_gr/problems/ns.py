@@ -63,7 +63,7 @@ def init_data(my_data, aux_data, base, rp, metric):
     # (erg/g)
     u.d[:,:] = u_1/myg.r2d - u_m/myg.r2d * np.exp((myg.y[np.newaxis,:] - yctr)/L_x)
     # FIXME: deactivated
-    #v.d[:,:] = 1.e-4 * u_1 * np.sin(4. * math.pi * (myg.x[:, np.newaxis]+0.5*L)/L)
+    v.d[:,:] = 1.e-4 * u_1 * np.sin(4. * math.pi * (myg.x[:, np.newaxis]+0.5*L)/L)
     dens.d[:,:] = rho_1 - rho_m * np.exp((myg.y[np.newaxis,:] - yctr)/L_x)
     scalar.d[:,:] = 1.
     DX.d[:,:] = 1.

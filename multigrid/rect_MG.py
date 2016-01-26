@@ -276,9 +276,6 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
 
             for n, (ix, iy) in enumerate([(0,0), (1,1), (1,0), (0,1)]):
 
-
-                #CHANGED: This has been running slow, so have gone back to #old style indexing
-
                 #denom = (eta_x.ip_jp(1+ix, iy, s=2) + eta_x.ip_jp(ix, iy, s=2) +
                 #         eta_y.ip_jp(ix, 1+iy, s=2) + eta_y.ip_jp(ix, iy, s=2) )
 
@@ -627,6 +624,7 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
         alphasq.d[:] = myg.metric.alpha(og).d**2
 
         # FIXME: do we need the r**2 here??
+        # upstairs index components
         g_xx = alphasq.d2df(og.qx) / og.r2d**2
         g_yy = alphasq.d2df(og.qx)
 
@@ -653,8 +651,6 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
 
         # compute the residual
         # r = f - L_eta phi
-        # I think this needs g^rr, g^theta theta before both of the
-        # phi derivatives?
         L_eta_phi = (
             (# eta_{i+1/2,j} (phi_{i+1,j} - phi_{i,j})
             eta_x[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] *

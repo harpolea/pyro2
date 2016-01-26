@@ -968,7 +968,7 @@ class Simulation(NullSimulation):
 
     def drp0(self, Dh0=None, u=None, v=None, u0=None):
         """
-        Calculate drp0 as it's messy using eq 6.136
+        Calculate drp0 as it's messy using eq 6.166
 
         Parameters
         ----------
@@ -995,7 +995,7 @@ class Simulation(NullSimulation):
             alpha = myg.metric.alpha(myg)
         else:
             alpha = myg.metric.alpha
-        
+
         g = self.rp.get_param("lm-gr.grav")
         c = self.rp.get_param("lm-gr.c")
         R = self.rp.get_param("lm-gr.radius")

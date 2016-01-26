@@ -186,7 +186,9 @@ class SimulationSpherical(Simulation):
 
         #self.metric = metric.Metric(self.cc_data, self.rp, alpha, beta,
         #                            gamma_matrix, cartesian=False)
-        myg.initialise_metric(self.rp, partial(alpha, g, R, c), beta, partial(gamma_matrix, g, R, c), cartesian=False)
+        myg.initialise_metric(self.rp, partial(alpha, g, R, c),
+                              beta, partial(gamma_matrix, g, R, c),
+                              cartesian=False)
 
         u0 = myg.metric.calcu0()
 
@@ -253,7 +255,11 @@ class SimulationSpherical(Simulation):
         psi.v(buf=myg.ng-1)[:] = gamma * 0.25 * \
             (p0.v(buf=myg.ng-1) + old_p0.v(buf=myg.ng-1)) * \
             (self.lateral_average(S.v(buf=myg.ng-1)) -
-             (U0.jp(1, buf=myg.ng-1) * self.r[myg.jlo-myg.ng+2:myg.jhi+myg.ng+1]**2 - U0.jp(-1, buf=myg.ng-1)* self.r[myg.jlo-myg.ng:myg.jhi+myg.ng-1]**2) / self.r[myg.jlo-myg.ng+1:myg.jhi+myg.ng]**2)
+             (U0.jp(1, buf=myg.ng-1) *
+             self.r[myg.jlo-myg.ng+2:myg.jhi+myg.ng+1]**2 -
+             U0.jp(-1, buf=myg.ng-1)*
+             self.r[myg.jlo-myg.ng:myg.jhi+myg.ng-1]**2) /
+             self.r[myg.jlo-myg.ng+1:myg.jhi+myg.ng]**2)
 
         return psi
 
@@ -307,8 +313,9 @@ class SimulationSpherical(Simulation):
         else:
             alpha = myg.metric.alpha
 
-        gtt = -(alpha.d)**2
-        grr = 1. / alpha.d**2
+        # downstairs metric components
+        gtt = -(alpha.d2df(myg.qx))**2
+        grr = 1. / alpha.d2df(myg.qx)**2
         gxx = grr * myg.r2d**2
         drp0 = self.drp0(Dh0=Dh0, u=u, v=v, u0=u0)
 
@@ -320,36 +327,91 @@ class SimulationSpherical(Simulation):
         # time-independent metric
         chrls = myg.metric.chrls
 
-        # note metric components needed to lower the christoffel symbols
-        mom_source_x.d[:,:] = (gtt[np.newaxis,:] * chrls[:,:,0,0,1] +
-            (gxx[np.newaxis,:] * chrls[:,:,1,0,1] +
-             gtt[np.newaxis,:] * chrls[:,:,0,1,1]) * u.d +
-            (grr[np.newaxis,:] * chrls[:,:,2,0,1] +
-             gtt[np.newaxis,:] * chrls[:,:,0,2,1]) * v.d +
-            gxx[np.newaxis,:] * chrls[:,:,1,1,1] * u.d**2 +
-            grr[np.newaxis,:] * chrls[:,:,2,2,1] * v.d**2 +
-            (grr[np.newaxis,:] * chrls[:,:,2,1,1] +
-             gxx[np.newaxis,:] * chrls[:,:,1,2,1]) * u.d * v.d)/gxx[np.newaxis,:]
-        mom_source_r.d[:,:] = (gtt[np.newaxis,:] * chrls[:,:,0,0,2] +
-            (gxx[np.newaxis,:] * chrls[:,:,1,0,2] +
-             gtt[np.newaxis,:] * chrls[:,:,0,1,2]) * u.d +
-            (grr[np.newaxis,:] * chrls[:,:,2,0,2] +
-             gtt[np.newaxis,:] * chrls[:,:,0,2,2]) * v.d +
-            gxx[np.newaxis,:] * chrls[:,:,1,1,2] * u.d**2 +
-            grr[np.newaxis,:] * chrls[:,:,2,2,2] * v.d**2 +
-            (grr[np.newaxis,:] * chrls[:,:,2,1,2] +
-             gxx[np.newaxis,:] * chrls[:,:,1,2,2]) * u.d * v.d)/grr[np.newaxis,:]
+        # downstairs metric components needed to lower the christoffel
+        # symbols, divide by downstairs = times by upstairs to raise
+        # the x / r index again.
+        mom_source_x.d[:,:] = (gtt * chrls[:,:,0,0,1] +
+            (gxx * chrls[:,:,1,0,1] +
+             gtt * chrls[:,:,0,1,1]) * u.d +
+            (grr * chrls[:,:,2,0,1] +
+             gtt * chrls[:,:,0,2,1]) * v.d +
+            gxx * chrls[:,:,1,1,1] * u.d**2 +
+            grr * chrls[:,:,2,2,1] * v.d**2 +
+            (grr * chrls[:,:,2,1,1] +
+             gxx * chrls[:,:,1,2,1]) * u.d * v.d) / gxx
+        mom_source_r.d[:,:] = (gtt * chrls[:,:,0,0,2] +
+            (gxx * chrls[:,:,1,0,2] +
+             gtt * chrls[:,:,0,1,2]) * u.d +
+            (grr * chrls[:,:,2,0,2] +
+             gtt * chrls[:,:,0,2,2]) * v.d +
+            gxx * chrls[:,:,1,1,2] * u.d**2 +
+            grr * chrls[:,:,2,2,2] * v.d**2 +
+            (grr * chrls[:,:,2,1,2] +
+             gxx * chrls[:,:,1,2,2]) * u.d * v.d) / grr
 
         # check drp0 is not zero
         mask = (abs(drp0.d2df(myg.qx)) > 1.e-15)
-        mom_source_r.d[mask] -=  drp0.d2df(myg.qx)[mask] / (Dh.d[mask]*u0.d[mask])
+        # divide by metric component as want to have an upstairs r
+        # component (and metric is diagonal)
+        mom_source_r.d[mask] -=  drp0.d2df(myg.qx)[mask] / \
+            (Dh.d[mask] * u0.d[mask] * grr[mask])
 
-        #mom_source_r.d[:,:] -=  drp0.d[np.newaxis,:] / (Dh.d[:,:]*u0.d[:,:])
+        # FIXME: zero'd for testing
+        mom_source_r.d[:,:] = 0.
 
-        mom_source_x.d[:,:] *=  alpha.d2d()**2
-        mom_source_r.d[:,:] *=  alpha.d2d()**2
+        # FIXME: what were these two lines doing????
+        #mom_source_x.d[:,:] *=  alpha.d2d()**2
+        #mom_source_r.d[:,:] *=  alpha.d2d()**2
 
         return mom_source_x, mom_source_r
+
+    def drp0(self, Dh0=None, u=None, v=None, u0=None, p0=None):
+        r"""
+        Calculate drp0 as it's messy using eq 6.115
+
+        .. math::
+
+            \frac{\partial p}{\partial r} \approx -\frac{g}{Rc^2\alpha^2}\left(\rho h + p\frac{8g}{c^2}\right).
+
+        Parameters
+        ----------
+        Dh0 : ArrayIndexer object, optional
+            density * enthalpy base state
+        u : ArrayIndexer object, optional
+            horizontal velocity
+        v : ArrayIndexer object, optional
+            vertical velocity
+        u0 : ArrayIndexer object, optional
+            timelike component of the 4-velocity
+        """
+        myg = self.cc_data.grid
+        if Dh0 is None:
+            Dh0 = self.base["Dh0"]
+        # TODO: maybe instead of averaging u0, should calculate it
+        # based on U0?
+        if u0 is None:
+            u0 = myg.metric.calcu0(u=u, v=v)
+        if p0 is None:
+            p0 = self.base["p0"]
+        u01d = Basestate(myg.ny, ng=myg.ng)
+        u01d.d[:] = self.lateral_average(u0.d)
+
+        if isinstance(myg.metric.alpha, partial):
+            alpha = myg.metric.alpha(myg)
+        else:
+            alpha = myg.metric.alpha
+
+        g = self.rp.get_param("lm-gr.grav")
+        c = self.rp.get_param("lm-gr.c")
+        R = self.rp.get_param("lm-gr.radius")
+
+        drp0 = Basestate(myg.ny, ng=myg.ng)
+
+        if not g == 0.:
+            print('hi')
+            drp0.d[:] = - g * (Dh0.d / u01d.d + 8. * g * p0.d/ c**2) / (R * c**2 * alpha.d2d()**2)
+
+        return drp0
 
     def compute_base_velocity(self, U0=None, p0=None, S=None, Dh0=None, u=None, v=None, u0=None):
         r"""
@@ -391,8 +453,9 @@ class SimulationSpherical(Simulation):
         Sbar = self.lateral_average(S.d)
         U0.d[0] = 0.
         # FIXME: fix cell-centred / edge-centred indexing.
-        U0.d[1:] = U0.d[:-1] + dr * (Sbar[:-1] - U0.d[:-1] * drp0.d[:-1] /
-                                     (gamma * p0.d[:-1])) + \
+        U0.d[1:] = U0.d[:-1] + \
+                   dr * (Sbar[:-1] - U0.d[:-1] * drp0.d[:-1] /
+                         (gamma * p0.d[:-1])) + \
                    dr * 2. * U0.d[:-1] / self.r[:-1]
 
 
@@ -462,9 +525,12 @@ class SimulationSpherical(Simulation):
 
         # u/v are cell-centered, divU is cell-centered
         div_zeta_U.v()[:,:] = \
-            0.5 * zeta.v2df(myg.qx) * (np.sin(myg.x2v + myg.dx) * u.ip(1) - np.sin(myg.x2v - myg.dx) * u.ip(-1)) / (myg.dx * self.r2v * np.sin(myg.x2v)) + \
+            0.5 * zeta.v2df(myg.qx) * (np.sin(myg.x2v + myg.dx) * \
+            u.ip(1) - np.sin(myg.x2v - myg.dx) * u.ip(-1)) / \
+            (myg.dx * self.r2v * np.sin(myg.x2v)) + \
             0.5 * (zeta.v2dpf(myg.qx, 1) * v.jp(1) - \
-            zeta.v2dpf(myg.qx, -1) * v.jp(-1)) / myg.dy + 2. * zeta.v2df(myg.qx) * v.v() / self.r2v
+            zeta.v2dpf(myg.qx, -1) * v.jp(-1)) / myg.dy + \
+            2. * zeta.v2df(myg.qx) * v.v() / self.r2v
 
         # solve D (zeta^2/Dh u0) G (phi/zeta) = D( zeta U )
         constraint = self.constraint_source()
@@ -1008,7 +1074,6 @@ class SimulationSpherical(Simulation):
         T_2_star = myg.scratch_array()
         self.calc_T(p0=p0_star, D=D_2_star, DX=DX_2_star, u=u_MAC, v=v_MAC, u0=u0_MAC, T=T_2_star)
 
-
         #---------------------------------------------------------------------
         # 5. React state through dt/2
         #---------------------------------------------------------------------
@@ -1027,8 +1092,11 @@ class SimulationSpherical(Simulation):
         # 6. Compute time-centred expasion S, base state velocity U0 and
         # base state forcing
         #---------------------------------------------------------------------
-        Q_2_star, _ = self.calc_Q_omega_dot(D=D_2_star, DX=DX_2_star, u=u_MAC, v=v_MAC, u0=u0_MAC, T=T_2_star)
-        S_star = self.compute_S(u=u_MAC, v=v_MAC, u0=u0_MAC, Q=Q_2_star, D=D_2_star)
+        Q_2_star, _ = self.calc_Q_omega_dot(D=D_2_star, DX=DX_2_star,
+                                            u=u_MAC, v=v_MAC, u0=u0_MAC,
+                                            T=T_2_star)
+        S_star = self.compute_S(u=u_MAC, v=v_MAC, u0=u0_MAC, Q=Q_2_star,
+                                D=D_2_star)
 
         S_half_star = 0.5 * (S + S_star)
 
@@ -1036,7 +1104,9 @@ class SimulationSpherical(Simulation):
 
         U0_half = Basestate(myg.ny, ng=myg.ng)
         U0_half.d[:] = U0_half_star.d
-        self.compute_base_velocity(U0=U0_half, p0=p0_half_star, S=S_half_star, Dh0=Dh0_star, u=u_MAC, v=v_MAC, u0=u0_MAC)
+        self.compute_base_velocity(U0=U0_half, p0=p0_half_star,
+                                   S=S_half_star, Dh0=Dh0_star,
+                                   u=u_MAC, v=v_MAC, u0=u0_MAC)
 
         #---------------------------------------------------------------------
         # 7. recompute the interface states, using the advective velocity
@@ -1059,13 +1129,13 @@ class SimulationSpherical(Simulation):
 
         _ux, _vx, _uy, _vy = \
                lm_interface_sph_f.states(myg.qx, myg.qy, myg.ng,
-                                     myg.dx, myg.dy, self.dt,
-                                     myg.r2d, u.d, v.d,
-                                     ldelta_ux, ldelta_vx,
-                                     ldelta_uy, ldelta_vy,
-                                     coeff.d*gradp_x.d, coeff.d*gradp_y.d,
-                                     mom_source_r.d,
-                                     u_MAC.d, v_MAC.d)
+                                         myg.dx, myg.dy, self.dt,
+                                         myg.r2d, u.d, v.d,
+                                         ldelta_ux, ldelta_vx,
+                                         ldelta_uy, ldelta_vy,
+                                         coeff.d*gradp_x.d, coeff.d*gradp_y.d,
+                                         mom_source_r.d,
+                                         u_MAC.d, v_MAC.d)
 
         u_xint = patch.ArrayIndexer(d=_ux, grid=myg)
         v_xint = patch.ArrayIndexer(d=_vx, grid=myg)
@@ -1238,26 +1308,35 @@ class SimulationSpherical(Simulation):
 
         D_2.v()[:,:] -= self.dt * (
             #  (D u)_x
-            (np.sin(self.thp) * D_xint.ip(1)*u_MAC.ip(1) - np.sin(self.thm) * D_xint.v()*u_MAC.v())/(myg.dx * self.r2v * np.sin(myg.x2v)) +
+            (np.sin(self.thp) * D_xint.ip(1)*u_MAC.ip(1) -
+             np.sin(self.thm) * D_xint.v()*u_MAC.v()) /
+            (myg.dx * self.r2v * np.sin(myg.x2v)) +
             #  (D v)_y
             (D_yint.jp(1)*(v_MAC.jp(1) + U0_half.jp(1)[np.newaxis,:]) -\
-             D_yint.v() * (v_MAC.v() + U0_half.v2d())) / myg.dy + 2. * D_1.v() * (v.v() + U0_half.v2d()) / self.r2v)
+             D_yint.v() * (v_MAC.v() + U0_half.v2d())) /
+            myg.dy + 2. * D_1.v() * (v.v() + U0_half.v2d()) / self.r2v)
 
         DX_2.v()[:,:] -= self.dt * (
             #  (X D u)_x
-            (np.sin(self.thp) * DX_xint.ip(1) * u_MAC.ip(1) - np.sin(self.thm) * DX_xint.v() * u_MAC.v())/(myg.dx * self.r2v * np.sin(myg.x2v)) +
+            (np.sin(self.thp) * DX_xint.ip(1) * u_MAC.ip(1) -
+             np.sin(self.thm) * DX_xint.v() * u_MAC.v())/
+            (myg.dx * self.r2v * np.sin(myg.x2v)) +
             #  (X D v)_y
             (DX_yint.jp(1)*(v_MAC.jp(1) + U0_half.jp(1)[np.newaxis,:]) -
-             DX_yint.v() * (v_MAC.v() + U0_half.v2d())) / myg.dy + 2. * DX_1.v() * (v.v() + U0_half.v2d()) / self.r2v)
+             DX_yint.v() * (v_MAC.v() + U0_half.v2d())) /
+            myg.dy + 2. * DX_1.v() * (v.v() + U0_half.v2d()) / self.r2v)
 
         scalar_2.v()[:,:] -= self.dt * (
             #  (D u)_x
             (np.sin(self.thp) * scalar_xint.ip(1) * u_MAC.ip(1) -
-             np.sin(self.thm) * scalar_xint.v() * u_MAC.v()) / (myg.dx * self.r2v * np.sin(myg.x2v)) +
+             np.sin(self.thm) * scalar_xint.v() * u_MAC.v()) /
+            (myg.dx * self.r2v * np.sin(myg.x2v)) +
             #  (D v)_y
             (scalar_yint.jp(1) * (v_MAC.jp(1) +
              U0_half.jp(1)[np.newaxis,:]) -
-             scalar_yint.v() * (v_MAC.v() + U0_half.v2d())) / myg.dy + 2. * scalar_1.v() * (v.v() + U0_half.v2d()) / self.r2v)
+             scalar_yint.v() * (v_MAC.v() + U0_half.v2d())) /
+            myg.dy + 2. * scalar_1.v() * (v.v() + U0_half.v2d()) /
+            self.r2v)
 
         # 8D
         D0.v()[:] = self.lateral_average(D_2.v())
@@ -1294,7 +1373,8 @@ class SimulationSpherical(Simulation):
         Dh02d.v()[:,:] += -self.dt * (
             #  (D v)_y
             (Dh0_yint.jp(1) * U0_half.jp(1)[np.newaxis,:] -
-             Dh0_yint.v() * U0_half.v2d())/myg.dy + 2. * Dh0.v2df(myg.qx) * (v.v() + U0_half.v2d()) / self.r2v) + \
+             Dh0_yint.v() * U0_half.v2d())/myg.dy +
+            2. * Dh0.v2df(myg.qx) * (v.v() + U0_half.v2d()) / self.r2v) + \
             self.dt * u0.v() * psi.v()
         Dh0.v()[:] = self.lateral_average(Dh02d.v())
 
@@ -1322,10 +1402,14 @@ class SimulationSpherical(Simulation):
 
         Dh_2.v()[:,:] += -self.dt * (
             #  (D u)_x
-            (np.sin(self.thp) * Dh_xint.ip(1)*u_MAC.ip(1) - np.sin(self.thm) * Dh_xint.v()*u_MAC.v()) / (myg.dx * self.r2v * np.sin(myg.x2v)) +
+            (np.sin(self.thp) * Dh_xint.ip(1)*u_MAC.ip(1) -
+             np.sin(self.thm) * Dh_xint.v()*u_MAC.v()) /
+            (myg.dx * self.r2v * np.sin(myg.x2v)) +
             #  (D v)_y
             (Dh_yint.jp(1)*(v_MAC.jp(1) + U0_half.jp(1)[np.newaxis,:]) -\
-             Dh_yint.v() * (v_MAC.v() + U0_half.v2d())) / myg.dy + 2. * Dh_1.v() * (v.v() + U0_half.v2d()) / self.r2v) + \
+             Dh_yint.v() * (v_MAC.v() + U0_half.v2d())) /
+            myg.dy + 2. * Dh_1.v() *
+            (v.v() + U0_half.v2d()) / self.r2v) + \
             self.dt * u0_MAC.v() * v_MAC.v() * drp0.v2d() + \
             self.dt * u0_MAC.v() * psi.v()
 
@@ -1403,9 +1487,12 @@ class SimulationSpherical(Simulation):
         # u/v are cell-centered, divU is cell-centered
         # this bit seems to use U^n+1 rather than U_MAC
         div_zeta_U.v()[:,:] = \
-            0.5 * zeta_half.v2d() * (np.sin(myg.x2v + myg.dx) * u.ip(1) - np.sin(myg.x2v - myg.dx) * u.ip(-1)) / (myg.dx * self.r2v * np.sin(myg.x2v)) + \
+            0.5 * zeta_half.v2d() * (np.sin(myg.x2v + myg.dx) * \
+            u.ip(1) - np.sin(myg.x2v - myg.dx) * u.ip(-1)) / \
+            (myg.dx * self.r2v * np.sin(myg.x2v)) + \
             0.5 * (zeta_half.v2dp(1) * v.jp(1) - \
-            zeta_half.v2dp(-1) * v.jp(-1)) / myg.dy + 2. * zeta_half.v2d() * v.v() / self.r2v
+            zeta_half.v2dp(-1) * v.jp(-1)) / myg.dy + \
+            2. * zeta_half.v2d() * v.v() / self.r2v
 
         # FIXME: check this is using the correct S - might need to be time-centred
         # U or U_MAC??
@@ -1511,7 +1598,8 @@ class SimulationSpherical(Simulation):
 
         r2v = myg.y2d[myg.ilo:myg.ihi+1, myg.jlo:myg.jhi+1] + R
 
-        dv = 0.5 * (v.ip(1) - v.ip(-1)) / (myg.dx * r2v) + v.v() / (r2v * np.tan(myg.x2v))
+        dv = 0.5 * (v.ip(1) - v.ip(-1)) / (myg.dx * r2v) + \
+             v.v() / (r2v * np.tan(myg.x2v))
         du = 0.5 * (u.jp(1) - u.jp(-1)) / myg.dy + 2. * u.v() / r2v
 
         vort.v()[:,:] = dv - du

@@ -17,6 +17,7 @@ class EdgeCoeffs(object):
 
             b = (0,1)
 
+            # FIXME: lower boundary always breaks. Is this because of the buffer here?
             eta_x.v(buf=b)[:,:] = 0.5*(eta.ip(-1, buf=b) + eta.v(buf=b))
             eta_y.v(buf=b)[:,:] = 0.5*(eta.jp(-1, buf=b) + eta.v(buf=b))
 
@@ -24,7 +25,7 @@ class EdgeCoeffs(object):
             eta_y /= g.dy**2
 
             self.x = eta_x
-            self.y = eta_y 
+            self.y = eta_y
 
 
     def restrict(self):

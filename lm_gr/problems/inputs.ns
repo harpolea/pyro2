@@ -14,7 +14,7 @@ radius = 60.75  ; 10 km
 
 [io]
 basename = ../../Documents/Work/pyro/results/ns/ns_64_   ; basename for output files
-n_out = 5                   ; number of timesteps between writing output files
+n_out = 1                   ; number of timesteps between writing output files
 do_io = 1                   ; do we output at all?
 
 [vis]
@@ -31,7 +31,7 @@ gamma = 1.66666666667
 #nx = 64
 #ny = 256
 nx = 32
-ny = 64
+ny = 32
 xmin = 0.2
 xmax = 1.0       ;
 ymax = 0.0337318           ; this is about 50m
@@ -50,9 +50,9 @@ rho_1 = 1.0e5
 v_1 = 1.0e-3
 #v_1 = 0.0
 
-#rho_2 = 1.01e5
-v_2 = 1.0e-3
-rho_2 = 1.0e5
+rho_2 = 1.01e5
+v_2 = -1.0e-3
+#rho_2 = 1.0e5
 #v_2 = 0.0
 
 [driver]
