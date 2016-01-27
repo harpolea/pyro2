@@ -13,6 +13,7 @@ import multigrid.variable_coeff_MG as var_MG
 from copy import deepcopy
 import math
 import mesh.patch as patch
+import mesh.patch_sph as patch_sph
 from lm_gr.simulation import Basestate
 from util import msg
 import mesh.metric as metric
@@ -93,7 +94,7 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
         # we store the solution, v, the rhs, f.
 
         # create the boundary condition object
-        bc = patch.BCObject(xlb=xl_BC_type, xrb=xr_BC_type,
+        bc = patch_sph.BCObject_Sph(xlb=xl_BC_type, xrb=xr_BC_type,
                             ylb=yl_BC_type, yrb=yr_BC_type)
 
         # we're going to assume that nx = a*2^n, ny = b*2^m, but that
@@ -110,7 +111,7 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
         for i in range(self.nlevels):
 
             # create the grid
-            my_grid = patch.Grid2d(nx_t, ny_t, ng=self.ng,
+            my_grid = patch_sph.Grid2d_Sph(nx_t, ny_t, ng=self.ng,
                                    xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, R=R)
 
             # set up metric - use the fact that coeffs is a CCData2d object already which will have a grid
@@ -121,12 +122,12 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
                 cartesian=coeffs.g.metric.cartesian)
 
             # add a CellCenterData2d object for this level to our list
-            self.grids.append(patch.CellCenterData2d(my_grid, dtype=np.float64))
+            self.grids.append(patch_sph.CellCenterData2d_Sph(my_grid, dtype=np.float64))
 
             # create the phi BC object -- this only applies for the finest
             # level.  On the coarser levels, phi represents the residual,
             # which has homogeneous BCs
-            bc_p = patch.BCObject(xlb=xl_BC_type, xrb=xr_BC_type,
+            bc_p = patch_sph.BCObject_Sph(xlb=xl_BC_type, xrb=xr_BC_type,
                                   ylb=yl_BC_type, yrb=yr_BC_type,
                                   xl_func=xl_BC, xr_func=xr_BC,
                                   yl_func=yl_BC, yr_func=yr_BC, grid=my_grid)
@@ -221,7 +222,7 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
             n -= 1
 
 
-    def smooth(self, level, nsmooth, fortran=True):
+    def smooth(self, level, nsmooth, fortran=False):
         """
         Use red-black Gauss-Seidel iterations to smooth the solution
         at a given level.  This is used at each stage of the V-cycle
@@ -342,29 +343,29 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
                 if n == 1 or n == 3:
                     self.grids[level].fill_BC("v")
 
-                if self.vis == 1:
-                    plt.clf()
+            if self.vis == 1:
+                plt.clf()
 
-                    plt.subplot(221)
-                    self._draw_solution()
+                plt.subplot(221)
+                self._draw_solution()
 
-                    plt.subplot(222)
-                    self._draw_V()
+                plt.subplot(222)
+                self._draw_V()
 
-                    plt.subplot(223)
-                    self._draw_main_solution()
+                plt.subplot(223)
+                self._draw_main_solution()
 
-                    plt.subplot(224)
-                    self._draw_main_error()
+                plt.subplot(224)
+                self._draw_main_error()
 
-                    plt.suptitle(self.vis_title, fontsize=18)
+                plt.suptitle(self.vis_title, fontsize=18)
 
-                    plt.draw()
-                    plt.savefig("mg_%4.4d.png" % (self.frame))
-                    self.frame += 1
+                plt.draw()
+                plt.savefig("mg_%4.4d.png" % (self.frame))
+                self.frame += 1
 
 
-    def solve(self, rtol = 1.e-11, fortran=True):
+    def solve(self, rtol = 1.e-11, fortran=False):
         """
         The main driver for the multigrid solution of the Helmholtz
         equation.  This controls the V-cycles, smoothing at each
@@ -424,7 +425,7 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
                     print("  before G-S, residual L2: {}".format(fP.get_var("r").norm() ))
 
                 # smooth on the current level
-                self.smooth(level, self.nsmooth, fortran=fortran)
+                self.smooth(level, self.nsmooth)
 
                 # compute the residual
                 self._compute_residual(level)
@@ -439,10 +440,7 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
                 level -= 1
 
 
-            # solve the discrete coarse problem.  We could use any
-            # number of different matrix solvers here (like CG), but
-            # since we are 2x2 by design at this point, we will just
-            # smooth
+            # solve the discrete coarse problem.
             if self.verbose: print("  bottom solve:")
 
             self.current_level = 0
@@ -484,7 +482,7 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
                     print("  before G-S, residual L2: {}".format(fP.get_var("r").norm() ))
 
                 # smooth
-                self.smooth(level, self.nsmooth, fortran=fortran)
+                self.smooth(level, self.nsmooth)
 
                 if self.verbose:
                     self._compute_residual(level)
@@ -526,7 +524,7 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
 
             cycle += 1
 
-    def cG(self):
+    def cG(self, tol=1.e-10):
         """
         Implements conjugate gradient method for bottom solve.
 
@@ -548,30 +546,35 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
 
         rsold = np.inner(rfl, rfl)
 
-        eta_x = self.edge_coeffs[0].x.d
-        eta_y = self.edge_coeffs[0].y.d
+        eta_x = self.edge_coeffs[0].x
+        eta_y = self.edge_coeffs[0].y
 
+        xs = myg.scratch_array()
+        xs.d[:,:] = myg.x2d
+
+        rs = myg.scratch_array()
+        rs.d[:,:] = myg.r2d
+
+        bcs = ['outflow', 'outflow','outflow', 'outflow']
+
+        # note: this might be breaking as L eta phi operates on ghost
+        # cells of p, which are *not* updated according to BCs at each
+        # iteration
         def L_eta_phi(y):
             return (
                 (# eta_{i+1/2,j} (phi_{i+1,j} - phi_{i,j})
-                eta_x[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] *
-                (y[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
-                 y[myg.ilo  :myg.ihi+1,myg.jlo:myg.jhi+1]) -
+                eta_x.ip(1) * (y.ip(1) - y.v()) -
                 # eta_{i-1/2,j} (phi_{i,j} - phi_{i-1,j})
-                eta_x[myg.ilo  :myg.ihi+1,myg.jlo:myg.jhi+1] *
-                (y[myg.ilo  :myg.ihi+1,myg.jlo:myg.jhi+1] -
-                 y[myg.ilo-1:myg.ihi  ,myg.jlo:myg.jhi+1]) ) / (dx * myg.r2v * np.sin(myg.x2v)) +
+                eta_x.v() * (y.v() - y.ip(-1)) )
+                / (dx * rs.v() * np.sin(xs.v())) +
                 (# eta_{i,j+1/2} (phi_{i,j+1} - phi_{i,j})
-                eta_y[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] *
-                (y[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] -  # y-diff
-                 y[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1])-
+                eta_y.jp(1) * (y.jp(1) - y.v())-
                 # eta_{i,j-1/2} (phi_{i,j} - phi_{i,j-1})
-                eta_y[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1] *
-                (y[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1] -
-                 y[myg.ilo:myg.ihi+1,myg.jlo-1:myg.jhi  ])) / (dy * myg.r2v**2) )
+                eta_y.v() * (y.v() - y.jp(-1)))
+                / (dy * rs.v()**2) )
 
         for i in range(len(rfl)):
-            Ap = L_eta_phi(p.d).flatten()
+            Ap = L_eta_phi(p).flatten()
             #print('Ap: {}'.format(Ap))
             if rsold == 0.0:
                 a = 0.0
@@ -582,9 +585,12 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
             rfl -= a * Ap
             rsnew = np.inner(rfl, rfl)
             #print('rsold: {}'.format(rsnew))
-            if np.sqrt(rsnew) < 1.e-10:
+            if np.sqrt(rsnew) < tol:
                 break
             p.v()[:,:] = np.reshape(rfl + (rsnew / rsold) * p.v().flatten(), (myg.nx, myg.ny))
+
+            # FIXME: this bit screws things up
+            #bP.fill_BC_given_data(p.d, bcs)
             rsold = rsnew
 
         x = bP.get_var("v")

@@ -469,7 +469,7 @@ class ArrayIndexer(object):
 
 
 
-class Grid2d():
+class Grid2d(object):
     """
     the 2-d grid class.  The grid object will contain the coordinate
     information (at various centerings).
@@ -488,7 +488,7 @@ class Grid2d():
     """
 
     def __init__ (self, nx, ny, ng=1, \
-                  xmin=0.0, xmax=1.0, ymin=0.0, ymax=1.0, R=0.0):
+                  xmin=0.0, xmax=1.0, ymin=0.0, ymax=1.0):
         """
         Create a Grid2d object.
 
@@ -571,10 +571,6 @@ class Grid2d():
         self.y2d = y2d
         self.y2v = self.y2d[self.ilo:self.ihi+1, self.jlo:self.jhi+1]
 
-        self.R = R
-        self.r2d = self.y2d + self.R
-        self.r2v = self.r2d[self.ilo:self.ihi+1, self.jlo:self.jhi+1]
-
         self.metric = None
 
     def initialise_metric(self, rp, alpha, beta, gamma, cartesian=True):
@@ -613,7 +609,7 @@ class Grid2d():
         """
         g = Grid2d(self.nx/N, self.ny/N, ng=self.ng,
                       xmin=self.xmin, xmax=self.xmax,
-                      ymin=self.ymin, ymax=self.ymax, R=self.R)
+                      ymin=self.ymin, ymax=self.ymax)
 
         if self.metric is not None:
             g.initialise_metric(self.metric.rp, self.metric.alpha, self.metric.beta, self.metric.gamma, self.metric.cartesian)
@@ -628,7 +624,7 @@ class Grid2d():
         """
         g = Grid2d(self.nx*N, self.ny*N, ng=self.ng,
                       xmin=self.xmin, xmax=self.xmax,
-                      ymin=self.ymin, ymax=self.ymax, R=self.R)
+                      ymin=self.ymin, ymax=self.ymax)
 
         if self.metric is not None:
             g.initialise_metric(self.metric.rp, self.metric.alpha, self.metric.beta, self.metric.gamma, self.metric.cartesian)
@@ -651,7 +647,7 @@ class Grid2d():
         return result
 
 
-class CellCenterData2d():
+class CellCenterData2d(object):
     """
     A class to define cell-centered data that lives on a grid.  A
     CellCenterData2d object is built in a multi-step process before
@@ -1203,7 +1199,7 @@ class CellCenterData2d():
 
         cp.grid.metric.gamma = gamma
         cp.grid.metric.alpha = alpha
-        
+
         pickle.dump(cp, pF, pickle.HIGHEST_PROTOCOL)
         pF.close()
 

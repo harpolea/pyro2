@@ -1,8 +1,9 @@
 import mesh.patch as patch
+import mesh.patch_sph as patch_sph
 from util import profile
 import importlib
 
-def grid_setup(rp, ng=1, R=0.0):
+def grid_setup(rp, ng=1):
     nx = rp.get_param("mesh.nx")
     ny = rp.get_param("mesh.ny")
 
@@ -13,7 +14,7 @@ def grid_setup(rp, ng=1, R=0.0):
 
     my_grid = patch.Grid2d(nx, ny,
                            xmin=xmin, xmax=xmax,
-                           ymin=ymin, ymax=ymax, ng=ng, R=R)
+                           ymin=ymin, ymax=ymax, ng=ng)
     return my_grid
 
 

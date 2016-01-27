@@ -10,8 +10,9 @@ import math
 from lm_gr.problems import *
 import lm_gr.LM_gr_interface_sph_f as lm_interface_sph_f
 import mesh.reconstruction_f as reconstruction_f
+import mesh.patch_sph as patch_sph
 import mesh.patch as patch
-from simulation_null import NullSimulation, grid_setup, bc_setup
+from simulation_null import NullSimulation#, grid_setup, bc_setup
 from lm_gr.simulation import *
 from lm_gr.simulation_react import *
 import multigrid.variable_coeff_MG as vcMG
@@ -21,6 +22,46 @@ import mesh.metric as metric
 import colormaps as cmaps
 from functools import partial
 import importlib
+
+def grid_setup_sph(rp, ng=1, R=0.0):
+    nx = rp.get_param("mesh.nx")
+    ny = rp.get_param("mesh.ny")
+
+    xmin = rp.get_param("mesh.xmin")
+    xmax = rp.get_param("mesh.xmax")
+    ymin = rp.get_param("mesh.ymin")
+    ymax = rp.get_param("mesh.ymax")
+
+    my_grid = patch_sph.Grid2d_Sph(nx, ny,
+                           xmin=xmin, xmax=xmax,
+                           ymin=ymin, ymax=ymax, ng=ng, R=R)
+    return my_grid
+
+
+def bc_setup_sph(rp):
+
+    # first figure out the BCs
+    xlb_type = rp.get_param("mesh.xlboundary")
+    xrb_type = rp.get_param("mesh.xrboundary")
+    ylb_type = rp.get_param("mesh.ylboundary")
+    yrb_type = rp.get_param("mesh.yrboundary")
+
+    # CHANGED: density lower bc
+    bc = patch_sph.BCObject_Sph(xlb=xlb_type, xrb=xrb_type,
+                        #ylb="outflow", yrb=yrb_type)
+                        ylb=ylb_type, yrb=yrb_type)
+
+    # if we are reflecting, we need odd reflection in the normal
+    # directions for the velocity
+    bc_xodd = patch_sph.BCObject_Sph(xlb=xlb_type, xrb=xrb_type,
+                             ylb=ylb_type, yrb=yrb_type,
+                             odd_reflect_dir="x")
+
+    bc_yodd = patch_sph.BCObject_Sph(xlb=xlb_type, xrb=xrb_type,
+                             ylb=ylb_type, yrb=yrb_type,
+                             odd_reflect_dir="y")
+
+    return bc, bc_xodd, bc_yodd
 
 
 class SimulationSpherical(Simulation):
@@ -68,11 +109,11 @@ class SimulationSpherical(Simulation):
         if g < 1.e-5:
             print('Gravity is very low (', g, ') - make sure the speed of light is high enough to cope.')
 
-        myg = grid_setup(self.rp, ng=4, R=R)
+        myg = grid_setup_sph(self.rp, ng=4, R=R)
 
-        bc_dens, bc_xodd, bc_yodd = bc_setup(self.rp)
+        bc_dens, bc_xodd, bc_yodd = bc_setup_sph(self.rp)
 
-        my_data = patch.CellCenterData2d(myg)
+        my_data = patch_sph.CellCenterData2d_Sph(myg)
 
         my_data.register_var("density", bc_dens)
         my_data.register_var("enthalpy", bc_dens)
@@ -101,7 +142,7 @@ class SimulationSpherical(Simulation):
                 bctype = "neumann"
             bcs.append(bctype)
 
-        bc_phi = patch.BCObject(xlb=bcs[0], xrb=bcs[1], ylb=bcs[2], yrb=bcs[3])
+        bc_phi = patch_sph.BCObject_Sph(xlb=bcs[0], xrb=bcs[1], ylb=bcs[2], yrb=bcs[3])
 
         # CHANGED: tried setting phi BCs to same as density?
         #my_data.register_var("phi-MAC", bc_phi)
@@ -123,7 +164,7 @@ class SimulationSpherical(Simulation):
 
         # some auxillary data that we'll need to fill GC in, but isn't
         # really part of the main solution
-        aux_data = patch.CellCenterData2d(myg)
+        aux_data = patch_sph.CellCenterData2d_Sph(myg)
 
         # we'll keep the internal energy around just as a diagnostic
         aux_data.register_var("eint", bc_dens)
@@ -1621,7 +1662,8 @@ class SimulationSpherical(Simulation):
             f = fields[n]
             cmap = colourmaps[n]
 
-            img = ax.imshow(np.transpose(f.v()),
+            #img = ax.imshow(np.transpose(f.v()),
+            img = ax.imshow(np.transpose(f.d),
                             interpolation="nearest", origin="lower",
                             extent=[myg.xmin, myg.xmax, 10.*myg.ymin,  10.*myg.ymax],
                             vmin=vmins[n], vmax=vmaxes[n], cmap=cmap)

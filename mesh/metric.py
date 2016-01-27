@@ -16,7 +16,7 @@ import traceback
 from inspect import isfunction
 from functools import partial
 
-class Metric:
+class Metric(object):
 
     def __init__(self, grid, rp, alpha, beta, gamma, cartesian=True):
         """
