@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+"""
+TODO: add a --test flag so that can run programs whose initial data files are in the test subdirectory of the problem, rather than the problems directory.
+"""
 
 from __future__ import print_function
 

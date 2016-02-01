@@ -27,14 +27,14 @@ class EdgeCoeffsSpherical(EdgeCoeffs):
             b = (0,1)
 
             eta_x.v(buf=b)[:,:] = 0.5 * (
-                eta.ip(-1, buf=b) * self.alphasq.ip(-1, buf=b) / g.r2d[:-1,g.jlo:g.jhi+2]**2 +
-                eta.v(buf=b) * self.alphasq.v(buf=b) / g.r2d[1:,g.jlo:g.jhi+2]**2)
+                eta.ip(-1, buf=b) * self.alphasq.ip(-1, buf=b) * np.sin(g.x2d[:-1,g.jlo:g.jhi+2])/ g.r2d[:-1,g.jlo:g.jhi+2]**3 +
+                eta.v(buf=b) * self.alphasq.v(buf=b) * np.sin(g.x2d[1:,g.jlo:g.jhi+2])/ g.r2d[1:,g.jlo:g.jhi+2]**3)
             eta_y.v(buf=b)[:,:] = 0.5 * (
-                eta.jp(-1, buf=b) * self.alphasq.jp(-1, buf=b) +
-                eta.v(buf=b) * self.alphasq.v(buf=b))
+                eta.jp(-1, buf=b) * self.alphasq.jp(-1, buf=b) * g.r2d[g.ilo:g.ihi+2,:-1]**2 +
+                eta.v(buf=b) * self.alphasq.v(buf=b) * g.r2d[g.ilo:g.ihi+2,1:]**2)
 
-            eta_x *= np.sin(g.x2d - 0.5*g.dx) / (g.dx * g.r2d)
-            eta_y *= (g.r2d - 0.5*g.dy)**2 / g.dy
+            eta_x /= g.dx
+            eta_y /= g.dy
 
             self.x = eta_x
             self.y = eta_y
@@ -46,44 +46,50 @@ class EdgeCoeffsSpherical(EdgeCoeffs):
         EdgeCoeffs object
         """
 
+        fg = self.grid
         cg = self.grid.coarse_like(2)
-        cgalphasq = cg.scratch_array()
-        if isinstance(cg.metric.alpha, partial):
-            cgalphasq.d[:,:] = cg.metric.alpha(cg).d2d()**2
+
+        alphasq = fg.scratch_array()
+        if isinstance(fg.metric.alpha, partial):
+            alphasq.d[:,:] = fg.metric.alpha(fg).d2d()**2
         else:
-            cgalphasq.d[:,:] = cg.metric.alpha.v2df(cg.qx, buf=1)**2
-        #cgalphasq.d[:,:] = cg.metric.alpha(cg).d2d()**2
+            alphasq.d[:,:] = fg.metric.alpha.v2df(fg.qx, buf=1)**2
+        alphasq.d[:,:] = fg.metric.alpha(fg).d2d()**2
 
         c_edge_coeffs = EdgeCoeffsSpherical(cg, None, empty=True)
 
         c_eta_x = cg.scratch_array()
         c_eta_y = cg.scratch_array()
 
-        fg = self.grid
+
 
         b = (0, 1, 0, 0)
-        c_eta_x.v(buf=b)[:,:] = 0.5*(self.x.v(buf=b, s=2) + self.x.jp(1, buf=b, s=2))
+        #c_eta_x.v(buf=b)[:,:] = 0.5*(self.x.v(buf=b, s=2) + self.x.jp(1, buf=b, s=2))
 
-        # coarsen r and x
-        c_r_x = cg.scratch_array()
-        c_x_x = cg.scratch_array()
-        c_r_x.d[:-1,:-1] = 0.5 * (fg.r2d[::2,::2] + fg.r2d[1::2,::2])
-        c_x_x.d[:-1,:-1] = 0.5 * (fg.x2d[::2,::2] + fg.x2d[1::2,::2])
+        c_eta_x.v(buf=b)[:,:] = 0.5 * (
+            self.x.v(buf=b, s=2) * self.alphasq.v(buf=b, s=2) *
+            np.sin(fg.x2d[fg.ilo:fg.ihi+2:2,fg.jlo:fg.jhi+1:2]) /
+            fg.r2d[fg.ilo:fg.ihi+2:2,fg.jlo:fg.jhi+1:2]**3 +
+            self.x.jp(1, buf=b, s=2) * self.alphasq.jp(1, buf=b, s=2) *
+            np.sin(fg.x2d[fg.ilo:fg.ihi+2:2,fg.jlo+1:fg.jhi+2:2]) /
+            fg.r2d[fg.ilo:fg.ihi+2:2,fg.jlo+1:fg.jhi+2:2]**3)
+
 
         b = (0, 0, 0, 1)
-        c_eta_y.v(buf=b)[:,:] = 0.5*(self.y.v(buf=b, s=2) + self.y.ip(1, buf=b, s=2))
+        #c_eta_y.v(buf=b)[:,:] = 0.5*(self.y.v(buf=b, s=2) + self.y.ip(1, buf=b, s=2))
 
-        # coarsen r
-        c_r_y = cg.scratch_array()
-        c_r_y.d[:-1,:-1] = 0.5 * (fg.r2d[::2,::2] + fg.r2d[::2,1::2])
+        c_eta_y.v(buf=b)[:,:] = 0.5 * (
+            self.y.v(buf=b, s=2) * self.alphasq.v(buf=b, s=2) *
+            fg.r2d[fg.ilo:fg.ihi+1:2,fg.jlo:fg.ihi+2:2]**2 +
+            self.y.ip(1, buf=b, s=2) * self.alphasq.ip(1, buf=b, s=2) *
+            fg.r2d[fg.ilo+1:fg.ihi+2:2,fg.jlo:fg.ihi+2:2]**2)
 
         # redo the normalization
-        mask = (c_x_x.d > 0.)
+        # I don't think you need to include the r, sin(x) factors
+        # as these are basically the same on the new grid?
         c_edge_coeffs.x = cg.scratch_array()
-        c_edge_coeffs.x.d[mask] = c_eta_x.d[mask] * fg.dx * c_r_y.d[mask]**3 * np.sin(cg.x2d[mask] - 0.5*cg.dx) / (cg.dx * cg.r2d[mask]**3 * np.sin(c_x_x.d[mask] - 0.5*fg.dx))
+        c_edge_coeffs.x.d[:,:] = c_eta_x.d * fg.dx  / cg.dx
 
-        mask = (c_x_x.d > 0.)
         c_edge_coeffs.y = cg.scratch_array()
-        c_edge_coeffs.y.d[mask] = c_eta_y.d[mask] * fg.dy * (cg.r2d[mask] - 0.5*cg.dy)**2 /(cg.dy * (c_r_y.d[mask] - 0.5*fg.dy)**2)
-
+        c_edge_coeffs.y.d[:,:] = c_eta_y.d * fg.dy /cg.dy
         return c_edge_coeffs

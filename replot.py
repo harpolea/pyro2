@@ -163,6 +163,9 @@ if __name__== "__main__":
             vmaxes = [105., 0.0003, 0.0003, 0.05]
             #vmins = [5., 0., 1.7, -0.05]
             #vmaxes = [18., 0.45, 2.6, 1.05]
+        elif problem == "ns":
+            vmins = [1.e5, 0., None, -1.6e-5]
+            vmaxes = [1.015e5, 1., None, 1.6e-5]
         else:
             vmins = [None, None, None, None]
             vmaxes = [None, None, None, None]

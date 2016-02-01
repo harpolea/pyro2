@@ -208,6 +208,9 @@ class SimulationSpherical(Simulation):
         def alpha(g, R, c, grid):
             a = Basestate(grid.ny, ng=grid.ng)
             a.d[:] = np.sqrt(1. - 2. * g * (1. - grid.y[:]/R) / (R * c**2))
+            # do bcs. These shall just be outflow here.
+            #a.d[:grid.ng] = a.d[grid.ng]
+            #a.d[-grid.ng:] = a.d[-grid.ng-1]
             return a
         #alpha.d[:] = np.sqrt(1. - 2. * g * (1. - myg.y[:]/R) / (R * c**2))
 
@@ -380,7 +383,8 @@ class SimulationSpherical(Simulation):
             grr * chrls[:,:,2,2,1] * v.d**2 +
             (grr * chrls[:,:,2,1,1] +
              gxx * chrls[:,:,1,2,1]) * u.d * v.d) / gxx
-        mom_source_r.d[:,:] = (gtt * chrls[:,:,0,0,2] +
+        # NOTE: this is the term which is screwing this part up.
+        mom_source_r.d[:,:] = -(gtt * chrls[:,:,0,0,2] +
             (gxx * chrls[:,:,1,0,2] +
              gtt * chrls[:,:,0,1,2]) * u.d +
             (grr * chrls[:,:,2,0,2] +
@@ -394,11 +398,13 @@ class SimulationSpherical(Simulation):
         mask = (abs(drp0.d2df(myg.qx)) > 1.e-15)
         # divide by metric component as want to have an upstairs r
         # component (and metric is diagonal)
-        mom_source_r.d[mask] -=  drp0.d2df(myg.qx)[mask] / \
-            (Dh.d[mask] * u0.d[mask] * grr[mask])
+        #mom_source_r.d[mask] -= drp0.d2df(myg.qx)[mask] / \
+            #(Dh.d[mask] * u0.d[mask] * grr[mask])
+        mom_source_r.d[:,:] -= drp0.d2df(myg.qx) / \
+            (Dh.d * u0.d * grr)
 
         # FIXME: zero'd for testing
-        mom_source_r.d[:,:] = 0.
+        #mom_source_r.d[:,:] = 0.
 
         # FIXME: what were these two lines doing????
         #mom_source_x.d[:,:] *=  alpha.d2d()**2
@@ -449,7 +455,7 @@ class SimulationSpherical(Simulation):
         drp0 = Basestate(myg.ny, ng=myg.ng)
 
         if not g == 0.:
-            print('hi')
+            #print('hi')
             drp0.d[:] = - g * (Dh0.d / u01d.d + 8. * g * p0.d/ c**2) / (R * c**2 * alpha.d2d()**2)
 
         return drp0
@@ -1665,7 +1671,7 @@ class SimulationSpherical(Simulation):
             #img = ax.imshow(np.transpose(f.v()),
             img = ax.imshow(np.transpose(f.d),
                             interpolation="nearest", origin="lower",
-                            extent=[myg.xmin, myg.xmax, 10.*myg.ymin,  10.*myg.ymax],
+                            extent=[(myg.xmin-myg.ng*myg.dx)*myg.R, (myg.xmax+myg.ng*myg.dx)*myg.R, (myg.ymin-myg.ng*myg.dy),  (myg.ymax+myg.ng*myg.dy)],
                             vmin=vmins[n], vmax=vmaxes[n], cmap=cmap)
 
             ax.set_xlabel(r"$x$")

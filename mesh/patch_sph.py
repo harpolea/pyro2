@@ -1,8 +1,6 @@
 from __future__ import print_function
 
 import numpy as np
-from util import msg
-import copy
 import mesh.metric as metric
 import mesh.patch as patch
 
@@ -93,7 +91,7 @@ class Grid2d_Sph(patch.Grid2d):
         domain's valid region
         """
         return np.sqrt(self.dx*self.dy*
-                       np.sum((d[self.ilo:self.ihi+1,self.jlo:self.jhi+1]**2).flat))
+                       np.sum((d[self.ilo:self.ihi+1,self.jlo:self.jhi+1]**2 * self.r2v).flat))
 
 
     def coarse_like(self, N):
@@ -279,71 +277,44 @@ class CellCenterData2d_Sph(patch.CellCenterData2d):
 
         # -x boundary
         if bcs[0] in ["outflow", "neumann"]:
-
             data[:self.grid.ilo,:] =  data[self.grid.ilo,np.newaxis,:]
 
         elif bcs[0] == "reflect-even":
-
-            #for i in range(self.grid.ilo):
-            #    data[i,:] = data[2*self.grid.ng-i-1,:]
             data[:self.grid.ilo,:] = data[2*self.grid.ng-1:2*self.grid.ng-self.grid.ilo-1:-1,:]
 
         elif bcs[0] in ["reflect-odd", "dirichlet"]:
-
             data[:self.grid.ilo,:] = -data[2*self.grid.ng-1:2*self.grid.ng-self.grid.ilo-1:-1,:]
 
         elif bcs[0] == "periodic":
-
-            #for i in range(self.grid.ilo):
-            #    data[i,:] = data[self.grid.ihi-self.grid.ng+i+1,:]
             data[ :self.grid.ilo,:] = data[self.grid.ihi-self.grid.ng+1:self.grid.ihi+1,:]
 
 
         # +x boundary
         if bcs[1] in ["outflow", "neumann"]:
-
             data[self.grid.ihi+1:,:] = data[self.grid.ihi,np.newaxis,:]
 
         elif bcs[1] == "reflect-even":
-
-            #for i in range(self.grid.ng):
-            #    i_bnd = self.grid.ihi+1+i
-            #    i_src = self.grid.ihi-i
-
-            #    data[i_bnd,:] = data[i_src,:]
             data[self.grid.ihi+1:,:] = data[self.grid.ihi:self.grid.ihi-self.grid.ng:-1,:]
 
         elif bcs[1] in ["reflect-odd", "dirichlet"]:
-
             data[self.grid.ihi+1:,:] = -data[self.grid.ihi:self.grid.ihi-self.grid.ng:-1,:]
 
         elif bcs[1] == "periodic":
-
-            #for i in range(self.grid.ihi+1, 2*self.grid.ng + self.grid.nx):
-            #    data[i,:] = data[i-self.grid.ihi-1+self.grid.ng,:]
             data[self.grid.ihi+1:,:] = data[self.grid.ng:2*self.grid.ng,:]
 
 
         # -y boundary
         if bcs[2] in ["outflow", "neumann"]:
-
             data[:,:self.grid.jlo] = data[:,self.grid.jlo,np.newaxis]
 
 
         elif bcs[2] == "reflect-even":
-
-            #for j in range(self.grid.jlo):
-            #    data[:,j] = data[:,2*self.grid.ng-j-1]
             data[:,:self.grid.jlo] = data[:,2*self.grid.ng-1:2*self.grid.ng-self.grid.jlo-1:-1]
 
         elif bcs[2] in ["reflect-odd", "dirichlet"]:
-
             data[:,:self.grid.jlo] = -data[:,2*self.grid.ng-1:2*self.grid.ng-self.grid.jlo-1:-1]
 
         elif bcs[2] == "periodic":
-
-            #for j in range(self.grid.jlo):
-            #    data[:,j] = data[:,self.grid.jhi-self.grid.ng+j+1]
             data[:,:self.grid.jlo] = data[:,self.grid.jhi-self.grid.ng+1:self.grid.jhi+1]
 
         # +y boundary
@@ -352,20 +323,10 @@ class CellCenterData2d_Sph(patch.CellCenterData2d):
             data[:,self.grid.jhi+1:] = data[:,self.grid.jhi,np.newaxis]
 
         elif bcs[3] == "reflect-even":
-
-            #for j in range(self.grid.ng):
-            #    j_bnd = self.grid.jhi+1+j
-            #    j_src = self.grid.jhi-j
-
-            #    data[:,j_bnd] = data[:,j_src]
             data[:,self.grid.jhi+1:] = data[:,self.grid.jhi-self.grid.ng+1:self.grid.jhi+1]
 
         elif bcs[3] in ["reflect-odd", "dirichlet"]:
-
             data[:,self.grid.jhi+1:] = -data[:,self.grid.jhi-self.grid.ng+1:self.grid.jhi+1]
 
         elif bcs[3] == "periodic":
-
-            #for j in range(self.grid.jhi+1, 2*self.grid.ng + self.grid.ny):
-            #    data[:,j] = data[:,j-self.grid.jhi-1+self.grid.ng]
             data[:,self.grid.jhi+1:] = data[:,:self.grid.jlo+1]

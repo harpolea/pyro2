@@ -441,7 +441,8 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
 
 
             # solve the discrete coarse problem.
-            if self.verbose: print("  bottom solve:")
+            if self.verbose:
+                print("  bottom solve:")
 
             self.current_level = 0
             bP = self.grids[0]
@@ -495,10 +496,11 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
             # determine convergence
             solnP = self.grids[self.nlevels-1]
 
-            diff = (solnP.get_var("v").v() - old_solution.v())/ \
+            diff = solnP.grid.scratch_array()
+            diff.v()[:,:] = (solnP.get_var("v").v() - old_solution.v())/ \
                 (solnP.get_var("v").v() + self.small)
 
-            relative_error = solnP.grid.norm(diff)
+            relative_error = solnP.grid.norm(diff.d)
 
             old_solution = solnP.get_var("v").copy()
 
@@ -546,8 +548,8 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
 
         rsold = np.inner(rfl, rfl)
 
-        eta_x = self.edge_coeffs[0].x
-        eta_y = self.edge_coeffs[0].y
+        eta_x = self.edge_coeffs[0].x.d
+        eta_y = self.edge_coeffs[0].y.d
 
         xs = myg.scratch_array()
         xs.d[:,:] = myg.x2d
@@ -562,19 +564,26 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
         # iteration
         def L_eta_phi(y):
             return (
-                (# eta_{i+1/2,j} (phi_{i+1,j} - phi_{i,j})
-                eta_x.ip(1) * (y.ip(1) - y.v()) -
-                # eta_{i-1/2,j} (phi_{i,j} - phi_{i-1,j})
-                eta_x.v() * (y.v() - y.ip(-1)) )
-                / (dx * rs.v() * np.sin(xs.v())) +
-                (# eta_{i,j+1/2} (phi_{i,j+1} - phi_{i,j})
-                eta_y.jp(1) * (y.jp(1) - y.v())-
-                # eta_{i,j-1/2} (phi_{i,j} - phi_{i,j-1})
-                eta_y.v() * (y.v() - y.jp(-1)))
-                / (dy * rs.v()**2) )
+            (# eta_{i+1/2,j} (phi_{i+1,j} - phi_{i,j})
+            eta_x[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] *
+            (y[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] -
+             y[myg.ilo  :myg.ihi+1,myg.jlo:myg.jhi+1]) -
+            # eta_{i-1/2,j} (phi_{i,j} - phi_{i-1,j})
+            eta_x[myg.ilo  :myg.ihi+1,myg.jlo:myg.jhi+1] *
+            (y[myg.ilo  :myg.ihi+1,myg.jlo:myg.jhi+1] -
+             y[myg.ilo-1:myg.ihi  ,myg.jlo:myg.jhi+1]) ) / (dx * myg.r2v * np.sin(myg.x2v)) +
+            (# eta_{i,j+1/2} (phi_{i,j+1} - phi_{i,j})
+            eta_y[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] *
+            (y[myg.ilo:myg.ihi+1,myg.jlo+1:myg.jhi+2] -  # y-diff
+             y[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1])-
+            # eta_{i,j-1/2} (phi_{i,j} - phi_{i,j-1})
+            eta_y[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1] *
+            (y[myg.ilo:myg.ihi+1,myg.jlo  :myg.jhi+1] -
+             y[myg.ilo:myg.ihi+1,myg.jlo-1:myg.jhi  ])) / (dy * myg.r2v**2) )
+
 
         for i in range(len(rfl)):
-            Ap = L_eta_phi(p).flatten()
+            Ap = L_eta_phi(p.d).flatten()
             #print('Ap: {}'.format(Ap))
             if rsold == 0.0:
                 a = 0.0
@@ -590,7 +599,7 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
             p.v()[:,:] = np.reshape(rfl + (rsnew / rsold) * p.v().flatten(), (myg.nx, myg.ny))
 
             # FIXME: this bit screws things up
-            #bP.fill_BC_given_data(p.d, bcs)
+            #bP.fill_BC_given_data(xfl, bcs)
             rsold = rsnew
 
         x = bP.get_var("v")

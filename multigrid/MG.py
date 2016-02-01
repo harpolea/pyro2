@@ -678,7 +678,6 @@ class CellCenterMG2d(object):
                 # smooth on the current level
                 self.smooth(level, self.nsmooth, fortran=fortran)
 
-
                 # compute the residual
                 self._compute_residual(level)
 
