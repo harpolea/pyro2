@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-TODO: add a --test flag so that can run programs whose initial data files are in the test subdirectory of the problem, rather than the problems directory.
+CHANGED: added a --test_problem flag so can run programs whose initial data files are in the test subdirectory of the problem, rather than the problems directory.
 """
 
 from __future__ import print_function
@@ -18,7 +18,7 @@ from util import msg, profile, runparams
 
 def doit(solver_name, problem_name, param_file,
          other_commands=None,
-         comp_bench=False, make_bench=False):
+         comp_bench=False, make_bench=False, test_problem=False):
 
     msg.bold('pyro ...')
 
@@ -40,12 +40,18 @@ def doit(solver_name, problem_name, param_file,
     rp.load_params(solver_name + "/_defaults")
 
     # problem-specific runtime parameters
-    rp.load_params(solver_name + "/problems/_" + problem_name + ".defaults")
+    if not test_problem:
+        rp.load_params(solver_name + "/problems/_" + problem_name + ".defaults")
+    else:
+        rp.load_params(solver_name + "/tests/_" + problem_name + ".defaults")
 
     # now read in the inputs file
     if not os.path.isfile(param_file):
         # check if the param file lives in the solver's problems directory
-        param_file = solver_name + "/problems/" + param_file
+        if not test_problem:
+            param_file = solver_name + "/problems/" + param_file
+        else:
+            param_file = solver_name + "/tests/" + param_file
         if not os.path.isfile(param_file):
             msg.fail("ERROR: inputs file does not exist")
 
@@ -213,8 +219,8 @@ def doit(solver_name, problem_name, param_file,
         try:
             bench_grid, bench_data = patch.read(compare_file)
         except:
-            msg.warning("ERROR openning compare file")
-            return "ERROR openning compare file"
+            msg.warning("ERROR opening compare file")
+            return "ERROR opening compare file"
 
 
         result = compare.compare(sim.cc_data.grid, sim.cc_data, bench_grid, bench_data)
@@ -265,6 +271,9 @@ if __name__ == "__main__":
     p.add_argument("--compare_benchmark",
                    help="compare the end result to the stored benchmark",
                    action="store_true")
+    p.add_argument("--test_problem",
+                   help="run a test problem",
+                   action="store_true")
 
     p.add_argument("solver", metavar="solver-name", type=str, nargs=1,
                    help="name of the solver to use")
@@ -278,8 +287,8 @@ if __name__ == "__main__":
 
     args = p.parse_args()
 
-
     doit(args.solver[0], args.problem[0], args.param[0],
          other_commands=args.other,
          comp_bench=args.compare_benchmark,
-         make_bench=args.make_benchmark)
+         make_bench=args.make_benchmark,
+         test=args.test_problem)

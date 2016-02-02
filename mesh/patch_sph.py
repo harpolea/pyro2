@@ -329,4 +329,23 @@ class CellCenterData2d_Sph(patch.CellCenterData2d):
             data[:,self.grid.jhi+1:] = -data[:,self.grid.jhi-self.grid.ng+1:self.grid.jhi+1]
 
         elif bcs[3] == "periodic":
-            data[:,self.grid.jhi+1:] = data[:,:self.grid.jlo+1]
+            data[:,self.grid.jhi+1:] = data[:,:self.grid.jlo]
+
+    def write(self, filename):
+        """
+        write out the CellCenterData2d object to disk, stored in the
+        file filename.  We use a python binary format (via pickle).
+        This stores a representation of the entire object.
+        """
+        pF = open(filename + ".pyro", "wb")
+
+        # I think it refuses to pickle because the metric contains functions for some of its variables :(
+        cp = copy.deepcopy(self)
+        gamma = cp.grid.metric.gamma(cp.grid)
+        alpha = cp.grid.metric.alpha(cp.grid)
+
+        cp.grid.metric.gamma = gamma
+        cp.grid.metric.alpha = alpha
+
+        pickle.dump(cp, pF, pickle.HIGHEST_PROTOCOL)
+        pF.close()

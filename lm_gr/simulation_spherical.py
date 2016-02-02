@@ -8,6 +8,7 @@ import pdb
 import math
 
 from lm_gr.problems import *
+#from lm_gr.tests import *
 import lm_gr.LM_gr_interface_sph_f as lm_interface_sph_f
 import mesh.reconstruction_f as reconstruction_f
 import mesh.patch_sph as patch_sph
@@ -66,7 +67,7 @@ def bc_setup_sph(rp):
 
 class SimulationSpherical(Simulation):
 
-    def __init__(self, solver_name, problem_name, rp, timers=None, fortran=True):
+    def __init__(self, solver_name, problem_name, rp, timers=None, fortran=True, testing=False):
         """
         Initialize the SimulationSpherical object
 
@@ -87,7 +88,7 @@ class SimulationSpherical(Simulation):
             python one.
         """
 
-        super(SimulationSpherical, self).__init__(solver_name, problem_name, rp, timers=timers, fortran=fortran)
+        super(SimulationSpherical, self).__init__(solver_name, problem_name, rp, timers=timers, fortran=fortran, testing=testing)
 
         self.r2d = []
         self.r2v = []
@@ -238,7 +239,12 @@ class SimulationSpherical(Simulation):
 
         # now set the initial conditions for the problem
         #exec(self.problem_name + '.init_data(self.cc_data, self.aux_data, self.base, self.rp, myg.metric)')
-        getattr(importlib.import_module(self.solver_name + '.problems.' + self.problem_name), 'init_data' )(self.cc_data, self.aux_data, self.base, self.rp, myg.metric)
+        if self.testing:
+            #importlib.import_module(self.solver_name + '.tests.' + self.problem_name)
+
+            getattr(importlib.import_module(self.solver_name + '.tests.' + self.problem_name), 'init_data' )(self.cc_data, self.aux_data, self.base, self.rp, myg.metric)
+        else:
+            getattr(importlib.import_module(self.solver_name + '.problems.' + self.problem_name), 'init_data' )(self.cc_data, self.aux_data, self.base, self.rp, myg.metric)
 
         # Construct zeta
         gamma = self.rp.get_param("eos.gamma")

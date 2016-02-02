@@ -48,11 +48,7 @@ def init_data(my_data, rp):
     h[:,:] = 1. + p * gamma / (rho * (gamma - 1.))
     X[:,:] = 1.0
 
-    for i in range(myg.qx):
-        for j in range(myg.qy):
-            Qp = (rho[i,j], u[i,j], v[i,j], h[i,j], p[i,j], X[i,j])
-            Qc = prim_to_cons(Qp, c, gamma)
-            (D.d[i,j], Sx.d[i,j], Sy.d[i,j], tau.d[i,j], DX.d[i,j]) = Qc
+    (D.d[:,:], Sx.d[:,:], Sy.d[:,:], tau.d[:,:], DX.d[:,:]) = prim_to_cons((rho, u, v, h, p, X), c, gamma)
 
 
 

@@ -21,7 +21,7 @@ import colormaps as cmaps
 
 class SimulationReact(Simulation):
 
-    def __init__(self, solver_name, problem_name, rp, timers=None, fortran=True):
+    def __init__(self, solver_name, problem_name, rp, timers=None, fortran=True, testing=False):
         """
         Initialize the SimulationReact object
 
@@ -42,7 +42,7 @@ class SimulationReact(Simulation):
             python one.
         """
 
-        Simulation.__init__(self, solver_name, problem_name, rp, timers=timers, fortran=fortran)
+        Simulation.__init__(self, solver_name, problem_name, rp, timers=timers, fortran=fortran, testing=testing)
 
     def compute_S(self, u=None, v=None, u0=None, p0=None, Q=None, D=None):
         r"""

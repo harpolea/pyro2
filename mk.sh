@@ -18,6 +18,7 @@ if [ "$1" == "clean" ]; then
     rm -rf compressible/*.so
     rm -rf compressible_gr/*.so
     rm -rf lm_atm/*.so
+    rm -rf lm_combustion/*.so
     rm -rf lm_gr/*.so
     find . -name "*.pyc" -exec rm -f {} \;
 
@@ -28,7 +29,7 @@ else
 	FFLAGS="-C"
     fi
 
-    for d in mesh multigrid incompressible compressible compressible_gr lm_atm lm_gr
+    for d in mesh multigrid incompressible compressible compressible_gr lm_atm lm_gr lm_combustion
     do
 	cd ${d}
 	${PYTHON} setup.py config_fc --f90flags "${FFLAGS}" build_ext --inplace

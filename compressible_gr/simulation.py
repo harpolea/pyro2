@@ -2,15 +2,18 @@ from __future__ import print_function
 
 import numpy as np
 import matplotlib.pyplot as plt
+import sys
 
 import compressible_gr.BC as BC
 from compressible_gr.problems import *
+#from compressible_gr.tests import test_BC, test_eos, test_simulation
 import compressible_gr.eos as eos
 import mesh.patch as patch
 from simulation_null import NullSimulation, grid_setup, bc_setup
 from compressible_gr.unsplitFluxes import *
 from util import profile
 import compressible_gr.cons_to_prim as cy
+import importlib
 
 
 class Variables(object):
@@ -40,7 +43,7 @@ class Variables(object):
 
 class Simulation(NullSimulation):
 
-    def __init__(self, solver_name, problem_name, rp, timers=None):
+    def __init__(self, solver_name, problem_name, rp, timers=None, testing=False):
         """
         Initialize the Simulation object
 
@@ -58,7 +61,7 @@ class Simulation(NullSimulation):
             The timers used for profiling this simulation
         """
 
-        NullSimulation.__init__(self, solver_name, problem_name, rp, timers=timers)
+        NullSimulation.__init__(self, solver_name, problem_name, rp, timers=timers, testing=testing)
 
         self.vars = Variables()
 
@@ -103,8 +106,12 @@ class Simulation(NullSimulation):
 
 
         # initial conditions for the problem
-        exec(self.problem_name + '.init_data(self.cc_data, self.rp)')
-        getattr(importlib.import_module(self.solver_name + '.problems.' + self.problem_name), 'init_data' )(self.cc_data, self.rp)
+        #exec(self.problem_name + '.init_data(self.cc_data, self.rp)')
+
+        if self.testing:
+            getattr(importlib.import_module(self.solver_name + '.tests.' + self.problem_name), 'init_data' )(self.cc_data, self.rp)
+        else:
+            getattr(importlib.import_module(self.solver_name + '.problems.' + self.problem_name), 'init_data' )(self.cc_data, self.rp)
 
         self.cc_data.fill_BC_all()
 

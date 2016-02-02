@@ -3,7 +3,7 @@ Test the equation of state.
 """
 
 import numpy as np
-import eos
+import compressible_gr.eos as eos
 from numpy.testing import assert_allclose
 
 def test_pres():
@@ -24,4 +24,4 @@ def test_rhoe():
     gamma = 5./3.
 
     assert_allclose(0., eos.rhoe(gamma, 0.))
-    assert_allclose(1.5, eos.rhos(gamma, 1.))
+    assert_allclose(1.5, eos.rhoe(gamma, 1.))

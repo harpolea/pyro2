@@ -173,7 +173,7 @@ class Basestate(object):
 
 class Simulation(NullSimulation):
 
-    def __init__(self, solver_name, problem_name, rp, timers=None, fortran=True):
+    def __init__(self, solver_name, problem_name, rp, timers=None, fortran=True, testing=False):
         """
         Initialize the Simulation object
 
@@ -194,7 +194,7 @@ class Simulation(NullSimulation):
             python one.
         """
 
-        NullSimulation.__init__(self, solver_name, problem_name, rp, timers=timers)
+        NullSimulation.__init__(self, solver_name, problem_name, rp, timers=timers, testing=testing)
 
         self.base = {}
         self.aux_data = None

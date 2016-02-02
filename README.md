@@ -31,11 +31,11 @@ http://bender.astro.sunysb.edu/hydro_by_example/
        `dnf install numpy numpy-f2py python-matplotlib python-matplotlib-tk`
 
     (note, for older Fedora releases, replace `dnf` with `yum`)
-	
-  - You also need to make sure gfortran is present on you system. On
-     a Fedora system, it can be installed as: 
 
-       `dnf install gcc-gfortran` 
+  - You also need to make sure gfortran is present on you system. On
+     a Fedora system, it can be installed as:
+
+       `dnf install gcc-gfortran`
 
   - Not all matplotlib backends allow for the interactive plotting as
      pyro is run. One that does is the TkAgg backend. This can be made
@@ -44,30 +44,30 @@ http://bender.astro.sunysb.edu/hydro_by_example/
 
        `backend: TkAgg`
 
-     You can check what backend is your current default in python via: 
+     You can check what backend is your current default in python via:
 
        ```python
-       import matplotlib.pyplot 
-       print matplotlib.pyplot.get_backend() 
+       import matplotlib.pyplot
+       print matplotlib.pyplot.get_backend()
        ```
-	   
+
   - If you want to run the unit tests, you need to have `nose` installed.
-  
-  - The remaining steps are: 
+
+  - The remaining steps are:
 
       * Set the `PYTHONPATH` environment variable to point to the `pyro2/`
         directory.
 
       * Define the environment variable `PYRO_HOME` to point to the
         `pyro2/` directory (only needed to regression testing)
-	  
-      * Build the Fortran source. In `pyro2/` type 
 
-          `./mk.sh` 
+      * Build the Fortran source. In `pyro2/` type
 
-      * Run a quick test of the advection solver: 
+          `./mk.sh`
 
-          `./pyro.py advection smooth inputs.smooth` 
+      * Run a quick test of the advection solver:
+
+          `./pyro.py advection smooth inputs.smooth`
 
         you should see a graphing window pop up with a smooth pulse
         advecting diagonally through the periodic domain.
@@ -84,6 +84,9 @@ pyro provides the following solvers (all in 2-d):
     equations of compressible hydrodynamics.  This uses a 2-shock
     approximate Riemann solver.
 
+    `compressible_gr`: special relativistic version of the above which
+    also includes reactions
+
   - `incompressible`: a second-order cell-centered approximate
     projection method for the incompressible equations of
     hydrodynamics.
@@ -93,6 +96,9 @@ pyro provides the following solvers (all in 2-d):
 
   - `lm_atm`: a solver for the equations of low Mach number
     hydrodynamics for atmospheric flows.
+
+  - `lm_gr`: general relativistic version of the above which also
+    includes reactions.
 
   - `lm_combustion`: (in development) a solver for the equations of
     low Mach number hydrodynamics for smallscale combustion.
@@ -183,7 +189,7 @@ with their data.
 
   It will also invoke the python `nose` module to run the unit tests
   for the different modules in pyro.
-  
+
   Tests are run nightly and reported here:
 
   http://bender.astro.sunysb.edu/hydro_by_example/download/_stage/pyro2/tests.out

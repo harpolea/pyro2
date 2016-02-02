@@ -1073,7 +1073,7 @@ class CellCenterData2d(object):
 
             #for j in range(self.grid.jhi+1, 2*self.grid.ng + self.grid.ny):
             #    self.data[n,:,j] = self.data[n,:,j-self.grid.jhi-1+self.grid.ng]
-            self.data[n,:,self.grid.jhi+1:] = self.data[n,:,:self.grid.jlo+1]
+            self.data[n,:,self.grid.jhi+1:] = self.data[n,:,:self.grid.jlo]
 
         else:
             if self.BCs[name].yrb in extBCs.keys():
@@ -1192,15 +1192,7 @@ class CellCenterData2d(object):
         """
         pF = open(filename + ".pyro", "wb")
 
-        # I think it refuses to pickle because the metric contains functions for some of its variables :(
-        cp = copy.deepcopy(self)
-        gamma = cp.grid.metric.gamma(cp.grid)
-        alpha = cp.grid.metric.alpha(cp.grid)
-
-        cp.grid.metric.gamma = gamma
-        cp.grid.metric.alpha = alpha
-
-        pickle.dump(cp, pF, pickle.HIGHEST_PROTOCOL)
+        pickle.dump(self, pF, pickle.HIGHEST_PROTOCOL)
         pF.close()
 
 
