@@ -1,16 +1,3 @@
-"""
-Make resulting png plot output into a gif with:
-    convert -delay 20 -loop 0 ../../Work/pyro/results/bubble*.png  lm_gr/results/bubble_128.gif
-
-Make into mpeg:
-    ffmpeg -framerate 10 -i bubble_256_%04d.png -c:v libx264 -r 10 bubble_256.mp4
-
-If have output e.g. every 5 steps, then use
-    ffmpeg -framerate 10 -pattern_type glob -i 'bubble_512_0*.png' -c:v libx264 -r 10 bubble_512.mp4
-
-
-"""
-
 from __future__ import print_function
 
 import sys

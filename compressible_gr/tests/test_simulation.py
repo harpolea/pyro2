@@ -1,13 +1,9 @@
-#import compressible_gr.eos as eos
-import numpy
 from numpy.testing import assert_allclose
-#from compressible_gr.simulation import *
-#from compressible_gr.simulation import Simulation
-from compressible_gr.simulation import Simulation
-#from compressible_gr.unsplitFluxes import *
 from util import runparams
 import sys
 import compressible_gr.cons_to_prim as cy
+from compressible_gr.simulation import Simulation
+from copy import deepcopy
 
 def test_simulation():
 
@@ -21,6 +17,41 @@ def test_simulation():
     sim = Simulation("compressible_gr", "test", rp, testing=True)
     sim.initialize()
 
+    # make a copy to make sure it hasn't changed.
+    sim_old = deepcopy(sim)
+
+    init_tstep_factor = rp.get_param("driver.init_tstep_factor")
+    max_dt_change = rp.get_param("driver.max_dt_change")
+    fix_dt = rp.get_param("driver.fix_dt")
+    dt_old = fix_dt
+
+    # get the timestep
+    if fix_dt > 0.0:
+        sim.dt = fix_dt
+        #sim_py.dt = fix_dt
+    else:
+        sim.compute_timestep()
+        if sim.n == 0:
+            sim.dt = init_tstep_factor*sim.dt
+        else:
+            sim.dt = min(max_dt_change*dt_old, sim.dt)
+        dt_old = sim.dt
+
+    sim.preevolve()
+    sim.cc_data.t = 0.0
+
+    # do a few iterations
+    nIts = 50
+    for i in range(nIts):
+        sim.evolve()
+
+    sim.finalize()
+
+    #--------------------------------------------------------------------
+    # Check to see if it's changed
+    #--------------------------------------------------------------------
+
+    # extract data from simulation
     my_data = sim.cc_data
 
     grav = my_data.get_aux("grav")
@@ -40,7 +71,6 @@ def test_simulation():
     rho = myg.scratch_array()
     u = myg.scratch_array()
     v = myg.scratch_array()
-    #h = myg.scratch_array()
     p = myg.scratch_array()
     X = myg.scratch_array()
 
@@ -51,8 +81,6 @@ def test_simulation():
     U.d[:,:,sim.vars.itau] = tau.d
     U.d[:,:,sim.vars.iDX] = DX.d
 
-    # ideally would do U = my_data.data, but for some reason that
-    # is indexed [ivar, x, y] rather than [x, y, ivar]
     V = myg.scratch_array(sim.vars.nvar)
 
     V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, sim.vars.nvar, sim.vars.iD, sim.vars.iSx, sim.vars.iSy, sim.vars.itau, sim.vars.iDX)
@@ -62,4 +90,34 @@ def test_simulation():
     p.d[:,:] = V.d[:,:,sim.vars.ip]
     X.d[:,:] = V.d[:,:,sim.vars.iX]
 
-    # assert_allclose()
+    ###########################
+    # repeat for original data.
+    ###########################
+
+    D_old = sim_old.cc_data.get_var("D")
+    Sx_old = sim_old.cc_data.get_var("Sx")
+    Sy_old = sim_old.cc_data.get_var("Sy")
+    tau_old = sim_old.cc_data.get_var("tau")
+    DX_old = sim_old.cc_data.get_var("DX")
+
+    rho_old = myg.scratch_array()
+    u_old = myg.scratch_array()
+    v_old = myg.scratch_array()
+    p_old = myg.scratch_array()
+    X_old = myg.scratch_array()
+
+    U.d[:,:,sim.vars.iD] = D_old.d
+    U.d[:,:,sim.vars.iSx] = Sx_old.d
+    U.d[:,:,sim.vars.iSy] = Sy_old.d
+    U.d[:,:,sim.vars.itau] = tau_old.d
+    U.d[:,:,sim.vars.iDX] = DX_old.d
+
+    V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, sim.vars.nvar, sim.vars.iD, sim.vars.iSx, sim.vars.iSy, sim.vars.itau, sim.vars.iDX)
+    rho_old.d[:,:] = V.d[:,:,sim.vars.irho]
+    u_old.d[:,:] = V.d[:,:,sim.vars.iu]
+    v_old.d[:,:] = V.d[:,:,sim.vars.iv]
+    p_old.d[:,:] = V.d[:,:,sim.vars.ip]
+    X_old.d[:,:] = V.d[:,:,sim.vars.iX]
+
+    # finally compare original data to evolved
+    assert_allclose([rho.d, u.d, v.d, p.d, X.d], [rho_old.d, u_old.d, v_old.d, p_old.d, X_old.d], rtol=1.e-10)

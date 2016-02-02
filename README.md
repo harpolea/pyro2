@@ -84,7 +84,7 @@ pyro provides the following solvers (all in 2-d):
     equations of compressible hydrodynamics.  This uses a 2-shock
     approximate Riemann solver.
 
-    `compressible_gr`: special relativistic version of the above which
+  - `compressible_gr`: special relativistic version of the above which
     also includes reactions
 
   - `incompressible`: a second-order cell-centered approximate

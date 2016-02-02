@@ -314,7 +314,7 @@ class Simulation(NullSimulation):
             gamma_matrix[:,:,:,:] = 1. + 2. * g * \
                 (1. - grid.y[np.newaxis, :, np.newaxis, np.newaxis] / R) / \
                 (R * c**2) * np.eye(2)[np.newaxis, np.newaxis, :, :]
-            gamma_matrix[:,:,0,0] *= grid.r2d**2
+            gamma_matrix[:,:,0,0] *= (R+grid.y2d)**2
             return gamma_matrix
 
         # g_theta theta = r^2 / alpha^2
@@ -330,7 +330,10 @@ class Simulation(NullSimulation):
         # now set the initial conditions for the problem
         #exec(self.problem_name + '.init_data(self.cc_data, self.aux_data, self.base, self.rp, myg.metric)')
 
-        getattr(importlib.import_module(self.solver_name + '.problems.' + self.problem_name), 'init_data' )(self.cc_data, self.aux_data, self.base, self.rp, myg.metric)
+        if self.testing:
+            getattr(importlib.import_module(self.solver_name + '.tests.' + self.problem_name), 'init_data' )(self.cc_data, self.aux_data, self.base, self.rp, myg.metric)
+        else:
+            getattr(importlib.import_module(self.solver_name + '.problems.' + self.problem_name), 'init_data' )(self.cc_data, self.aux_data, self.base, self.rp, myg.metric)
 
         # Construct zeta
         gamma = self.rp.get_param("eos.gamma")
@@ -1309,6 +1312,8 @@ class Simulation(NullSimulation):
         scalar = self.cc_data.get_var("scalar")
         T = self.cc_data.get_var("temperature")
 
+        myg = self.cc_data.grid
+
         u0 = myg.metric.calcu0()
 
         # note: the base state quantities do not have valid ghost cells
@@ -1321,8 +1326,6 @@ class Simulation(NullSimulation):
         U0 = self.base["U0"]
 
         phi = self.aux_data.get_var("phi")
-
-        myg = self.cc_data.grid
 
         oldS = self.aux_data.get_var("old_source_y")
         plot_me = self.aux_data.get_var("plot_me")
@@ -1475,6 +1478,7 @@ class Simulation(NullSimulation):
         div_zeta_U = mg.soln_grid.scratch_array()
 
         # MAC velocities are edge-centered.  div{zeta U} is cell-centered.
+        cartesian = self.rp.get_param("lm-gr.cartesian")
         if cartesian:
             div_zeta_U.v()[:,:] = \
                 zeta.v2d() * (u_MAC.ip(1) - u_MAC.v()) / myg.dx + \

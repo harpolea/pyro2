@@ -7,7 +7,11 @@ import numpy as np
 from util import msg
 
 def init_data(my_data, rp):
-    """ initialize the test problem """
+    """
+    initialize the test problem
+
+    This is a static system with no gravity but some reactions. 
+    """
 
     msg.bold("initializing the test problem...")
 

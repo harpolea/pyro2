@@ -154,6 +154,9 @@ class NullSimulation(object):
         finalize() method.
         """
         # there should be a cleaner way of doing this
-        getattr(importlib.import_module(self.solver_name + '.problems.' + self.problem_name), 'finalize' )
+        if self.testing:
+            getattr(importlib.import_module(self.solver_name + '.tests.' + self.problem_name), 'finalize' )
+        else:
+            getattr(importlib.import_module(self.solver_name + '.problems.' + self.problem_name), 'finalize' )
         #exec("import {}".format(self.solver_name))
         #exec("{}.{}.finalize()".format(self.solver_name, self.problem_name))
