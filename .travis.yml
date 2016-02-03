@@ -19,6 +19,7 @@ install:
     - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION numpy scipy matplotlib nose
     - source activate test-environment
     #- pip install coverage
+    - pip install cython
     - bash mk.sh
 # Run test
 script:
