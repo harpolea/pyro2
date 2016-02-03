@@ -9,7 +9,7 @@ def test_simulation_static():
     Test to check that an initially static system stays that way.
     """
 
-    print('Running test_simulation_static')
+    print('\nRunning test_simulation_static')
 
     rp = runparams.RuntimeParameters()
     rp.load_params("_defaults")
@@ -116,7 +116,9 @@ def test_simulation_static():
     U.d[:,:,sim.vars.itau] = tau_old.d
     U.d[:,:,sim.vars.iDX] = DX_old.d
 
-    V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, sim.vars.nvar, sim.vars.iD, sim.vars.iSx, sim.vars.iSy, sim.vars.itau, sim.vars.iDX)
+    V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx,
+        myg.qy, sim.vars.nvar, sim.vars.iD, sim.vars.iSx,
+        sim.vars.iSy, sim.vars.itau, sim.vars.iDX)
     rho_old.d[:,:] = V.d[:,:,sim.vars.irho]
     u_old.d[:,:] = V.d[:,:,sim.vars.iu]
     v_old.d[:,:] = V.d[:,:,sim.vars.iv]
@@ -124,4 +126,6 @@ def test_simulation_static():
     X_old.d[:,:] = V.d[:,:,sim.vars.iX]
 
     # finally compare original data to evolved
-    assert_allclose([rho.d, u.d, v.d, p.d, X.d], [rho_old.d, u_old.d, v_old.d, p_old.d, X_old.d], rtol=1.e-10)
+    assert_allclose([rho.d, u.d, v.d, p.d, X.d],
+        [rho_old.d, u_old.d, v_old.d, p_old.d, X_old.d],
+        rtol=1.e-10)

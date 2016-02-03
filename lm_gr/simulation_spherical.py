@@ -8,7 +8,6 @@ import pdb
 import math
 
 from lm_gr.problems import *
-#from lm_gr.tests import *
 import lm_gr.LM_gr_interface_sph_f as lm_interface_sph_f
 import mesh.reconstruction_f as reconstruction_f
 import mesh.patch_sph as patch_sph

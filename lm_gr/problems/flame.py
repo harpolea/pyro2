@@ -5,7 +5,7 @@ import math
 import mesh.patch as patch
 import numpy as np
 from util import msg
-import lm_gr.metric as metric
+import mesh.metric as metric
 import scipy.optimize
 
 def init_data(my_data, aux_data, base, rp, metric):

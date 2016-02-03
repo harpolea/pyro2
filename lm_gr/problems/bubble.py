@@ -56,7 +56,7 @@ def init_data(my_data, aux_data, base, rp, metric):
     DX.d[:,:] = 0.
 
     # FIXME: do this properly for gr case, add alpha back in
-    j = myg.jlo
+    #j = myg.jlo
     #for j in range(myg.jlo, myg.jhi+1):
     #    dens.d[:,j] = max(dens_base*np.exp(-myg.y[j]/scale_height),
     #                      dens_cutoff)

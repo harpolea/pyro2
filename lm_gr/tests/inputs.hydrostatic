@@ -1,0 +1,5 @@
+[lm-gr]
+grav = 0.0001
+
+[test]
+dens_base = 1.0

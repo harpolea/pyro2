@@ -3,7 +3,7 @@ from __future__ import print_function
 import numpy
 import pylab
 
-from lm_combustion.problems import *
+#from lm_combustion.problems import *
 import lm_combustion.incomp_interface_f as incomp_interface_f
 import mesh.reconstruction_f as reconstruction_f
 import mesh.patch as patch
@@ -56,7 +56,6 @@ class Simulation:
         my_grid = patch.Grid2d(nx, ny,
                                xmin=xmin, xmax=xmax,
                                ymin=ymin, ymax=ymax, ng=4)
-
 
         # create the variables
 

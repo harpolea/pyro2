@@ -28,9 +28,6 @@ def test_simulation_sph_static():
     fix_dt = rp.get_param("driver.fix_dt")
     dt_old = fix_dt
 
-    # make non-cartesian
-    rp.set_param("lm-gr.cartesian", False)
-
     # get the timestep
     if fix_dt > 0.0:
         sim.dt = fix_dt
@@ -126,9 +123,6 @@ def test_simulation_sph_xvel():
     max_dt_change = rp.get_param("driver.max_dt_change")
     fix_dt = rp.get_param("driver.fix_dt")
     dt_old = fix_dt
-
-    # make non-cartesian
-    rp.set_param("lm-gr.cartesian", False)
 
     # get the timestep
     if fix_dt > 0.0:
@@ -241,9 +235,6 @@ def test_simulation_sph_yvel():
     max_dt_change = rp.get_param("driver.max_dt_change")
     fix_dt = rp.get_param("driver.fix_dt")
     dt_old = fix_dt
-
-    # make non-cartesian
-    rp.set_param("lm-gr.cartesian", False)
 
     # get the timestep
     if fix_dt > 0.0:

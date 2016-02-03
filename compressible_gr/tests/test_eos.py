@@ -7,7 +7,7 @@ import compressible_gr.eos as eos
 from numpy.testing import assert_allclose
 
 def test_pres():
-    print('Running test_pres')
+    print('\nRunning test_pres')
 
     gamma = 5./3.
 
@@ -17,7 +17,7 @@ def test_pres():
     assert_allclose(2./3., eos.pres(gamma, 1., 1.))
 
 def test_dens():
-    print('Running test_dens')
+    print('\nRunning test_dens')
 
     gamma = 5./3.
 
@@ -25,7 +25,7 @@ def test_dens():
     assert_allclose(1.5, eos.dens(gamma, 1., 1.))
 
 def test_rhoe():
-    print('Running test_rhoe')
+    print('\nRunning test_rhoe')
 
     gamma = 5./3.
 

@@ -29,7 +29,7 @@ else
 	FFLAGS="-C"
     fi
 
-    for d in mesh multigrid incompressible compressible compressible_gr lm_atm lm_gr lm_combustion
+    for d in mesh multigrid incompressible compressible compressible_gr lm_atm lm_gr
     do
 	cd ${d}
 	${PYTHON} setup.py config_fc --f90flags "${FFLAGS}" build_ext --inplace
