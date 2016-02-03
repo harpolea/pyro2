@@ -5,7 +5,7 @@ python:
 # Setup anaconda
 install:
   - sudo apt-get update
-  - "pip install -r requirements.txt"
+  #- "pip install -r requirements.txt"
   - wget https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh
   - bash miniconda.sh -b -p $HOME/miniconda
   - export PATH="$HOME/miniconda/bin:$PATH"
@@ -16,13 +16,13 @@ install:
   - conda info -a
   - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION numpy scipy matplotlib nose
   - source activate test-environment
-  - pip install coverage
+  #- pip install coverage
   - bash mk.sh
 # Run test
 script:
-  python run test.py
+  python test.py
 # code coverage
-before_install:
-  - pip install codecov
-after_success:
-  - codecov
+#before_install:
+#  - pip install codecov
+#after_success:
+#  - codecov

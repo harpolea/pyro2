@@ -1,0 +1,34 @@
+# simple inputs files for the four-corner problem.
+
+[driver]
+max_steps = 1000
+tmax = 10000000000.0
+verbose = 0
+
+
+[io]
+basename = ../../Documents/Work/pyro/results/test/test_16_
+n_out = 0                   ; number of timesteps between writing output files
+do_io = 0                   ; do we output at all?
+
+
+[mesh]
+nx = 16
+ny = 16
+xmax = 4.0
+ymax = 4.0
+
+xlboundary = outflow
+xrboundary = outflow
+
+ylboundary = outflow
+yrboundary = outflow
+
+
+[test]
+dens_base = 1.e-5
+
+[lm-gr]
+react = 0
+grav = 0.0                ; gravitational acceleration (in y-direction)
+cartesian = 1  ; cartesian or spherical polar coordinates? (0 = no, 1 = yes)

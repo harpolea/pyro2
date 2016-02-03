@@ -128,6 +128,5 @@ if __name__ == "__main__":
     #do_tests(build, outfile, do_standalone=do_standalone, do_main=do_main)
     do_tests(build, out_file=outfile, do_main=do_main)
 
-
     # unit tests
     nose.run(argv=["", "-s"])

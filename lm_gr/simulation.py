@@ -296,8 +296,8 @@ class Simulation(NullSimulation):
         g = self.rp.get_param("lm-gr.grav")
         c = self.rp.get_param("lm-gr.c")
 
-        if g < 1.e-5:
-            print('Gravity is very low (', g, ') - make sure the speed of light is high enough to cope.')
+        #if g < 1.e-5:
+        #    print('Gravity is very low (', g, ') - make sure the speed of light is high enough to cope.')
 
         R = self.rp.get_param("lm-gr.radius")
 

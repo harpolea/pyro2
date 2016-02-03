@@ -107,8 +107,8 @@ class SimulationSpherical(Simulation):
         c = self.rp.get_param("lm-gr.c")
         R = self.rp.get_param("lm-gr.radius")
 
-        if g < 1.e-5:
-            print('Gravity is very low (', g, ') - make sure the speed of light is high enough to cope.')
+        #if g < 1.e-5:
+        #    print('Gravity is very low (', g, ') - make sure the speed of light is high enough to cope.')
 
         myg = grid_setup_sph(self.rp, ng=4, R=R)
 
