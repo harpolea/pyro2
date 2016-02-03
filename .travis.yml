@@ -4,8 +4,7 @@ python:
     - 2.7
 before_install:
     - sudo apt-get update
-    - sudo apt-get install gfortran-4.9
-    - sudo ln -fs /usr/bin/gfortran-4.9 /usr/bin/gfortran && gfortran --version
+    - sudo apt-get install gfortran
     #  - pip install codecov
 install:
     #- pip install -r requirements.txt
