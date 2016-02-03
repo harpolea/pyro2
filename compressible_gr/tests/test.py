@@ -10,10 +10,8 @@ def init_data(my_data, rp):
     """
     initialize the test problem
 
-    This is a static system with no gravity but some reactions. 
+    This is a static system with no gravity but some reactions.
     """
-
-    msg.bold("initializing the test problem...")
 
     # make sure that we are passed a valid patch object
     if not isinstance(my_data, patch.CellCenterData2d):

@@ -12,8 +12,6 @@ def init_data(my_data, aux_data, base, rp, metric):
     This is a static system with no gravity but some reactions.
     """
 
-    msg.bold("initializing the test problem...")
-
     # make sure that we are passed a valid patch object
     if not isinstance(my_data, patch.CellCenterData2d):
         print("ERROR: patch invalid in test.py")
@@ -54,6 +52,8 @@ def init_data(my_data, aux_data, base, rp, metric):
     DX.d[:,:] = 1.0
     scalar.d[:,:] = 1.0
 
+    my_data.fill_BC_all()
+
     # do the base state
     p0 = base["p0"]
     old_p0 = base["old_p0"]
@@ -64,7 +64,7 @@ def init_data(my_data, aux_data, base, rp, metric):
     p0.d[:] = np.mean(p.d, axis=0)
 
     u0 = metric.calcu0()
-    p0.d[:] = K * D0.d**gamma
+    p0.d[:] = K * (D0.d / u0.d1d())**gamma
 
     mu = 1./(2. * (1 - DX.d) + 4. * DX.d)
     mp_kB = 1.21147#e-8
@@ -77,6 +77,8 @@ def init_data(my_data, aux_data, base, rp, metric):
     D0.d[:] *= u0.d1d()
     Dh0.d[:] *= D0.d
     old_p0 = p0.copy()
+    u.d[:,:] /= u0.d
+    v.d[:,:] /= u0.d
     scalar.d[:,:] *= v.d
     DX.d[:,:] *= rho.d
 

@@ -1228,7 +1228,7 @@ class Simulation(NullSimulation):
         constraint = self.constraint_source()
         # set the RHS to divU and solve
         mg.init_RHS(div_zeta_U.v(buf=1) - constraint.v(buf=1))
-        mg.solve(rtol=1.e-12, fortran=self.fortran)
+        mg.solve(rtol=1.e-10, fortran=self.fortran)
 
         # store the solution in our self.cc_data object -- include a single
         # ghostcell
@@ -1499,7 +1499,7 @@ class Simulation(NullSimulation):
 
         # solve the Poisson problem
         mg.init_RHS(div_zeta_U.d - constraint.v(buf=1))
-        mg.solve(rtol=1.e-12, fortran=self.fortran)
+        mg.solve(rtol=1.e-10, fortran=self.fortran)
 
         # update the normal velocities with the pressure gradient -- these
         # constitute our advective velocities.  Note that what we actually
@@ -2134,7 +2134,7 @@ class Simulation(NullSimulation):
         mg.init_solution(phiGuess.d)
 
         # solve
-        mg.solve(rtol=1.e-12, fortran=self.fortran)
+        mg.solve(rtol=1.e-10, fortran=self.fortran)
 
         # store the solution in our self.cc_data object -- include a single
         # ghostcell

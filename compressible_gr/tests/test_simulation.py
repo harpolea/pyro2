@@ -1,11 +1,15 @@
 from numpy.testing import assert_allclose
 from util import runparams
-import sys
 import compressible_gr.cons_to_prim as cy
 from compressible_gr.simulation import Simulation
 from copy import deepcopy
 
-def test_simulation():
+def test_simulation_static():
+    """
+    Test to check that an initially static system stays that way.
+    """
+
+    print('Running test_simulation_static')
 
     rp = runparams.RuntimeParameters()
     rp.load_params("_defaults")

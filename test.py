@@ -108,6 +108,10 @@ if __name__ == "__main__":
                    help="skip the tests that go through pyro.py, and only run standalone tests",
                    action="store_true")
 
+    p.add_argument("--debug",
+                   help="drop into pdb when nosetest hits a failure or error",
+                   action="store_true")
+
     args = p.parse_args()
 
     try:
@@ -126,7 +130,10 @@ if __name__ == "__main__":
     #    do_standalone = False
 
     #do_tests(build, outfile, do_standalone=do_standalone, do_main=do_main)
-    do_tests(build, out_file=outfile, do_main=do_main)
+    #do_tests(build, out_file=outfile, do_main=do_main)
 
     # unit tests
-    nose.run(argv=["", "-s"])
+    if args.debug:
+        nose.run(argv=["", "-s", "--pdb"])
+    else:
+        nose.run(argv=["", "-s"])

@@ -1,10 +1,14 @@
 from numpy.testing import assert_allclose
 from compressible_gr.simulation_react import SimulationReact
 from util import runparams
-import sys
 import compressible_gr.cons_to_prim as cy
 
-def test_simulation_react():
+def test_simulation_react_static():
+    """
+    Test to check that an initially static system stays that way.
+    """
+
+    print('Running test_simulation_react_static')
 
     rp = runparams.RuntimeParameters()
     rp.load_params("_defaults")
