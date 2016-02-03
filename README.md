@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/harpolea/pyro2.svg?branch=master)](https://travis-ci.org/harpolea/pyro2)
+
 ![pyro logo]
 (https://raw.githubusercontent.com/zingale/pyro2/master/www/pyro.png)
 
