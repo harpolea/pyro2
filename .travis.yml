@@ -1,13 +1,14 @@
 # See http://conda.pydata.org/docs/travis.html
 language: python
 python:
-    - "2.7"
-# Setup anaconda
-install:
+    - 2.7
+before_install:
     - sudo apt-get update
     - sudo apt-get install gfortran-4.9
     - sudo ln -fs /usr/bin/gfortran-4.9 /usr/bin/gfortran && gfortran --version
-    #- "pip install -r requirements.txt"
+    #  - pip install codecov
+install:
+    #- pip install -r requirements.txt
     - wget https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh
     - bash miniconda.sh -b -p $HOME/miniconda
     - export PATH="$HOME/miniconda/bin:$PATH"
@@ -23,8 +24,5 @@ install:
 # Run test
 script:
     python test.py
-# code coverage
-#before_install:
-#  - pip install codecov
 #after_success:
 #  - codecov
