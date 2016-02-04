@@ -8,15 +8,15 @@ from __future__ import print_function
 import numpy as np
 import matplotlib.pyplot as plt
 import multigrid.edge_coeffs_sph as ec
-import multigrid.MG as MG
+#import multigrid.MG as MG
 import multigrid.variable_coeff_MG as var_MG
-from copy import deepcopy
+#from copy import deepcopy
 import math
-import mesh.patch as patch
+#import mesh.patch as patch
 import mesh.patch_sph as patch_sph
 from lm_gr.simulation import Basestate
 from util import msg
-import mesh.metric as metric
+#import mesh.metric as metric
 
 np.set_printoptions(precision=3, linewidth=128)
 

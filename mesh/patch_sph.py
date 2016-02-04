@@ -1,9 +1,16 @@
 from __future__ import print_function
 
 import numpy as np
+try:
+    import cPickle as pickle
+except:
+    import pickle
+
+import numpy as np
 import mesh.metric as metric
 import mesh.patch as patch
-
+import copy
+from util import msg
 
 class BCObject_Sph(patch.BCObject):
     """Boundary condition container -- hold the BCs on each boundary
@@ -339,7 +346,9 @@ class CellCenterData2d_Sph(patch.CellCenterData2d):
         """
         pF = open(filename + ".pyro", "wb")
 
-        # I think it refuses to pickle because the metric contains functions for some of its variables :(
+        # The metric contains functions for some of its variables,
+        # so we need to convert these to actual arrays before it
+        # will pickle.
         cp = copy.deepcopy(self)
         gamma = cp.grid.metric.gamma(cp.grid)
         alpha = cp.grid.metric.alpha(cp.grid)
@@ -349,3 +358,34 @@ class CellCenterData2d_Sph(patch.CellCenterData2d):
 
         pickle.dump(cp, pF, pickle.HIGHEST_PROTOCOL)
         pF.close()
+
+    def cell_center_data_clone(self):
+        """
+        Create a new CellCenterData2d object that is a copy of an existing
+        one
+
+        Parameters
+        ----------
+        old : CellCenterData2d object
+            The CellCenterData2d object we wish to copy
+
+        Note
+        ----
+        It may be that this whole thing can be replaced with a copy.deepcopy()
+
+        """
+
+        if not isinstance(self, CellCenterData2d_Sph):
+            msg.fail("Can't clone object")
+
+        new = CellCenterData2d_Sph(self.grid, dtype=self.dtype)
+
+        for n in range(self.nvar):
+            new.register_var(self.vars[n], self.BCs[self.vars[n]])
+
+        new.create()
+
+        new.aux = copy.deepcopy(self.aux)
+        new.data = copy.deepcopy(self.data)
+
+        return new

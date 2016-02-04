@@ -1202,6 +1202,38 @@ class CellCenterData2d(object):
         a.pretty_print()
 
 
+    def cell_center_data_clone(self):
+        """
+        Create a new CellCenterData2d object that is a copy of an existing
+        one
+
+        Parameters
+        ----------
+        old : CellCenterData2d object
+            The CellCenterData2d object we wish to copy
+
+        Note
+        ----
+        It may be that this whole thing can be replaced with a copy.deepcopy()
+
+        """
+
+        if not isinstance(self, CellCenterData2d):
+            msg.fail("Can't clone object")
+
+        new = CellCenterData2d(self.grid, dtype=self.dtype)
+
+        for n in range(self.nvar):
+            new.register_var(self.vars[n], self.BCs[self.vars[n]])
+
+        new.create()
+
+        new.aux = copy.deepcopy(self.aux)
+        new.data = copy.deepcopy(self.data)
+
+        return new
+
+
 # backwards compatibility
 ccData2d = CellCenterData2d
 grid2d = Grid2d
@@ -1221,39 +1253,6 @@ def read(filename):
     pF.close()
 
     return data.grid, data
-
-
-def cell_center_data_clone(old):
-    """
-    Create a new CellCenterData2d object that is a copy of an existing
-    one
-
-    Parameters
-    ----------
-    old : CellCenterData2d object
-        The CellCenterData2d object we wish to copy
-
-    Note
-    ----
-    It may be that this whole thing can be replaced with a copy.deepcopy()
-
-    """
-
-    if not isinstance(old, CellCenterData2d):
-        msg.fail("Can't clone object")
-
-    new = CellCenterData2d(old.grid, dtype=old.dtype)
-
-    for n in range(old.nvar):
-        new.register_var(old.vars[n], old.BCs[old.vars[n]])
-
-    new.create()
-
-    new.aux = copy.deepcopy(old.aux)
-    new.data = copy.deepcopy(old.data)
-
-    return new
-
 
 if __name__== "__main__":
 

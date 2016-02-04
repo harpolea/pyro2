@@ -75,11 +75,13 @@ def doit(solver_name, problem_name, param_file,
     # initialize the Simulation object -- this will hold the grid and
     # data and know about the runtime parameters and which problem we
     # are running
-    if solver_name == "lm_gr" and rp.get_param("lm-gr.react") != 0:
+    if solver_name == "lm_gr":
         if not rp.get_param("lm-gr.cartesian"):
             sim = solver.SimulationSpherical(solver_name, problem_name, rp, timers=tc)
-        else:
+        elif rp.get_param("lm-gr.react") != 0:
             sim = solver.SimulationReact(solver_name, problem_name, rp, timers=tc)
+        else:
+            sim = solver.Simulation(solver_name, problem_name, rp, timers=tc)
     elif solver_name == "compressible_gr" and rp.get_param("compressible-gr.react") != 0:
         sim = solver.SimulationReact(solver_name, problem_name, rp, timers=tc)
     else:
@@ -291,4 +293,4 @@ if __name__ == "__main__":
          other_commands=args.other,
          comp_bench=args.compare_benchmark,
          make_bench=args.make_benchmark,
-         test=args.test_problem)
+         test_problem=args.test_problem)

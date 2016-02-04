@@ -10,7 +10,7 @@ If have output e.g. every 5 steps, then use
     ffmpeg -framerate 10 -pattern_type glob -i 'bubble_512_0*.png' -c:v libx264 -r 10 bubble_512.mp4
 """
 
-import numpy as np
+#import numpy as np
 import matplotlib # these two lines set the display so it works
 matplotlib.use('Agg') # when ssh into desktop
 import matplotlib.pyplot as plt

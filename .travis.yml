@@ -5,7 +5,7 @@ python:
 before_install:
     - sudo apt-get update
     - sudo apt-get install gfortran
-    #  - pip install codecov
+    - pip install codecov
 install:
     #- pip install -r requirements.txt
     - wget https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh
@@ -23,6 +23,6 @@ install:
     - bash mk.sh
 # Run test
 script:
-    python test.py
+    nosetests --with-coverage
 #after_success:
-#  - codecov
+    - codecov

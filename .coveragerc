@@ -1,0 +1,20 @@
+# .coveragerc to control coverage.py
+[run]
+branch = False
+
+[report]
+exclude_lines =
+    if __name__ == .__main__.:
+
+omit =
+    advection/*
+    compressible/*
+    diffusion/*
+    incompressible/*
+    lm_atm/*
+    lm_combustion/*
+    radhydro/*
+    results/*
+    util/*
+    www/*
+    colormaps.py

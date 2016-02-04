@@ -1,4 +1,10 @@
 #!/usr/bin/env python
+"""
+NOTE: could instead use nosetests if in a python2.7 environment.
+If python3 is the default, then nosetests does not like the
+fortran/cython extensions, possibly because they have been built with
+python2.7.
+"""
 
 from __future__ import print_function
 

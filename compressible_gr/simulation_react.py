@@ -1,12 +1,12 @@
 from __future__ import print_function
 
-import sys
+#import sys
 
 import numpy as np
 import matplotlib.pyplot as plt
-import math
+#import math
 
-import compressible_gr.BC as BC
+#import compressible_gr.BC as BC
 from compressible_gr.simulation import *
 from compressible_gr.problems import *
 import compressible_gr.eos as eos
@@ -14,7 +14,6 @@ import mesh.patch as patch
 from simulation_null import NullSimulation, grid_setup, bc_setup
 from compressible_gr.unsplitFluxes import *
 from util import profile
-import colormaps as cmaps
 from scipy.ndimage import median_filter
 import compressible_gr.cons_to_prim as cy
 

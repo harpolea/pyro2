@@ -27,12 +27,12 @@ list.
 
 from __future__ import print_function
 
-import sys
+#import sys
 
 import numpy as np
 import matplotlib.pyplot as plt
-import pdb
-import math
+#import pdb
+#import math
 
 from lm_gr.problems import *
 import lm_gr.LM_gr_interface_f as lm_interface_f
@@ -40,8 +40,8 @@ import mesh.reconstruction_f as reconstruction_f
 import mesh.patch as patch
 from simulation_null import NullSimulation, grid_setup, bc_setup
 import multigrid.variable_coeff_MG as vcMG
-from util import profile
-import mesh.metric as metric
+#from util import profile
+#import mesh.metric as metric
 import colormaps as cmaps
 from functools import partial
 import importlib
@@ -1266,8 +1266,8 @@ class Simulation(NullSimulation):
         # evolution.
 
         # store the current solution -- we'll restore it in a bit
-        orig_data = patch.cell_center_data_clone(self.cc_data)
-        orig_aux = patch.cell_center_data_clone(self.aux_data)
+        orig_data = self.cc_data.cell_center_data_clone()
+        orig_aux = self.aux_data.cell_center_data_clone()
 
         # get the timestep
         self.compute_timestep(u0=u0)

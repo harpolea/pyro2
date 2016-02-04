@@ -1,18 +1,18 @@
 from __future__ import print_function
 
-import sys
+#import sys
 
 import numpy as np
 import matplotlib.pyplot as plt
-import pdb
-import math
+#import pdb
+#import math
 
 from lm_gr.problems import *
 import lm_gr.LM_gr_interface_sph_f as lm_interface_sph_f
 import mesh.reconstruction_f as reconstruction_f
 import mesh.patch_sph as patch_sph
 import mesh.patch as patch
-from simulation_null import NullSimulation#, grid_setup, bc_setup
+#from simulation_null import NullSimulation#, grid_setup, bc_setup
 from lm_gr.simulation import *
 from lm_gr.simulation_react import *
 import multigrid.variable_coeff_MG as vcMG
@@ -405,8 +405,8 @@ class SimulationSpherical(Simulation):
         # component (and metric is diagonal)
         #mom_source_r.d[mask] -= drp0.d2df(myg.qx)[mask] / \
             #(Dh.d[mask] * u0.d[mask] * grr[mask])
-        mom_source_r.d[:,:] -= drp0.d2df(myg.qx) / \
-            (Dh.d * u0.d * grr)
+        #mom_source_r.d[:,:] -= drp0.d2df(myg.qx) / \
+            #(Dh.d * u0.d * grr)
 
         # FIXME: zero'd for testing
         #mom_source_r.d[:,:] = 0.
@@ -631,8 +631,8 @@ class SimulationSpherical(Simulation):
         # evolution.
 
         # store the current solution -- we'll restore it in a bit
-        orig_data = patch.cell_center_data_clone(self.cc_data)
-        orig_aux = patch.cell_center_data_clone(self.aux_data)
+        orig_data = self.cc_data.cell_center_data_clone()
+        orig_aux = self.aux_data.cell_center_data_clone()
 
         #print('before timestep u: {}'.format(u.d))
 
