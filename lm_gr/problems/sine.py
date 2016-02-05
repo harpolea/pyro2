@@ -72,7 +72,7 @@ def init_data(my_data, base_data, rp, metric):
     dens.d[:,:] = dens_base * \
         np.exp(-grav * myg.y[:] /
                (gamma * c**2 * R *
-               metric.alpha.v2d(buf=metric.alpha.ng)**2))
+               metric.alpha.v2d(buf=metric.alpha(myg).ng)**2))
 
     # set the pressure (P = cs2*dens)
     pres = myg.scratch_array()
@@ -101,7 +101,7 @@ def init_data(my_data, base_data, rp, metric):
 
     for i in range(myg.jlo, myg.jhi+1):
         p0.d[i] = p0.d[i-1] - myg.dy * grav * Dh0.d[i] / \
-            (u0flat[i] * c**2 * metric.alpha.d[i]**2 * R)
+            (u0flat[i] * c**2 * metric.alpha(myg).d[i]**2 * R)
 
     # multiply by correct u0s
     dens.d[:, :] *= u0.d  # rho * u0

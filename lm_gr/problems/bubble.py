@@ -62,7 +62,7 @@ def init_data(my_data, aux_data, base, rp, metric):
     #                      dens_cutoff)
     dens.v()[:, :] = dens_base * \
         np.exp(-g * myg.y[np.newaxis, myg.jlo:myg.jhi+1] /
-                (gamma * c**2 * R * metric.alpha.v2d()**2))
+                (gamma * c**2 * R * metric.alpha(myg).v2d()**2))
 
     #cs2 = scale_height * abs(g)
 
@@ -87,7 +87,8 @@ def init_data(my_data, aux_data, base, rp, metric):
     r = np.sqrt((myg.x2d - x_pert)**2  + (myg.y2d - y_pert)**2)
 
     idx = r <= r_pert
-    eint.d[idx] += eint.d[idx] * (pert_amplitude_factor -  1.) * 0.5 * (1. + np.tanh((2. - r[idx]/r_pert)/0.9))# (2.*r_pert)))
+    eint.d[idx] += eint.d[idx] * (pert_amplitude_factor -  1.) * \
+        0.5 * (1. + np.tanh((2. - r[idx]/r_pert)/0.9))# (2.*r_pert)))
     dens.d[idx] = pres.d[idx] / (eint.d[idx] * (gamma - 1.0))
     enth.d[idx] = 1. + eint.d[idx] + pres.d[idx] / dens.d[idx]
     scalar.d[idx] = 0.
@@ -99,7 +100,7 @@ def init_data(my_data, aux_data, base, rp, metric):
 
     for i in range(myg.jlo, myg.jhi+1):
         p0.d[i] = p0.d[i-1] - \
-                  myg.dy * Dh0.d[i] * g / (R * c**2 * metric.alpha.d[i] **2 * u0.d1d()[i])
+                  myg.dy * Dh0.d[i] * g / (R * c**2 * metric.alpha(myg).d[i] **2 * u0.d1d()[i])
                   #myg.dy * g * (2. * p0.d[i-1] * (1. + metric.alpha.d[i]**4) -
                   #Dh0.d[i] / u0.d1d()[i]) / (c**2 * metric.alpha.d[i]**2 * R)
     mu = 1./(2. * (1 - DX.d) + 4. * DX.d)

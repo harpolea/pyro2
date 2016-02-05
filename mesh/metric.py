@@ -13,7 +13,6 @@ import numpy as np
 import sys
 from util import msg
 import traceback
-from inspect import isfunction
 from functools import partial
 
 class Metric(object):
@@ -47,7 +46,8 @@ class Metric(object):
         # store christoffels here as for time-independent metric these shall not change.
         myg = self.grid
         self.chrls = np.array([[self.christoffels([0, i, j])
-                           for j in range(myg.qy)] for i in range(myg.qx)])
+                           for j in range(myg.qy)]
+                           for i in range(myg.qx)])
 
         #self.inverse = self.inverse_metric()
 
@@ -69,7 +69,8 @@ class Metric(object):
 
         # calculate metric at point then take square roots of determinants.
         sg.d[:, :] = [[np.sqrt(-1. * np.linalg.det(self.g([0, i, j])))
-                      for j in range(0, myg.qy)] for i in range(0, myg.qx)]
+                      for j in range(0, myg.qy)]
+                      for i in range(0, myg.qx)]
 
         # TODO: check that this is equal to alpha * sgamma
 
@@ -85,7 +86,12 @@ class Metric(object):
         for now.
         """
         myg = self.grid
-        alpha = self.alpha(myg)
+
+        if isinstance(self.alpha, partial):
+            alpha = self.alpha(self.grid)
+        else:
+            alpha = self.alpha
+
         if self.cartesian:
             return np.array([[np.diag([-1./alpha.d[i,j]**2, alpha.d[i,j]**2, alpha.d[i,j]**2]) for j in range(0,myg.qy)] for i in range(0, myg.qx)])
         else:
@@ -182,7 +188,8 @@ class Metric(object):
         else:
             alpha = self.alpha
 
-        u0 = myg.scratch_array(data=W.d/alpha.d2d())
+        u0 = myg.scratch_array()
+        u0.d[:,:] = W.d / alpha.d2d()
 
         return u0
 
@@ -201,12 +208,19 @@ class Metric(object):
         met : float array
             (d+1)*(d+1) array containing metric
         """
+        myg = self.grid
+        if isinstance(self.alpha, partial):
+            alpha = self.alpha(myg)
+            gamma = self.gamma(myg)
+        else:
+            alpha = self.alpha
+            gamma = self.gamma
 
         met = np.diag([-1., 1., 1.])  # flat default
-        met[0, 0] = -self.alpha(self.grid).d[x[2]]**2 + np.dot(self.beta, self.beta)
+        met[0, 0] = -alpha.d[x[2]]**2 + np.dot(self.beta, self.beta)
         met[0, 1:] = np.transpose(self.beta)
         met[1:, 0] = self.beta
-        met[1:, 1:] = self.gamma(self.grid)[x[1], x[2], :, :]
+        met[1:, 1:] = gamma[x[1], x[2], :, :]
 
         return met
 

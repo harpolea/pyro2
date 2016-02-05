@@ -63,7 +63,7 @@ def init_data(my_data, aux_data, base, rp, metric):
     dens.d[:,:] = dens_cutoff
     dens.v()[:,:] = dens_base * \
         np.exp(-g * myg.y[np.newaxis, myg.jlo:myg.jhi+1] /
-                (gamma * c**2 * R * metric.alpha.v2d()**2))
+                (gamma * c**2 * R * metric.alpha(myg).v2d()**2))
 
     pres.d[:,:] = K * dens.d**gamma
     eint.d[:,:] = pres.d / (gamma - 1.0) / dens.d
@@ -136,7 +136,7 @@ def init_data(my_data, aux_data, base, rp, metric):
     DX.d[smoo] = 1. + (myg.x2d[smoo] - 0.1 * xctr) * (0.-1.) / deltx
 
     dens.v()[:,:] *= np.exp(-g * myg.y[np.newaxis, myg.jlo:myg.jhi+1] /
-                (gamma * c**2 * R * metric.alpha.v2d()**2))
+                (gamma * c**2 * R * metric.alpha(myg).v2d()**2))
 
     pres.d[:,:] = K * dens.d**gamma
     eint.d[:,:] = pres.d / (gamma - 1.0) / dens.d

@@ -300,30 +300,33 @@ class Simulation(NullSimulation):
         #    print('Gravity is very low (', g, ') - make sure the speed of light is high enough to cope.')
 
         R = self.rp.get_param("lm-gr.radius")
+        cartesian = self.rp.get_param("lm-gr.cartesian")
 
         def alpha(g, R, c, grid):
             a = Basestate(grid.ny, ng=grid.ng)
             a.d[:] = np.sqrt(1. - 2. * g * (1. - grid.y[:]/R) / (R * c**2))
             return a
+        #alpha = Basestate(myg.ny, ng=myg.ng)
         #alpha.d[:] = np.sqrt(1. - 2. * g * (1. - myg.y[:]/R) / (R * c**2))
 
         beta = [0., 0.]
+
+        #gamma_matrix = np.zeros((myg.qx, myg.qy, 2, 2), dtype=np.float64)
+        #gamma_matrix[:,:,:,:] = 1. + 2. * g * \
+        #    (1. - myg.y[np.newaxis, :, np.newaxis, np.newaxis] / R) / \
+        #    (R * c**2) * np.eye(2)[np.newaxis, np.newaxis, :, :]
 
         def gamma_matrix(g, R, c, grid):
             gamma_matrix = np.zeros((grid.qx, grid.qy, 2, 2), dtype=np.float64)
             gamma_matrix[:,:,:,:] = 1. + 2. * g * \
                 (1. - grid.y[np.newaxis, :, np.newaxis, np.newaxis] / R) / \
                 (R * c**2) * np.eye(2)[np.newaxis, np.newaxis, :, :]
-            gamma_matrix[:,:,0,0] *= (R+grid.y2d)**2
             return gamma_matrix
-
-        # g_theta theta = r^2 / alpha^2
-        # [:,:,0,0] because coords are (x,y) --> (theta, r)
-        #gamma_matrix[:,:,0,0] *= myg.r2d**2
 
         #self.metric = metric.Metric(self.cc_data, self.rp, alpha, beta,
         #                            gamma_matrix, cartesian=False)
-        myg.initialise_metric(self.rp, partial(alpha, g, R, c), beta, partial(gamma_matrix, g, R, c), cartesian=False)
+        myg.initialise_metric(self.rp, partial(alpha, g, R, c), beta, partial(gamma_matrix, g, R, c), cartesian=cartesian)
+        #myg.initialise_metric(self.rp, alpha, beta, gamma_matrix, cartesian=cartesian)
 
         u0 = myg.metric.calcu0()
 
@@ -353,7 +356,8 @@ class Simulation(NullSimulation):
         S = self.aux_data.get_var("source_y")
         S = self.compute_S()
         oldS = self.aux_data.get_var("old_source_y")
-        oldS = myg.scratch_array(data=S.d)
+        oldS = myg.scratch_array()
+        oldS.d[:,:] = S.d
 
 
     # This is basically unused now.
@@ -600,10 +604,16 @@ class Simulation(NullSimulation):
             Dh0 = self.base["Dh0"]
         if u0 is None:
             u0 = myg.metric.calcu0(u=u, v=v)
+
+        if isinstance(myg.metric.alpha, partial):
+            alpha = myg.metric.alpha(myg)
+        else:
+            alpha = myg.metric.alpha
+
         mom_source_r = myg.scratch_array()
         mom_source_x = myg.scratch_array()
-        gtt = -(myg.metric.alpha(myg).d)**2
-        gxx = 1. / myg.metric.alpha(myg).d**2
+        gtt = -(alpha.d)**2
+        gxx = 1. / alpha.d**2
         grr = gxx
         drp0 = self.drp0(Dh0=Dh0, u=u, v=v, u0=u0)
 
@@ -639,8 +649,8 @@ class Simulation(NullSimulation):
 
         #mom_source_r.d[:,:] -=  drp0.d[np.newaxis,:] / (Dh.d[:,:]*u0.d[:,:])
 
-        mom_source_x.d[:,:] *=  myg.metric.alpha(myg).d2d()**2
-        mom_source_r.d[:,:] *=  myg.metric.alpha(myg).d2d()**2
+        mom_source_x.d[:,:] *=  alpha.d2d()**2
+        mom_source_r.d[:,:] *=  alpha.d2d()**2
 
         return mom_source_x, mom_source_r
 
@@ -680,10 +690,15 @@ class Simulation(NullSimulation):
 
         psi = Basestate(myg.ny, ng=myg.ng)
 
+        # FIXME: which one works?
         psi.v(buf=myg.ng-1)[:] = gamma * 0.25 * \
             (p0.v(buf=myg.ng-1) + old_p0.v(buf=myg.ng-1)) * \
             (self.lateral_average(S.v(buf=myg.ng-1)) -
              (U0.jp(1, buf=myg.ng-1) - U0.jp(-1, buf=myg.ng-1)))
+        #psi.v(buf=myg.ng-1)[:] = gamma * 0.5 * \
+        #    (p0.v(buf=myg.ng-1) + old_p0.v(buf=myg.ng-1)) * \
+        #    (self.lateral_average(S.v(buf=myg.ng-1)) -
+        #     (U0.jp(1, buf=myg.ng-1) - U0.v(buf=myg.ng-1)))
 
         return psi
 
@@ -797,8 +812,13 @@ class Simulation(NullSimulation):
             u0 = myg.metric.calcu0(u=u, v=v)
         Dh0_half = 0.5 * (Dh0_old + Dh0)
 
+        if isinstance(myg.metric.alpha, partial):
+            alpha = myg.metric.alpha(myg)
+        else:
+            alpha = myg.metric.alpha
+
         drp0 = self.drp0(Dh0=Dh0_half, u=u, v=v, u0=u0)
-        grr = 1. / myg.metric.alpha(myg).d**2
+        grr = 1. / alpha.d**2
 
         #chrls = np.array([[myg.metric.christoffels([self.cc_data.t, i, j])
         #                   for j in range(myg.qy)] for i in range(myg.qx)])
@@ -1316,6 +1336,11 @@ class Simulation(NullSimulation):
 
         u0 = myg.metric.calcu0()
 
+        if isinstance(myg.metric.alpha, partial):
+            alpha = myg.metric.alpha(myg)
+        else:
+            alpha = myg.metric.alpha
+
         # note: the base state quantities do not have valid ghost cells
         self.update_zeta(u0=u0)
         zeta = self.base["zeta"]
@@ -1511,7 +1536,7 @@ class Simulation(NullSimulation):
 
         coeff = self.aux_data.get_var("coeff")
         # FIXME: is this u0 or u0_MAC?
-        coeff.d[:,:] = myg.metric.alpha(myg).d2d()**2 / (Dh.d * u0.d)
+        coeff.d[:,:] = alpha.d2d()**2 / (Dh.d * u0.d)
         coeff.d[:,:] *= zeta.d2d()
         self.aux_data.fill_BC("coeff")
 
@@ -1535,16 +1560,16 @@ class Simulation(NullSimulation):
         # we need the MAC velocities on all edges of the computational domain
         # here we do U = U - (zeta/Dh u0) grad (phi/zeta)
         b = (0, 1, 0, 0)
-        #u_MAC.v(buf=b)[:,:] -= coeff_x.v(buf=b) * \
-        #    (phi_MAC.v(buf=b) - phi_MAC.ip(-1, buf=b)) / myg.dx
         u_MAC.v(buf=b)[:,:] -= coeff_x.v(buf=b) * \
-            gradp_MAC_x.v(buf=b)
+            (phi_MAC.v(buf=b) - phi_MAC.ip(-1, buf=b)) / myg.dx
+        #u_MAC.v(buf=b)[:,:] -= coeff_x.v(buf=b) * \
+        #    gradp_MAC_x.v(buf=b)
 
         b = (0, 0, 0, 1)
-        #v_MAC.v(buf=b)[:,:] -= coeff_y.v(buf=b) * \
-        #    (phi_MAC.v(buf=b) - phi_MAC.jp(-1, buf=b)) / myg.dy
         v_MAC.v(buf=b)[:,:] -= coeff_y.v(buf=b) * \
-            gradp_MAC_y.v(buf=b)
+            (phi_MAC.v(buf=b) - phi_MAC.jp(-1, buf=b)) / myg.dy
+        #v_MAC.v(buf=b)[:,:] -= coeff_y.v(buf=b) * \
+        #    gradp_MAC_y.v(buf=b)
 
         #u0_MAC = myg.metric.calcu0(u=u_MAC, v=v_MAC)
         #---------------------------------------------------------------------
@@ -1839,12 +1864,12 @@ class Simulation(NullSimulation):
         if proj_type == 1:
             u.v()[:,:] -= (self.dt * advect_x.v() + self.dt * gradp_x.v())
             # FIXME: add back in!
-            #v.v()[:,:] -= (self.dt * advect_y.v() + self.dt * gradp_y.v())
+            v.v()[:,:] -= (self.dt * advect_y.v() + self.dt * gradp_y.v())
 
         elif proj_type == 2:
             u.v()[:,:] -= self.dt * advect_x.v()
             # FIXME: add back in!
-            #v.v()[:,:] -= self.dt * advect_y.v()
+            v.v()[:,:] -= self.dt * advect_y.v()
 
         # add on source term
         # do we want to use Dh half star here maybe?
@@ -2147,7 +2172,7 @@ class Simulation(NullSimulation):
         # U = U - (zeta/Dh u0) grad (phi)
         # alpha^2 as need to raise grad.
         coeff = 1.0 / (Dh_half * u0)
-        coeff.d[:,:] *=  myg.metric.alpha(myg).d2d()**2
+        coeff.d[:,:] *=  alpha.d2d()**2
         coeff.d[:,:] *= zeta_half.d2d()
 
         ###########################
@@ -2162,9 +2187,9 @@ class Simulation(NullSimulation):
         # However, it doesn't actually work: it just causes the atmosphere to rise up?
         base_forcing = self.base_state_forcing()
         # FIXME: This line messes up the velocity somehow - what on earth is it doing????
-        #u.v()[:,:] += self.dt * (-coeff.v() * gradphi_x.v())
+        u.v()[:,:] += self.dt * (-coeff.v() * gradphi_x.v())
         # FIXME: add back in??
-        #v.v()[:,:] += self.dt * (-coeff.v() * gradphi_y.v() + base_forcing.v())
+        v.v()[:,:] += self.dt * (-coeff.v() * gradphi_y.v())# + base_forcing.v())
 
         # store gradp for the next step
         if proj_type == 1:

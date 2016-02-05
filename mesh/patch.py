@@ -43,6 +43,7 @@ except:
 from util import msg
 import copy
 import mesh.metric as metric
+from functools import partial
 
 #from numba import jit
 
@@ -642,7 +643,7 @@ class Grid2d(object):
         result = (self.nx == other.nx and self.ny == other.ny and
                   self.ng == other.ng and
                   self.xmin == other.xmin and self.xmax == other.xmax and
-                  self.ymin == other.ymin and self.ymax == other.ymax and self.R == other.R)
+                  self.ymin == other.ymin and self.ymax == other.ymax)
 
         return result
 
@@ -916,7 +917,9 @@ class CellCenterData2d(object):
                 # FIXME: not sure this is correct - copied over from y direction
                 #for i in range(self.grid.ilo):
                 #    self.data[n,i,:] = self.data[n,self.grid.ilo,:]
-                self.data[n,:self.grid.ilo,:] =  self.data[n,self.grid.ilo,np.newaxis,:] #np.transpose(np.tile(self.data[n,self.grid.ilo,:], (self.grid.ng,1)))
+                self.data[n,:self.grid.ilo,:] =  self.data[n,self.grid.ilo,np.newaxis,:]
+                #self.data[n,:self.grid.ilo,:] = self.data[np.newaxis,n,self.grid.ilo,:]
+                #np.transpose(np.tile(self.data[n,self.grid.ilo,:], (self.grid.ng,1)))
             else:
                 self.data[n,self.grid.ilo-1,:] = \
                     self.data[n,self.grid.ilo,:] - self.grid.dx*self.BCs[name].xl_value[:]
@@ -953,7 +956,9 @@ class CellCenterData2d(object):
             if self.BCs[name].xr_value == None:
                 #for i in range(self.grid.ihi+1, self.grid.nx+2*self.grid.ng):
                 #    self.data[n,i,:] = self.data[n,self.grid.ihi,:]
-                self.data[n,self.grid.ihi+1:,:] = self.data[n,self.grid.ihi,np.newaxis,:] #np.transpose(np.tile(self.data[n,self.grid.ihi,:], (self.grid.ng,1)))
+                self.data[n,self.grid.ihi+1:,:] = self.data[n,self.grid.ihi,np.newaxis,:]
+
+                #self.data[n,self.grid.ihi+1:,:] = self.data[np.newaxis,n,self.grid.ihi,:] #np.transpose(np.tile(self.data[n,self.grid.ihi,:], (self.grid.ng,1)))
             else:
                 self.data[n,self.grid.ihi+1,:] = \
                     self.data[n,self.grid.ihi,:] + self.grid.dx*self.BCs[name].xr_value[:]
@@ -1192,7 +1197,19 @@ class CellCenterData2d(object):
         """
         pF = open(filename + ".pyro", "wb")
 
-        pickle.dump(self, pF, pickle.HIGHEST_PROTOCOL)
+        # The metric contains functions for some of its variables,
+        # so we need to convert these to actual arrays before it
+        # will pickle.
+        cp = copy.deepcopy(self)
+
+        if isinstance(cp.grid.metric.alpha, partial):
+            gamma = cp.grid.metric.gamma(cp.grid)
+            alpha = cp.grid.metric.alpha(cp.grid)
+
+            cp.grid.metric.gamma = gamma
+            cp.grid.metric.alpha = alpha
+
+        pickle.dump(cp, pF, pickle.HIGHEST_PROTOCOL)
         pF.close()
 
 

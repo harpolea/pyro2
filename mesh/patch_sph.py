@@ -83,6 +83,8 @@ class Grid2d_Sph(patch.Grid2d):
         self.r2d = self.y2d + self.R
         self.r2v = self.r2d[self.ilo:self.ihi+1, self.jlo:self.jhi+1]
 
+        print('spherical!')
+
         self.metric = None
 
     def initialise_metric(self, rp, alpha, beta, gamma, cartesian=True):
@@ -170,6 +172,8 @@ class CellCenterData2d_Sph(patch.CellCenterData2d):
         coarser) and return an array with the resulting data (and same
         number of ghostcells)
         """
+
+        print('spherical!')
 
         fG = self.grid
         fData = self.get_var(varname)

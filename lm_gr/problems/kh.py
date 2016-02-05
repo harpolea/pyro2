@@ -5,6 +5,7 @@ import math
 import mesh.patch as patch
 import numpy as np
 from util import msg
+from functools import partial
 
 def init_data(my_data, aux_data, base, rp, metric):
     """ initialize the Kelvin-Helmholtz problem """
@@ -93,9 +94,14 @@ def init_data(my_data, aux_data, base, rp, metric):
     u0 = metric.calcu0()
     p0.d[:] = K * (D0.d / u0.d1d())**gamma
 
+    if isinstance(metric.alpha, partial):
+        alpha = metric.alpha(myg)
+    else:
+        alpha = metric.alpha
+
     for i in range(myg.jlo, myg.jhi+1):
         p0.d[i] = p0.d[i-1] - \
-                  myg.dy * Dh0.d[i] * g / (R * c**2 * metric.alpha.d[i] **2 * u0.d1d()[i])
+                  myg.dy * Dh0.d[i] * g / (R * c**2 * alpha.d[i] **2 * u0.d1d()[i])
 
     mu = 1./(2. * (1 - DX.d) + 4. * DX.d)
     mp_kB = 1.21147e-8
