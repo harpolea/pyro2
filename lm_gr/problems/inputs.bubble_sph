@@ -8,7 +8,7 @@ cfl = 0.25
 
 [lm-gr]
 c = 1.0
-grav = 0.148
+grav = 0.0;0.148
 cartesian = 0  ; cartesian or spherical polar coordinates? (0 = no, 1 = yes)
 radius = 6.75  ; 10 km
 

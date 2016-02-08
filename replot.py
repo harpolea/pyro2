@@ -50,11 +50,13 @@ def makeplot(myd, solver_name, problem_name, outfile, W, H, n=0, vmins=[None, No
     max_dt_change = rp.get_param("driver.max_dt_change")
     fix_dt = rp.get_param("driver.fix_dt")
 
-    if solver_name == "lm_gr" and rp.get_param("lm-gr.react") != 0:
+    if solver_name == "lm_gr":
         if not rp.get_param("lm-gr.cartesian"):
             sim = solver.SimulationSpherical(solver_name, problem_name, rp)
-        else:
+        elif rp.get_param("lm-gr.react") != 0:
             sim = solver.SimulationReact(solver_name, problem_name, rp)
+        else:
+            sim = solver.Simulation(solver_name, problem_name, rp)
     elif solver_name == "compressible_gr": # and rp.get_param("compressible-gr.react") != 0:
         sim = solver.SimulationReact(solver_name, problem_name, rp)
     else:

@@ -289,9 +289,9 @@ class SimulationReact(Simulation):
 
         myg = self.cc_data.grid
 
-        psi = myg.scratch_array(data=scalar.d/D.d)
-        X = myg.scratch_array(data=DX.d/D.d)
-        logT = myg.scratch_array(data=np.log(T.d))
+        psi = patch.ArrayIndexer(d=scalar.d/D.d, grid=myg)
+        X = patch.ArrayIndexer(d=DX.d/D.d, grid=myg)
+        logT = patch.ArrayIndexer(d=np.log(T.d), grid=myg)
 
         magvel = np.sqrt(u**2 + v**2)
 

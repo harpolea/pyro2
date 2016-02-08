@@ -147,7 +147,8 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
 
             self.grids[i].create()
 
-            if self.verbose: print(self.grids[i])
+            if self.verbose:
+                print(self.grids[i])
 
             nx_t = nx_t*2
             ny_t = ny_t*2
@@ -291,53 +292,53 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
                 #    eta_y.ip_jp(ix, iy, s=2) * v.ip_jp(ix, -1+iy, s=2) ) / denom
 
                 denom = (
-                    (eta_x[myg.ilo+1+ix:myg.ihi+2:2,
-                          myg.jlo+iy  :myg.jhi+1:2] +
+                    (eta_x[myg.ilo+1+ix:myg.ihi+2+ix:2,
+                          myg.jlo+iy  :myg.jhi+1+iy:2] +
                     #
-                    eta_x[myg.ilo+ix  :myg.ihi+1:2,
-                          myg.jlo+iy  :myg.jhi+1:2]) /
-                    (myg.r2d[myg.ilo+ix  :myg.ihi+1:2,
-                             myg.jlo+iy  :myg.jhi+1:2] *
-                     np.sin(myg.x2d[myg.ilo+ix  :myg.ihi+1:2,
-                            myg.jlo+iy  :myg.jhi+1:2]) * myg.dx) +
+                    eta_x[myg.ilo+ix  :myg.ihi+1+ix:2,
+                          myg.jlo+iy  :myg.jhi+1+iy:2]) /
+                    (myg.r2d[myg.ilo+ix  :myg.ihi+1+ix:2,
+                             myg.jlo+iy  :myg.jhi+1+iy:2] *
+                     np.sin(myg.x2d[myg.ilo+ix  :myg.ihi+1+ix:2,
+                            myg.jlo+iy  :myg.jhi+1+iy:2]) * myg.dx) +
                     #
-                    (eta_y[myg.ilo+ix  :myg.ihi+1:2,
-                          myg.jlo+1+iy:myg.jhi+2:2] +
+                    (eta_y[myg.ilo+ix  :myg.ihi+1+ix:2,
+                          myg.jlo+1+iy:myg.jhi+2+iy:2] +
                     #
-                    eta_y[myg.ilo+ix  :myg.ihi+1:2,
-                          myg.jlo+iy  :myg.jhi+1:2]) /
-                    (myg.r2d[myg.ilo+ix  :myg.ihi+1:2,
-                             myg.jlo+iy  :myg.jhi+1:2]**2 * myg.dy))
+                    eta_y[myg.ilo+ix  :myg.ihi+1+ix:2,
+                          myg.jlo+iy  :myg.jhi+1+iy:2]) /
+                    (myg.r2d[myg.ilo+ix  :myg.ihi+1+ix:2,
+                             myg.jlo+iy  :myg.jhi+1+iy:2]**2 * myg.dy))
 
-                v.d[myg.ilo+ix:myg.ihi+1:2,myg.jlo+iy:myg.jhi+1:2] = (
-                    -f.d[myg.ilo+ix:myg.ihi+1:2,
-                         myg.jlo+iy:myg.jhi+1:2] +
+                v.d[myg.ilo+ix:myg.ihi+1+ix:2,myg.jlo+iy:myg.jhi+1+iy:2] = (
+                    -f.d[myg.ilo+ix:myg.ihi+1+ix:2,
+                         myg.jlo+iy:myg.jhi+1+iy:2] +
                     # eta_{i+1/2,j} phi_{i+1,j}
-                    (eta_x[myg.ilo+1+ix:myg.ihi+2:2,
-                          myg.jlo+iy  :myg.jhi+1:2] *
-                    v.d[myg.ilo+1+ix:myg.ihi+2:2,
-                      myg.jlo+iy  :myg.jhi+1:2] +
+                    (eta_x[myg.ilo+1+ix:myg.ihi+2+ix:2,
+                          myg.jlo+iy  :myg.jhi+1+iy:2] *
+                    v.d[myg.ilo+1+ix:myg.ihi+2+ix:2,
+                      myg.jlo+iy  :myg.jhi+1+iy:2] +
                     # eta_{i-1/2,j} phi_{i-1,j}
-                    eta_x[myg.ilo+ix:myg.ihi+1:2,
-                          myg.jlo+iy:myg.jhi+1:2]*
-                    v.d[myg.ilo-1+ix:myg.ihi  :2,
-                      myg.jlo+iy  :myg.jhi+1:2]) /
-                    (myg.r2d[myg.ilo+ix  :myg.ihi+1:2,
-                             myg.jlo+iy  :myg.jhi+1:2] *
-                     np.sin(myg.x2d[myg.ilo+ix  :myg.ihi+1:2,
-                            myg.jlo+iy  :myg.jhi+1:2]) * myg.dx) +
+                    eta_x[myg.ilo+ix:myg.ihi+1+ix:2,
+                          myg.jlo+iy:myg.jhi+1+iy:2]*
+                    v.d[myg.ilo-1+ix:myg.ihi+ix  :2,
+                      myg.jlo+iy  :myg.jhi+1+iy:2]) /
+                    (myg.r2d[myg.ilo+ix  :myg.ihi+1+ix:2,
+                             myg.jlo+iy  :myg.jhi+1+iy:2] *
+                     np.sin(myg.x2d[myg.ilo+ix  :myg.ihi+1+ix:2,
+                            myg.jlo+iy  :myg.jhi+1+iy:2]) * myg.dx) +
                     # eta_{i,j+1/2} phi_{i,j+1}
-                    (eta_y[myg.ilo+ix:myg.ihi+1:2,
-                          myg.jlo+1+iy:myg.jhi+2:2]*
-                    v.d[myg.ilo+ix  :myg.ihi+1:2,
-                      myg.jlo+1+iy:myg.jhi+2:2] +
+                    (eta_y[myg.ilo+ix:myg.ihi+1+ix:2,
+                          myg.jlo+1+iy:myg.jhi+2+iy:2]*
+                    v.d[myg.ilo+ix  :myg.ihi+1+ix:2,
+                      myg.jlo+1+iy:myg.jhi+2+iy:2] +
                     # eta_{i,j-1/2} phi_{i,j-1}
-                    eta_y[myg.ilo+ix:myg.ihi+1:2,
-                          myg.jlo+iy:myg.jhi+1:2]*
-                    v.d[myg.ilo+ix  :myg.ihi+1:2,
-                      myg.jlo-1+iy:myg.jhi  :2]) /
-                    (myg.r2d[myg.ilo+ix  :myg.ihi+1:2,
-                             myg.jlo+iy  :myg.jhi+1:2]**2 *
+                    eta_y[myg.ilo+ix:myg.ihi+1+ix:2,
+                          myg.jlo+iy:myg.jhi+1+iy:2]*
+                    v.d[myg.ilo+ix  :myg.ihi+1+ix:2,
+                      myg.jlo-1+iy:myg.jhi+iy  :2]) /
+                    (myg.r2d[myg.ilo+ix  :myg.ihi+1+ix:2,
+                             myg.jlo+iy  :myg.jhi+1+iy:2]**2 *
                              myg.dy)) / denom
 
                 if n == 1 or n == 3:
@@ -451,8 +452,10 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
                 print("  level = {}, nx = {}, ny = {}\n".format(
                     level, bP.grid.nx, bP.grid.ny))
 
-            # CHANGED: CG solver?
-            self.cG()
+            if bP.grid.ny == bP.grid.nx: # square so can just use smoothing
+                self.smooth(0, self.nsmooth_bottom, fortran=fortran)
+            else:
+                self.cG()
 
             bP.fill_BC("v")
 

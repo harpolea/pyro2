@@ -26,6 +26,22 @@ class BCObject_Sph(patch.BCObject):
 
     """
 
+    def __init__ (self,
+                  xlb="outflow", xrb="outflow",
+                  ylb="outflow", yrb="outflow",
+                  xl_func=None, xr_func=None,
+                  yl_func=None, yr_func=None,
+                  grid=None,
+                  odd_reflect_dir=""):
+
+        super(BCObject_Sph, self).__init__(xlb=xlb, xrb=xrb,
+              ylb=ylb, yrb=yrb,
+              xl_func=xl_func, xr_func=xr_func,
+              yl_func=yl_func, yr_func=yr_func,
+              grid=grid,
+              odd_reflect_dir=odd_reflect_dir)
+
+
 class Grid2d_Sph(patch.Grid2d):
     """
     the 2-d grid class.  The grid object will contain the coordinate
@@ -82,8 +98,6 @@ class Grid2d_Sph(patch.Grid2d):
         self.R = R
         self.r2d = self.y2d + self.R
         self.r2v = self.r2d[self.ilo:self.ihi+1, self.jlo:self.jhi+1]
-
-        print('spherical!')
 
         self.metric = None
 
@@ -172,8 +186,6 @@ class CellCenterData2d_Sph(patch.CellCenterData2d):
         coarser) and return an array with the resulting data (and same
         number of ghostcells)
         """
-
-        print('spherical!')
 
         fG = self.grid
         fData = self.get_var(varname)

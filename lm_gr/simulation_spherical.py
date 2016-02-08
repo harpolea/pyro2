@@ -1,24 +1,17 @@
 from __future__ import print_function
 
-#import sys
-
 import numpy as np
 import matplotlib.pyplot as plt
-#import pdb
-#import math
 
 from lm_gr.problems import *
 import lm_gr.LM_gr_interface_sph_f as lm_interface_sph_f
 import mesh.reconstruction_f as reconstruction_f
 import mesh.patch_sph as patch_sph
 import mesh.patch as patch
-#from simulation_null import NullSimulation#, grid_setup, bc_setup
 from lm_gr.simulation import *
 from lm_gr.simulation_react import *
 import multigrid.variable_coeff_MG as vcMG
 import multigrid.rect_MG as rectMG
-from util import profile
-import mesh.metric as metric
 import colormaps as cmaps
 from functools import partial
 import importlib
@@ -239,8 +232,6 @@ class SimulationSpherical(Simulation):
         # now set the initial conditions for the problem
         #exec(self.problem_name + '.init_data(self.cc_data, self.aux_data, self.base, self.rp, myg.metric)')
         if self.testing:
-            #importlib.import_module(self.solver_name + '.tests.' + self.problem_name)
-
             getattr(importlib.import_module(self.solver_name + '.tests.' + self.problem_name), 'init_data' )(self.cc_data, self.aux_data, self.base, self.rp, myg.metric)
         else:
             getattr(importlib.import_module(self.solver_name + '.problems.' + self.problem_name), 'init_data' )(self.cc_data, self.aux_data, self.base, self.rp, myg.metric)
@@ -263,7 +254,7 @@ class SimulationSpherical(Simulation):
         S = self.aux_data.get_var("source_y")
         S = self.compute_S()
         oldS = self.aux_data.get_var("old_source_y")
-        oldS = myg.scratch_array(data=S.d)
+        oldS = patch.ArrayIndexer(d=S.d, grid=myg)
 
 
     def calc_psi(self, S=None, U0=None, p0=None, old_p0=None):
@@ -371,9 +362,6 @@ class SimulationSpherical(Simulation):
         #print('u: {}'.format(u.d))
         #print('Dh: {}'.format(Dh.d))
 
-        #chrls = np.array([[self.metric.christoffels([self.cc_data.t, i, j])
-        #                   for j in range(myg.qy)] for i in range(myg.qx)])
-        # time-independent metric
         chrls = myg.metric.chrls
 
         # downstairs metric components needed to lower the christoffel
@@ -403,17 +391,13 @@ class SimulationSpherical(Simulation):
         mask = (abs(drp0.d2df(myg.qx)) > 1.e-15)
         # divide by metric component as want to have an upstairs r
         # component (and metric is diagonal)
-        #mom_source_r.d[mask] -= drp0.d2df(myg.qx)[mask] / \
-            #(Dh.d[mask] * u0.d[mask] * grr[mask])
+        mom_source_r.d[mask] -= drp0.d2df(myg.qx)[mask] / \
+            (Dh.d[mask] * u0.d[mask] * grr[mask])
         #mom_source_r.d[:,:] -= drp0.d2df(myg.qx) / \
             #(Dh.d * u0.d * grr)
 
         # FIXME: zero'd for testing
         #mom_source_r.d[:,:] = 0.
-
-        # FIXME: what were these two lines doing????
-        #mom_source_x.d[:,:] *=  alpha.d2d()**2
-        #mom_source_r.d[:,:] *=  alpha.d2d()**2
 
         return mom_source_x, mom_source_r
 
@@ -524,11 +508,9 @@ class SimulationSpherical(Simulation):
 
         myg = self.cc_data.grid
 
-        D = self.cc_data.get_var("density")
         Dh = self.cc_data.get_var("enthalpy")
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
-        scalar = self.cc_data.get_var("scalar")
 
         #print('preevolve u: {}'.format(u.d))
 
@@ -537,6 +519,7 @@ class SimulationSpherical(Simulation):
         self.cc_data.fill_BC("x-velocity")
         self.cc_data.fill_BC("y-velocity")
         self.cc_data.fill_BC("scalar")
+        self.cc_data.fill_BC("mass-frac")
 
         oldS = self.aux_data.get_var("old_source_y")
         oldS.d[:,:] = self.aux_data.get_var("source_y").d
@@ -618,7 +601,7 @@ class SimulationSpherical(Simulation):
         # CHANGED: multiplied by dt to match same thing done at end of evolve.
         # FIXME: WTF IS IT DOING HERE?????
         u.v()[:,:] -= self.dt * coeff.v() * gradp_x.v()
-        #v.v()[:,:] -= self.dt * coeff.v() * gradp_y.v()
+        v.v()[:,:] -= self.dt * coeff.v() * gradp_y.v()
 
         #print('after gradp u: {}'.format(u.d))
 
@@ -726,11 +709,11 @@ class SimulationSpherical(Simulation):
         #---------------------------------------------------------------------
         # 1. React state through dt/2
         #---------------------------------------------------------------------
-        D_1 = myg.scratch_array(data=D.d)
-        Dh_1 = myg.scratch_array(data=Dh.d)
-        DX_1 = myg.scratch_array(data=DX.d)
-        scalar_1 = myg.scratch_array(data=scalar.d)
-        T_1 = myg.scratch_array(data=T.d)
+        D_1 = patch.ArrayIndexer(d=D.d, grid=myg)
+        Dh_1 = patch.ArrayIndexer(d=Dh.d, grid=myg)
+        DX_1 = patch.ArrayIndexer(d=DX.d, grid=myg)
+        scalar_1 = patch.ArrayIndexer(d=scalar.d, grid=myg)
+        T_1 = patch.ArrayIndexer(d=T.d, grid=myg)
         self.react_state(D=D_1, Dh=Dh_1, DX=DX_1, T=T_1, scalar=scalar_1, u0=u0)
 
         #print('1. u: {}'.format(u.d))
@@ -935,26 +918,24 @@ class SimulationSpherical(Simulation):
                                              D_1.d, u_MAC.d, v_MAC.d,
                                              ldelta_rx, ldelta_ry)
 
-        psi_1 = myg.scratch_array(data=scalar_1.d/D_1.d)
-        ldelta_px = limitFunc(1, psi_1.d, myg.qx, myg.qy, myg.ng)
-        ldelta_py = limitFunc(2, psi_1.d, myg.qx, myg.qy, myg.ng)
+        ldelta_scx = limitFunc(1, scalar_1.d, myg.qx, myg.qy, myg.ng)
+        ldelta_scy = limitFunc(2, scalar_1.d, myg.qx, myg.qy, myg.ng)
         no_source = myg.scratch_array()
-        _px, _py = lm_interface_sph_f.psi_states(myg.qx, myg.qy, myg.ng,
+        _scx, _scy = lm_interface_sph_f.psi_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
                                              myg.r2d,
-                                             psi_1.d, u_MAC.d, v_MAC.d,
-                                             ldelta_px, ldelta_py, no_source.d)
+                                             scalar_1.d, u_MAC.d, v_MAC.d,
+                                             ldelta_scx, ldelta_scy, no_source.d)
 
 
-        X_1 = myg.scratch_array(data=DX_1.d/D_1.d)
-        ldelta_Xx = limitFunc(1, X_1.d, myg.qx, myg.qy, myg.ng)
-        ldelta_Xy = limitFunc(2, X_1.d, myg.qx, myg.qy, myg.ng)
+        ldelta_DXx = limitFunc(1, DX_1.d, myg.qx, myg.qy, myg.ng)
+        ldelta_DXy = limitFunc(2, DX_1.d, myg.qx, myg.qy, myg.ng)
         _, omega_dot = self.calc_Q_omega_dot(D=D_1, DX=DX_1, u=u_MAC, v=v_MAC, u0=u0_MAC, T=T_1)
-        _Xx, _Xy = lm_interface_sph_f.psi_states(myg.qx, myg.qy, myg.ng,
+        _DXx, _DXy = lm_interface_sph_f.psi_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
                                              myg.r2d,
-                                             X_1.d, u_MAC.d, v_MAC.d,
-                                             ldelta_Xx, ldelta_Xy, omega_dot.d)
+                                             DX_1.d, u_MAC.d, v_MAC.d,
+                                             ldelta_DXx, ldelta_DXy, omega_dot.d)
         # x component of U0 is zero
         U0_x = myg.scratch_array()
         # is U0 edge-centred?
@@ -993,25 +974,19 @@ class SimulationSpherical(Simulation):
         D_xint = patch.ArrayIndexer(d=_rx, grid=myg)
         D_yint = patch.ArrayIndexer(d=_ry, grid=myg)
 
-        psi_xint = patch.ArrayIndexer(d=_px, grid=myg)
-        psi_yint = patch.ArrayIndexer(d=_py, grid=myg)
-
-        X_xint = patch.ArrayIndexer(d=_Xx, grid=myg)
-        X_yint = patch.ArrayIndexer(d=_Xy, grid=myg)
+        scalar_xint = patch.ArrayIndexer(d=_scx, grid=myg)
+        scalar_yint = patch.ArrayIndexer(d=_scy, grid=myg)
 
         D_xint.d[:,:] += 0.5 * (D0_xint.d + D0_2a_xint.d)
         D_yint.d[:,:] += 0.5 * (D0_yint.d + D0_2a_yint.d)
 
-        scalar_xint = myg.scratch_array(data=psi_xint.d*D_xint.d)
-        scalar_yint = myg.scratch_array(data=psi_yint.d*D_yint.d)
+        DX_xint = patch.ArrayIndexer(d=_DXx, grid=myg)
+        DX_yint = patch.ArrayIndexer(d=_DXy, grid=myg)
 
-        DX_xint = myg.scratch_array(data=X_xint.d*D_xint.d)
-        DX_yint = myg.scratch_array(data=X_yint.d*D_yint.d)
-
-        D_old = myg.scratch_array(data=D.d)
-        scalar_2_star = myg.scratch_array(data=scalar_1.d)
-        D_2_star = myg.scratch_array(data=D_1.d)
-        DX_2_star = myg.scratch_array(data=DX_1.d)
+        D_old = patch.ArrayIndexer(d=D.d, grid=myg)
+        scalar_2_star = patch.ArrayIndexer(d=scalar_1.d, grid=myg)
+        D_2_star = patch.ArrayIndexer(d=D_1.d, grid=myg)
+        DX_2_star = patch.ArrayIndexer(d=DX_1.d, grid=myg)
 
         scalar_2_star.v()[:,:] -= self.dt * (
             #  (psi D u)_x
@@ -1093,8 +1068,8 @@ class SimulationSpherical(Simulation):
         Dh_xint.d[:,:] += 0.5 * (Dh0_xint.d + Dh0_star_xint.d)
         Dh_yint.d[:,:] += 0.5 * (Dh0_yint.d + Dh0_star_yint.d)
 
-        Dh_old = myg.scratch_array(data=Dh_1.d)
-        Dh_2_star = myg.scratch_array(data=Dh_1.d)
+        Dh_old = patch.ArrayIndexer(d=Dh_1.d, grid=myg)
+        Dh_2_star = patch.ArrayIndexer(d=Dh_1.d, grid=myg)
         # Dh0 is not edge based?
         drp0 = self.drp0(Dh0=Dh0, u=u_MAC, v=v_MAC, u0=u0_MAC)
 
@@ -1132,11 +1107,11 @@ class SimulationSpherical(Simulation):
 
         #print('5.  u_MAC: {}'.format(u_MAC.d[-20:-10, -20:-10]))
         #print('5.  v_MAC: {}'.format(v_MAC.d[-20:-10, -20:-10]))
-        D_star = myg.scratch_array(data=D_2_star.d)
-        Dh_star = myg.scratch_array(data=Dh_2_star.d)
-        DX_star = myg.scratch_array(data=DX_2_star.d)
-        scalar_star = myg.scratch_array(data=scalar_2_star.d)
-        T_star = myg.scratch_array(data=T_2_star.d)
+        D_star = patch.ArrayIndexer(d=D_2_star.d, grid=myg)
+        Dh_star = patch.ArrayIndexer(d=Dh_2_star.d, grid=myg)
+        DX_star = patch.ArrayIndexer(d=DX_2_star.d, grid=myg)
+        scalar_star = patch.ArrayIndexer(d=scalar_2_star.d, grid=myg)
+        T_star = patch.ArrayIndexer(d=T_2_star.d, grid=myg)
         self.react_state(S=self.compute_S(u=u_MAC, v=v_MAC),
                          D=D_star, Dh=Dh_star, DX=DX_star, T=T_star, scalar=scalar_star, Dh0=Dh0_star, u=u_MAC, v=v_MAC, u0=u0_MAC)
 
@@ -1290,24 +1265,22 @@ class SimulationSpherical(Simulation):
                                              U0_half.d2df(myg.qx),
                                              ldelta_r0x, ldelta_r0y)
 
-        psi_1.d[:,:] = scalar_1.d / D_1.d
-        ldelta_px = limitFunc(1, psi_1.d, myg.qx, myg.qy, myg.ng)
-        ldelta_py = limitFunc(2, psi_1.d, myg.qx, myg.qy, myg.ng)
-        _px, _py = lm_interface_sph_f.psi_states(myg.qx, myg.qy, myg.ng,
+        ldelta_scx = limitFunc(1, scalar_1.d, myg.qx, myg.qy, myg.ng)
+        ldelta_scy = limitFunc(2, scalar_1.d, myg.qx, myg.qy, myg.ng)
+        _scx, _scy = lm_interface_sph_f.psi_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
                                              myg.r2d,
-                                             psi_1.d, u_MAC.d, v_MAC.d,
-                                             ldelta_px, ldelta_py, no_source.d)
+                                             scalar_1.d, u_MAC.d, v_MAC.d,
+                                             ldelta_scx, ldelta_scy, no_source.d)
 
-        X_1.d[:,:] = DX_1.d / D_1.d
-        ldelta_Xx = limitFunc(1, X_1.d, myg.qx, myg.qy, myg.ng)
-        ldelta_Xy = limitFunc(2, X_1.d, myg.qx, myg.qy, myg.ng)
+        ldelta_DXx = limitFunc(1, DX_1.d, myg.qx, myg.qy, myg.ng)
+        ldelta_DXy = limitFunc(2, DX_1.d, myg.qx, myg.qy, myg.ng)
         _, omega_dot = self.calc_Q_omega_dot(D=D_1, DX=DX_1, u=u_MAC, v=v_MAC, u0=u0_MAC, T=T_1)
-        _Xx, _Xy = lm_interface_sph_f.psi_states(myg.qx, myg.qy, myg.ng,
+        _DXx, _DXy = lm_interface_sph_f.psi_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
                                              myg.r2d,
-                                             X_1.d, u_MAC.d, v_MAC.d,
-                                             ldelta_Xx, ldelta_Xy, omega_dot.d)
+                                             DX_1.d, u_MAC.d, v_MAC.d,
+                                             ldelta_DXx, ldelta_DXy, omega_dot.d)
 
         D0_xint = patch.ArrayIndexer(d=_r0x, grid=myg)
         D0_yint = patch.ArrayIndexer(d=_r0y, grid=myg)
@@ -1338,25 +1311,19 @@ class SimulationSpherical(Simulation):
         D_xint = patch.ArrayIndexer(d=_rx, grid=myg)
         D_yint = patch.ArrayIndexer(d=_ry, grid=myg)
 
-        psi_xint = patch.ArrayIndexer(d=_px, grid=myg)
-        psi_yint = patch.ArrayIndexer(d=_py, grid=myg)
+        scalar_xint = patch.ArrayIndexer(d=_scx, grid=myg)
+        scalar_yint = patch.ArrayIndexer(d=_scy, grid=myg)
 
-        X_xint = patch.ArrayIndexer(d=_Xx, grid=myg)
-        X_yint = patch.ArrayIndexer(d=_Xy, grid=myg)
+        DX_xint = patch.ArrayIndexer(d=_DXx, grid=myg)
+        DX_yint = patch.ArrayIndexer(d=_DXy, grid=myg)
 
         D_xint.d[:,:] += 0.5 * (D0_xint.d + D0_2a_xint.d)
         D_yint.d[:,:] += 0.5 * (D0_yint.d + D0_2a_yint.d)
 
-        scalar_xint.d[:,:] = D_xint.d * psi_xint.d
-        scalar_yint.d[:,:] = D_yint.d * psi_yint.d
-
-        DX_xint.d[:,:] = X_xint.d * D_xint.d
-        DX_yint.d[:,:] = X_yint.d * D_yint.d
-
-        D_old = myg.scratch_array(data=D.d)
-        scalar_2 = myg.scratch_array(data=scalar_1.d)
-        D_2 = myg.scratch_array(data=D_1.d)
-        DX_2 = myg.scratch_array(data=DX_1.d)
+        D_old = patch.ArrayIndexer(d=D.d, grid=myg)
+        scalar_2 = patch.ArrayIndexer(d=scalar_1.d, grid=myg)
+        D_2 = patch.ArrayIndexer(d=D_1.d, grid=myg)
+        DX_2 = patch.ArrayIndexer(d=DX_1.d, grid=myg)
 
         D_2.v()[:,:] -= self.dt * (
             #  (D u)_x
@@ -1448,8 +1415,8 @@ class SimulationSpherical(Simulation):
         Dh_xint.d[:,:] += 0.5 * (Dh0_xint.d + Dh0_n1_xint.d)
         Dh_yint.d[:,:] += 0.5 * (Dh0_yint.d + Dh0_n1_yint.d)
 
-        Dh_old = myg.scratch_array(data=Dh.d)
-        Dh_2 = myg.scratch_array(data=Dh_1.d)
+        Dh_old = patch.ArrayIndexer(d=Dh.d, grid=myg)
+        Dh_2 = patch.ArrayIndexer(d=Dh_1.d, grid=myg)
         drp0 = self.drp0(Dh0=Dh0, u=u_MAC, v=v_MAC, u0=u0_MAC)
 
         Dh_2.v()[:,:] += -self.dt * (
@@ -1585,9 +1552,9 @@ class SimulationSpherical(Simulation):
         # However, it doesn't actually work: it just causes the atmosphere to rise up?
         base_forcing = self.base_state_forcing()
         # FIXME: This line messes up the velocity somehow - what on earth is it doing????
-        #u.v()[:,:] += self.dt * (-coeff.v() * gradphi_x.v())
+        u.v()[:,:] += self.dt * (-coeff.v() * gradphi_x.v())
         # FIXME: add back in??
-        #v.v()[:,:] += self.dt * (-coeff.v() * gradphi_y.v() + base_forcing.v())
+        v.v()[:,:] += self.dt * (-coeff.v() * gradphi_y.v() + base_forcing.v())
 
         # store gradp for the next step
         if proj_type == 1:
@@ -1674,7 +1641,7 @@ class SimulationSpherical(Simulation):
             cmap = colourmaps[n]
 
             #img = ax.imshow(np.transpose(f.v()),
-            img = ax.imshow(np.transpose(f.d),
+            img = ax.imshow(np.transpose(f.v()),
                             interpolation="nearest", origin="lower",
                             extent=[(myg.xmin-myg.ng*myg.dx)*myg.R, (myg.xmax+myg.ng*myg.dx)*myg.R, (myg.ymin-myg.ng*myg.dy),  (myg.ymax+myg.ng*myg.dy)],
                             vmin=vmins[n], vmax=vmaxes[n], cmap=cmap)

@@ -641,8 +641,7 @@ class Simulation(NullSimulation):
         #print(drp0.d2d())
         mom_source_r.d[mask] -=  drp0.d2df(myg.qx)[mask] / (Dh.d[mask]*u0.d[mask])
 
-        #mom_source_r.d[:,:] -=  drp0.d[np.newaxis,:] / (Dh.d[:,:]*u0.d[:,:])
-
+        # these lines are multiplying by upstairs metric components
         mom_source_x.d[:,:] *=  alpha.d2d()**2
         mom_source_r.d[:,:] *=  alpha.d2d()**2
 
@@ -1189,7 +1188,6 @@ class Simulation(NullSimulation):
 
         myg = self.cc_data.grid
 
-        D = self.cc_data.get_var("density")
         Dh = self.cc_data.get_var("enthalpy")
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
@@ -1580,17 +1578,15 @@ class Simulation(NullSimulation):
                                              D_1.d, u_MAC.d, v_MAC.d,
                                              ldelta_rx, ldelta_ry)
 
-        psi_1 = patch.ArrayIndexer(d=scalar_1.d/D_1.d, grid=myg)
-        ldelta_px = limitFunc(1, psi_1.d, myg.qx, myg.qy, myg.ng)
-        ldelta_py = limitFunc(2, psi_1.d, myg.qx, myg.qy, myg.ng)
+        ldelta_scx = limitFunc(1, scalar_1.d, myg.qx, myg.qy, myg.ng)
+        ldelta_scy = limitFunc(2, scalar_1.d, myg.qx, myg.qy, myg.ng)
         no_source = myg.scratch_array()
-        _px, _py = lm_interface_f.psi_states(myg.qx, myg.qy, myg.ng,
+        _scx, _scy = lm_interface_f.psi_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
-                                             psi_1.d, u_MAC.d, v_MAC.d,
-                                             ldelta_px, ldelta_py, no_source.d)
+                                             scalar_1.d, u_MAC.d, v_MAC.d,
+                                             ldelta_scx, ldelta_scy, no_source.d)
 
 
-        #X_1 = patch.ArrayIndexer(d=DX_1.d/D_1.d, grid=myg)
         ldelta_DXx = limitFunc(1, DX_1.d, myg.qx, myg.qy, myg.ng)
         ldelta_DXy = limitFunc(2, DX_1.d, myg.qx, myg.qy, myg.ng)
         _, omega_dot = self.calc_Q_omega_dot(D=D_1, DX=DX_1, u=u_MAC, v=v_MAC, u0=u0_MAC, T=T_1)
@@ -1634,22 +1630,14 @@ class Simulation(NullSimulation):
         D_xint = patch.ArrayIndexer(d=_rx, grid=myg)
         D_yint = patch.ArrayIndexer(d=_ry, grid=myg)
 
-        psi_xint = patch.ArrayIndexer(d=_px, grid=myg)
-        psi_yint = patch.ArrayIndexer(d=_py, grid=myg)
+        scalar_xint = patch.ArrayIndexer(d=_scx, grid=myg)
+        scalar_yint = patch.ArrayIndexer(d=_scy, grid=myg)
 
         DX_xint = patch.ArrayIndexer(d=_DXx, grid=myg)
         DX_yint = patch.ArrayIndexer(d=_DXy, grid=myg)
 
         D_xint.d[:,:] += 0.5 * (D0_xint.d + D0_2a_xint.d)
         D_yint.d[:,:] += 0.5 * (D0_yint.d + D0_2a_yint.d)
-
-        scalar_xint = patch.ArrayIndexer(d=psi_xint.d*D_xint.d, grid=myg)
-        scalar_yint = patch.ArrayIndexer(d=psi_yint.d*D_yint.d, grid=myg)
-
-        #DX_xint = patch.ArrayIndexer(d=X_xint.d*D_xint.d, grid=myg)
-        #DX_yint = patch.ArrayIndexer(d=X_yint.d*D_yint.d, grid=myg)
-        #DX_xint = patch.ArrayIndexer(d=X_xint.d, grid=myg)
-        #DX_yint = patch.ArrayIndexer(d=X_yint.d, grid=myg)
 
         D_old = patch.ArrayIndexer(d=D.d, grid=myg)
         scalar_2_star = patch.ArrayIndexer(d=scalar_1.d, grid=myg)
@@ -1781,8 +1769,11 @@ class Simulation(NullSimulation):
         # 6. Compute time-centred expasion S, base state velocity U0 and
         # base state forcing
         #---------------------------------------------------------------------
-        Q_2_star, _ = self.calc_Q_omega_dot(D=D_2_star, DX=DX_2_star, u=u_MAC, v=v_MAC, u0=u0_MAC, T=T_2_star)
-        S_star = self.compute_S(u=u_MAC, v=v_MAC, u0=u0_MAC, Q=Q_2_star, D=D_2_star)
+        Q_2_star, _ = self.calc_Q_omega_dot(D=D_2_star, DX=DX_2_star,
+                                            u=u_MAC, v=v_MAC, u0=u0_MAC,
+                                            T=T_2_star)
+        S_star = self.compute_S(u=u_MAC, v=v_MAC, u0=u0_MAC, Q=Q_2_star,
+                                D=D_2_star)
 
         S_half_star = 0.5 * (S + S_star)
 
@@ -1914,15 +1905,13 @@ class Simulation(NullSimulation):
                                              U0_half.d2df(myg.qx),
                                              ldelta_r0x, ldelta_r0y)
 
-        psi_1.d[:,:] = scalar_1.d / D_1.d
-        ldelta_px = limitFunc(1, psi_1.d, myg.qx, myg.qy, myg.ng)
-        ldelta_py = limitFunc(2, psi_1.d, myg.qx, myg.qy, myg.ng)
-        _px, _py = lm_interface_f.psi_states(myg.qx, myg.qy, myg.ng,
+        ldelta_scx = limitFunc(1, scalar_1.d, myg.qx, myg.qy, myg.ng)
+        ldelta_scy = limitFunc(2, scalar_1.d, myg.qx, myg.qy, myg.ng)
+        _scx, _scy = lm_interface_f.psi_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
-                                             psi_1.d, u_MAC.d, v_MAC.d,
-                                             ldelta_px, ldelta_py, no_source.d)
+                                             scalar_1.d, u_MAC.d, v_MAC.d,
+                                             ldelta_scx, ldelta_scy, no_source.d)
 
-        #X_1.d[:,:] = DX_1.d / D_1.d
         ldelta_DXx = limitFunc(1, DX_1.d, myg.qx, myg.qy, myg.ng)
         ldelta_DXy = limitFunc(2, DX_1.d, myg.qx, myg.qy, myg.ng)
         _, omega_dot = self.calc_Q_omega_dot(D=D_1, DX=DX_1, u=u_MAC, v=v_MAC, u0=u0_MAC, T=T_1)
@@ -1959,20 +1948,14 @@ class Simulation(NullSimulation):
         D_xint = patch.ArrayIndexer(d=_rx, grid=myg)
         D_yint = patch.ArrayIndexer(d=_ry, grid=myg)
 
-        psi_xint = patch.ArrayIndexer(d=_px, grid=myg)
-        psi_yint = patch.ArrayIndexer(d=_py, grid=myg)
+        scalar_xint = patch.ArrayIndexer(d=_scx, grid=myg)
+        scalar_yint = patch.ArrayIndexer(d=_scy, grid=myg)
 
         DX_xint = patch.ArrayIndexer(d=_DXx, grid=myg)
         DX_yint = patch.ArrayIndexer(d=_DXy, grid=myg)
 
         D_xint.d[:,:] += 0.5 * (D0_xint.d + D0_2a_xint.d)
         D_yint.d[:,:] += 0.5 * (D0_yint.d + D0_2a_yint.d)
-
-        scalar_xint.d[:,:] = D_xint.d * psi_xint.d
-        scalar_yint.d[:,:] = D_yint.d * psi_yint.d
-
-        #DX_xint.d[:,:] = X_xint.d# * D_xint.d
-        #DX_yint.d[:,:] = X_yint.d# * D_yint.d
 
         D_old = patch.ArrayIndexer(d=D.d, grid=myg)
         scalar_2 = patch.ArrayIndexer(d=scalar_1.d, grid=myg)

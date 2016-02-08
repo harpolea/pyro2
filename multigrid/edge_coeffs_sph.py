@@ -27,11 +27,11 @@ class EdgeCoeffsSpherical(EdgeCoeffs):
             b = (0,1)
 
             eta_x.v(buf=b)[:,:] = 0.5 * (
-                eta.ip(-1, buf=b) * self.alphasq.ip(-1, buf=b) * np.sin(g.x2d[:-1,g.jlo:g.jhi+2])/ g.r2d[:-1,g.jlo:g.jhi+2]**3 +
-                eta.v(buf=b) * self.alphasq.v(buf=b) * np.sin(g.x2d[1:,g.jlo:g.jhi+2])/ g.r2d[1:,g.jlo:g.jhi+2]**3)
+                eta.ip(-1, buf=b) * self.alphasq.ip(-1, buf=b) * np.sin(g.x2d[g.ilo-1:g.ihi+1,g.jlo:g.jhi+2])/ g.r2d[g.ilo-1:g.ihi+1,g.jlo:g.jhi+2]**3 +
+                eta.v(buf=b) * self.alphasq.v(buf=b) * np.sin(g.x2d[g.ilo:g.ihi+2,g.jlo:g.jhi+2])/ g.r2d[g.ilo:g.ihi+2,g.jlo:g.jhi+2]**3)
             eta_y.v(buf=b)[:,:] = 0.5 * (
-                eta.jp(-1, buf=b) * self.alphasq.jp(-1, buf=b) * g.r2d[g.ilo:g.ihi+2,:-1]**2 +
-                eta.v(buf=b) * self.alphasq.v(buf=b) * g.r2d[g.ilo:g.ihi+2,1:]**2)
+                eta.jp(-1, buf=b) * self.alphasq.jp(-1, buf=b) * g.r2d[g.ilo:g.ihi+2,g.jlo-1:g.jhi+1]**2 +
+                eta.v(buf=b) * self.alphasq.v(buf=b) * g.r2d[g.ilo:g.ihi+2,g.jlo:g.jhi+2]**2)
 
             eta_x /= g.dx
             eta_y /= g.dy
@@ -60,8 +60,6 @@ class EdgeCoeffsSpherical(EdgeCoeffs):
 
         c_eta_x = cg.scratch_array()
         c_eta_y = cg.scratch_array()
-
-
 
         b = (0, 1, 0, 0)
         #c_eta_x.v(buf=b)[:,:] = 0.5*(self.x.v(buf=b, s=2) + self.x.jp(1, buf=b, s=2))
@@ -92,4 +90,5 @@ class EdgeCoeffsSpherical(EdgeCoeffs):
 
         c_edge_coeffs.y = cg.scratch_array()
         c_edge_coeffs.y.d[:,:] = c_eta_y.d * fg.dy /cg.dy
+
         return c_edge_coeffs

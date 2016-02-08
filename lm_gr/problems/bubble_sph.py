@@ -73,9 +73,9 @@ def init_data(my_data, aux_data, base, rp, metric):
     #for j in range(myg.jlo, myg.jhi+1):
     #    dens.d[:,j] = max(dens_base*np.exp(-myg.y[j]/scale_height),
     #                      dens_cutoff)
-    dens.v()[:, :] = dens_base * \
-        np.exp(-g * myg.y[np.newaxis, myg.jlo:myg.jhi+1] /
-                (gamma * c**2 * R * metric.alpha(myg).v2d()**2))
+    dens.d[:, :] = dens_base * \
+        np.exp(-g * myg.y2d /
+                (gamma * c**2 * R * metric.alpha(myg).d2d()**2))
 
     #cs2 = scale_height * abs(g)
 

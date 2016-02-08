@@ -86,7 +86,6 @@ def doit(solver_name, problem_name, param_file,
         sim = solver.SimulationReact(solver_name, problem_name, rp, timers=tc)
     else:
         sim = solver.Simulation(solver_name, problem_name, rp, timers=tc)
-    #sim_py = solver.Simulation(solver_name, problem_name, rp, timers=tc, fortran=False)
 
     sim.initialize()
     dt_old = fix_dt
@@ -94,20 +93,15 @@ def doit(solver_name, problem_name, param_file,
     # get the timestep
     if fix_dt > 0.0:
         sim.dt = fix_dt
-        #sim_py.dt = fix_dt
     else:
         sim.compute_timestep()
         if sim.n == 0:
             sim.dt = init_tstep_factor*sim.dt
-            #sim_py.dt = init_tstep_factor*sim.dt
         else:
             sim.dt = min(max_dt_change*dt_old, sim.dt)
-            #sim_py.dt = min(max_dt_change*dt_old, sim.dt)
         dt_old = sim.dt
 
     sim.preevolve()
-    #sim_py.initialize()
-    #sim_py.preevolve()
 
     #-------------------------------------------------------------------------
     # evolve
@@ -118,11 +112,13 @@ def doit(solver_name, problem_name, param_file,
     plt.ion()
 
     sim.cc_data.t = 0.0
-    #sim_py.cc_data.t = 0.0
 
     # output the 0th data
     basename = rp.get_param("io.basename")
     sim.cc_data.write("{}{:04d}".format(basename, sim.n))
+
+    # FIXME: DON'T EXIT HERE
+    sys.exit()
 
     dovis = rp.get_param("vis.dovis")
     if dovis:
@@ -150,25 +146,20 @@ def doit(solver_name, problem_name, param_file,
 
         # fill boundary conditions
         sim.cc_data.fill_BC_all()
-        #sim_py.cc_data.fill_BC_all()
 
         # get the timestep
         if fix_dt > 0.0:
             sim.dt = fix_dt
-            #sim_py.dt = fix_dt
         else:
             sim.compute_timestep()
             if sim.n == 0:
                 sim.dt = init_tstep_factor*sim.dt
-                #sim_py.dt = init_tstep_factor*sim.dt
             else:
                 sim.dt = min(max_dt_change*dt_old, sim.dt)
-                #sim_py.dt = min(max_dt_change*dt_old, sim.dt)
             dt_old = sim.dt
 
         if sim.cc_data.t + sim.dt > sim.tmax:
             sim.dt = sim.tmax - sim.cc_data.t
-            #sim_py.dt = sim.tmax - sim.cc_data.t
 
         # collided only set to false for sr_bubble, so don't need to check that here as well.
         # Assumes takes more than 20 timesteps to reach bubble -
@@ -179,7 +170,6 @@ def doit(solver_name, problem_name, param_file,
 
         # evolve for a single timestep
         sim.evolve()
-        #sim_py.evolve()
 
         if verbose > 0 and sim.do_output():
             print("%5d %10.8f %10.8f" % (sim.n, sim.cc_data.t, sim.dt))
@@ -189,10 +179,7 @@ def doit(solver_name, problem_name, param_file,
             if verbose > 0:
                 msg.warning("outputting...")
             basename = rp.get_param("io.basename")
-            #basename_py = basename + 'py_'
-            #print (basename_py)
             sim.cc_data.write("{}{:04d}".format(basename, sim.n))
-            #sim_py.cc_data.write("{}{:04d}".format(basename_py, sim.n))
 
         # visualization
         if dovis:
@@ -255,7 +242,6 @@ def doit(solver_name, problem_name, param_file,
         tc.report()
 
     sim.finalize()
-    #sim_py.finalize()
 
     if comp_bench:
         return result
