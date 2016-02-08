@@ -250,6 +250,14 @@ class ArrayIndexer(object):
     # e.g, the InfoArray example here:
     # http://docs.scipy.org/doc/numpy/user/basics.subclassing.html
     def __init__(self, d=None, grid=None):
+        #if d is None:
+        #    self.d = None
+        #else:
+            #print(d)
+        #    self.d = np.zeros(d.shape)
+        #    self.d[:,:] = d[:,:]
+            #self.d = copy.deepcopy(d)
+        #    print(sum(self.d - d))
         self.d = d
         self.g = grid
         s = d.shape

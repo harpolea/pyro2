@@ -1,22 +1,11 @@
 from __future__ import print_function
 
-import sys
-
 import numpy as np
 import matplotlib.pyplot as plt
-import pdb
-import math
 
 from lm_gr.problems import *
-import lm_gr.LM_gr_interface_f as lm_interface_f
-import mesh.reconstruction_f as reconstruction_f
-import mesh.patch as patch
-from simulation_null import NullSimulation, grid_setup, bc_setup
 from lm_gr.simulation import *
 import multigrid.variable_coeff_MG as vcMG
-#import multigrid.rect_MG as rectMG
-from util import profile
-import mesh.metric as metric
 import colormaps as cmaps
 
 class SimulationReact(Simulation):

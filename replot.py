@@ -166,8 +166,9 @@ if __name__== "__main__":
             vmaxes = [None, None, None, None]
     elif solver == "lm_gr":
         if problem == "bubble":
-            vmins = [90., 0., -0.00075, -0.2]
-            vmaxes = [105., 0.0021, 0.0021, 0.2]
+            vmins = [90., 0., 0.0, -0.2]
+            #vmaxes = [105., 0.0021, 0.0021, 0.2]
+            vmaxes = [105., 0.0021, 1.0, 0.2]
         elif problem == "double_bubble":
             vmins = [50., 0., -0.0002, -0.05]
             vmaxes = [105., 0.0003, 0.0003, 0.05]

@@ -372,20 +372,20 @@ subroutine rho_states(qx, qy, ng, dx, dy, dt, &
   do j = jlo-2, jhi+2
      do i = ilo-2, ihi+2
 
-        !ubar = 0.5d0*(u_MAC(i,j) + u_MAC(i+1,j))
-        !vbar = 0.5d0*(v_MAC(i,j) + v_MAC(i,j+1))
+        ubar = 0.5d0*(u_MAC(i,j) + u_MAC(i+1,j))
+        vbar = 0.5d0*(v_MAC(i,j) + v_MAC(i,j+1))
 
         ! u on x-edges
-        !rho_xl(i+1,j) = rho(i,j) + 0.5d0*(1.0d0 - dtdx*ubar)*ldelta_rx(i,j)
-        !rho_xr(i  ,j) = rho(i,j) - 0.5d0*(1.0d0 + dtdx*ubar)*ldelta_rx(i,j)
-        rho_xl(i+1,j) = rho(i,j) + 0.5d0*(1.0d0 - dtdx*u_MAC(i+1,j))*ldelta_rx(i,j)
-        rho_xr(i  ,j) = rho(i,j) - 0.5d0*(1.0d0 + dtdx*u_MAC(i,j))*ldelta_rx(i,j)
+        rho_xl(i+1,j) = rho(i,j) + 0.5d0*(1.0d0 - dtdx*ubar)*ldelta_rx(i,j)
+        rho_xr(i  ,j) = rho(i,j) - 0.5d0*(1.0d0 + dtdx*ubar)*ldelta_rx(i,j)
+        !rho_xl(i+1,j) = rho(i,j) + 0.5d0*(1.0d0 - dtdx*u_MAC(i+1,j))*ldelta_rx(i,j)
+        !rho_xr(i  ,j) = rho(i,j) - 0.5d0*(1.0d0 + dtdx*u_MAC(i,j))*ldelta_rx(i,j)
 
         ! u on y-edges
-        !rho_yl(i,j+1) = rho(i,j) + 0.5d0*(1.0d0 - dtdy*vbar)*ldelta_ry(i,j)
-        !rho_yr(i,j  ) = rho(i,j) - 0.5d0*(1.0d0 + dtdy*vbar)*ldelta_ry(i,j)
-        rho_yl(i,j+1) = rho(i,j) + 0.5d0*(1.0d0 - dtdy*v_MAC(i,j+1))*ldelta_ry(i,j)
-        rho_yr(i,j  ) = rho(i,j) - 0.5d0*(1.0d0 + dtdy*v_MAC(i,j))*ldelta_ry(i,j)
+        rho_yl(i,j+1) = rho(i,j) + 0.5d0*(1.0d0 - dtdy*vbar)*ldelta_ry(i,j)
+        rho_yr(i,j  ) = rho(i,j) - 0.5d0*(1.0d0 + dtdy*vbar)*ldelta_ry(i,j)
+        !rho_yl(i,j+1) = rho(i,j) + 0.5d0*(1.0d0 - dtdy*v_MAC(i,j+1))*ldelta_ry(i,j)
+        !rho_yr(i,j  ) = rho(i,j) - 0.5d0*(1.0d0 + dtdy*v_MAC(i,j))*ldelta_ry(i,j)
 
      enddo
   enddo
@@ -478,20 +478,20 @@ subroutine psi_states(qx, qy, ng, dx, dy, dt, &
   do j = jlo-2, jhi+2
      do i = ilo-2, ihi+2
 
-        !ubar = 0.5d0*(u_MAC(i,j) + u_MAC(i+1,j))
-        !vbar = 0.5d0*(v_MAC(i,j) + v_MAC(i,j+1))
+        ubar = 0.5d0*(u_MAC(i,j) + u_MAC(i+1,j))
+        vbar = 0.5d0*(v_MAC(i,j) + v_MAC(i,j+1))
 
         ! u on x-edges
-        !psi_xl(i+1,j) = psi(i,j) + 0.5d0*(1.0d0 - dtdx*ubar)*ldelta_px(i,j)
-        !psi_xr(i  ,j) = psi(i,j) - 0.5d0*(1.0d0 + dtdx*ubar)*ldelta_px(i,j)
-        psi_xl(i+1,j) = psi(i,j) + 0.5d0*(1.0d0 - dtdx*u_MAC(i+1,j))*ldelta_px(i,j)
-        psi_xr(i  ,j) = psi(i,j) - 0.5d0*(1.0d0 + dtdx*u_MAC(i,j))*ldelta_px(i,j)
+        psi_xl(i+1,j) = psi(i,j) + 0.5d0*(1.0d0 - dtdx*ubar)*ldelta_px(i,j)
+        psi_xr(i  ,j) = psi(i,j) - 0.5d0*(1.0d0 + dtdx*ubar)*ldelta_px(i,j)
+        !psi_xl(i+1,j) = psi(i,j) + 0.5d0*(1.0d0 - dtdx*u_MAC(i+1,j))*ldelta_px(i,j)
+        !psi_xr(i  ,j) = psi(i,j) - 0.5d0*(1.0d0 + dtdx*u_MAC(i,j))*ldelta_px(i,j)
 
         ! u on y-edges
-        !psi_yl(i,j+1) = psi(i,j) + 0.5d0*(1.0d0 - dtdy*vbar)*ldelta_py(i,j)
-        !psi_yr(i,j  ) = psi(i,j) - 0.5d0*(1.0d0 + dtdy*vbar)*ldelta_py(i,j)
-        psi_yl(i,j+1) = psi(i,j) + 0.5d0*(1.0d0 - dtdy*v_MAC(i,j+1))*ldelta_py(i,j)
-        psi_yr(i,j  ) = psi(i,j) - 0.5d0*(1.0d0 + dtdy*v_MAC(i,j))*ldelta_py(i,j)
+        psi_yl(i,j+1) = psi(i,j) + 0.5d0*(1.0d0 - dtdy*vbar)*ldelta_py(i,j)
+        psi_yr(i,j  ) = psi(i,j) - 0.5d0*(1.0d0 + dtdy*vbar)*ldelta_py(i,j)
+        !psi_yl(i,j+1) = psi(i,j) + 0.5d0*(1.0d0 - dtdy*v_MAC(i,j+1))*ldelta_py(i,j)
+        !psi_yr(i,j  ) = psi(i,j) - 0.5d0*(1.0d0 + dtdy*v_MAC(i,j))*ldelta_py(i,j)
 
      enddo
   enddo
