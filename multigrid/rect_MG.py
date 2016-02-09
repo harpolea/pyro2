@@ -8,11 +8,12 @@ from __future__ import print_function
 import numpy as np
 import matplotlib.pyplot as plt
 import multigrid.edge_coeffs_sph as ec
+import multigrid.mg_utils_f as mg_f
 #import multigrid.MG as MG
 import multigrid.variable_coeff_MG as var_MG
 #from copy import deepcopy
 import math
-#import mesh.patch as patch
+import mesh.patch as patch
 import mesh.patch_sph as patch_sph
 from lm_gr.simulation import Basestate
 from util import msg
@@ -223,7 +224,7 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
             n -= 1
 
 
-    def smooth(self, level, nsmooth, fortran=False):
+    def smooth(self, level, nsmooth, fortran=True):
         """
         Use red-black Gauss-Seidel iterations to smooth the solution
         at a given level.  This is used at each stage of the V-cycle
@@ -251,88 +252,113 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
         eta_x = self.edge_coeffs[level].x.d
         eta_y = self.edge_coeffs[level].y.d
 
-        self.grids[level].fill_BC("v")
+        if fortran:
+            # convert bcs into fotran-compatible version
+            bcs = [self.grids[level].BCs["v"].xlb,
+                   self.grids[level].BCs["v"].xrb,
+                   self.grids[level].BCs["v"].ylb,
+                   self.grids[level].BCs["v"].yrb]
+            bcints = 3 * np.ones(4, dtype=np.int)
 
-        # print( "min/max c: {}, {}".format(np.min(c), np.max(c)))
-        # print( "min/max eta_x: {}, {}".format(np.min(eta_x), np.max(eta_x)))
-        # print( "min/max eta_y: {}, {}".format(np.min(eta_y), np.max(eta_y)))
+            for i in range(4):
+                if bcs[i] in ["outflow", "neumann"]:
+                    bcints[i] = 0
+                elif bcs[i] == "reflect-even":
+                    bcints[i] = 1
+                elif bcs[i] in ["reflect-odd", "dirichlet"]:
+                    bcints[i] = 2
+                elif bcs[i] == "periodic":
+                    bcints[i] = 3
+
+            _v = mg_f.smooth_sph_f(myg.qx, myg.qy, myg.ng,
+                          nsmooth, np.asfortranarray(v.d), np.asfortranarray(f.d), bcints, np.asfortranarray(eta_x), np.asfortranarray(eta_y),
+                          np.asfortranarray(myg.r2d), np.asfortranarray(myg.x2d), myg.dx, myg.dy)
+
+            v.d[:,:] = (patch.ArrayIndexer(d=_v, grid=myg)).d
+
+        else:
+            self.grids[level].fill_BC("v")
+
+            # print( "min/max c: {}, {}".format(np.min(c), np.max(c)))
+            # print( "min/max eta_x: {}, {}".format(np.min(eta_x), np.max(eta_x)))
+            # print( "min/max eta_y: {}, {}".format(np.min(eta_y), np.max(eta_y)))
 
 
-        # do red-black G-S
-        for i in range(nsmooth):
+            # do red-black G-S
+            for i in range(nsmooth):
 
-            # do the red black updating in four decoupled groups
-            #
-            #
-            #        |       |       |
-            #      --+-------+-------+--
-            #        |       |       |
-            #        |   4   |   3   |
-            #        |       |       |
-            #      --+-------+-------+--
-            #        |       |       |
-            #   jlo  |   1   |   2   |
-            #        |       |       |
-            #      --+-------+-------+--
-            #        |  ilo  |       |
-            #
-            # groups 1 and 3 are done together, then we need to
-            # fill ghost cells, and then groups 2 and 4
+                # do the red black updating in four decoupled groups
+                #
+                #
+                #        |       |       |
+                #      --+-------+-------+--
+                #        |       |       |
+                #        |   4   |   3   |
+                #        |       |       |
+                #      --+-------+-------+--
+                #        |       |       |
+                #   jlo  |   1   |   2   |
+                #        |       |       |
+                #      --+-------+-------+--
+                #        |  ilo  |       |
+                #
+                # groups 1 and 3 are done together, then we need to
+                # fill ghost cells, and then groups 2 and 4
 
-            for n, (ix, iy) in enumerate([(0,0), (1,1), (1,0), (0,1)]):
+                for n, (ix, iy) in enumerate([(0,0), (1,1), (1,0), (0,1)]):
 
-                denom = (
-                    (eta_x[myg.ilo+1+ix:myg.ihi+2+ix:2,
-                           myg.jlo+iy  :myg.jhi+1+iy:2] +
-                    #
-                    eta_x[myg.ilo+ix  :myg.ihi+1+ix:2,
-                          myg.jlo+iy  :myg.jhi+1+iy:2]) /
-                    (myg.r2d[myg.ilo+ix  :myg.ihi+1+ix:2,
-                             myg.jlo+iy  :myg.jhi+1+iy:2] *
-                     np.sin(myg.x2d[myg.ilo+ix  :myg.ihi+1+ix:2,
-                            myg.jlo+iy  :myg.jhi+1+iy:2]) * myg.dx) +
-                    #
-                    (eta_y[myg.ilo+ix  :myg.ihi+1+ix:2,
-                          myg.jlo+1+iy:myg.jhi+2+iy:2] +
-                    #
-                    eta_y[myg.ilo+ix  :myg.ihi+1+ix:2,
-                          myg.jlo+iy  :myg.jhi+1+iy:2]) /
-                    (myg.r2d[myg.ilo+ix  :myg.ihi+1+ix:2,
-                             myg.jlo+iy  :myg.jhi+1+iy:2]**2 * myg.dy))
+                    denom = (
+                        (eta_x[myg.ilo+1+ix:myg.ihi+2+ix:2,
+                               myg.jlo+iy  :myg.jhi+1+iy:2] +
+                        #
+                        eta_x[myg.ilo+ix  :myg.ihi+1+ix:2,
+                              myg.jlo+iy  :myg.jhi+1+iy:2]) /
+                        (myg.r2d[myg.ilo+ix  :myg.ihi+1+ix:2,
+                                 myg.jlo+iy  :myg.jhi+1+iy:2] *
+                         np.sin(myg.x2d[myg.ilo+ix  :myg.ihi+1+ix:2,
+                                myg.jlo+iy  :myg.jhi+1+iy:2]) * myg.dx) +
+                        #
+                        (eta_y[myg.ilo+ix  :myg.ihi+1+ix:2,
+                              myg.jlo+1+iy:myg.jhi+2+iy:2] +
+                        #
+                        eta_y[myg.ilo+ix  :myg.ihi+1+ix:2,
+                              myg.jlo+iy  :myg.jhi+1+iy:2]) /
+                        (myg.r2d[myg.ilo+ix  :myg.ihi+1+ix:2,
+                                 myg.jlo+iy  :myg.jhi+1+iy:2]**2 * myg.dy))
 
-                v.d[myg.ilo+ix:myg.ihi+1+ix:2,myg.jlo+iy:myg.jhi+1+iy:2] = (
-                    -f.d[myg.ilo+ix:myg.ihi+1+ix:2,
-                         myg.jlo+iy:myg.jhi+1+iy:2] +
-                    # eta_{i+1/2,j} phi_{i+1,j}
-                    (eta_x[myg.ilo+1+ix:myg.ihi+2+ix:2,
-                           myg.jlo+iy  :myg.jhi+1+iy:2] *
-                    v.d[myg.ilo+1+ix:myg.ihi+2+ix:2,
-                        myg.jlo+iy  :myg.jhi+1+iy:2] +
-                    # eta_{i-1/2,j} phi_{i-1,j}
-                    eta_x[myg.ilo+ix:myg.ihi+1+ix:2,
-                          myg.jlo+iy:myg.jhi+1+iy:2]*
-                    v.d[myg.ilo-1+ix:myg.ihi+ix  :2,
-                        myg.jlo+iy  :myg.jhi+1+iy:2]) /
-                    (myg.r2d[myg.ilo+ix  :myg.ihi+1+ix:2,
-                             myg.jlo+iy  :myg.jhi+1+iy:2] *
-                     np.sin(myg.x2d[myg.ilo+ix  :myg.ihi+1+ix:2,
-                            myg.jlo+iy  :myg.jhi+1+iy:2]) * myg.dx) +
-                    # eta_{i,j+1/2} phi_{i,j+1}
-                    (eta_y[myg.ilo+ix:myg.ihi+1+ix:2,
-                           myg.jlo+1+iy:myg.jhi+2+iy:2]*
-                    v.d[myg.ilo+ix  :myg.ihi+1+ix:2,
-                        myg.jlo+1+iy:myg.jhi+2+iy:2] +
-                    # eta_{i,j-1/2} phi_{i,j-1}
-                    eta_y[myg.ilo+ix:myg.ihi+1+ix:2,
-                          myg.jlo+iy:myg.jhi+1+iy:2]*
-                    v.d[myg.ilo+ix  :myg.ihi+1+ix:2,
-                        myg.jlo-1+iy:myg.jhi+iy  :2]) /
-                    (myg.r2d[myg.ilo+ix  :myg.ihi+1+ix:2,
-                             myg.jlo+iy  :myg.jhi+1+iy:2]**2 *
-                     myg.dy)) / denom
+                    v.d[myg.ilo+ix:myg.ihi+1+ix:2,myg.jlo+iy:myg.jhi+1+iy:2] = (
+                        -f.d[myg.ilo+ix:myg.ihi+1+ix:2,
+                             myg.jlo+iy:myg.jhi+1+iy:2] +
+                        # eta_{i+1/2,j} phi_{i+1,j}
+                        (eta_x[myg.ilo+1+ix:myg.ihi+2+ix:2,
+                               myg.jlo+iy  :myg.jhi+1+iy:2] *
+                        v.d[myg.ilo+1+ix:myg.ihi+2+ix:2,
+                            myg.jlo+iy  :myg.jhi+1+iy:2] +
+                        # eta_{i-1/2,j} phi_{i-1,j}
+                        eta_x[myg.ilo+ix:myg.ihi+1+ix:2,
+                              myg.jlo+iy:myg.jhi+1+iy:2]*
+                        v.d[myg.ilo-1+ix:myg.ihi+ix  :2,
+                            myg.jlo+iy  :myg.jhi+1+iy:2]) /
+                        (myg.r2d[myg.ilo+ix  :myg.ihi+1+ix:2,
+                                 myg.jlo+iy  :myg.jhi+1+iy:2] *
+                         np.sin(myg.x2d[myg.ilo+ix  :myg.ihi+1+ix:2,
+                                myg.jlo+iy  :myg.jhi+1+iy:2]) * myg.dx) +
+                        # eta_{i,j+1/2} phi_{i,j+1}
+                        (eta_y[myg.ilo+ix:myg.ihi+1+ix:2,
+                               myg.jlo+1+iy:myg.jhi+2+iy:2]*
+                        v.d[myg.ilo+ix  :myg.ihi+1+ix:2,
+                            myg.jlo+1+iy:myg.jhi+2+iy:2] +
+                        # eta_{i,j-1/2} phi_{i,j-1}
+                        eta_y[myg.ilo+ix:myg.ihi+1+ix:2,
+                              myg.jlo+iy:myg.jhi+1+iy:2]*
+                        v.d[myg.ilo+ix  :myg.ihi+1+ix:2,
+                            myg.jlo-1+iy:myg.jhi+iy  :2]) /
+                        (myg.r2d[myg.ilo+ix  :myg.ihi+1+ix:2,
+                                 myg.jlo+iy  :myg.jhi+1+iy:2]**2 *
+                         myg.dy)) / denom
 
-                if n == 1 or n == 3:
-                    self.grids[level].fill_BC("v")
+                    if n == 1 or n == 3:
+                        self.grids[level].fill_BC("v")
 
             if self.vis == 1:
                 plt.clf()
@@ -356,7 +382,7 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
                 self.frame += 1
 
 
-    def solve(self, rtol = 1.e-11, fortran=False):
+    def solve(self, rtol = 1.e-11, fortran=True):
         """
         The main driver for the multigrid solution of the Helmholtz
         equation.  This controls the V-cycles, smoothing at each

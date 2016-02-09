@@ -41,23 +41,23 @@ subroutine smooth_f(qx, qy, ng, nsmooth, v, f, bcs, eta_x, eta_y, v_out)
             ix = ixs(j)
             iy = iys(j)
 
-            denom(ilo+ix:ihi:2, jlo+iy:jhi:2) = &
-                eta_x(ilo+1+ix:ihi+1:2, jlo+iy:jhi:2) + &
-                eta_x(ilo+ix:ihi:2, jlo+iy:jhi:2) + &
-                eta_y(ilo+ix:ihi:2, jlo+1+iy:jhi+1:2) + &
-                eta_y(ilo+ix:ihi:2, jlo+iy:jhi:2)
+            denom(ilo+ix:ihi+ix:2, jlo+iy:jhi+iy:2) = &
+                eta_x(ilo+1+ix:ihi+1+ix:2, jlo+iy:jhi+iy:2) + &
+                eta_x(ilo+ix:ihi+ix:2, jlo+iy:jhi+iy:2) + &
+                eta_y(ilo+ix:ihi+ix:2, jlo+1+iy:jhi+1+iy:2) + &
+                eta_y(ilo+ix:ihi+ix:2, jlo+iy:jhi+iy:2)
 
-            v_out(ilo+ix:ihi:2, jlo+iy:jhi:2) = &
-                (-f(ilo+ix:ihi:2, jlo+iy:jhi:2) + &
-                eta_x(ilo+1+ix:ihi+1:2, jlo+iy:jhi:2) * &
-                v_out(ilo+1+ix:ihi+1:2, jlo+iy:jhi:2) + &
-                eta_x(ilo+ix:ihi:2, jlo+iy:jhi:2) * &
-                v_out(ilo-1+ix:ihi-1:2, jlo+iy:jhi:2) + &
-                eta_y(ilo+ix:ihi:2, jlo+1+iy:jhi+1:2) * &
-                v_out(ilo+ix:ihi:2, jlo+1+iy:jhi+1:2) + &
-                eta_y(ilo+ix:ihi:2, jlo+iy:jhi:2) * &
-                v_out(ilo+ix:ihi:2, jlo-1+iy:jhi-1:2)) / &
-                denom(ilo+ix:ihi:2, jlo+iy:jhi:2)
+            v_out(ilo+ix:ihi+ix:2, jlo+iy:jhi+iy:2) = &
+                (-f(ilo+ix:ihi+ix:2, jlo+iy:jhi+iy:2) + &
+                eta_x(ilo+1+ix:ihi+1+ix:2, jlo+iy:jhi+iy:2) * &
+                v_out(ilo+1+ix:ihi+1+ix:2, jlo+iy:jhi+iy:2) + &
+                eta_x(ilo+ix:ihi+ix:2, jlo+iy:jhi+iy:2) * &
+                v_out(ilo-1+ix:ihi-1+ix:2, jlo+iy:jhi+iy:2) + &
+                eta_y(ilo+ix:ihi+ix:2, jlo+1+iy:jhi+1+iy:2) * &
+                v_out(ilo+ix:ihi+ix:2, jlo+1+iy:jhi+1+iy:2) + &
+                eta_y(ilo+ix:ihi+ix:2, jlo+iy:jhi+iy:2) * &
+                v_out(ilo+ix:ihi+ix:2, jlo-1+iy:jhi-1+iy:2)) / &
+                denom(ilo+ix:ihi+ix:2, jlo+iy:jhi+iy:2)
 
             if (j == 1 .or. j == 3) then
                 call fill_BCS_f(qx, qy, ng, v_out, bcs, v_temp)
@@ -68,6 +68,84 @@ subroutine smooth_f(qx, qy, ng, nsmooth, v, f, bcs, eta_x, eta_y, v_out)
     end do
 
 end subroutine smooth_f
+
+! spherical polars version
+subroutine smooth_sph_f(qx, qy, ng, nsmooth, v, f, bcs, eta_x, eta_y, r, x, dx, dr, v_out)
+
+    implicit none
+
+    integer, intent(in) :: qx, qy, ng, nsmooth
+    double precision, intent(inout) :: v(0:qx-1, 0:qy-1)
+    double precision, intent(inout) :: f(0:qx-1, 0:qy-1)
+    integer, intent(inout) :: bcs(0:3)
+    double precision, intent(inout) :: eta_x(0:qx-1, 0:qy-1)
+    double precision, intent(inout) :: eta_y(0:qx-1, 0:qy-1)
+    double precision, intent(inout) :: r(0:qx-1, 0:qy-1)
+    double precision, intent(inout) :: x(0:qx-1, 0:qy-1)
+    double precision, intent(in) :: dr, dx
+    double precision, intent(out) :: v_out(0:qx-1, 0:qy-1)
+
+!f2py depend(qx, qy) :: v, f
+!f2py depend(qx, qy) :: eta_x, eta_y, r, x
+!f2py depend(qx, qy) :: v_out
+!f2py intent(in) :: v
+!f2py intent(in) :: f, bcs, eta_x, eta_y, r, x
+!f2py intent(out) :: v_out
+
+    double precision :: denom(0:qx-1, 0:qy-1)
+    double precision :: v_temp(0:qx-1, 0:qy-1)
+
+    integer :: i, j, ix, iy
+    integer :: nx, ny, ilo, ihi, jlo, jhi
+    integer :: ixs(0:3), iys(0:3)
+
+    nx = qx - 2*ng; ny = qy - 2*ng
+    ilo = ng; ihi = ng+nx-1; jlo = ng; jhi = ng+ny-1
+
+    call fill_BCS_f(qx, qy, ng, v, bcs, v_out)
+    ixs = (/ 0, 1, 1, 0 /)
+    iys = (/ 0, 1, 0, 1 /)
+
+    v_out(:,:) = v(:,:)
+
+    do i = 0, nsmooth-1
+        do j = 0, 3
+            ix = ixs(j)
+            iy = iys(j)
+
+            denom(ilo+ix:ihi+ix:2, jlo+iy:jhi+iy:2) = &
+                (eta_x(ilo+1+ix:ihi+1+ix:2, jlo+iy:jhi+iy:2) + &
+                eta_x(ilo+ix:ihi+ix:2, jlo+iy:jhi+iy:2)) / &
+                (r(ilo+ix:ihi+ix:2, jlo+iy:jhi+iy:2) * &
+                sin(x(ilo+ix:ihi+ix:2, jlo+iy:jhi+iy:2)) * dx) + &
+                (eta_y(ilo+ix:ihi+ix:2, jlo+1+iy:jhi+1+iy:2) + &
+                eta_y(ilo+ix:ihi+ix:2, jlo+iy:jhi+iy:2)) / &
+                (r(ilo+ix:ihi+ix:2, jlo+iy:jhi+iy:2)**2 * dr)
+
+            v_out(ilo+ix:ihi+ix:2, jlo+iy:jhi+iy:2) = &
+                (-f(ilo+ix:ihi+ix:2, jlo+iy:jhi+iy:2) + &
+                (eta_x(ilo+1+ix:ihi+1+ix:2, jlo+iy:jhi+iy:2) * &
+                v_out(ilo+1+ix:ihi+1+ix:2, jlo+iy:jhi+iy:2) + &
+                eta_x(ilo+ix:ihi+ix:2, jlo+iy:jhi+iy:2) * &
+                v_out(ilo-1+ix:ihi-1+ix:2, jlo+iy:jhi+iy:2)) / &
+                (r(ilo+ix:ihi+ix:2, jlo+iy:jhi+iy:2) * &
+                sin(x(ilo+ix:ihi+ix:2, jlo+iy:jhi+iy:2)) * dx) + &
+                (eta_y(ilo+ix:ihi+ix:2, jlo+1+iy:jhi+1+iy:2) * &
+                v_out(ilo+ix:ihi+ix:2, jlo+1+iy:jhi+1+iy:2) + &
+                eta_y(ilo+ix:ihi+ix:2, jlo+iy:jhi+iy:2) * &
+                v_out(ilo+ix:ihi+ix:2, jlo-1+iy:jhi-1+iy:2)) / &
+                (r(ilo+ix:ihi+ix:2, jlo+iy:jhi+iy:2)**2 * dr)) / &
+                denom(ilo+ix:ihi+ix:2, jlo+iy:jhi+iy:2)
+
+            if (j == 1 .or. j == 3) then
+                call fill_BCS_f(qx, qy, ng, v_out, bcs, v_temp)
+                v_out(:,:) = v_temp(:,:)
+            end if
+
+        end do
+    end do
+
+end subroutine smooth_sph_f
 
 subroutine fill_BCs_f(qx, qy, ng, g, bcs, g_out)
 

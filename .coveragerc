@@ -5,6 +5,7 @@ branch = False
 [report]
 exclude_lines =
     if __name__ == .__main__.:
+    def dovis
 
 omit =
     advection/*

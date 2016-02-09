@@ -1,4 +1,5 @@
 [![Build Status](https://travis-ci.org/harpolea/pyro2.svg?branch=master)](https://travis-ci.org/harpolea/pyro2)
+[![codecov.io](https://codecov.io/github/harpolea/pyro2/coverage.svg?branch=GR)](https://codecov.io/github/harpolea/pyro2?branch=GR)
 
 ![pyro logo]
 (https://raw.githubusercontent.com/zingale/pyro2/master/www/pyro.png)
