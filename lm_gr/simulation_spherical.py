@@ -489,9 +489,9 @@ class SimulationSpherical(Simulation):
         Sbar = self.lateral_average(S.d)
         U0.d[0] = 0.
         # FIXME: fix cell-centred / edge-centred indexing.
-        U0.d[1:] = U0.d[:-1] + \
-                   dr * (Sbar[:-1] - U0.d[:-1] * drp0.d[:-1] /
-                         (gamma * p0.d[:-1])) + \
+        U0.d[1:] = U0.d[:-1] + 0.5 * dr * (
+            (Sbar[:-1] - U0.d[:-1] * drp0.d[:-1] / (gamma * p0.d[:-1])) +
+            (Sbar[1:] - U0.d[1:] * drp0.d[1:] / (gamma * p0.d[1:]))) + \
                    dr * 2. * U0.d[:-1] / self.r[:-1]
 
 
@@ -583,6 +583,7 @@ class SimulationSpherical(Simulation):
         # FIXME: this update only needs to be done on the interior
         # cells -- not ghost cells
         gradp_x, gradp_y = mg.get_solution_gradient_sph(grid=myg)
+        #gradp_x, gradp_y = mg.get_solution_gradient(grid=myg)
         #pdb.set_trace()
 
         coeff = 1. / (Dh * u0)
@@ -652,6 +653,9 @@ class SimulationSpherical(Simulation):
         """
         Evolve the low Mach system through one timestep.
         """
+        # FIXME: get rid!
+        #super(SimulationSpherical, self).evolve()
+        #return
 
         D = self.cc_data.get_var("density")
         Dh = self.cc_data.get_var("enthalpy")
@@ -860,6 +864,7 @@ class SimulationSpherical(Simulation):
         phi_MAC = self.aux_data.get_var("phi-MAC")
         phi_MAC.d[:,:] = mg.get_solution(grid=myg).d
         gradp_MAC_x, gradp_MAC_y = mg.get_solution_gradient_sph(grid=myg)
+        #gradp_MAC_x, gradp_MAC_y = mg.get_solution_gradient(grid=myg)
 
         coeff = self.aux_data.get_var("coeff")
         # FIXME: is this u0 or u0_MAC?
@@ -1533,6 +1538,7 @@ class SimulationSpherical(Simulation):
         # get the cell-centered gradient of p and update the velocities
         # this differs depending on what we projected.
         gradphi_x, gradphi_y = mg.get_solution_gradient_sph(grid=myg)
+        #gradphi_x, gradphi_y = mg.get_solution_gradient(grid=myg)
 
         # U = U - (zeta/Dh u0) grad (phi)
         # alpha^2 as need to raise grad.

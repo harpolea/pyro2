@@ -39,6 +39,7 @@ import multigrid.variable_coeff_MG as vcMG
 import colormaps as cmaps
 from functools import partial
 import importlib
+from util import msg
 
 
 class Basestate(object):
@@ -294,7 +295,9 @@ class Simulation(NullSimulation):
         #    print('Gravity is very low (', g, ') - make sure the speed of light is high enough to cope.')
 
         R = self.rp.get_param("lm-gr.radius")
-        cartesian = self.rp.get_param("lm-gr.cartesian")
+
+        if not self.rp.get_param("lm-gr.cartesian"):
+            msg.fail("System is not cartesian!")
 
         def alpha(g, R, c, grid):
             a = Basestate(grid.ny, ng=grid.ng)
@@ -319,7 +322,7 @@ class Simulation(NullSimulation):
 
         #self.metric = metric.Metric(self.cc_data, self.rp, alpha, beta,
         #                            gamma_matrix, cartesian=False)
-        myg.initialise_metric(self.rp, partial(alpha, g, R, c), beta, partial(gamma_matrix, g, R, c), cartesian=cartesian)
+        myg.initialise_metric(self.rp, partial(alpha, g, R, c), beta, partial(gamma_matrix, g, R, c), cartesian=True)
         #myg.initialise_metric(self.rp, alpha, beta, gamma_matrix, cartesian=cartesian)
 
         u0 = myg.metric.calcu0()
@@ -1111,8 +1114,9 @@ class Simulation(NullSimulation):
         Sbar = self.lateral_average(S.d)
         U0.d[0] = 0.
         # FIXME: fix cell-centred / edge-centred indexing.
-        U0.d[1:] = U0.d[:-1] + dr * (Sbar[:-1] - U0.d[:-1] * drp0.d[:-1] /
-                                     (gamma * p0.d[:-1]))
+        U0.d[1:] = U0.d[:-1] + 0.5 * dr * (
+            (Sbar[:-1] - U0.d[:-1] * drp0.d[:-1] / (gamma * p0.d[:-1])) +
+            (Sbar[1:] - U0.d[1:] * drp0.d[1:] / (gamma * p0.d[1:])))
 
 
     def compute_timestep(self, u0=None):

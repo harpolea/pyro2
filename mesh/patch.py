@@ -496,7 +496,7 @@ class Grid2d(object):
     The '*' marks the data locations.
     """
 
-    def __init__ (self, nx, ny, ng=1, \
+    def __init__ (self, nx, ny, ng=1, 
                   xmin=0.0, xmax=1.0, ymin=0.0, ymax=1.0):
         """
         Create a Grid2d object.

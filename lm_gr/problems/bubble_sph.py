@@ -21,7 +21,7 @@ from util import msg
 def init_data(my_data, aux_data, base, rp, metric):
     """ initialize the bubble problem """
 
-    msg.bold("initializing the bubble problem...")
+    msg.bold("initializing the bubble_sph problem...")
 
     # make sure that we are passed a valid patch object
     if not isinstance(my_data, patch.CellCenterData2d):
@@ -98,6 +98,7 @@ def init_data(my_data, aux_data, base, rp, metric):
     # boost the specific internal energy, keeping the pressure
     # constant, by dropping the density
     r = np.sqrt((myg.x2d - x_pert)**2 * myg.r2d**2  + (myg.y2d - y_pert)**2)
+    #r = np.sqrt((myg.x2d - x_pert)**2  + (myg.y2d - y_pert)**2)
 
     idx = r <= r_pert
     eint.d[idx] += eint.d[idx] * (pert_amplitude_factor -  1.) * 0.5 * (1. + np.tanh((2. - r[idx]/r_pert)/0.9))# (2.*r_pert)))

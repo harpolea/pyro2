@@ -26,3 +26,5 @@ script:
     - nosetests --with-coverage
 after_success:
     - codecov
+after_failure:
+    - codecov

@@ -78,17 +78,19 @@ class EdgeCoeffsSpherical(EdgeCoeffs):
 
         c_eta_y.v(buf=b)[:,:] = 0.5 * (
             self.y.v(buf=b, s=2) * self.alphasq.v(buf=b, s=2) *
-            fg.r2d[fg.ilo:fg.ihi+1:2,fg.jlo:fg.ihi+2:2]**2 +
+            fg.r2d[fg.ilo:fg.ihi+1:2,fg.jlo:fg.jhi+2:2]**2 +
             self.y.ip(1, buf=b, s=2) * self.alphasq.ip(1, buf=b, s=2) *
-            fg.r2d[fg.ilo+1:fg.ihi+2:2,fg.jlo:fg.ihi+2:2]**2)
+            fg.r2d[fg.ilo+1:fg.ihi+2:2,fg.jlo:fg.jhi+2:2]**2)
 
         # redo the normalization
         # I don't think you need to include the r, sin(x) factors
         # as these are basically the same on the new grid?
-        c_edge_coeffs.x = cg.scratch_array()
-        c_edge_coeffs.x.d[:,:] = c_eta_x.d * fg.dx  / cg.dx
+        #c_edge_coeffs.x = cg.scratch_array()
+        #c_edge_coeffs.x.d[:,:] = c_eta_x.d * fg.dx  / cg.dx
+        c_edge_coeffs.x = c_eta_x * fg.dx  / cg.dx
 
-        c_edge_coeffs.y = cg.scratch_array()
-        c_edge_coeffs.y.d[:,:] = c_eta_y.d * fg.dy /cg.dy
+        #c_edge_coeffs.y = cg.scratch_array()
+        #c_edge_coeffs.y.d[:,:] = c_eta_y.d * fg.dy /cg.dy
+        c_edge_coeffs.y = c_eta_y * fg.dy /cg.dy
 
         return c_edge_coeffs

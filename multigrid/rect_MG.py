@@ -99,11 +99,11 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
 
         # we're going to assume that nx = a*2^n, ny = b*2^m, but that
         # nx = ny is not necessarily true
-        if self.nx == 2**(self.nlevels-1):
+        if self.nx == 2**self.nlevels:
             nx_t = 2
         else:
             nx_t = nx / (2**(self.nlevels-1))
-        if self.ny == 2**(self.nlevels-1):
+        if self.ny == 2**self.nlevels:
             ny_t = 2
         else:
             ny_t = ny / (2**(self.nlevels-1))
@@ -239,6 +239,9 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
             The number of r-b Gauss-Seidel smoothing iterations to perform
 
         """
+        #FIXME: get rid
+        #super(RectMG2d, self).smooth(level, nsmooth)
+        #return
 
         v = self.grids[level].get_var("v")
         f = self.grids[level].get_var("f")
@@ -278,22 +281,9 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
 
             for n, (ix, iy) in enumerate([(0,0), (1,1), (1,0), (0,1)]):
 
-                #denom = (eta_x.ip_jp(1+ix, iy, s=2) + eta_x.ip_jp(ix, iy, s=2) +
-                #         eta_y.ip_jp(ix, 1+iy, s=2) + eta_y.ip_jp(ix, iy, s=2) )
-
-                #v.ip_jp(ix, iy, s=2)[:,:] = ( -f.ip_jp(ix, iy, s=2) +
-                    # eta_{i+1/2,j} phi_{i+1,j}
-                #    eta_x.ip_jp(1+ix, iy, s=2) * v.ip_jp(1+ix, iy, s=2) +
-                    # eta_{i-1/2,j} phi_{i-1,j}
-                #    eta_x.ip_jp(ix, iy, s=2) * v.ip_jp(-1+ix, iy, s=2) +
-                    # eta_{i,j+1/2} phi_{i,j+1}
-                #    eta_y.ip_jp(ix, 1+iy, s=2) * v.ip_jp(ix, 1+iy, s=2) +
-                    # eta_{i,j-1/2} phi_{i,j-1}
-                #    eta_y.ip_jp(ix, iy, s=2) * v.ip_jp(ix, -1+iy, s=2) ) / denom
-
                 denom = (
                     (eta_x[myg.ilo+1+ix:myg.ihi+2+ix:2,
-                          myg.jlo+iy  :myg.jhi+1+iy:2] +
+                           myg.jlo+iy  :myg.jhi+1+iy:2] +
                     #
                     eta_x[myg.ilo+ix  :myg.ihi+1+ix:2,
                           myg.jlo+iy  :myg.jhi+1+iy:2]) /
@@ -315,31 +305,31 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
                          myg.jlo+iy:myg.jhi+1+iy:2] +
                     # eta_{i+1/2,j} phi_{i+1,j}
                     (eta_x[myg.ilo+1+ix:myg.ihi+2+ix:2,
-                          myg.jlo+iy  :myg.jhi+1+iy:2] *
+                           myg.jlo+iy  :myg.jhi+1+iy:2] *
                     v.d[myg.ilo+1+ix:myg.ihi+2+ix:2,
-                      myg.jlo+iy  :myg.jhi+1+iy:2] +
+                        myg.jlo+iy  :myg.jhi+1+iy:2] +
                     # eta_{i-1/2,j} phi_{i-1,j}
                     eta_x[myg.ilo+ix:myg.ihi+1+ix:2,
                           myg.jlo+iy:myg.jhi+1+iy:2]*
                     v.d[myg.ilo-1+ix:myg.ihi+ix  :2,
-                      myg.jlo+iy  :myg.jhi+1+iy:2]) /
+                        myg.jlo+iy  :myg.jhi+1+iy:2]) /
                     (myg.r2d[myg.ilo+ix  :myg.ihi+1+ix:2,
                              myg.jlo+iy  :myg.jhi+1+iy:2] *
                      np.sin(myg.x2d[myg.ilo+ix  :myg.ihi+1+ix:2,
                             myg.jlo+iy  :myg.jhi+1+iy:2]) * myg.dx) +
                     # eta_{i,j+1/2} phi_{i,j+1}
                     (eta_y[myg.ilo+ix:myg.ihi+1+ix:2,
-                          myg.jlo+1+iy:myg.jhi+2+iy:2]*
+                           myg.jlo+1+iy:myg.jhi+2+iy:2]*
                     v.d[myg.ilo+ix  :myg.ihi+1+ix:2,
-                      myg.jlo+1+iy:myg.jhi+2+iy:2] +
+                        myg.jlo+1+iy:myg.jhi+2+iy:2] +
                     # eta_{i,j-1/2} phi_{i,j-1}
                     eta_y[myg.ilo+ix:myg.ihi+1+ix:2,
                           myg.jlo+iy:myg.jhi+1+iy:2]*
                     v.d[myg.ilo+ix  :myg.ihi+1+ix:2,
-                      myg.jlo-1+iy:myg.jhi+iy  :2]) /
+                        myg.jlo-1+iy:myg.jhi+iy  :2]) /
                     (myg.r2d[myg.ilo+ix  :myg.ihi+1+ix:2,
                              myg.jlo+iy  :myg.jhi+1+iy:2]**2 *
-                             myg.dy)) / denom
+                     myg.dy)) / denom
 
                 if n == 1 or n == 3:
                     self.grids[level].fill_BC("v")
@@ -382,6 +372,9 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
             the norm of the residual.
 
         """
+        #FIXME: get rid
+        #super(RectMG2d, self).solve()
+        #return
 
         # start by making sure that we've initialized the RHS
         if not self.initialized_RHS:
@@ -395,7 +388,7 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
 
         old_solution = self.grids[self.nlevels-1].get_var("v").copy()
 
-        converged = 0
+        converged = False
         cycle = 1
 
         while not converged and cycle <= self.max_cycles:
@@ -517,7 +510,7 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
                 residual_error = r.norm()
 
             if residual_error < rtol:
-                converged = 1
+                converged = True
                 self.num_cycles = cycle
                 self.relative_error = relative_error
                 self.residual_error = residual_error
@@ -654,6 +647,9 @@ class RectMG2d(var_MG.VarCoeffCCMG2d):
 
     def _compute_residual(self, level):
         """ compute the residual and store it in the r variable"""
+        #FIXME: get rid
+        #super(RectMG2d, self)._compute_residual(level)
+        #return
 
         v = self.grids[level].get_var("v").d
         f = self.grids[level].get_var("f")
