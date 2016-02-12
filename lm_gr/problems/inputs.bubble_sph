@@ -1,14 +1,14 @@
 # simple inputs files for the unsplit CTU hydro scheme
 
 [driver]
-max_steps = 100
+max_steps = 50
 tmax = 1000000.0
 cfl = 0.25
 
 
 [lm-gr]
 c = 1.0
-grav = 0.0;0.148
+grav = 0.148
 cartesian = 0  ; cartesian or spherical polar coordinates? (0 = no, 1 = yes)
 radius = 6.75  ; 10 km
 
@@ -28,8 +28,8 @@ store_images = 0           ; store vis images to files (1=yes, 0=no)
 #ny = 512
 #nx = 64
 #ny = 256
-nx = 32
-ny = 32
+nx = 64
+ny = 64
 xmin = 0.49
 xmax = 0.5       ;
 ymax = 0.0337318           ; this is about 50m
@@ -39,7 +39,7 @@ ymax = 0.0337318           ; this is about 50m
 xlboundary = outflow
 xrboundary = outflow
 
-ylboundary = outflow
+ylboundary = reflect
 yrboundary = outflow
 
 
@@ -49,3 +49,6 @@ x_pert = 0.495
 y_pert = 0.015
 r_pert = 0.005
 pert_amplitude_factor = 1.0
+
+dens_base = 1.0e3           ; density at the base of the atmosphere
+dens_cutoff  = 1.e-5

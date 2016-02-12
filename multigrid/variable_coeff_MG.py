@@ -146,7 +146,7 @@ class VarCoeffCCMG2d(MG.CellCenterMG2d):
                           nsmooth, np.asfortranarray(v.d), np.asfortranarray(f.d), bcints, np.asfortranarray(eta_x), np.asfortranarray(eta_y))
 
             v.d[:,:] = (patch.ArrayIndexer(d=_v, grid=myg)).d
-
+        # FIXME: get rid of this as fortran version always used
         else:
             self.grids[level].fill_BC("v")
 

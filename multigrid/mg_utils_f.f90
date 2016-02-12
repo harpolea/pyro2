@@ -147,6 +147,77 @@ subroutine smooth_sph_f(qx, qy, ng, nsmooth, v, f, bcs, eta_x, eta_y, r, x, dx, 
 
 end subroutine smooth_sph_f
 
+subroutine cG_f(qx, qy, ng, eta_x, eta_y, v, r, tol, x)
+
+    implicit none
+
+    integer, intent(in) :: qx, qy, ng
+    double precision, intent(inout) :: eta_x(0:qx-1, 0:qy-1)
+    double precision, intent(inout) :: eta_y(0:qx-1, 0:qy-1)
+    double precision, intent(inout) :: v(0:qx-1, 0:qy-1)
+    double precision, intent(inout) :: r(0:qx-1, 0:qy-1)
+    double precision, intent(in) :: tol
+    double precision, intent(out) :: x(0:qx-1, 0:qy-1)
+
+!f2py depend(qx, qy) :: eta_x, eta_y, v, r
+!f2py depend(qx, qy) :: x
+!f2py intent(in) :: eta_x, eta_y, v, r
+!f2py intent(out) :: x
+
+    integer :: i, l
+    integer :: nx, ny, ilo, ihi, jlo, jhi
+    double precision :: Ap(0:(qx - 2*ng)*(qy - 2*ng)-1), p(0:qx-1, 0:qy-1)
+    double precision :: xfl(0:(qx - 2*ng)*(qy - 2*ng)-1), rfl(0:(qx - 2*ng)*(qy - 2*ng)-1)
+    double precision :: a, rsold, rsnew
+
+    nx = qx - 2*ng; ny = qy - 2*ng
+    ilo = ng; ihi = ng+nx-1; jlo = ng; jhi = ng+ny-1
+    l = nx * ny
+
+    rsnew = tol**2
+
+    rfl = pack(r(ilo:ihi, jlo:jhi), .true.)
+    xfl = pack(v(ilo:ihi, jlo:jhi), .true.)
+    rsold = dot_product(rfl, rfl)
+    p(:,:) = r(:,:)
+
+    do i = 0, l-1
+
+        Ap = pack(eta_x(ilo+1:ihi+1, jlo:jhi) * &
+            (p(ilo+1:ihi+1, jlo:jhi) - p(ilo:ihi, jlo:jhi)) - &
+            eta_x(ilo:ihi, jlo:jhi) * &
+            (p(ilo:ihi, jlo:jhi) - p(ilo-1:ihi-1, jlo:jhi)) + &
+            eta_y(ilo:ihi, jlo+1:jhi+1) * &
+            (p(ilo:ihi, jlo+1:jhi+1) - p(ilo:ihi, jlo:jhi)) - &
+            eta_y(ilo:ihi, jlo:jhi) * &
+            (p(ilo:ihi, jlo:jhi) - p(ilo:ihi, jlo-1:jhi-1)), .true.)
+
+        if (rsold == 0.0d0) then
+            a = 0.0d0
+        else
+            a = rsold / dot_product(pack(p(ilo:ihi, jlo:jhi), .true.), Ap)
+        end if
+
+
+        xfl = xfl + a * pack(p(ilo:ihi, jlo:jhi), .true.)
+        rfl = rfl - a * Ap
+        rsnew = dot_product(rfl, rfl)
+
+        if (rsnew < tol**2) then
+            exit
+        end if
+
+        p(ilo:ihi, jlo:jhi) = reshape(rfl, (/nx, ny/)) + (rsnew / rsold) * p(ilo:ihi, jlo:jhi)
+        rsold = rsnew
+
+    end do
+
+    x(:,:) = v(:,:)
+    x(ilo:ihi, jlo:jhi) = reshape(xfl, (/nx, ny/))
+
+end subroutine cG_f
+
+
 subroutine fill_BCs_f(qx, qy, ng, g, bcs, g_out)
 
     implicit none
@@ -158,9 +229,9 @@ subroutine fill_BCs_f(qx, qy, ng, g, bcs, g_out)
 
 !f2py depend(qx, qy) :: g
 !f2py depend(qx, qy) :: g_out
-!f2py intent(inout) :: g
+!f2py intent(in) :: g
 !f2py intent(in) :: bcs
-!f2py intent(out) :: bcs
+!f2py intent(out) :: g_out
 
     integer :: i, j
     integer :: nx, ny, ilo, ihi, jlo, jhi

@@ -496,8 +496,8 @@ class Grid2d(object):
     The '*' marks the data locations.
     """
 
-    def __init__ (self, nx, ny, ng=1, 
-                  xmin=0.0, xmax=1.0, ymin=0.0, ymax=1.0):
+    def __init__ (self, nx, ny, ng=1,
+                  xmin=0.0, xmax=1.0, ymin=0.0, ymax=1.0, R=1.0):
         """
         Create a Grid2d object.
 
@@ -580,6 +580,10 @@ class Grid2d(object):
         self.y2d = y2d
         self.y2v = self.y2d[self.ilo:self.ihi+1, self.jlo:self.jhi+1]
 
+        self.R = R
+        self.r2d = self.y2d + self.R
+        self.r2v = self.r2d[self.ilo:self.ihi+1, self.jlo:self.jhi+1]
+
         self.metric = None
 
     def initialise_metric(self, rp, alpha, beta, gamma, cartesian=True):
@@ -610,6 +614,13 @@ class Grid2d(object):
         return np.sqrt(self.dx*self.dy*
                        np.sum((d[self.ilo:self.ihi+1,self.jlo:self.jhi+1]**2).flat))
 
+    def normv(self, v):
+        """
+        find the norm of the quantity d defined on the same grid, in the
+        domain's valid region
+        """
+        return np.sqrt(self.dx*self.dy*
+                       np.sum((v**2).flat))
 
     def coarse_like(self, N):
         """
@@ -618,7 +629,7 @@ class Grid2d(object):
         """
         g = Grid2d(self.nx/N, self.ny/N, ng=self.ng,
                       xmin=self.xmin, xmax=self.xmax,
-                      ymin=self.ymin, ymax=self.ymax)
+                      ymin=self.ymin, ymax=self.ymax, R=self.R)
 
         if self.metric is not None:
             g.initialise_metric(self.metric.rp, self.metric.alpha, self.metric.beta, self.metric.gamma, self.metric.cartesian)
@@ -633,7 +644,7 @@ class Grid2d(object):
         """
         g = Grid2d(self.nx*N, self.ny*N, ng=self.ng,
                       xmin=self.xmin, xmax=self.xmax,
-                      ymin=self.ymin, ymax=self.ymax)
+                      ymin=self.ymin, ymax=self.ymax, R=self.R)
 
         if self.metric is not None:
             g.initialise_metric(self.metric.rp, self.metric.alpha, self.metric.beta, self.metric.gamma, self.metric.cartesian)

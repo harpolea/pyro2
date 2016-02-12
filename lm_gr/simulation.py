@@ -13,16 +13,20 @@ TODO: not entirely sure about the lateral averaging of D, Dh to get the base sta
 
 CHANGED: made python3 compliable (for the most part - f2py doesn't seem to be able to work too well with python3)
 
-TODO: nose testing!
+TODO: think of a way to initialise metric in setup file rather than here.
+
+TODO: speed up multigrids by initialising them at the start? At the
+moment, have to compute the metric on the set of grids every iteration
+which is really slowing things down.
 
 Run with a profiler using
     python -m cProfile -o pyro.prof pyro.py
 then view using
     snakeviz pyro.prof
 
-All the keyword arguments of functions default to None as their default values
-will be member variables which cannot be accessed in the function's argument
-list.
+All the keyword arguments of functions default to None as their default
+values will be member variables which cannot be accessed in the function's
+argument list.
 """
 
 from __future__ import print_function
@@ -36,6 +40,7 @@ import mesh.reconstruction_f as reconstruction_f
 import mesh.patch as patch
 from simulation_null import NullSimulation, grid_setup, bc_setup
 import multigrid.variable_coeff_MG as vcMG
+import multigrid.rect_MG as rect_MG
 import colormaps as cmaps
 from functools import partial
 import importlib
@@ -202,8 +207,8 @@ class Simulation(NullSimulation):
         Initialize the grid and variables for low Mach general relativistic atmospheric flow
         and set the initial conditions for the chosen problem.
         """
-
-        myg = grid_setup(self.rp, ng=4)
+        R = self.rp.get_param("lm-gr.radius")
+        myg = grid_setup(self.rp, ng=4, R=R)
 
         bc_dens, bc_xodd, bc_yodd = bc_setup(self.rp)
 
@@ -290,14 +295,12 @@ class Simulation(NullSimulation):
         # add metric
         g = self.rp.get_param("lm-gr.grav")
         c = self.rp.get_param("lm-gr.c")
+        cartesian = self.rp.get_param("lm-gr.cartesian")
 
         #if g < 1.e-5:
         #    print('Gravity is very low (', g, ') - make sure the speed of light is high enough to cope.')
 
         R = self.rp.get_param("lm-gr.radius")
-
-        if not self.rp.get_param("lm-gr.cartesian"):
-            msg.fail("System is not cartesian!")
 
         def alpha(g, R, c, grid):
             a = Basestate(grid.ny, ng=grid.ng)
@@ -318,11 +321,14 @@ class Simulation(NullSimulation):
             gamma_matrix[:,:,:,:] = 1. + 2. * g * \
                 (1. - grid.y[np.newaxis, :, np.newaxis, np.newaxis] / R) / \
                 (R * c**2) * np.eye(2)[np.newaxis, np.newaxis, :, :]
+            # assume spherical if not cartesian
+            if not cartesian:
+                gamma_matrix[:,:,0,0] *= grid.r2d**2
             return gamma_matrix
 
         #self.metric = metric.Metric(self.cc_data, self.rp, alpha, beta,
         #                            gamma_matrix, cartesian=False)
-        myg.initialise_metric(self.rp, partial(alpha, g, R, c), beta, partial(gamma_matrix, g, R, c), cartesian=True)
+        myg.initialise_metric(self.rp, partial(alpha, g, R, c), beta, partial(gamma_matrix, g, R, c), cartesian=cartesian)
         #myg.initialise_metric(self.rp, alpha, beta, gamma_matrix, cartesian=cartesian)
 
         u0 = myg.metric.calcu0()
@@ -497,8 +503,6 @@ class Simulation(NullSimulation):
             p0 = self.base["p0"]
         gamma = self.rp.get_param("eos.gamma")
 
-        #chrls = np.array([[myg.metric.christoffels([self.cc_data.t, i, j])
-        #                   for j in range(myg.qy)] for i in range(myg.qx)])
         # time-independent metric
         chrls = myg.metric.chrls
 
@@ -604,49 +608,46 @@ class Simulation(NullSimulation):
 
         if isinstance(myg.metric.alpha, partial):
             alpha = myg.metric.alpha(myg)
+            gamma = myg.metric.gamma(myg)
         else:
             alpha = myg.metric.alpha
+            gamma = myg.metric.gamma
 
+        # NOTE: assumed diagonal, beta = 0
         mom_source_r = myg.scratch_array()
         mom_source_x = myg.scratch_array()
-        gtt = -(alpha.d)**2
-        gxx = 1. / alpha.d**2
-        grr = gxx
+        gtt = -(alpha.d2df(myg.qx))**2
+        gxx = gamma[:,:,0,0] #1. / alpha.d**2
+        grr = gamma[:,:,1,1] #gxx
         drp0 = self.drp0(Dh0=Dh0, u=u, v=v, u0=u0)
 
-        #chrls = np.array([[myg.metric.christoffels([self.cc_data.t, i, j])
-        #                   for j in range(myg.qy)] for i in range(myg.qx)])
         # time-independent metric
         chrls = myg.metric.chrls
 
         # note metric components needed to lower the christoffel symbols
-        mom_source_x.d[:,:] = (gtt[np.newaxis,:] * chrls[:,:,0,0,1] +
-            (gxx[np.newaxis,:] * chrls[:,:,1,0,1] +
-             gtt[np.newaxis,:] * chrls[:,:,0,1,1]) * u.d +
-            (grr[np.newaxis,:] * chrls[:,:,2,0,1] +
-             gtt[np.newaxis,:] * chrls[:,:,0,2,1]) * v.d +
-            gxx[np.newaxis,:] * chrls[:,:,1,1,1] * u.d**2 +
-            grr[np.newaxis,:] * chrls[:,:,2,2,1] * v.d**2 +
-            (grr[np.newaxis,:] * chrls[:,:,2,1,1] +
-             gxx[np.newaxis,:] * chrls[:,:,1,2,1]) * u.d * v.d)
-        mom_source_r.d[:,:] = (gtt[np.newaxis,:] * chrls[:,:,0,0,2] +
-            (gxx[np.newaxis,:] * chrls[:,:,1,0,2] +
-             gtt[np.newaxis,:] * chrls[:,:,0,1,2]) * u.d +
-            (grr[np.newaxis,:] * chrls[:,:,2,0,2] +
-             gtt[np.newaxis,:] * chrls[:,:,0,2,2]) * v.d +
-            gxx[np.newaxis,:] * chrls[:,:,1,1,2] * u.d**2 +
-            grr[np.newaxis,:] * chrls[:,:,2,2,2] * v.d**2 +
-            (grr[np.newaxis,:] * chrls[:,:,2,1,2] +
-             gxx[np.newaxis,:] * chrls[:,:,1,2,2]) * u.d * v.d)
+        mom_source_x.d[:,:] = (gtt * chrls[:,:,0,0,1] +
+            (gxx * chrls[:,:,1,0,1] +
+             gtt * chrls[:,:,0,1,1]) * u.d +
+            (grr * chrls[:,:,2,0,1] +
+             gtt * chrls[:,:,0,2,1]) * v.d +
+            gxx * chrls[:,:,1,1,1] * u.d**2 +
+            grr * chrls[:,:,2,2,1] * v.d**2 +
+            (grr * chrls[:,:,2,1,1] +
+             gxx * chrls[:,:,1,2,1]) * u.d * v.d) / gxx
+        mom_source_r.d[:,:] = (gtt * chrls[:,:,0,0,2] +
+            (gxx * chrls[:,:,1,0,2] +
+             gtt * chrls[:,:,0,1,2]) * u.d +
+            (grr * chrls[:,:,2,0,2] +
+             gtt * chrls[:,:,0,2,2]) * v.d +
+            gxx * chrls[:,:,1,1,2] * u.d**2 +
+            grr * chrls[:,:,2,2,2] * v.d**2 +
+            (grr * chrls[:,:,2,1,2] +
+             gxx * chrls[:,:,1,2,2]) * u.d * v.d) / grr
 
         # check drp0 is not zero
         mask = (abs(drp0.d2df(myg.qx)) > 1.e-15)
         #print(drp0.d2d())
         mom_source_r.d[mask] -=  drp0.d2df(myg.qx)[mask] / (Dh.d[mask]*u0.d[mask])
-
-        # these lines are multiplying by upstairs metric components
-        mom_source_x.d[:,:] *=  alpha.d2d()**2
-        mom_source_r.d[:,:] *=  alpha.d2d()**2
 
         return mom_source_x, mom_source_r
 
@@ -691,10 +692,6 @@ class Simulation(NullSimulation):
             (p0.v(buf=myg.ng-1) + old_p0.v(buf=myg.ng-1)) * \
             (self.lateral_average(S.v(buf=myg.ng-1)) -
              (U0.jp(1, buf=myg.ng-1) - U0.jp(-1, buf=myg.ng-1)))
-        #psi.v(buf=myg.ng-1)[:] = gamma * 0.5 * \
-        #    (p0.v(buf=myg.ng-1) + old_p0.v(buf=myg.ng-1)) * \
-        #    (self.lateral_average(S.v(buf=myg.ng-1)) -
-        #     (U0.jp(1, buf=myg.ng-1) - U0.v(buf=myg.ng-1)))
 
         return psi
 
@@ -808,13 +805,13 @@ class Simulation(NullSimulation):
             u0 = myg.metric.calcu0(u=u, v=v)
         Dh0_half = 0.5 * (Dh0_old + Dh0)
 
-        if isinstance(myg.metric.alpha, partial):
-            alpha = myg.metric.alpha(myg)
+        if isinstance(myg.metric.gamma, partial):
+            gamma = myg.metric.gamma(myg)
         else:
-            alpha = myg.metric.alpha
+            gamma = myg.metric.gamma
 
         drp0 = self.drp0(Dh0=Dh0_half, u=u, v=v, u0=u0)
-        grr = 1. / alpha.d**2
+        grr = gamma[:,:,1,1]
 
         #chrls = np.array([[myg.metric.christoffels([self.cc_data.t, i, j])
         #                   for j in range(myg.qy)] for i in range(myg.qx)])
@@ -1202,6 +1199,7 @@ class Simulation(NullSimulation):
         self.cc_data.fill_BC("y-velocity")
         self.cc_data.fill_BC("scalar")
         self.cc_data.fill_BC("mass-frac")
+        cartesian = self.rp.get_param("lm-gr.cartesian")
 
         oldS = self.aux_data.get_var("old_source_y")
         oldS.d[:,:] = self.aux_data.get_var("source_y").d
@@ -1222,16 +1220,28 @@ class Simulation(NullSimulation):
 
         # next create the multigrid object.  We defined phi with
         # the right BCs previously
-        mg = vcMG.VarCoeffCCMG2d(myg.nx, myg.ny,
-                                 xl_BC_type=self.aux_data.BCs["phi"].xlb,
-                                 xr_BC_type=self.aux_data.BCs["phi"].xrb,
-                                 yl_BC_type=self.aux_data.BCs["phi"].ylb,
-                                 yr_BC_type=self.aux_data.BCs["phi"].yrb,
-                                 xmin=myg.xmin, xmax=myg.xmax,
-                                 ymin=myg.ymin, ymax=myg.ymax,
-                                 coeffs=coeff,
-                                 coeffs_bc=self.cc_data.BCs["density"],
-                                 verbose=0)
+        if cartesian:
+            mg = vcMG.VarCoeffCCMG2d(myg.nx, myg.ny,
+                                     xl_BC_type=self.aux_data.BCs["phi"].xlb,
+                                     xr_BC_type=self.aux_data.BCs["phi"].xrb,
+                                     yl_BC_type=self.aux_data.BCs["phi"].ylb,
+                                     yr_BC_type=self.aux_data.BCs["phi"].yrb,
+                                     xmin=myg.xmin, xmax=myg.xmax,
+                                     ymin=myg.ymin, ymax=myg.ymax,
+                                     coeffs=coeff,
+                                     coeffs_bc=self.cc_data.BCs["density"],
+                                     verbose=0)
+        else:
+            mg = rect_MG.RectMG2d(myg.nx, myg.ny,
+                                     xl_BC_type=self.aux_data.BCs["phi"].xlb,
+                                     xr_BC_type=self.aux_data.BCs["phi"].xrb,
+                                     yl_BC_type=self.aux_data.BCs["phi"].ylb,
+                                     yr_BC_type=self.aux_data.BCs["phi"].yrb,
+                                     xmin=myg.xmin, xmax=myg.xmax,
+                                     ymin=myg.ymin, ymax=myg.ymax,
+                                     coeffs=coeff,
+                                     coeffs_bc=self.cc_data.BCs["density"],
+                                     verbose=0, R=myg.R, rp=self.rp)
 
         # first compute div{zeta U}
         div_zeta_U = mg.soln_grid.scratch_array()
@@ -1246,7 +1256,7 @@ class Simulation(NullSimulation):
         constraint = self.constraint_source()
         # set the RHS to divU and solve
         mg.init_RHS(div_zeta_U.v(buf=1) - constraint.v(buf=1))
-        mg.solve(rtol=1.e-10, fortran=self.fortran)
+        mg.solve(rtol=1.e-12, fortran=self.fortran)
 
         # store the solution in our self.cc_data object -- include a single
         # ghostcell
@@ -1329,15 +1339,11 @@ class Simulation(NullSimulation):
         DX = self.cc_data.get_var("mass-frac")
         scalar = self.cc_data.get_var("scalar")
         T = self.cc_data.get_var("temperature")
+        cartesian = self.rp.get_param("lm-gr.cartesian")
 
         myg = self.cc_data.grid
 
         u0 = myg.metric.calcu0()
-
-        if isinstance(myg.metric.alpha, partial):
-            alpha = myg.metric.alpha(myg)
-        else:
-            alpha = myg.metric.alpha
 
         # note: the base state quantities do not have valid ghost cells
         self.update_zeta(u0=u0)
@@ -1486,35 +1492,45 @@ class Simulation(NullSimulation):
         coeff.v(buf=1)[:,:] *= zeta.v2d(buf=1)**2
 
         # create the multigrid object
-        mg = vcMG.VarCoeffCCMG2d(myg.nx, myg.ny,
-                                 xl_BC_type=self.aux_data.BCs["phi-MAC"].xlb,
-                                 xr_BC_type=self.aux_data.BCs["phi-MAC"].xrb,
-                                 yl_BC_type=self.aux_data.BCs["phi-MAC"].ylb,
-                                 yr_BC_type=self.aux_data.BCs["phi-MAC"].yrb,
-                                 xmin=myg.xmin, xmax=myg.xmax,
-                                 ymin=myg.ymin, ymax=myg.ymax,
-                                 coeffs=coeff,
-                                 coeffs_bc=self.cc_data.BCs["density"],
-                                 verbose=0)
+        if cartesian:
+            mg = vcMG.VarCoeffCCMG2d(myg.nx, myg.ny,
+                                     xl_BC_type=self.aux_data.BCs["phi-MAC"].xlb,
+                                     xr_BC_type=self.aux_data.BCs["phi-MAC"].xrb,
+                                     yl_BC_type=self.aux_data.BCs["phi-MAC"].ylb,
+                                     yr_BC_type=self.aux_data.BCs["phi-MAC"].yrb,
+                                     xmin=myg.xmin, xmax=myg.xmax,
+                                     ymin=myg.ymin, ymax=myg.ymax,
+                                     coeffs=coeff,
+                                     coeffs_bc=self.cc_data.BCs["density"],
+                                     verbose=0)
+        else:
+            mg = rect_MG.RectMG2d(myg.nx, myg.ny,
+                                     xl_BC_type=self.aux_data.BCs["phi"].xlb,
+                                     xr_BC_type=self.aux_data.BCs["phi"].xrb,
+                                     yl_BC_type=self.aux_data.BCs["phi"].ylb,
+                                     yr_BC_type=self.aux_data.BCs["phi"].yrb,
+                                     xmin=myg.xmin, xmax=myg.xmax,
+                                     ymin=myg.ymin, ymax=myg.ymax,
+                                     coeffs=coeff,
+                                     coeffs_bc=self.cc_data.BCs["density"],
+                                     verbose=0, R=myg.R, rp=self.rp)
 
         # first compute div{zeta U}
         div_zeta_U = mg.soln_grid.scratch_array()
 
         # MAC velocities are edge-centered.  div{zeta U} is cell-centered.
-        cartesian = self.rp.get_param("lm-gr.cartesian")
-        if cartesian:
-            div_zeta_U.v()[:,:] = \
-                zeta.v2d() * (u_MAC.ip(1) - u_MAC.v()) / myg.dx + \
-                (zeta_edges.v2dp(1) * v_MAC.jp(1) -
-                 zeta_edges.v2d() * v_MAC.v()) / myg.dy
-        else:
-            div_zeta_U.v()[:,:] = \
-                zeta.v2d() * (u_MAC.ip(1) - u_MAC.v()) / (myg.dx + \
-                self.r2d) + zeta.v2d() * u.v() / (np.tan(myg.x2d) * \
-                self.r2d) + \
-                (zeta_edges.v2dp(1) * v_MAC.jp(1) - \
-                zeta_edges.v2d() * v_MAC.v()) / myg.dy + \
-                2. * zeta.v2d() * v.v() / self.r2d
+        div_zeta_U.v()[:,:] = \
+            zeta.v2d() * (u_MAC.ip(1) - u_MAC.v()) / myg.dx + \
+            (zeta_edges.v2dp(1) * v_MAC.jp(1) -
+             zeta_edges.v2d() * v_MAC.v()) / myg.dy
+
+        #div_zeta_U.v()[:,:] = \
+        #    zeta.v2d() * (u_MAC.ip(1) - u_MAC.v()) / (myg.dx + \
+        #    self.r2d) + zeta.v2d() * u.v() / (np.tan(myg.x2d) * \
+        #    self.r2d) + \
+        #    (zeta_edges.v2dp(1) * v_MAC.jp(1) - \
+        #    zeta_edges.v2d() * v_MAC.v()) / myg.dy + \
+        #    2. * zeta.v2d() * v.v() / self.r2d
 
         # careful: this makes u0_MAC edge-centred.
         u0_MAC = myg.metric.calcu0(u=u_MAC, v=v_MAC)
@@ -1522,7 +1538,7 @@ class Simulation(NullSimulation):
 
         # solve the Poisson problem
         mg.init_RHS(div_zeta_U.d - constraint.v(buf=1))
-        mg.solve(rtol=1.e-10, fortran=self.fortran)
+        mg.solve(rtol=1.e-12, fortran=self.fortran)
 
         # update the normal velocities with the pressure gradient -- these
         # constitute our advective velocities.  Note that what we actually
@@ -1534,19 +1550,32 @@ class Simulation(NullSimulation):
 
         coeff = self.aux_data.get_var("coeff")
         # FIXME: is this u0 or u0_MAC?
-        coeff.d[:,:] = alpha.d2d()**2 / (Dh.d * u0.d)
+        coeff.d[:,:] = 1. / (Dh.d * u0.d)
         coeff.d[:,:] *= zeta.d2d()
         self.aux_data.fill_BC("coeff")
 
+        if isinstance(myg.metric.gamma, partial):
+            gamma_matrix = myg.metric.gamma(myg)
+        else:
+            gamma_matrix = myg.metric.gamma
+        # upper index components
+        gxx = patch.ArrayIndexer(d=1./gamma_matrix[:,:,0,0], grid=myg)
+        grr = patch.ArrayIndexer(d=1./gamma_matrix[:,:,1,1], grid=myg)
+
         coeff_x = myg.scratch_array()
         b = (3, 1, 0, 0)  # this seems more than we need
+        # need to raise gradient operator so multiply by metric components
         coeff_x.v(buf=b)[:,:] = 0.5 * (coeff.ip(-1, buf=b) + coeff.v(buf=b))
-        gradp_MAC_x.v(buf=b)[:,:] = 0.5 * (gradp_MAC_x.ip(-1, buf=b) + gradp_MAC_x.v(buf=b))
+        gradp_MAC_x.v(buf=b)[:,:] = 0.5 * (
+            gxx.ip(-1, buf=b) * gradp_MAC_x.ip(-1, buf=b) +
+            gxx.v(buf=b) * gradp_MAC_x.v(buf=b))
 
         coeff_y = myg.scratch_array()
         b = (0, 0, 3, 1)
         coeff_y.v(buf=b)[:,:] = 0.5 * (coeff.jp(-1, buf=b) + coeff.v(buf=b))
-        gradp_MAC_y.v(buf=b)[:,:] = 0.5 * (gradp_MAC_y.jp(-1, buf=b) + gradp_MAC_y.v(buf=b))
+        gradp_MAC_y.v(buf=b)[:,:] = 0.5 * (
+            grr.jp(-1, buf=b) * gradp_MAC_y.jp(-1, buf=b) +
+            grr.v(buf=b) * gradp_MAC_y.v(buf=b))
 
         #############################
 
@@ -2114,16 +2143,29 @@ class Simulation(NullSimulation):
         coeff.d[:,:] *= zeta_half.d2d()**2
 
         # create the multigrid object
-        mg = vcMG.VarCoeffCCMG2d(myg.nx, myg.ny,
-                                 xl_BC_type=self.aux_data.BCs["phi"].xlb,
-                                 xr_BC_type=self.aux_data.BCs["phi"].xrb,
-                                 yl_BC_type=self.aux_data.BCs["phi"].ylb,
-                                 yr_BC_type=self.aux_data.BCs["phi"].yrb,
-                                 xmin=myg.xmin, xmax=myg.xmax,
-                                 ymin=myg.ymin, ymax=myg.ymax,
-                                 coeffs=coeff,
-                                 coeffs_bc=self.cc_data.BCs["density"],
-                                 verbose=0)
+        if cartesian:
+            mg = vcMG.VarCoeffCCMG2d(myg.nx, myg.ny,
+                                     xl_BC_type=self.aux_data.BCs["phi"].xlb,
+                                     xr_BC_type=self.aux_data.BCs["phi"].xrb,
+                                     yl_BC_type=self.aux_data.BCs["phi"].ylb,
+                                     yr_BC_type=self.aux_data.BCs["phi"].yrb,
+                                     xmin=myg.xmin, xmax=myg.xmax,
+                                     ymin=myg.ymin, ymax=myg.ymax,
+                                     coeffs=coeff,
+                                     coeffs_bc=self.cc_data.BCs["density"],
+                                     verbose=0)
+        else:
+            mg = rect_MG.RectMG2d(myg.nx, myg.ny,
+                                     xl_BC_type=self.aux_data.BCs["phi"].xlb,
+                                     xr_BC_type=self.aux_data.BCs["phi"].xrb,
+                                     yl_BC_type=self.aux_data.BCs["phi"].ylb,
+                                     yr_BC_type=self.aux_data.BCs["phi"].yrb,
+                                     xmin=myg.xmin, xmax=myg.xmax,
+                                     ymin=myg.ymin, ymax=myg.ymax,
+                                     coeffs=coeff,
+                                     coeffs_bc=self.cc_data.BCs["density"],
+                                     verbose=0, R=myg.R, rp=self.rp)
+
 
         # first compute div{zeta U}
 
@@ -2144,7 +2186,7 @@ class Simulation(NullSimulation):
         mg.init_solution(phiGuess.d)
 
         # solve
-        mg.solve(rtol=1.e-10, fortran=self.fortran)
+        mg.solve(rtol=1.e-12, fortran=self.fortran)
 
         # store the solution in our self.cc_data object -- include a single
         # ghostcell
@@ -2157,7 +2199,6 @@ class Simulation(NullSimulation):
         # U = U - (zeta/Dh u0) grad (phi)
         # alpha^2 as need to raise grad.
         coeff = 1.0 / (Dh_half * u0)
-        coeff.d[:,:] *=  alpha.d2d()**2
         coeff.d[:,:] *= zeta_half.d2d()
 
         ###########################
@@ -2172,9 +2213,9 @@ class Simulation(NullSimulation):
         # However, it doesn't actually work: it just causes the atmosphere to rise up?
         base_forcing = self.base_state_forcing()
         # FIXME: This line messes up the velocity somehow - what on earth is it doing????
-        u.v()[:,:] += self.dt * (-coeff.v() * gradphi_x.v())
+        u.v()[:,:] += self.dt * (-coeff.v() * gxx.v() * gradphi_x.v())
         # FIXME: add back in??
-        v.v()[:,:] += self.dt * (-coeff.v() * gradphi_y.v())# + base_forcing.v())
+        v.v()[:,:] += self.dt * (-coeff.v() * grr.v() * gradphi_y.v())# + base_forcing.v())
 
         # store gradp for the next step
         if proj_type == 1:
@@ -2251,7 +2292,7 @@ class Simulation(NullSimulation):
 
             img = ax.imshow(np.transpose(f.v()),
                             interpolation="nearest", origin="lower",
-                            extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax],
+                            extent=[myg.xmin*myg.R, myg.xmax*myg.R, myg.ymin, myg.ymax],
                             vmin=vmins[n], vmax=vmaxes[n], cmap=cmap)
 
             ax.set_xlabel(r"$x$")

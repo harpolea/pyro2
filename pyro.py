@@ -3,7 +3,7 @@
 CHANGED: added a --test_problem flag so can run programs whose initial data files are in the test subdirectory of the problem, rather than the problems directory.
 """
 
-from __future__ import print_function
+from __future__ import print_function, division
 
 import argparse
 import importlib
@@ -21,6 +21,12 @@ def doit(solver_name, problem_name, param_file,
          comp_bench=False, make_bench=False, test_problem=False):
 
     msg.bold('pyro ...')
+
+    # start by checking we're running python 2
+    if sys.version_info[0] > 2:
+        print(sys.version_info[0:3])
+        msg.warning('Error: need to run this in python 2')
+        sys.exit()
 
     tc = profile.TimerCollection()
 
@@ -76,9 +82,9 @@ def doit(solver_name, problem_name, param_file,
     # data and know about the runtime parameters and which problem we
     # are running
     if solver_name == "lm_gr":
-        if not rp.get_param("lm-gr.cartesian"):
-            sim = solver.SimulationSpherical(solver_name, problem_name, rp, timers=tc)
-        elif rp.get_param("lm-gr.react") != 0:
+        #if not rp.get_param("lm-gr.cartesian"):
+        #    sim = solver.SimulationSpherical(solver_name, problem_name, rp, timers=tc)
+        if rp.get_param("lm-gr.react") != 0:
             sim = solver.SimulationReact(solver_name, problem_name, rp, timers=tc)
         else:
             sim = solver.Simulation(solver_name, problem_name, rp, timers=tc)
@@ -118,7 +124,7 @@ def doit(solver_name, problem_name, param_file,
     sim.cc_data.write("{}{:04d}".format(basename, sim.n))
 
     # FIXME: DON'T EXIT HERE
-    sys.exit()
+    #sys.exit()
 
     dovis = rp.get_param("vis.dovis")
     if dovis:

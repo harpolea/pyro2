@@ -111,9 +111,9 @@ def init_data(my_data, aux_data, base, rp, metric):
     u0 = metric.calcu0()
     p0.d[:] = K * D0.d**gamma
 
-    #for i in range(myg.jlo-1, myg.jhi+2):
-    #    p0.d[i] = p0.d[i-1] - \
-    #              myg.dy * Dh0.d[i] * g / (R * c**2 * metric.alpha(myg).d[i] **2 * u0.d1d()[i])
+    for i in range(myg.jlo-1, myg.jhi+2):
+        p0.d[i] = p0.d[i-1] - \
+                  myg.dy * Dh0.d[i] * g / (R * c**2 * metric.alpha(myg).d[i] **2 * u0.d1d()[i])
                   #myg.dy * g * (2. * p0.d[i-1] * (1. + metric.alpha.d[i]**4) -
                   #Dh0.d[i] / u0.d1d()[i]) / (c**2 * metric.alpha.d[i]**2 * R)
     mu = 1./(2. * (1 - DX.d) + 4. * DX.d)

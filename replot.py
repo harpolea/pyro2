@@ -51,9 +51,9 @@ def makeplot(myd, solver_name, problem_name, outfile, W, H, n=0, vmins=[None, No
     fix_dt = rp.get_param("driver.fix_dt")
 
     if solver_name == "lm_gr":
-        if not rp.get_param("lm-gr.cartesian"):
-            sim = solver.SimulationSpherical(solver_name, problem_name, rp)
-        elif rp.get_param("lm-gr.react") != 0:
+        #if not rp.get_param("lm-gr.cartesian"):
+        #    sim = solver.SimulationSpherical(solver_name, problem_name, rp)
+        if rp.get_param("lm-gr.react") != 0:
             sim = solver.SimulationReact(solver_name, problem_name, rp)
         else:
             sim = solver.Simulation(solver_name, problem_name, rp)

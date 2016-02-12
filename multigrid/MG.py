@@ -158,9 +158,9 @@ class CellCenterMG2d(object):
 
         """
 
-        if nx != ny:
-            print("ERROR: multigrid currently requires nx = ny")
-            return -1
+        #if nx != ny:
+        #    print("ERROR: multigrid currently requires nx = ny")
+        #    return -1
 
         self.nx = nx
         self.ny = ny
@@ -173,9 +173,9 @@ class CellCenterMG2d(object):
         self.ymin = ymin
         self.ymax = ymax
 
-        if (xmax-xmin) != (ymax-ymin):
-            print("ERROR: multigrid currently requires a square domain")
-            return -1
+        #if (xmax-xmin) != (ymax-ymin):
+        #    print("ERROR: multigrid currently requires a square domain")
+        #    return -1
 
         self.alpha = alpha
         self.beta = beta
@@ -753,7 +753,7 @@ class CellCenterMG2d(object):
             diff = (solnP.get_var("v").v() - old_solution.v())/ \
                 (solnP.get_var("v").v() + self.small)
 
-            relative_error = solnP.grid.norm(diff)
+            relative_error = solnP.grid.normv(diff)
 
             old_solution = solnP.get_var("v").copy()
 

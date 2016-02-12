@@ -250,6 +250,8 @@ class Metric(object):
         else:
             alpha = self.alpha
 
+        #if self.cartesian:
+        # FIXME: HACKKKKKKK
         if self.cartesian:
             # For simple time-lagged metric, only have 7 non-zero (4 unique) christoffels.
             # t_tr
