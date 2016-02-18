@@ -1,7 +1,7 @@
 from numpy.testing import assert_allclose
 from util import runparams
 from copy import deepcopy
-from lm_gr.simulation_spherical import SimulationSpherical
+from lm_gr.simulation import Simulation
 
 def test_simulation_sph_static():
     """
@@ -17,7 +17,7 @@ def test_simulation_sph_static():
     rp.load_params("lm_gr/tests/inputs.test_sph")
 
     # problem-specific runtime parameters
-    sim = SimulationSpherical("lm_gr", "static", rp, testing=True)
+    sim = Simulation("lm_gr", "static", rp, testing=True)
     sim.initialize()
 
     # make a copy to make sure it hasn't changed.

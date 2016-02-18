@@ -277,11 +277,11 @@ class Metric(object):
             # r_tt
             christls[2, 0, 0] = g * alphasq / (c**2 * R)
             # r_theta theta
-            christls[2, 1, 1] = -R * alphasq * (1. + g/c**2)
+            christls[2, 1, 1] = -R * alphasq
             # r_rr
-            christls[2, 2, 2] = -g * alphasq / (R * c**2)
+            christls[2, 2, 2] = -2. * g * alphasq / (R * c**2)
             # theta_theta r
-            christls[1, 1, 2] = alphasq * (1. + g/c**2) / R
+            christls[1, 1, 2] = 1. / R
             # theta_r theta
             christls[1, 2, 1] = christls[1, 1, 2]
 

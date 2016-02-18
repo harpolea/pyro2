@@ -581,6 +581,7 @@ class Grid2d(object):
         self.y2v = self.y2d[self.ilo:self.ihi+1, self.jlo:self.jhi+1]
 
         self.R = R
+        self.r = self.y + self.R
         self.r2d = self.y2d + self.R
         self.r2v = self.r2d[self.ilo:self.ihi+1, self.jlo:self.jhi+1]
 

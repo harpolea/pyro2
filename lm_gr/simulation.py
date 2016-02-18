@@ -45,6 +45,7 @@ import colormaps as cmaps
 from functools import partial
 import importlib
 from util import msg
+import sys
 
 
 class Basestate(object):
@@ -304,7 +305,7 @@ class Simulation(NullSimulation):
 
         def alpha(g, R, c, grid):
             a = Basestate(grid.ny, ng=grid.ng)
-            a.d[:] = np.sqrt(1. - 2. * g * (1. - grid.y[:]/R) / (R * c**2))
+            a.d[:] = np.sqrt(1. - 2. * g * (1. - grid.y[:]/R) / (c**2))
             return a
         #alpha = Basestate(myg.ny, ng=myg.ng)
         #alpha.d[:] = np.sqrt(1. - 2. * g * (1. - myg.y[:]/R) / (R * c**2))
@@ -320,10 +321,10 @@ class Simulation(NullSimulation):
             gamma_matrix = np.zeros((grid.qx, grid.qy, 2, 2), dtype=np.float64)
             gamma_matrix[:,:,:,:] = 1. + 2. * g * \
                 (1. - grid.y[np.newaxis, :, np.newaxis, np.newaxis] / R) / \
-                (R * c**2) * np.eye(2)[np.newaxis, np.newaxis, :, :]
+                (c**2) * np.eye(2)[np.newaxis, np.newaxis, :, :]
             # assume spherical if not cartesian
             if not cartesian:
-                gamma_matrix[:,:,0,0] *= grid.r2d**2
+                gamma_matrix[:,:,0,0] = grid.r2d**2
             return gamma_matrix
 
         #self.metric = metric.Metric(self.cc_data, self.rp, alpha, beta,
@@ -563,7 +564,7 @@ class Simulation(NullSimulation):
         return constraint
 
 
-    def calc_mom_source(self, u=None, v=None, Dh=None, Dh0=None, u0=None):
+    def calc_mom_source(self, u=None, v=None, Dh=None, D0=None, u0=None):
         r"""
         calculate the source terms in the momentum equation.
         This works only for the metric :math: `ds^2 = -a^2 dt^2 + 1/a^2 (dx^2 + dr^2)`
@@ -583,8 +584,8 @@ class Simulation(NullSimulation):
             vertical velocity
         Dh : ArrayIndexer object, optional
             density * enthalpy full state
-        Dh0: ArrayIndexer object, optional
-            density * enthalpy base state
+        D0: ArrayIndexer object, optional
+            density base state
         u0 : ArrayIndexer object, optional
             timelike component of the 4-velocity
 
@@ -601,8 +602,8 @@ class Simulation(NullSimulation):
             v = self.cc_data.get_var("y-velocity")
         if Dh is None:
             Dh = self.cc_data.get_var("enthalpy")
-        if Dh0 is None:
-            Dh0 = self.base["Dh0"]
+        if D0 is None:
+            D0 = self.base["Dh0"]
         if u0 is None:
             u0 = myg.metric.calcu0(u=u, v=v)
 
@@ -617,9 +618,9 @@ class Simulation(NullSimulation):
         mom_source_r = myg.scratch_array()
         mom_source_x = myg.scratch_array()
         gtt = -(alpha.d2df(myg.qx))**2
-        gxx = gamma[:,:,0,0] #1. / alpha.d**2
+        gxx = gamma[:,:,0,0]
         grr = gamma[:,:,1,1] #gxx
-        drp0 = self.drp0(Dh0=Dh0, u=u, v=v, u0=u0)
+        drp0 = self.drp0(D0=D0, u=u, v=v, u0=u0)
 
         # time-independent metric
         chrls = myg.metric.chrls
@@ -633,7 +634,7 @@ class Simulation(NullSimulation):
             gxx * chrls[:,:,1,1,1] * u.d**2 +
             grr * chrls[:,:,2,2,1] * v.d**2 +
             (grr * chrls[:,:,2,1,1] +
-             gxx * chrls[:,:,1,2,1]) * u.d * v.d) / gxx
+             gxx * chrls[:,:,1,2,1]) * u.d * v.d)# / gxx
         mom_source_r.d[:,:] = (gtt * chrls[:,:,0,0,2] +
             (gxx * chrls[:,:,1,0,2] +
              gtt * chrls[:,:,0,1,2]) * u.d +
@@ -642,12 +643,15 @@ class Simulation(NullSimulation):
             gxx * chrls[:,:,1,1,2] * u.d**2 +
             grr * chrls[:,:,2,2,2] * v.d**2 +
             (grr * chrls[:,:,2,1,2] +
-             gxx * chrls[:,:,1,2,2]) * u.d * v.d) / grr
+             gxx * chrls[:,:,1,2,2]) * u.d * v.d) #/ grr
 
         # check drp0 is not zero
         mask = (abs(drp0.d2df(myg.qx)) > 1.e-15)
         #print(drp0.d2d())
         mom_source_r.d[mask] -=  drp0.d2df(myg.qx)[mask] / (Dh.d[mask]*u0.d[mask])
+        #mom_source_r.d[:,:]  = 0.
+
+        #print('drp0: {}'.format(drp0.d2df(myg.qx)))
 
         return mom_source_x, mom_source_r
 
@@ -809,8 +813,8 @@ class Simulation(NullSimulation):
             gamma = myg.metric.gamma(myg)
         else:
             gamma = myg.metric.gamma
-
-        drp0 = self.drp0(Dh0=Dh0_half, u=u, v=v, u0=u0)
+        # FIXME: shhould include D0=D0_half here?
+        drp0 = self.drp0(u=u, v=v, u0=u0)
         grr = gamma[:,:,1,1]
 
         #chrls = np.array([[myg.metric.christoffels([self.cc_data.t, i, j])
@@ -846,7 +850,7 @@ class Simulation(NullSimulation):
         return drpi
 
 
-    def react_state(self, S=None, D=None, Dh=None, DX=None, p0=None, T=None, scalar=None, Dh0=None, u=None, v=None, u0=None):
+    def react_state(self, S=None, D=None, Dh=None, DX=None, p0=None, T=None, scalar=None, D0=None, u=None, v=None, u0=None):
         """
         gravitational source terms in the continuity equation (called react
         state to mirror MAESTRO as here they just have source terms from the
@@ -891,7 +895,7 @@ class Simulation(NullSimulation):
             v = self.cc_data.get_var("y-velocity")
         if u0 is None:
             u0 = myg.metric.calcu0(u=u, v=v)
-        drp0 = self.drp0(Dh0=Dh0, u=u, v=v, u0=u0)
+        drp0 = self.drp0(D0=D0, u=u, v=v, u0=u0)
         if S is None:
             S = self.aux_data.get_var("source_y")
 
@@ -951,7 +955,7 @@ class Simulation(NullSimulation):
         self.cc_data.fill_BC("scalar")
 
 
-    def enforce_tov(self, p0=None, Dh0=None, u=None, v=None, u0=None):
+    def enforce_tov(self, p0=None, D0=None, u=None, v=None, u0=None):
         r"""
         enforces the TOV equation. This is the GR equivalent of enforce_hse.
         Eq. 6.133.
@@ -978,13 +982,14 @@ class Simulation(NullSimulation):
         old_p0 = self.base["old_p0"]
         old_p0 = Basestate(myg.ny, ng=myg.ng)
         old_p0.d[:] = p0.d
-        drp0 = self.drp0(Dh0=Dh0, u=u, v=v, u0=u0)
+        drp0 = self.drp0(D0=D0, u=u, v=v, u0=u0)
 
-        p0.d[1:] = p0.d[:-1] + 0.5 * self.cc_data.grid.dy * \
-                   (drp0.d[1:] + drp0.d[:-1])
+        #p0.d[1:] = p0.d[:-1] + 0.5 * self.cc_data.grid.dy * \
+        #           (drp0.d[1:] + drp0.d[:-1])
+        return
 
 
-    def drp0(self, Dh0=None, u=None, v=None, u0=None):
+    def drp0(self, D0=None, Dh0=None, u=None, v=None, u0=None, p0=None):
         """
         Calculate drp0 as it's messy using eq 6.166
 
@@ -1000,8 +1005,12 @@ class Simulation(NullSimulation):
             timelike component of the 4-velocity
         """
         myg = self.cc_data.grid
+        if D0 is None:
+            D0 = self.base["D0"]
         if Dh0 is None:
             Dh0 = self.base["Dh0"]
+        if p0 is None:
+            p0 = self.base["p0"]
         # TODO: maybe instead of averaging u0, should calculate it
         # based on U0?
         if u0 is None:
@@ -1010,17 +1019,31 @@ class Simulation(NullSimulation):
         u01d.d[:] = self.lateral_average(u0.d)
 
         if isinstance(myg.metric.alpha, partial):
-            alpha = myg.metric.alpha(myg)
+            gamma = myg.metric.gamma(myg)
         else:
-            alpha = myg.metric.alpha
+            gamma = myg.metric.gamma
 
-        g = self.rp.get_param("lm-gr.grav")
-        c = self.rp.get_param("lm-gr.c")
-        R = self.rp.get_param("lm-gr.radius")
+        #gtt = -(alpha.d)**2
+        grr = self.lateral_average(gamma[:,:,1,1]) #gxx
+
+        chrst = self.lateral_average(myg.metric.chrls[:,:,0,0,2])
+
+        #g = self.rp.get_param("lm-gr.grav")
+        #c = self.rp.get_param("lm-gr.c")
 
         drp0 = Basestate(myg.ny, ng=myg.ng)
 
-        drp0.d[:] = -Dh0.d * g / (R * c**2 * alpha.d**2 * u01d.d)
+        # NOTE: assume G=1
+
+        drp0.d[:] = - Dh0.d * u01d.d * chrst / grr
+        #-(Dh0.d/u01d.d) * chrst #(g/c**2 +
+            #4. * np.pi * myg.r**2 * p0.d/c**4) / (myg.r * alpha.d**2)
+
+        #print('denom: {}'.format(p0.d + D0.d/u01d.d))
+
+
+        #-Dh0.d * g / (R * c**2 * alpha.d**2 * u01d.d)
+
 
         return drp0
 
@@ -1071,7 +1094,7 @@ class Simulation(NullSimulation):
                       # dt * U0.v() * self.drp0().v() + \
 
 
-    def compute_base_velocity(self, U0=None, p0=None, S=None, Dh0=None, u=None, v=None, u0=None):
+    def compute_base_velocity(self, U0=None, p0=None, S=None, Dh0=None, u=None, v=None, u0=None, D0=None):
         r"""
         Calculates the base velocity using eq. 6.138
 
@@ -1104,7 +1127,7 @@ class Simulation(NullSimulation):
         if U0 is None:
             U0 = self.base["U0"]
         gamma = self.rp.get_param("eos.gamma")
-        drp0 = self.drp0(Dh0=Dh0, u=u, v=v, u0=u0)
+        drp0 = self.drp0(D0=D0, u=u, v=v, u0=u0)
         if S is None:
             S = self.aux_data.get_var("source_y")
 
@@ -1151,11 +1174,11 @@ class Simulation(NullSimulation):
 
         # We need an alternate timestep that accounts for buoyancy, to
         # handle the case where the velocity is initially zero.
-        Dh0 = self.base["Dh0"]
+        D0 = self.base["D0"]
         if u0 is None:
             u0 = myg.metric.calcu0(u=u, v=v)
 
-        drp0 = self.drp0(Dh0=Dh0, u=u, v=v, u0=u0)
+        drp0 = self.drp0(D0=D0, u=u, v=v, u0=u0)
 
         _, mom_source_r = self.calc_mom_source(u0=u0)
 
@@ -1457,6 +1480,7 @@ class Simulation(NullSimulation):
         ###########################
         #gradp_x.d[:,:] = 1.
         #gradp_y.d[:,:] = 1.
+        # NOTE!!!!!! v_MAC goes crazy high here??
         _um, _vm = lm_interface_f.mac_vels(myg.qx, myg.qy, myg.ng,
                                            myg.dx, myg.dy, self.dt,
                                            u.d, v.d,
@@ -1470,6 +1494,9 @@ class Simulation(NullSimulation):
         v_MAC = patch.ArrayIndexer(d=_vm, grid=myg)
         # v_MAC is very small here but at least it's non-zero
         # entire thing sourced by Gamma^t_tr
+
+        #print('mom_source_r: {}'.format(mom_source_r.d))
+        #sys.exit()
 
         #---------------------------------------------------------------------
         # do a MAC projection to make the advective velocities divergence
@@ -1531,6 +1558,9 @@ class Simulation(NullSimulation):
         #    (zeta_edges.v2dp(1) * v_MAC.jp(1) - \
         #    zeta_edges.v2d() * v_MAC.v()) / myg.dy + \
         #    2. * zeta.v2d() * v.v() / self.r2d
+
+        #print('u_MAC: {}'.format(u_MAC.d))
+        #print('v_MAC: {}'.format(v_MAC.d))
 
         # careful: this makes u0_MAC edge-centred.
         u0_MAC = myg.metric.calcu0(u=u_MAC, v=v_MAC)
@@ -1757,7 +1787,7 @@ class Simulation(NullSimulation):
         Dh_old = patch.ArrayIndexer(d=Dh_1.d, grid=myg)
         Dh_2_star = patch.ArrayIndexer(d=Dh_1.d, grid=myg)
         # Dh0 is not edge based?
-        drp0 = self.drp0(Dh0=Dh0, u=u_MAC, v=v_MAC, u0=u0_MAC)
+        drp0 = self.drp0(D0=D0, u=u_MAC, v=v_MAC, u0=u0_MAC)
 
         # 4Hii.
         Dh_2_star.v()[:,:] += -self.dt * (
@@ -1775,7 +1805,7 @@ class Simulation(NullSimulation):
         p0 = self.base["p0"]
         p0_star = Basestate(myg.ny, ng=myg.ng)
         p0_star.d[:] = p0.d
-        self.enforce_tov(p0=p0_star, Dh0=Dh0_star, u=u_MAC, v=v_MAC, u0=u0_MAC)
+        self.enforce_tov(p0=p0_star, D0=D0_star, u=u_MAC, v=v_MAC, u0=u0_MAC)
 
         # update eint as a diagnostic
         eint = self.aux_data.get_var("eint")
@@ -1795,8 +1825,10 @@ class Simulation(NullSimulation):
         DX_star = patch.ArrayIndexer(d=DX_2_star.d, grid=myg)
         scalar_star = patch.ArrayIndexer(d=scalar_2_star.d, grid=myg)
         T_star = patch.ArrayIndexer(d=T_2_star.d, grid=myg)
+        #print('u_MAC: {}'.format(u_MAC.d))
+        #print('v_MAC: {}'.format(v_MAC.d))
         self.react_state(S=self.compute_S(u=u_MAC, v=v_MAC),
-                         D=D_star, Dh=Dh_star, DX=DX_star, T=T_star, scalar=scalar_star, Dh0=Dh0_star, u=u_MAC, v=v_MAC, u0=u0_MAC)
+                         D=D_star, Dh=Dh_star, DX=DX_star, T=T_star, scalar=scalar_star, D0=D0_star, u=u_MAC, v=v_MAC, u0=u0_MAC)
 
         #---------------------------------------------------------------------
         # 6. Compute time-centred expasion S, base state velocity U0 and
@@ -1896,7 +1928,7 @@ class Simulation(NullSimulation):
         # add on source term
         # do we want to use Dh half star here maybe?
         # FIXME: u_MAC, v_MAC in source?? No: MAC quantities are edge based, this is cell-centred
-        mom_source_x, mom_source_r = self.calc_mom_source(Dh=Dh_star, Dh0=Dh0_star, u=u, v=v, u0=u0)
+        mom_source_x, mom_source_r = self.calc_mom_source(Dh=Dh_star, D0=D0_star, u=u, v=v, u0=u0)
         u.d[:,:] += self.dt * mom_source_x.d
         v.d[:,:] += self.dt * mom_source_r.d
 
@@ -2074,7 +2106,7 @@ class Simulation(NullSimulation):
 
         Dh_old = patch.ArrayIndexer(d=Dh.d, grid=myg)
         Dh_2 = patch.ArrayIndexer(d=Dh_1.d, grid=myg)
-        drp0 = self.drp0(Dh0=Dh0, u=u_MAC, v=v_MAC, u0=u0_MAC)
+        drp0 = self.drp0(D0=D0, u=u_MAC, v=v_MAC, u0=u0_MAC)
 
         Dh_2.v()[:,:] += -self.dt * (
             #  (D u)_x
@@ -2292,7 +2324,7 @@ class Simulation(NullSimulation):
 
             img = ax.imshow(np.transpose(f.v()),
                             interpolation="nearest", origin="lower",
-                            extent=[myg.xmin*myg.R, myg.xmax*myg.R, myg.ymin, myg.ymax],
+                            extent=[myg.xmin*myg.R*0.03, myg.xmax*myg.R*0.03, myg.ymin, myg.ymax],
                             vmin=vmins[n], vmax=vmaxes[n], cmap=cmap)
 
             ax.set_xlabel(r"$x$")
