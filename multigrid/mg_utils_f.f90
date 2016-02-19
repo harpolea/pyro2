@@ -183,14 +183,14 @@ subroutine cG_f(qx, qy, ng, eta_x, eta_y, v, r, tol, x)
 
     do i = 0, l-1
 
-        Ap = pack(eta_x(ilo+1:ihi+1, jlo:jhi) * &
+        Ap = pack((eta_x(ilo+1:ihi+1, jlo:jhi) * &
             (p(ilo+1:ihi+1, jlo:jhi) - p(ilo:ihi, jlo:jhi)) - &
             eta_x(ilo:ihi, jlo:jhi) * &
-            (p(ilo:ihi, jlo:jhi) - p(ilo-1:ihi-1, jlo:jhi)) + &
-            eta_y(ilo:ihi, jlo+1:jhi+1) * &
+            (p(ilo:ihi, jlo:jhi) - p(ilo-1:ihi-1, jlo:jhi)))+ &
+            (eta_y(ilo:ihi, jlo+1:jhi+1) * &
             (p(ilo:ihi, jlo+1:jhi+1) - p(ilo:ihi, jlo:jhi)) - &
             eta_y(ilo:ihi, jlo:jhi) * &
-            (p(ilo:ihi, jlo:jhi) - p(ilo:ihi, jlo-1:jhi-1)), .true.)
+            (p(ilo:ihi, jlo:jhi) - p(ilo:ihi, jlo-1:jhi-1))), .true.)
 
         if (rsold == 0.0d0) then
             a = 0.0d0
@@ -270,7 +270,7 @@ subroutine fill_BCs_f(qx, qy, ng, g, bcs, g_out)
     ! +x boundary
     ! outflow, neumann
     if (bcs(1) == 0) then
-        do  i = ihi+1, 2*ng+nx-1
+        do  i = ihi+1, qx-1
             g_out(i,:) = g_out(ihi,:)
         end do
 
@@ -322,7 +322,7 @@ subroutine fill_BCs_f(qx, qy, ng, g, bcs, g_out)
     ! +y boundary
     ! outflow, neumann
     if (bcs(3) == 0) then
-        do j = jhi+1, ny+2*ng-1
+        do j = jhi+1, qy-1
             g_out(:,j) = g_out(:,jhi)
         end do
 

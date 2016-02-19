@@ -17,9 +17,9 @@ import sys
 import mesh.patch as patch
 import numpy as np
 from util import msg
-import mesh.metric as metric
-from functools import partial
-from lm_gr.simulation import Basestate
+#import mesh.metric as metric
+#from functools import partial
+#from lm_gr.simulation import Basestate
 from scipy.integrate import odeint
 
 def init_data(my_data, aux_data, base, rp, metric):
@@ -92,7 +92,7 @@ def init_data(my_data, aux_data, base, rp, metric):
 
         alphasq = 1. - 2. * g * (1. - r/R) / (c**2)
         chrst = g / (alphasq * c**2 * R)
-        grr = 1. + 2. * g * (1. - r/R) / (c**2)
+        grr = 1. / alphasq
         #print(np.mod(np.round(y/myg.dy), myg.qy))
 
         drp0 = - rho * h * chrst / grr
@@ -120,8 +120,6 @@ def init_data(my_data, aux_data, base, rp, metric):
     #              myg.dy * dens.d[:,i-1] * g /  (myg.r2d[:,i-1] * metric.alpha(myg).d2d()[:,i-1]**2 * c**2)
 
     np.set_printoptions(threshold=np.nan)
-
-    #cs2 = scale_height * abs(g)
 
     # set the pressure (P = K dens^gamma)
     dens.d[:,:] = (pres.d / K)**(1./gamma)

@@ -8,7 +8,7 @@ cfl = 0.25
 
 [lm-gr]
 c = 1.0
-grav = 0.148
+grav = 0.0001; 0.148
 cartesian = 0  ; cartesian or spherical polar coordinates? (0 = no, 1 = yes)
 radius = 6.75  ; 10 km
 
@@ -28,8 +28,8 @@ store_images = 0           ; store vis images to files (1=yes, 0=no)
 #ny = 512
 #nx = 64
 #ny = 256
-nx = 64
-ny = 64
+nx = 512
+ny = 16
 xmin = 0.35
 xmax = 0.65       ;
 ymax = 0.0337318           ; this is about 50m
@@ -39,7 +39,7 @@ ymax = 0.0337318           ; this is about 50m
 xlboundary = outflow
 xrboundary = outflow
 
-ylboundary = reflect
+ylboundary = outflow
 yrboundary = outflow
 
 

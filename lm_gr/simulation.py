@@ -19,6 +19,8 @@ TODO: speed up multigrids by initialising them at the start? At the
 moment, have to compute the metric on the set of grids every iteration
 which is really slowing things down.
 
+CHANGED: made grr = 1 / alphasq so that gtt * grr = -1 rather than -0.913. This seems to help.
+
 Run with a profiler using
     python -m cProfile -o pyro.prof pyro.py
 then view using
@@ -65,6 +67,15 @@ class Basestate(object):
         self.jlo = ng
         self.jhi = ng + ny - 1
 
+    @staticmethod
+    def buf_split(b):
+        try:
+            blo, bhi = b
+        except:
+            blo = b
+            bhi = b
+        return blo, bhi
+
     def d2d(self):
         """
         Returns 2d version of entire 1d data array
@@ -82,37 +93,43 @@ class Basestate(object):
         """
         Data array without the ghost cells (i.e. just the interior cells)
         """
-        return self.d[self.jlo-buf:self.jhi+1+buf]
+        blo, bhi = self.buf_split(buf)
+        return self.d[self.jlo-blo:self.jhi+1+bhi]
 
     def v2d(self, buf=0):
         """
         2d version of the interior data.
         """
-        return self.d[np.newaxis,self.jlo-buf:self.jhi+1+buf]
+        blo, bhi = self.buf_split(buf)
+        return self.d[np.newaxis,self.jlo-blo:self.jhi+1+bhi]
 
     def v2df(self, qx, buf=0):
         """
         fortran compliable version
         """
-        return np.array(self.d[self.jlo-buf:self.jhi+1+buf, ] * qx)
+        blo, bhi = self.buf_split(buf)
+        return np.array(self.d[self.jlo-blo:self.jhi+1+bhi, ] * qx)
 
     def v2dp(self, shift, buf=0):
         """
         2d version of the data array, shifted in the y direction and without ghost cells
         """
-        return self.d[np.newaxis,self.jlo+shift-buf:self.jhi+1+shift+buf]
+        blo, bhi = self.buf_split(buf)
+        return self.d[np.newaxis,self.jlo+shift-blo:self.jhi+1+shift+bhi]
 
     def v2dpf(self, qx, shift, buf=0):
         """
         fortran compliable version
         """
-        return np.array(self.d[self.jlo+shift-buf:self.jhi+1+shift+buf, ] * qx)
+        blo, bhi = self.buf_split(buf)
+        return np.array(self.d[self.jlo+shift-blo:self.jhi+1+shift+bhi, ] * qx)
 
     def jp(self, shift, buf=0):
         """
         1d shifted without ghost cells
         """
-        return self.d[self.jlo-buf+shift:self.jhi+1+buf+shift]
+        blo, bhi = self.buf_split(buf)
+        return self.d[self.jlo-blo+shift:self.jhi+1+bhi+shift]
 
     def copy(self):
         """
@@ -319,13 +336,16 @@ class Simulation(NullSimulation):
 
         def gamma_matrix(g, R, c, grid):
             gamma_matrix = np.zeros((grid.qx, grid.qy, 2, 2), dtype=np.float64)
-            gamma_matrix[:,:,:,:] = 1. + 2. * g * \
-                (1. - grid.y[np.newaxis, :, np.newaxis, np.newaxis] / R) / \
-                (c**2) * np.eye(2)[np.newaxis, np.newaxis, :, :]
+            #gamma_matrix[:,:,:,:] = 1. + 2. * g * \
+            #    (1. - grid.y[np.newaxis, :, np.newaxis, np.newaxis] / R) / \
+            #    (c**2) * np.eye(2)[np.newaxis, np.newaxis, :, :]
+            gamma_matrix[:,:,:,:] = 1./alpha(g, R, c, grid).d[np.newaxis, :, np.newaxis, np.newaxis]**2 * np.eye(2)[np.newaxis, np.newaxis, :, :]
             # assume spherical if not cartesian
             if not cartesian:
                 gamma_matrix[:,:,0,0] = grid.r2d**2
             return gamma_matrix
+
+        #print('gamma: {}'.format(gamma_matrix(g, R, c, myg)[:,5,1,1]))
 
         #self.metric = metric.Metric(self.cc_data, self.rp, alpha, beta,
         #                            gamma_matrix, cartesian=False)
@@ -462,9 +482,10 @@ class Simulation(NullSimulation):
             print('u0: ', np.max(u0.d))
 
         # calculate edges
-        zeta_edges.jp(1)[:] = 0.5 * (zeta.v() + zeta.jp(1))
-        zeta_edges.d[myg.jlo] = zeta.d[myg.jlo]
-        zeta_edges.d[myg.jhi+1] = zeta.d[myg.jhi]
+        b = (0,1)
+        zeta_edges.v(buf=b)[:] = 0.5 * (zeta.jp(-1,buf=b) + zeta.v(buf=b))
+        #zeta_edges.d[myg.jlo] = zeta.d[myg.jlo]
+        #zeta_edges.d[myg.jhi+1] = zeta.d[myg.jhi]
 
 
     def compute_S(self, u=None, v=None, u0=None, p0=None, Q=None, D=None):
@@ -624,6 +645,7 @@ class Simulation(NullSimulation):
 
         # time-independent metric
         chrls = myg.metric.chrls
+        #print('gtt*grr: {}'.format(gtt * grr))
 
         # note metric components needed to lower the christoffel symbols
         mom_source_x.d[:,:] = (gtt * chrls[:,:,0,0,1] +
@@ -635,15 +657,15 @@ class Simulation(NullSimulation):
             grr * chrls[:,:,2,2,1] * v.d**2 +
             (grr * chrls[:,:,2,1,1] +
              gxx * chrls[:,:,1,2,1]) * u.d * v.d)# / gxx
-        mom_source_r.d[:,:] = (gtt * chrls[:,:,0,0,2] +
-            (gxx * chrls[:,:,1,0,2] +
-             gtt * chrls[:,:,0,1,2]) * u.d +
-            (grr * chrls[:,:,2,0,2] +
-             gtt * chrls[:,:,0,2,2]) * v.d +
-            gxx * chrls[:,:,1,1,2] * u.d**2 +
-            grr * chrls[:,:,2,2,2] * v.d**2 +
-            (grr * chrls[:,:,2,1,2] +
-             gxx * chrls[:,:,1,2,2]) * u.d * v.d) #/ grr
+        mom_source_r.d[:,:] = (gtt * chrls[:,:,0,0,2])# +
+            #(gxx * chrls[:,:,1,0,2] +
+        #     gtt * chrls[:,:,0,1,2]) * u.d +
+        #    (grr * chrls[:,:,2,0,2] +
+        #     gtt * chrls[:,:,0,2,2]) * v.d +
+        #    gxx * chrls[:,:,1,1,2] * u.d**2 +
+        #    grr * chrls[:,:,2,2,2] * v.d**2 +
+        #    (grr * chrls[:,:,2,1,2] +
+        #S     gxx * chrls[:,:,1,2,2]) * u.d * v.d) #/ grr
 
         # check drp0 is not zero
         mask = (abs(drp0.d2df(myg.qx)) > 1.e-15)
@@ -651,10 +673,68 @@ class Simulation(NullSimulation):
         mom_source_r.d[mask] -=  drp0.d2df(myg.qx)[mask] / (Dh.d[mask]*u0.d[mask])
         #mom_source_r.d[:,:]  = 0.
 
-        #print('drp0: {}'.format(drp0.d2df(myg.qx)))
+        #print('mom_source_r: {}'.format(mom_source_r.d))
 
         return mom_source_x, mom_source_r
 
+    def drp0(self, D0=None, Dh0=None, u=None, v=None, u0=None, p0=None):
+        """
+        Calculate drp0 as it's messy using eq 6.166
+
+        Parameters
+        ----------
+        Dh0 : ArrayIndexer object, optional
+            density * enthalpy base state
+        u : ArrayIndexer object, optional
+            horizontal velocity
+        v : ArrayIndexer object, optional
+            vertical velocity
+        u0 : ArrayIndexer object, optional
+            timelike component of the 4-velocity
+        """
+        myg = self.cc_data.grid
+        if D0 is None:
+            D0 = self.base["D0"]
+        if Dh0 is None:
+            Dh0 = self.base["Dh0"]
+        if p0 is None:
+            p0 = self.base["p0"]
+        # TODO: maybe instead of averaging u0, should calculate it
+        # based on U0?
+        if u0 is None:
+            u0 = myg.metric.calcu0(u=u, v=v)
+        u01d = Basestate(myg.ny, ng=myg.ng)
+        u01d.d[:] = self.lateral_average(u0.d)
+
+        if isinstance(myg.metric.alpha, partial):
+            gamma = myg.metric.gamma(myg)
+        else:
+            gamma = myg.metric.gamma
+
+        #gtt = -(alpha.d)**2
+        grr = self.lateral_average(gamma[:,:,1,1]) #gyy
+
+        chrst = self.lateral_average(myg.metric.chrls[:,:,0,0,2])
+
+        #g = self.rp.get_param("lm-gr.grav")
+        #c = self.rp.get_param("lm-gr.c")
+
+        drp0 = Basestate(myg.ny, ng=myg.ng)
+
+        # NOTE: assume G=1
+        #Dh = self.cc_data.get_var("enthalpy")
+        #drp0.d[:] = - self.lateral_average(Dh.d) * u01d.d * chrst / grr
+        drp0.d[:] = - Dh0.d * u01d.d * chrst / grr
+        #-(Dh0.d/u01d.d) * chrst #(g/c**2 +
+            #4. * np.pi * myg.r**2 * p0.d/c**4) / (myg.r * alpha.d**2)
+
+        #print('denom: {}'.format(p0.d + D0.d/u01d.d))
+
+
+        #-Dh0.d * g / (R * c**2 * alpha.d**2 * u01d.d)
+
+
+        return drp0
 
     def calc_psi(self, S=None, U0=None, p0=None, old_p0=None):
         r"""
@@ -989,65 +1069,6 @@ class Simulation(NullSimulation):
         return
 
 
-    def drp0(self, D0=None, Dh0=None, u=None, v=None, u0=None, p0=None):
-        """
-        Calculate drp0 as it's messy using eq 6.166
-
-        Parameters
-        ----------
-        Dh0 : ArrayIndexer object, optional
-            density * enthalpy base state
-        u : ArrayIndexer object, optional
-            horizontal velocity
-        v : ArrayIndexer object, optional
-            vertical velocity
-        u0 : ArrayIndexer object, optional
-            timelike component of the 4-velocity
-        """
-        myg = self.cc_data.grid
-        if D0 is None:
-            D0 = self.base["D0"]
-        if Dh0 is None:
-            Dh0 = self.base["Dh0"]
-        if p0 is None:
-            p0 = self.base["p0"]
-        # TODO: maybe instead of averaging u0, should calculate it
-        # based on U0?
-        if u0 is None:
-            u0 = myg.metric.calcu0(u=u, v=v)
-        u01d = Basestate(myg.ny, ng=myg.ng)
-        u01d.d[:] = self.lateral_average(u0.d)
-
-        if isinstance(myg.metric.alpha, partial):
-            gamma = myg.metric.gamma(myg)
-        else:
-            gamma = myg.metric.gamma
-
-        #gtt = -(alpha.d)**2
-        grr = self.lateral_average(gamma[:,:,1,1]) #gxx
-
-        chrst = self.lateral_average(myg.metric.chrls[:,:,0,0,2])
-
-        #g = self.rp.get_param("lm-gr.grav")
-        #c = self.rp.get_param("lm-gr.c")
-
-        drp0 = Basestate(myg.ny, ng=myg.ng)
-
-        # NOTE: assume G=1
-
-        drp0.d[:] = - Dh0.d * u01d.d * chrst / grr
-        #-(Dh0.d/u01d.d) * chrst #(g/c**2 +
-            #4. * np.pi * myg.r**2 * p0.d/c**4) / (myg.r * alpha.d**2)
-
-        #print('denom: {}'.format(p0.d + D0.d/u01d.d))
-
-
-        #-Dh0.d * g / (R * c**2 * alpha.d**2 * u01d.d)
-
-
-        return drp0
-
-
     def advect_base_enthalpy(self, Dh0=None, S=None, U0=None, u=None, v=None, u0=None):
         r"""
         updates base state enthalpy throung one timestep using eq. 6.134
@@ -1241,6 +1262,15 @@ class Simulation(NullSimulation):
         except FloatingPointError:
             print('zeta: ', np.max(zeta.d))
 
+        if isinstance(myg.metric.gamma, partial):
+            gamma_mat = myg.metric.gamma(myg)
+        else:
+            gamma_mat = myg.metric.gamma
+
+        # upstairs components
+        gyy = 1./gamma_mat[:,:,1,1] #gyy
+        gxx = 1./gamma_mat[:,:,0,0]
+
         # next create the multigrid object.  We defined phi with
         # the right BCs previously
         if cartesian:
@@ -1262,7 +1292,7 @@ class Simulation(NullSimulation):
                                      yr_BC_type=self.aux_data.BCs["phi"].yrb,
                                      xmin=myg.xmin, xmax=myg.xmax,
                                      ymin=myg.ymin, ymax=myg.ymax,
-                                     coeffs=coeff,
+                                     coeffs_x=coeff*gxx, coeffs_y=coeff*gyy,
                                      coeffs_bc=self.cc_data.BCs["density"],
                                      verbose=0, R=myg.R, rp=self.rp)
 
@@ -1518,6 +1548,15 @@ class Simulation(NullSimulation):
         # use zeta^n here, so use U
         coeff.v(buf=1)[:,:] *= zeta.v2d(buf=1)**2
 
+        if isinstance(myg.metric.gamma, partial):
+            gamma_mat = myg.metric.gamma(myg)
+        else:
+            gamma_mat = myg.metric.gamma
+
+        # upstairs components
+        gyy = 1./gamma_mat[:,:,1,1] #gyy
+        gxx = 1./gamma_mat[:,:,0,0]
+
         # create the multigrid object
         if cartesian:
             mg = vcMG.VarCoeffCCMG2d(myg.nx, myg.ny,
@@ -1538,7 +1577,7 @@ class Simulation(NullSimulation):
                                      yr_BC_type=self.aux_data.BCs["phi"].yrb,
                                      xmin=myg.xmin, xmax=myg.xmax,
                                      ymin=myg.ymin, ymax=myg.ymax,
-                                     coeffs=coeff,
+                                     coeffs_x=coeff*gxx, coeffs_y=coeff*gyy,
                                      coeffs_bc=self.cc_data.BCs["density"],
                                      verbose=0, R=myg.R, rp=self.rp)
 
@@ -2194,7 +2233,7 @@ class Simulation(NullSimulation):
                                      yr_BC_type=self.aux_data.BCs["phi"].yrb,
                                      xmin=myg.xmin, xmax=myg.xmax,
                                      ymin=myg.ymin, ymax=myg.ymax,
-                                     coeffs=coeff,
+                                     coeffs_x=coeff*gxx, coeffs_y=coeff*gyy,
                                      coeffs_bc=self.cc_data.BCs["density"],
                                      verbose=0, R=myg.R, rp=self.rp)
 
@@ -2295,6 +2334,8 @@ class Simulation(NullSimulation):
         #plot_me = self.aux_data.get_var("plot_me")
 
         myg = self.cc_data.grid
+        gamma_mat = myg.metric.gamma
+        grr = patch.ArrayIndexer(d=gamma_mat[:,:,1,1], grid=myg)
 
         psi = patch.ArrayIndexer(d=scalar.d/D.d, grid=myg)
         X = patch.ArrayIndexer(d=DX.d/D.d, grid=myg)
@@ -2311,8 +2352,8 @@ class Simulation(NullSimulation):
         fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.3)
 
-        fields = [D, v, X, magvel]
-        field_names = [r"$D$", r"$v$", r"$X$", r"$|U|$"]
+        fields = [D, v, X, u]
+        field_names = [r"$D$", r"$v$", r"$X$", r"$u$"]
         colourmaps = [cmaps.magma_r, cmaps.magma, cmaps.viridis_r,
                       cmaps.magma]
 

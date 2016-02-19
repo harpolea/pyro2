@@ -7,8 +7,9 @@ import multigrid.mg_utils_f as mg_f
 import mesh.patch as patch
 from multigrid.variable_coeff_MG import VarCoeffCCMG2d
 import math
-from functools import partial
+#from functools import partial
 from util import msg
+from functools import partial
 
 np.set_printoptions(precision=3, linewidth=128)
 
@@ -22,25 +23,48 @@ class RectMG2d(VarCoeffCCMG2d):
                  yl_BC_type="dirichlet", yr_BC_type="dirichlet",
                  nsmooth=10, nsmooth_bottom=50,
                  verbose=0,
-                 coeffs=None, coeffs_bc=None,
+                 coeffs_x=None, coeffs_y=None, coeffs_bc=None,
                  true_function=None, vis=0, vis_title="", R=1.0, rp=None):
 
         # we'll keep a list of the coefficients averaged to the interfaces
         # on each level -- note: this will already be scaled by 1/dx**2
         self.edge_coeffs = []
+        self.nx = nx
+        self.ny = ny
 
-        # initialize the MG object with the auxillary "coeffs" field
-        super(RectMG2d, self).__init__(nx, ny,
-                                   xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax,
-                                   xl_BC_type=xl_BC_type, xr_BC_type=xr_BC_type,
-                                   yl_BC_type=yl_BC_type, yr_BC_type=yr_BC_type,
-                                   nsmooth=nsmooth, nsmooth_bottom=nsmooth_bottom,
-                                   verbose=verbose,
-                                   coeffs=coeffs, coeffs_bc=coeffs_bc,
-                                   true_function=true_function,
-                                   vis=vis, vis_title=vis_title)
+        self.ng = 1#ng
 
-        self.nlevels = max(int(math.log(self.nx)/math.log(2.0)), int(math.log(self.ny)/math.log(2.0)))
+        self.xmin = xmin
+        self.xmax = xmax
+
+        self.ymin = ymin
+        self.ymax = ymax
+
+        self.alpha = 0.0
+        self.beta = 0.0
+
+        self.nsmooth = nsmooth
+        self.nsmooth_bottom = nsmooth_bottom
+
+        self.max_cycles = 100
+
+        self.verbose = verbose
+
+        if not true_function == None:
+            self.true_function = true_function
+
+        # a small number used in computing the error, so we don't divide by 0
+        self.small = 1.e-16
+
+        # keep track of whether we've initialized the RHS
+        self.initialized_RHS = 0
+
+        if self.nx < self.ny:
+            self.nlevels = int(math.log(self.nx)/math.log(2.0))
+        else:
+            self.nlevels = int(math.log(self.ny)/math.log(2.0))
+
+        #self.nlevels = min(int(math.log(self.nx)/math.log(2.0)), int(math.log(self.ny)/math.log(2.0)))
 
         nx_t = self.nx / (2**(self.nlevels-1))
         ny_t = self.ny / (2**(self.nlevels-1))
@@ -75,16 +99,16 @@ class RectMG2d(VarCoeffCCMG2d):
             self.grids[i].register_var("f", bc)
             self.grids[i].register_var("r", bc)
 
-            aux_field = ['coeffs']
-            aux_bc = [coeffs_bc]
+            aux_field = ['coeffs_x', 'coeffs_y']
+            aux_bc = [coeffs_bc, coeffs_bc]
             for f, b in zip(aux_field, aux_bc):
                 self.grids[i].register_var(f, b)
 
             self.grids[i].create()
             # set up metric - use the fact that coeffs is a CCData2d object already which will have a grid
-            self.grids[i].grid.initialise_metric(rp, coeffs.g.metric.alpha,
-                coeffs.g.metric.beta,
-                coeffs.g.metric.gamma, cartesian=False)
+            self.grids[i].grid.initialise_metric(rp, coeffs_x.g.metric.alpha,
+                coeffs_x.g.metric.beta,
+                coeffs_x.g.metric.gamma, cartesian=False)
 
             if self.verbose:
                 print(self.grids[i])
@@ -95,22 +119,57 @@ class RectMG2d(VarCoeffCCMG2d):
         # provide coordinate and indexing information for the solution mesh
         soln_grid = self.grids[self.nlevels-1].grid
 
+        self.ilo = soln_grid.ilo
+        self.ihi = soln_grid.ihi
+        self.jlo = soln_grid.jlo
+        self.jhi = soln_grid.jhi
+
+        self.x  = soln_grid.x
+        self.dx = soln_grid.dx
+        self.x2d = soln_grid.x2d
+
+        self.y  = soln_grid.y
+        self.dy = soln_grid.dy   # note, dy = dx is assumed
+        self.y2d = soln_grid.y2d
+
         self.R  = soln_grid.R
         self.r2d = soln_grid.r2d
 
         self.soln_grid = soln_grid
 
+        # store the source norm
+        self.source_norm = 0.0
+
+        # after solving, keep track of the number of cycles taken, the
+        # relative error from the previous cycle, and the residual error
+        # (normalized to the source norm)
+        self.num_cycles = 0
+        self.residual_error = 1.e33
+        self.relative_error = 1.e33
+
+        # keep track of where we are in the V
+        self.current_cycle = -1
+        self.current_level = -1
+        self.up_or_down = ""
+
+        # for visualization -- what frame are we outputting?
+        self.vis = vis
+        self.vis_title = vis_title
+        self.frame = 0
 
         # set the coefficients and restrict them down the hierarchy
         # we only need to do this once.  We need to hold the original
         # coeffs in our grid so we can do a ghost cell fill.
-        c = self.grids[self.nlevels-1].get_var("coeffs")
-        c.v()[:,:] = coeffs.v()[:,:]
+        c_x = self.grids[self.nlevels-1].get_var("coeffs_x")
+        c_x.v()[:,:] = coeffs_x.v()[:,:]
+        c_y = self.grids[self.nlevels-1].get_var("coeffs_y")
+        c_y.v()[:,:] = coeffs_y.v()[:,:]
 
-        self.grids[self.nlevels-1].fill_BC("coeffs")
+        self.grids[self.nlevels-1].fill_BC("coeffs_x")
+        self.grids[self.nlevels-1].fill_BC("coeffs_y")
 
         # put the coefficients on edges
-        self.edge_coeffs.insert(0, ec.EdgeCoeffs(self.grids[self.nlevels-1].grid, c))
+        self.edge_coeffs.insert(0, ec.EdgeCoeffs(self.grids[self.nlevels-1].grid, c_x, etay=c_y))
 
         #n = self.nlevels-2
         for n in range(self.nlevels-2, -1, -1): #while n >= 0:
@@ -120,10 +179,13 @@ class RectMG2d(VarCoeffCCMG2d):
             f_patch = self.grids[n+1]
             c_patch = self.grids[n]
 
-            coeffs_c = c_patch.get_var("coeffs")
-            coeffs_c.v()[:,:] = f_patch.restrict("coeffs").v()
+            coeffs_cx = c_patch.get_var("coeffs_x")
+            coeffs_cy = c_patch.get_var("coeffs_y")
+            coeffs_cx.v()[:,:] = f_patch.restrict("coeffs_x").v()
+            coeffs_cy.v()[:,:] = f_patch.restrict("coeffs_y").v()
 
-            self.grids[n].fill_BC("coeffs")
+            self.grids[n].fill_BC("coeffs_x")
+            self.grids[n].fill_BC("coeffs_y")
 
             # put the coefficients on edges
             self.edge_coeffs.insert(0, self.edge_coeffs[0].restrict())
@@ -146,7 +208,6 @@ class RectMG2d(VarCoeffCCMG2d):
             the norm of the residual.
 
         """
-
         # start by making sure that we've initialized the RHS
         if not self.initialized_RHS:
             msg.fail("ERROR: RHS not initialized")
@@ -219,6 +280,7 @@ class RectMG2d(VarCoeffCCMG2d):
             if bP.grid.ny == bP.grid.nx and bP.grid.dx == bP.grid.dy: # square so can just use smoothing
                 self.smooth(0, self.nsmooth_bottom, fortran=fortran)
             else:
+                #self.smooth(0, self.nsmooth_bottom, fortran=fortran)
                 self.cG()
 
             bP.fill_BC("v")
@@ -293,79 +355,9 @@ class RectMG2d(VarCoeffCCMG2d):
 
             cycle += 1
 
-    #def smooth(self, level, nsmooth, fortran=True):
-        """
-        Use red-black Gauss-Seidel iterations to smooth the solution
-        at a given level.  This is used at each stage of the V-cycle
-        (up and down) in the MG solution, but it can also be called
-        directly to solve the elliptic problem (although it will take
-        many more iterations).
-
-        Parameters
-        ----------
-        level : int
-            The level in the MG hierarchy to smooth the solution
-        nsmooth : int
-            The number of r-b Gauss-Seidel smoothing iterations to perform
-
-
-
-        v = self.grids[level].get_var("v")
-        f = self.grids[level].get_var("f")
-
-        myg = self.grids[level].grid
-
-        eta_x = self.edge_coeffs[level].x.d
-        eta_y = self.edge_coeffs[level].y.d
-
-        # convert bcs into fotran-compatible version
-        bcs = [self.grids[level].BCs["v"].xlb,
-               self.grids[level].BCs["v"].xrb,
-               self.grids[level].BCs["v"].ylb,
-               self.grids[level].BCs["v"].yrb]
-        bcints = 3 * np.ones(4, dtype=np.int)
-
-        for i in range(4):
-            if bcs[i] in ["outflow", "neumann"]:
-                bcints[i] = 0
-            elif bcs[i] == "reflect-even":
-                bcints[i] = 1
-            elif bcs[i] in ["reflect-odd", "dirichlet"]:
-                bcints[i] = 2
-            elif bcs[i] == "periodic":
-                bcints[i] = 3
-
-        _v = mg_f.smooth_sph_f(myg.qx, myg.qy, myg.ng,
-                      nsmooth, np.asfortranarray(v.d),
-                      np.asfortranarray(f.d), bcints,
-                      np.asfortranarray(eta_x), np.asfortranarray(eta_y),
-                      np.asfortranarray(myg.r2d),
-                      np.asfortranarray(myg.x2d), myg.dx, myg.dy)
-
-        v.d[:,:] = (patch.ArrayIndexer(d=_v, grid=myg)).d"""
-
-
-    #def _compute_residual(self, level):
-        """ compute the residual and store it in the r variable"""
-
-        """v = self.grids[level].get_var("v").d
-        f = self.grids[level].get_var("f")
-        r = self.grids[level].get_var("r")
-
-        myg = self.grids[level].grid
-
-        eta_x = self.edge_coeffs[level].x.d
-        eta_y = self.edge_coeffs[level].y.d
-
-        # compute the residual
-        # r = f - L_eta phi
-
-        L_eta_phi = self.L_eta_phi(myg, eta_x, eta_y, v)
-
-        r.v()[:,:] = f.v() - L_eta_phi"""
-
 
     def L_eta_phi(self, myg, eta_x, eta_y, y):
+
         return (
         (# eta_{i+1/2,j} (phi_{i+1,j} - phi_{i,j})
         eta_x[myg.ilo+1:myg.ihi+2,myg.jlo:myg.jhi+1] *
