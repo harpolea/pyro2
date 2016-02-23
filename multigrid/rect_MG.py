@@ -280,8 +280,9 @@ class RectMG2d(VarCoeffCCMG2d):
             if bP.grid.ny == bP.grid.nx and bP.grid.dx == bP.grid.dy: # square so can just use smoothing
                 self.smooth(0, self.nsmooth_bottom, fortran=fortran)
             else:
-                #self.smooth(0, self.nsmooth_bottom, fortran=fortran)
                 self.cG()
+                # do we need this here??
+                #self.smooth(0, self.nsmooth_bottom, fortran=fortran)
 
             bP.fill_BC("v")
 

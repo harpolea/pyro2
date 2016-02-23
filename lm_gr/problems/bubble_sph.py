@@ -17,9 +17,6 @@ import sys
 import mesh.patch as patch
 import numpy as np
 from util import msg
-#import mesh.metric as metric
-#from functools import partial
-#from lm_gr.simulation import Basestate
 from scipy.integrate import odeint
 
 def init_data(my_data, aux_data, base, rp, metric):
@@ -61,7 +58,7 @@ def init_data(my_data, aux_data, base, rp, metric):
 
     # initialize the components -- we'll get a pressure too
     # but that is used only to initialize the base state
-    xvel.d[:,:] = 0.0001
+    xvel.d[:,:] = 0.001
     yvel.d[:,:] = 0.0
     dens.d[:,:] = dens_cutoff
 
@@ -72,17 +69,12 @@ def init_data(my_data, aux_data, base, rp, metric):
     scalar.d[:,:] = 1.
     DX.d[:,:] = 0.
 
-    # FIXME: do this properly for gr case, add alpha back in
-    #for j in range(myg.jlo, myg.jhi+1):
-    #    dens.d[:,j] = max(dens_base*np.exp(-myg.y[j]/scale_height),
-    #                      dens_cutoff)
-    #dens.d[:, :] = dens_base * \
-    #    np.exp(-g * myg.y2d /
-    #            (gamma * c**2 * R * metric.alpha(myg).d2d()**2))
     dens.d[:,:] = dens_base
     pres.d[:,:] = K * dens.d**gamma
     eint.d[:,:] = pres.d / (gamma - 1.0) / dens.d
     enth.d[:, :] = 1. + eint.d + pres.d / dens.d
+
+    my_data.fill_BC_all()
 
     def drp0(p, r):
 
@@ -93,31 +85,13 @@ def init_data(my_data, aux_data, base, rp, metric):
         alphasq = 1. - 2. * g * (1. - r/R) / (c**2)
         chrst = g / (alphasq * c**2 * R)
         grr = 1. / alphasq
-        #print(np.mod(np.round(y/myg.dy), myg.qy))
 
         drp0 = - rho * h * chrst / grr
 
         return drp0
 
-    #print(myg.y)
     _p0 = odeint(drp0, K * dens_base**gamma, myg.y[myg.jlo:myg.jhi+1])
-    #print(_p0*10000.)
     pres.v()[:,:] = np.tile(_p0, (1, myg.nx)).transpose()
-    #p.array(self.d[self.jlo-buf:self.jhi+1+buf, ] * qx)
-    print(pres.v()[5,:]*1.e5)
-
-    # hydro eq, assume M=1
-    #M = 1.
-    # given up and gone for Newtonian
-    #pres.d[:,:] = K**(1./(1.-gamma)) * (
-    #    K * dens_base**(gamma-1.) + g * myg.y2d / myg.r2d)**(gamma / (gamma-1.))
-    #pres.d[:,:] = K**(1./gamma -1.) * (
-    #    (myg.R * (myg.r2d - 2.*M) /
-    #    (myg.r2d * (myg.R - 2.*M)))**(0.5-0.5/gamma) *
-    #    (1. + K * dens_base**(gamma-1.)) - 1.)**(1. - 1./gamma)
-    #for i in range(myg.jlo+1, myg.jhi+2):
-    #    pres.d[:,i] = pres.d[:,i-1] - \
-    #              myg.dy * dens.d[:,i-1] * g /  (myg.r2d[:,i-1] * metric.alpha(myg).d2d()[:,i-1]**2 * c**2)
 
     np.set_printoptions(threshold=np.nan)
 
@@ -142,7 +116,6 @@ def init_data(my_data, aux_data, base, rp, metric):
     L_x = myg.xmax - myg.xmin
     L_y = myg.ymax - myg.ymin
     r = np.sqrt(((myg.x2d-myg.xmin)/L_x - x_pert)**2 + ((myg.y2d-myg.ymin)/L_y - y_pert)**2)
-    #r = np.sqrt((myg.x2d - x_pert)**2  + (myg.y2d - y_pert)**2)
 
     idx = r <= r_pert
     eint.d[idx] += eint.d[idx] * (pert_amplitude_factor -  1.) * 0.5 * (1. + np.tanh((2. - r[idx]/r_pert)/0.9))# (2.*r_pert)))
@@ -151,21 +124,8 @@ def init_data(my_data, aux_data, base, rp, metric):
     scalar.d[idx] = 0.
     DX.d[idx] = 1.
 
-    # redo the pressure via TOV
     u0 = metric.calcu0()
-    #print(gamma)
-    #print(p0.d)
 
-    # assume G = 1
-    #for i in range(myg.jlo+1, myg.jhi+2):
-    #    p0.d[i] = p0.d[i-1] - \
-    #              myg.dy * Dh0.d[i-1] * g /  (myg.r[i-1] * metric.alpha(myg).d[i-1]**2 * c**2)
-                  #myg.dy * (p0.d[i-1] + D0.d[i-1]) * (g/c**2 + 4*np.pi * myg.r[i-1]**2 * p0.d[i-1] / c**4) / (myg.r[i-1] * metric.alpha(myg).d[i-1]**2)
-                  #myg.dy * Dh0.d[i] * g / (R * c**2 * metric.alpha(myg).d[i] **2 * u0.d1d()[i])
-                  #myg.dy * g * (2. * p0.d[i-1] * (1. + metric.alpha.d[i]**4) -
-                  #Dh0.d[i] / u0.d1d()[i]) / (c**2 * metric.alpha.d[i]**2 * R)
-
-    #print(p0.d)
     mu = 1./(2. * (1 - DX.d) + 4. * DX.d)
     # FIXME: hack to drive reactions
     mp_kB = 1.21147#e-8

@@ -96,7 +96,7 @@ def test_simulation_sph_static():
     assert_allclose([rho.d, u.d, v.d, h.d, eint.d, scalar.d, DX.d], [rho_old.d, u_old.d, v_old.d, h_old.d, eint_old.d, scalar_old.d, DX_old.d], rtol=1.e-8)
 
 # FIXME: add back in
-def _test_simulation_sph_xvel():
+def test_simulation_sph_xvel():
     """
     Test to check that system with initial constant velocity in the x-direction evolves as it should.
     """
@@ -110,7 +110,7 @@ def _test_simulation_sph_xvel():
     rp.load_params("lm_gr/tests/inputs.test_sph")
 
     # problem-specific runtime parameters
-    sim = SimulationSpherical("lm_gr", "static", rp, testing=True)
+    sim = Simulation("lm_gr", "static", rp, testing=True)
     sim.initialize()
 
     # set velocity
@@ -192,23 +192,23 @@ def _test_simulation_sph_xvel():
     # finally compare original data to evolved
     assert_allclose(
         [rho.v()],
-        [rho_old.v()], rtol=1.e-2, atol=1.e-9)
+        [rho_old.v()], rtol=1.e-6, atol=1.e-9)
     assert_allclose(
         [h.v(), eint.v()],
-        [h_old.v(), eint_old.v()], rtol=1.e-2, atol=1.e-9)
+        [h_old.v(), eint_old.v()], rtol=1.e-6, atol=1.e-9)
     assert_allclose(
         [scalar.v(), DX.v()],
-        [scalar_old.v(), DX_old.v()], rtol=1.e-2, atol=1.e-9)
+        [scalar_old.v(), DX_old.v()], rtol=1.e-6, atol=1.e-9)
 
     assert_allclose(
         [u.v()],
-        [u_old.v()], rtol=1.e-2, atol=1.e-9)
+        [u_old.v()], rtol=1.e-6, atol=1.e-9)
     assert_allclose(
         [v.v()],
-        [v_old.v()], rtol=1.e-2, atol=1.e-8)
+        [v_old.v()], rtol=1.e-6, atol=1.e-8)
 
 # FIXME: add back in
-def _test_simulation_sph_yvel():
+def test_simulation_sph_yvel():
     """
     Test to check that system with initial constant velocity in the y-direction evolves as it should.
     """
@@ -222,7 +222,7 @@ def _test_simulation_sph_yvel():
     rp.load_params("lm_gr/tests/inputs.test_sph")
 
     # problem-specific runtime parameters
-    sim = SimulationSpherical("lm_gr", "static", rp, testing=True)
+    sim = Simulation("lm_gr", "static", rp, testing=True)
     sim.initialize()
 
     # set velocity
@@ -304,17 +304,17 @@ def _test_simulation_sph_yvel():
     # finally compare original data to evolved
     assert_allclose(
         [rho.v()],
-        [rho_old.v()], rtol=1.e-2, atol=1.e-9)
+        [rho_old.v()], rtol=1.e-6, atol=1.e-9)
     assert_allclose(
         [h.v(), eint.v()],
-        [h_old.v(), eint_old.v()], rtol=1.e-2, atol=1.e-9)
+        [h_old.v(), eint_old.v()], rtol=1.e-6, atol=1.e-9)
     assert_allclose(
         [scalar.v(), DX.v()],
-        [scalar_old.v(), DX_old.v()], rtol=1.e-2, atol=1.e-9)
+        [scalar_old.v(), DX_old.v()], rtol=1.e-6, atol=1.e-9)
 
     assert_allclose(
         [u.v()],
-        [u_old.v()], rtol=1.e-2, atol=1.e-9)
+        [u_old.v()], rtol=1.e-6, atol=1.e-9)
     assert_allclose(
         [v.v()],
-        [v_old.v()], rtol=1.e-2, atol=1.e-8)
+        [v_old.v()], rtol=1.e-6, atol=1.e-8)

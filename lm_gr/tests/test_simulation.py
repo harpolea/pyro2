@@ -192,20 +192,20 @@ def test_simulation_xvel():
     # finally compare original data to evolved
     assert_allclose(
         [rho.v()],
-        [rho_old.v()], rtol=1.e-2, atol=1.e-9)
+        [rho_old.v()], rtol=1.e-6, atol=1.e-9)
     assert_allclose(
         [h.v(), eint.v()],
-        [h_old.v(), eint_old.v()], rtol=1.e-2, atol=1.e-9)
+        [h_old.v(), eint_old.v()], rtol=1.e-6, atol=1.e-9)
     assert_allclose(
         [scalar.v(), DX.v()],
-        [scalar_old.v(), DX_old.v()], rtol=1.e-2, atol=1.e-9)
+        [scalar_old.v(), DX_old.v()], rtol=1.e-6, atol=1.e-9)
 
     assert_allclose(
         [u.v()],
-        [u_old.v()], rtol=1.e-2, atol=1.e-9)
+        [u_old.v()], rtol=1.e-6, atol=1.e-9)
     assert_allclose(
         [v.v()],
-        [v_old.v()], rtol=1.e-2, atol=1.e-9)
+        [v_old.v()], rtol=1.e-6, atol=1.e-9)
 
 
 def test_simulation_yvel():
@@ -304,20 +304,20 @@ def test_simulation_yvel():
     # finally compare original data to evolved
     assert_allclose(
         [rho.v()],
-        [rho_old.v()], rtol=1.e-2, atol=1.e-9)
+        [rho_old.v()], rtol=1.e-6, atol=1.e-9)
     assert_allclose(
         [h.v(), eint.v()],
-        [h_old.v(), eint_old.v()], rtol=1.e-2, atol=1.e-9)
+        [h_old.v(), eint_old.v()], rtol=1.e-6, atol=1.e-9)
     assert_allclose(
         [scalar.v(), DX.v()],
-        [scalar_old.v(), DX_old.v()], rtol=1.e-2, atol=1.e-9)
+        [scalar_old.v(), DX_old.v()], rtol=1.e-6, atol=1.e-9)
 
     assert_allclose(
         [u.v()],
-        [u_old.v()], rtol=1.e-2, atol=1.e-9)
+        [u_old.v()], rtol=1.e-6, atol=1.e-9)
     assert_allclose(
         [v.v()],
-        [v_old.v()], rtol=1.e-2, atol=1.e-9)
+        [v_old.v()], rtol=1.e-6, atol=1.e-9)
 
 # FIXME: add back in
 def _test_simulation_hydrostatic():

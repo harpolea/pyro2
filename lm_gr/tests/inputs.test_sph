@@ -1,8 +1,8 @@
 [mesh]
-nx = 16
-ny = 16
-xmin = 0.2
-xmax = 1.0       ;
+nx = 64
+ny = 8
+xmin = 0.35
+xmax = 0.4       ;
 ymax = 0.0337318           ; this is about 50m
 
 xlboundary = outflow
