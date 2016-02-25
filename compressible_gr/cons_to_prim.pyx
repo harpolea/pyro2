@@ -3,7 +3,9 @@ from scipy.optimize import brentq
 import numpy as np
 cimport numpy as np
 
-def cons_to_prim(np.ndarray[double, ndim=3] Q, float c, double gamma, int qx, int qy, int nvar, int iD, int iSx, int iSy, int itau, int iDX):
+def cons_to_prim(np.ndarray[double, ndim=3] Q, float c, double gamma,
+                 int qx, int qy, int nvar, int iD,
+                 int iSx, int iSy, int itau, int iDX):
     """
     Cython implementation of code to change the vector of conservative variables (D, Sx, Sy, tau, DX) into the vector of primitive variables (rho, u, v, p, X). Root finder brentq is applied to the fortran function root_finding from interface_f.
 
@@ -28,8 +30,23 @@ def cons_to_prim(np.ndarray[double, ndim=3] Q, float c, double gamma, int qx, in
     pmin[arr_root_find_on_me(pmin, D, Sx, Sy, tau, c, gamma) < 0.] = 0.
     pmax[pmax == 0.] = c
 
+    # check they have different signs - positive if not.
+    #mask = arr_root_find_on_me(pmin, D, Sx, Sy, tau, c, gamma) * arr_root_find_on_me(pmax, D, Sx, Sy, tau, c, gamma) == 0.
+    #print(pmin[mask])
+
+    #pmin[mask] = 0.
+    #pmax[mask] *= 2.
+
+    # find nans
+    pmin[np.isnan(pmin)] = 0.
+    pmax[np.isnan(pmax)] = c
+
     # NOTE: would it be quicker to do this as loops in cython??
-    V[:,:,itau] = [[brentq(interface_f.root_finding, pmin[i,j], pmax[i,j], args=(D[i,j], Sx[i,j], Sy[i,j], tau[i,j], c, gamma)) for j in range(qy)] for i in range(qx)]
+    try:
+        V[:,:,itau] = [[brentq(interface_f.root_finding, pmin[i,j], pmax[i,j], args=(D[i,j], Sx[i,j], Sy[i,j], tau[i,j], c, gamma)) for j in range(qy)] for i in range(qx)]
+    except ValueError:
+        print('pmin: {}'.format(pmin))
+        print('pmax: {}'.format(pmax))
 
     V[:,:,iSx] = Sx / (tau + D + V[:,:,itau])
     V[:,:,iSy] = Sy / (tau + D + V[:,:,itau])
@@ -41,7 +58,12 @@ def cons_to_prim(np.ndarray[double, ndim=3] Q, float c, double gamma, int qx, in
 
     return V
 
-def arr_root_find_on_me(np.ndarray[double, ndim=2] pbar, np.ndarray[double, ndim=2] D, np.ndarray[double, ndim=2] Sx, np.ndarray[double, ndim=2] Sy, np.ndarray[double, ndim=2] tau, double c, double gamma):
+def arr_root_find_on_me(np.ndarray[double, ndim=2] pbar,
+                        np.ndarray[double, ndim=2] D,
+                        np.ndarray[double, ndim=2] Sx,
+                        np.ndarray[double, ndim=2] Sy,
+                        np.ndarray[double, ndim=2] tau,
+                        double c, double gamma):
     """
     Equation to root find on in order to find the primitive pressure.
     This works on arrays.

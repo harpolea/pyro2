@@ -8,7 +8,7 @@ cfl = 0.25
 
 [lm-gr]
 c = 1.0
-grav = 0.001 ;0.148
+grav = 0.148
 cartesian = 0  ; cartesian or spherical polar coordinates? (0 = no, 1 = yes)
 radius = 6.75  ; 10 km
 
@@ -35,12 +35,11 @@ xmax = 0.4299569     ;
 ymin = 0.0
 ymax = 0.0337318           ; this is about 50m
 
-xlboundary = periodic
-xrboundary = periodic
+xlboundary = outflow
+xrboundary = outflow
 
 ylboundary = outflow
 yrboundary = outflow
-
 
 
 [bubble]

@@ -363,11 +363,22 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, burning_source):
     U_yr.v(buf=1, n=vars.iDX)[:,:] += 0.5 * dt * DX_F.v(buf=1)
 
     # transform back to primitive variables.
-    V_xl.d[:,:,:] = cy.cons_to_prim(U_xl.d, c, gamma, myg.qx, myg.qy, vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau, vars.iDX)
-    V_xr.d[:,:,:] = cy.cons_to_prim(U_xr.d, c, gamma, myg.qx, myg.qy, vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau, vars.iDX)
-    V_yl.d[:,:,:] = cy.cons_to_prim(U_yl.d, c, gamma, myg.qx, myg.qy, vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau, vars.iDX)
-    V_yr.d[:,:,:] = cy.cons_to_prim(U_yr.d, c, gamma, myg.qx, myg.qy, vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau, vars.iDX)
-
+    V_xl.d[:,:,:] = cy.cons_to_prim(U_xl.d, c, gamma, myg.qx, myg.qy,
+                                    vars.nvar, vars.iD,
+                                    vars.iSx, vars.iSy, vars.itau,
+                                    vars.iDX)
+    V_xr.d[:,:,:] = cy.cons_to_prim(U_xr.d, c, gamma, myg.qx, myg.qy,
+                                    vars.nvar, vars.iD,
+                                    vars.iSx, vars.iSy, vars.itau,
+                                    vars.iDX)
+    V_yl.d[:,:,:] = cy.cons_to_prim(U_yl.d, c, gamma, myg.qx, myg.qy,
+                                    vars.nvar, vars.iD,
+                                    vars.iSx, vars.iSy, vars.itau,
+                                    vars.iDX)
+    V_yr.d[:,:,:] = cy.cons_to_prim(U_yr.d, c, gamma, myg.qx, myg.qy,
+                                    vars.nvar, vars.iD,
+                                    vars.iSx, vars.iSy, vars.itau,
+                                    vars.iDX)
 
     #=========================================================================
     # compute transverse fluxes
@@ -481,10 +492,22 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, burning_source):
     # overwrite with the fluxes normal to the interfaces
 
     # transform back to primitive variables.
-    V_xl.d[:,:,:] = cy.cons_to_prim(U_xl.d, c, gamma, myg.qx, myg.qy, vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau, vars.iDX)
-    V_xr.d[:,:,:] = cy.cons_to_prim(U_xr.d, c, gamma, myg.qx, myg.qy, vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau, vars.iDX)
-    V_yl.d[:,:,:] = cy.cons_to_prim(U_yl.d, c, gamma, myg.qx, myg.qy, vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau, vars.iDX)
-    V_yr.d[:,:,:] = cy.cons_to_prim(U_yr.d, c, gamma, myg.qx, myg.qy, vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau, vars.iDX)
+    V_xl.d[:,:,:] = cy.cons_to_prim(U_xl.d, c, gamma, myg.qx, myg.qy,
+                                    vars.nvar, vars.iD,
+                                    vars.iSx, vars.iSy, vars.itau,
+                                    vars.iDX)
+    V_xr.d[:,:,:] = cy.cons_to_prim(U_xr.d, c, gamma, myg.qx, myg.qy,
+                                    vars.nvar, vars.iD,
+                                    vars.iSx, vars.iSy, vars.itau,
+                                    vars.iDX)
+    V_yl.d[:,:,:] = cy.cons_to_prim(U_yl.d, c, gamma, myg.qx, myg.qy,
+                                    vars.nvar, vars.iD,
+                                    vars.iSx, vars.iSy, vars.itau,
+                                    vars.iDX)
+    V_yr.d[:,:,:] = cy.cons_to_prim(U_yr.d, c, gamma, myg.qx, myg.qy,
+                                    vars.nvar, vars.iD,
+                                    vars.iSx, vars.iSy, vars.itau,
+                                    vars.iDX)
 
     tm_riem.begin()
 

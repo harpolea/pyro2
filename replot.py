@@ -161,8 +161,8 @@ if __name__== "__main__":
             # M5
             vmaxes = [0.005, None, 1., 2.]
         elif problem == 'sod':
-            vmins = [0., 0., None, 0.]
-            vmaxes = [1.05, 5., 1.05, None]
+            vmins = [0., None, None, 0.]
+            vmaxes = [1.05, None, 1.05, None]
         else:
             vmins = [None, None, None, None]
             vmaxes = [None, None, None, None]

@@ -854,7 +854,7 @@ subroutine root_finding(pbar, D, Sx, Sy, tau, c, gamma)
 !f2py intent(out) :: pbar
 
     double precision :: v2, w, epsrho
-    double precision, parameter :: largep = 1.e6
+    double precision, parameter :: largep = 1.0e6
 
     if (pbar > 0.0d0) then
         v2 = (Sx**2 + Sy**2) / (c * (tau + D + pbar))**2

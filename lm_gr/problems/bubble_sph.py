@@ -47,7 +47,6 @@ def init_data(my_data, aux_data, base, rp, metric):
     gamma = rp.get_param("eos.gamma")
     K = rp.get_param("eos.k_poly")
 
-    scale_height = rp.get_param("bubble.scale_height")
     dens_base = rp.get_param("bubble.dens_base")
     dens_cutoff = rp.get_param("bubble.dens_cutoff")
 
@@ -56,14 +55,17 @@ def init_data(my_data, aux_data, base, rp, metric):
     r_pert = rp.get_param("bubble.r_pert")
     pert_amplitude_factor = rp.get_param("bubble.pert_amplitude_factor")
 
+    myg = my_data.grid
+
+    L_x = myg.xmax - myg.xmin
+    L_y = myg.ymax - myg.ymin
     # initialize the components -- we'll get a pressure too
     # but that is used only to initialize the base state
-    xvel.d[:,:] = 0.001
+    xvel.d[:,:] = 0.001 * np.exp(-0.3*(myg.x2d/L_x - 0.5)**2)
     yvel.d[:,:] = 0.0
     dens.d[:,:] = dens_cutoff
 
     # set the density to be stratified in the y-direction
-    myg = my_data.grid
     print('Resolution: ', myg.nx, ' x ', myg.ny)
     pres = myg.scratch_array()
     scalar.d[:,:] = 1.
@@ -113,8 +115,6 @@ def init_data(my_data, aux_data, base, rp, metric):
 
     # boost the specific internal energy, keeping the pressure
     # constant, by dropping the density
-    L_x = myg.xmax - myg.xmin
-    L_y = myg.ymax - myg.ymin
     r = np.sqrt(((myg.x2d-myg.xmin)/L_x - x_pert)**2 + ((myg.y2d-myg.ymin)/L_y - y_pert)**2)
 
     idx = r <= r_pert

@@ -13,11 +13,75 @@ import compressible_gr.eos as eos
 import mesh.patch as patch
 from simulation_null import NullSimulation, grid_setup, bc_setup
 from compressible_gr.unsplitFluxes import *
-from util import profile
 from scipy.ndimage import median_filter
 import compressible_gr.cons_to_prim as cy
+from mesh.patch import ArrayIndexer
 
 class SimulationReact(Simulation):
+
+    def compute_timestep(self):
+        """
+        The timestep function computes the advective timestep (CFL)
+        constraint.  The CFL constraint says that information cannot
+        propagate further than one zone per timestep.
+
+        We use the driver.cfl parameter to control what fraction of the
+        CFL step we actually take.
+        """
+        myg = self.cc_data.grid
+
+        cfl = self.rp.get_param("driver.cfl")
+
+        # get the variables we need
+        D = self.cc_data.get_var("D")
+        Sx = self.cc_data.get_var("Sx")
+        Sy = self.cc_data.get_var("Sy")
+        tau = self.cc_data.get_var("tau")
+        DX = self.cc_data.get_var("DX")
+
+        gamma = self.rp.get_param("eos.gamma")
+        c = self.rp.get_param("eos.c")
+        u = np.zeros_like(D.d)
+        v = np.zeros_like(D.d)
+        rho = np.zeros_like(D.d)
+        p = np.zeros_like(D.d)
+        cs = np.zeros_like(D.d)
+
+        U = myg.scratch_array(self.vars.nvar)
+        U.d[:,:,self.vars.iD] = D.d
+        U.d[:,:,self.vars.iSx] = Sx.d
+        U.d[:,:,self.vars.iSy] = Sy.d
+        U.d[:,:,self.vars.itau] = tau.d
+        U.d[:,:,self.vars.iDX] = DX.d
+
+        V = myg.scratch_array(self.vars.nvar)
+        V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iSx, self.vars.iSy, self.vars.itau, self.vars.iDX)
+
+        rho = ArrayIndexer(d=V.d[:,:,self.vars.irho], grid=myg)
+        u = ArrayIndexer(d=V.d[:,:,self.vars.iu], grid=myg)
+        v = ArrayIndexer(d=V.d[:,:,self.vars.iv], grid=myg)
+        p = ArrayIndexer(d=V.d[:,:,self.vars.ip], grid=myg)
+        X = ArrayIndexer(d=V.d[:,:,self.vars.iX], grid=myg)
+
+        cs = sound_speed(gamma, rho.d, p.d)
+        # the timestep is min(dx/(|u| + cs), dy/(|v| + cs))
+        maxvel = np.fabs(np.sqrt(u.d**2 + v.d**2)).max()
+        maxcs = cs.max()
+
+        denom, _ = rel_add_velocity(maxvel, 0., maxcs, 0., c)
+
+        xtmp = self.cc_data.grid.dx / denom
+        ytmp = self.cc_data.grid.dy / denom
+
+        T = self.calc_T(p, D, X, rho)
+
+        # find burning stuff
+        Q, omega_dot = self.calc_Q_omega_dot(D, X, rho, T)
+
+        burning_dt = cfl * min(1./np.max(abs(Q.d)), 1./np.max(abs(omega_dot.d)))
+
+        # FIXME: get rid of 0.01
+        self.dt = min(burning_dt, 0.1 * cfl * min(xtmp.min(), ytmp.min()))
 
     def calc_T(self, p, D, X, rho):
         r"""
@@ -226,6 +290,7 @@ class SimulationReact(Simulation):
         X = myg.scratch_array()
         u = myg.scratch_array()
         v = myg.scratch_array()
+        h = myg.scratch_array()
         S = myg.scratch_array()
 
         U = myg.scratch_array(self.vars.nvar)
@@ -242,6 +307,7 @@ class SimulationReact(Simulation):
         u.d[:,:] = V.d[:,:,self.vars.iu]
         v.d[:,:] = V.d[:,:,self.vars.iv]
         p.d[:,:] = V.d[:,:,self.vars.ip]
+        h.d[:,:] = V.d[:,:,self.vars.itau]
         X.d[:,:] = V.d[:,:,self.vars.iX]
 
         # get the velocity magnitude
@@ -332,8 +398,10 @@ class SimulationReact(Simulation):
 
         elif self.problem_name == 'sod':
             Q, omega_dot = self.calc_Q_omega_dot(D, X, rho, T)
-            fields = [rho, T, X, omega_dot]
-            field_names = [r"$\rho$", r"$T$", r"$X$", r"$\dot{\omega}$"]
+            #fields = [rho, T, X, omega_dot]
+            #field_names = [r"$\rho$", r"$T$", r"$X$", r"$\dot{\omega}$"]
+            fields = [rho, u, X, p]
+            field_names = [r"$\rho$", r"$u$", r"$X$", r"$p$"]
             colourmaps = [plt.get_cmap('viridis'), plt.get_cmap('viridis'), plt.get_cmap('viridis'),  plt.get_cmap('viridis')]
 
         else:

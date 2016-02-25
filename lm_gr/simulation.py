@@ -46,8 +46,8 @@ import multigrid.rect_MG as rect_MG
 import colormaps as cmaps
 from functools import partial
 import importlib
-from util import msg
-import sys
+#from util import msg
+#import sys
 
 
 class Basestate(object):
@@ -657,19 +657,18 @@ class Simulation(NullSimulation):
             grr * chrls[:,:,2,2,1] * v.d**2 +
             (grr * chrls[:,:,2,1,1] +
              gxx * chrls[:,:,1,2,1]) * u.d * v.d)# / gxx
-        mom_source_r.d[:,:] = (gtt * chrls[:,:,0,0,2])# +
-        #    (gxx * chrls[:,:,1,0,2] +
-        #     gtt * chrls[:,:,0,1,2]) * u.d +
-        #    (grr * chrls[:,:,2,0,2] +
-        #     gtt * chrls[:,:,0,2,2]) * v.d +
-        #    gxx * chrls[:,:,1,1,2] * u.d**2 +
-        #    grr * chrls[:,:,2,2,2] * v.d**2 +
-        #    (grr * chrls[:,:,2,1,2] +
-        #     gxx * chrls[:,:,1,2,2]) * u.d * v.d) #/ grr
+        mom_source_r.d[:,:] = (gtt * chrls[:,:,0,0,2] +
+            (gxx * chrls[:,:,1,0,2] +
+             gtt * chrls[:,:,0,1,2]) * u.d +
+            (grr * chrls[:,:,2,0,2] +
+             gtt * chrls[:,:,0,2,2]) * v.d +
+            gxx * chrls[:,:,1,1,2] * u.d**2 +
+            grr * chrls[:,:,2,2,2] * v.d**2 +
+            (grr * chrls[:,:,2,1,2] +
+             gxx * chrls[:,:,1,2,2]) * u.d * v.d) #/ grr
 
         # check drp0 is not zero
         mask = (abs(drp0.d2df(myg.qx)) > 1.e-15)
-        #print(drp0.d2d())
         mom_source_r.d[mask] -=  drp0.d2df(myg.qx)[mask] / (Dh.d[mask]*u0.d[mask])
         #mom_source_r.d[:,:]  = 0.
 

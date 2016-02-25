@@ -7,9 +7,7 @@ import multigrid.mg_utils_f as mg_f
 import mesh.patch as patch
 from multigrid.variable_coeff_MG import VarCoeffCCMG2d
 import math
-#from functools import partial
 from util import msg
-from functools import partial
 
 np.set_printoptions(precision=3, linewidth=128)
 
@@ -63,8 +61,6 @@ class RectMG2d(VarCoeffCCMG2d):
             self.nlevels = int(math.log(self.nx)/math.log(2.0))
         else:
             self.nlevels = int(math.log(self.ny)/math.log(2.0))
-
-        #self.nlevels = min(int(math.log(self.nx)/math.log(2.0)), int(math.log(self.ny)/math.log(2.0)))
 
         nx_t = self.nx / (2**(self.nlevels-1))
         ny_t = self.ny / (2**(self.nlevels-1))
@@ -171,8 +167,7 @@ class RectMG2d(VarCoeffCCMG2d):
         # put the coefficients on edges
         self.edge_coeffs.insert(0, ec.EdgeCoeffs(self.grids[self.nlevels-1].grid, c_x, etay=c_y))
 
-        #n = self.nlevels-2
-        for n in range(self.nlevels-2, -1, -1): #while n >= 0:
+        for n in range(self.nlevels-2, -1, -1):
 
             # create the edge coefficients on level n by restricting from the
             # finer grid
@@ -190,7 +185,6 @@ class RectMG2d(VarCoeffCCMG2d):
             # put the coefficients on edges
             self.edge_coeffs.insert(0, self.edge_coeffs[0].restrict())
 
-            #n -= 1
 
     def solve(self, rtol = 1.e-11, fortran=True):
         """
@@ -440,44 +434,3 @@ class RectMG2d(VarCoeffCCMG2d):
                                  np.asfortranarray(bP.get_var("r").d), tol)
 
             #print(x.d)
-
-    #def get_solution_gradient(self, grid=None):
-        """
-        Return the gradient of the solution after doing the MG solve.  The
-        x- and y-components are returned in separate arrays.
-
-        If a grid object is passed in, then the gradient is computed on that
-        grid.
-
-        Returns
-        -------
-        out : ndarray, ndarray
-
-
-
-        myg = self.soln_grid
-
-        if grid is None:
-            og = self.soln_grid
-        else:
-            og = grid
-            assert og.dx == myg.dx and og.dy == myg.dy
-
-        v = self.grids[self.nlevels-1].get_var("v")
-
-        if isinstance(og.metric.gamma, partial):
-            gamma = og.metric.gamma(og)
-        else:
-            gamma = og.metric.gamma
-
-        gx = og.scratch_array()
-        gy = og.scratch_array()
-
-        # upstairs index components
-        g_xx = 1. / gamma[og.ilo:og.ihi+1,og.jlo:og.jhi+1,0,0]
-        g_yy = 1. / gamma[og.ilo:og.ihi+1,og.jlo:og.jhi+1,1,1]
-
-        gx.v()[:,:] = 0.5 * g_xx * (v.ip(1) - v.ip(-1))/ (og.dx * myg.r2v)
-        gy.v()[:,:] = 0.5 * g_yy * (v.jp(1) - v.jp(-1)) / og.dy
-
-        return gx, gy"""

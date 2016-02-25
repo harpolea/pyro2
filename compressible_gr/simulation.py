@@ -2,16 +2,16 @@ from __future__ import print_function
 
 import numpy as np
 import matplotlib.pyplot as plt
-import sys
+#import sys
 
 import compressible_gr.BC as BC
 from compressible_gr.problems import *
 #from compressible_gr.tests import test_BC, test_eos, test_simulation
-import compressible_gr.eos as eos
+#import compressible_gr.eos as eos
 import mesh.patch as patch
 from simulation_null import NullSimulation, grid_setup, bc_setup
 from compressible_gr.unsplitFluxes import *
-from util import profile
+#from util import profile
 import compressible_gr.cons_to_prim as cy
 import importlib
 
@@ -353,8 +353,9 @@ class Simulation(NullSimulation):
             onLeft = [0,2]
 
 
-        fields = [rho, magvel, p, S]
-        field_names = [r"$\rho$", r"$|u|$", "$p$", "$\ln(\mathcal{S})$"]
+        fields = [rho, magvel, p, h]
+        #field_names = [r"$\rho$", r"$|u|$", "$p$", "$\ln(\mathcal{S})$"]
+        field_names = [r"$\rho$", r"$|u|$", "$p$", "$h$"]
         colours = ['blue', 'red', 'black', 'green']
         colourmaps = [None, None, None, plt.get_cmap('Greys')]
 

@@ -1222,7 +1222,7 @@ class CellCenterData2d(object):
         # will pickle.
         cp = copy.deepcopy(self)
 
-        if isinstance(cp.grid.metric.alpha, partial):
+        if (cp.grid.metric is not None) and isinstance(cp.grid.metric.alpha, partial):
             gamma = cp.grid.metric.gamma(cp.grid)
             alpha = cp.grid.metric.alpha(cp.grid)
 
