@@ -1,7 +1,7 @@
 # simple inputs files for the unsplit CTU hydro scheme
 
 [driver]
-max_steps = 20000
+max_steps = 10000
 tmax = 10000000000.0
 
 [compressible-gr]
@@ -10,7 +10,7 @@ riemann = RHLLC            ; RHLLC or RHLLE
 react = 1
 
 [io]
-basename = ../../Documents/Work/pyro/results/sod/sod_1024_   ; basename for output files
+basename = ../../Documents/Work/pyro/results/sod/sod_1024_lvt065_   ; basename for output files
 n_out = 50                   ; number of timesteps between writing output files
 do_io = 1                   ; do we output at all?
 
@@ -32,8 +32,11 @@ yrboundary = outflow
 [sod]
 direction = x
 
-u_left = 0.0
-u_right = -0.5
+u_left = -0.5
+u_right = 0.0
+
+ut_left = 0.0       ; tangential velocity
+ut_right = 0.65
 
 dens_left = 0.125
 dens_right = 1.0

@@ -32,6 +32,9 @@ def init_data(my_data, rp):
     u_left = rp.get_param("sod.u_left")
     u_right = rp.get_param("sod.u_right")
 
+    ut_left = rp.get_param("sod.ut_left")
+    ut_right = rp.get_param("sod.ut_right")
+
     p_left = rp.get_param("sod.p_left")
     p_right = rp.get_param("sod.p_right")
 
@@ -71,7 +74,7 @@ def init_data(my_data, rp):
 
         rho[idxl] = dens_left
         u[idxl] = u_left
-        v[idxl] = 0.0
+        v[idxl] = ut_left
         p[idxl] = p_left
         X[idxl] = 1.0
 
@@ -80,7 +83,7 @@ def init_data(my_data, rp):
 
         rho[idxr] = dens_right
         u[idxr] = u_right
-        v[idxr] = 0.0
+        v[idxr] = ut_right
         p[idxr] = p_right
 
     else:
@@ -89,7 +92,7 @@ def init_data(my_data, rp):
         idxb = myg.y2d <= yctr
 
         rho[idxb] = dens_left
-        u[idxb] = 0.0
+        u[idxb] = ut_left
         v[idxb] = u_left
         p[idxb] = p_left
         X[idxb] = 1.0
@@ -98,7 +101,7 @@ def init_data(my_data, rp):
         idxt = myg.y2d > yctr
 
         rho[idxt] = dens_right
-        u[idxt] = 0.0
+        u[idxt] = ut_right
         v[idxt] = u_right
         p[idxt] = p
 

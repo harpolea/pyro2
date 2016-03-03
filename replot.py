@@ -147,7 +147,9 @@ if __name__== "__main__":
     try:
         end = int(next[5])
     except:
-        usage()
+        # make it a really high number
+        end = int(1e6)
+        #usage()
 
     # compressible_gr
     if solver == "compressible_gr":
@@ -161,8 +163,8 @@ if __name__== "__main__":
             # M5
             vmaxes = [0.005, None, 1., 2.]
         elif problem == 'sod':
-            vmins = [0., None, None, 0.]
-            vmaxes = [1.05, None, 1.05, None]
+            vmins = [0., None, -0.05, 0.]
+            vmaxes = [None, None, 1.05, None]
         else:
             vmins = [None, None, None, None]
             vmaxes = [None, None, None, None]
@@ -200,6 +202,10 @@ if __name__== "__main__":
         except:
             usage()
 
-        myg, myd = patch.read(file)
+        try:
+            myg, myd = patch.read(file)
+        except IOError:
+            # file doesn't exist: quietly exit.
+            break
 
         makeplot(myd, solver, problem, outfile, W, H, n=i, vmins=vmins, vmaxes=vmaxes)

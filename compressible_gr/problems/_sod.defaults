@@ -8,5 +8,8 @@ dens_right = 1.0
 u_left = 0.0
 u_right = 0.0
 
+ut_left = 0.0
+ut_right = 0.0
+
 p_left = 13.33
 p_right = 1.e-6

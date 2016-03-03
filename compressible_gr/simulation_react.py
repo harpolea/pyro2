@@ -78,10 +78,14 @@ class SimulationReact(Simulation):
         # find burning stuff
         Q, omega_dot = self.calc_Q_omega_dot(D, X, rho, T)
 
+        # stop them being too small so don't divide by zero
+        Q.d[abs(Q.d) < 1.e-15] = 1.e-15
+        omega_dot.d[abs(omega_dot.d) < 1.e-15] = 1.e-15
+
         burning_dt = cfl * min(1./np.max(abs(Q.d)), 1./np.max(abs(omega_dot.d)))
 
         # FIXME: get rid of 0.01
-        self.dt = min(burning_dt, 0.1 * cfl * min(xtmp.min(), ytmp.min()))
+        self.dt = min(burning_dt, 0.01 * cfl * min(xtmp.min(), ytmp.min()))
 
     def calc_T(self, p, D, X, rho):
         r"""
@@ -155,6 +159,9 @@ class SimulationReact(Simulation):
         # FIXME: hack to drive reactions
         T9 = T.d * 1.e1
         rho5 = rho.d * 1.e3
+
+        # make sure don't get divide by zero
+        T.d[T.d < 1.e-15] = 1.e-15
 
         # don't apply to X > 1 as will get negative Q
         Q.d[X.d < 1.] = rho5[X.d < 1.]**2 * ((1.-X.d[X.d < 1.]) / T9[X.d < 1.])**3 * np.exp(-4.4 / T9[X.d < 1.])
