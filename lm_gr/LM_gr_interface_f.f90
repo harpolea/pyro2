@@ -782,3 +782,28 @@ subroutine riemann_and_upwind(qx, qy, ng, q_l, q_r, q_int)
   call upwind(qx, qy, ng, q_l, q_r, s, q_int)
 
 end subroutine riemann_and_upwind
+
+
+!xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+subroutine root_finding(pbar, D, Dh, gamma)
+
+    implicit none
+    double precision, intent(inout) :: pbar
+    double precision, intent(in) :: D, Dh, gamma
+
+!f2py intent(in) :: pbar, D, Dh, gamma
+!f2py intent(out) :: pbar
+
+    double precision :: eps, rho
+    double precision, parameter :: largep = 1.0e6
+
+    if (pbar > 0.0d0) then
+        rho = D * gamma * pbar / ((Dh - D) * (gamma - 1.0d0))
+        eps = (Dh - D) / (D * gamma)
+
+        pbar = (gamma - 1.0d0) * eps * rho - pbar
+    else
+        pbar = largep
+    endif
+
+end subroutine root_finding

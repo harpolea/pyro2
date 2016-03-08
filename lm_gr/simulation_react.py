@@ -5,8 +5,10 @@ import matplotlib.pyplot as plt
 
 from lm_gr.problems import *
 from lm_gr.simulation import *
+import lm_gr.cons_to_prim as cy
 import multigrid.variable_coeff_MG as vcMG
 import colormaps as cmaps
+from mesh.patch import ArrayIndexer
 
 class SimulationReact(Simulation):
 
@@ -33,7 +35,7 @@ class SimulationReact(Simulation):
 
         Simulation.__init__(self, solver_name, problem_name, rp, timers=timers, fortran=fortran, testing=testing)
 
-    def compute_S(self, u=None, v=None, u0=None, p0=None, Q=None, D=None):
+    def compute_S(self, u=None, v=None, u0=None, p0=None, Q=None, D=None, rho=None, Dh=None, DX=None):
         r"""
         :math: `S = -\Gamma^\mu_(\mu \nu) U^\nu + \frac{D (\gamma-1)}{u^0 \gamma^2 p} H`  (see eq 6.34, 6.37 in LowMachGR).
         base["source-y"] is not updated here as it's sometimes necessary to
@@ -78,12 +80,31 @@ class SimulationReact(Simulation):
 
         S.d[:,:] = super(SimulationReact, self).compute_S(u=u, v=v, u0=u0, p0=p0).d
 
-        S.d[:,:] += D.d * (gamma - 1) * Q.d / (u0.d * gamma**2 * p0.d2d())
+        if rho is None:
+            c = self.rp.get_param("lm-gr.c")
+            if Dh is None:
+                Dh = self.cc_data.get_var("enthalpy")
+            if DX is None:
+                DX = self.cc_data.get_var("mass-frac")
+
+            U = myg.scratch_array(self.vars.nvar)
+            U.d[:,:,self.vars.iD] = D.d
+            U.d[:,:,self.vars.iUx] = u.d
+            U.d[:,:,self.vars.iUy] = v.d
+            U.d[:,:,self.vars.iDh] = Dh.d
+            U.d[:,:,self.vars.iDX] = DX.d
+
+            V = myg.scratch_array(self.vars.nvar)
+            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX)
+
+            rho = ArrayIndexer(d=V.d[:,:,self.vars.irho], grid=myg)
+
+        S.d[:,:] += rho.d * (gamma - 1) * Q.d / (gamma**2 * p0.d2d())
 
         return S
 
 
-    def calc_T(self, p0=None, D=None, DX=None, u=None, v=None, u0=None, T=None):
+    def calc_T(self, p0=None, D=None, DX=None, u=None, v=None, u0=None, T=None, rho=None, Dh=None):
         r"""
         Calculates the temperature assuming an ideal gas with a mixed composition and a constant ratio of specific heats:
         .. math::
@@ -124,22 +145,49 @@ class SimulationReact(Simulation):
             D = self.cc_data.get_var("density")
         if DX is None:
             DX = self.cc_data.get_var("mass-frac")
+        if u is None:
+            u = self.cc_data.get_var("x-velocity")
+        if v is None:
+            v = self.cc_data.get_var("y-velocity")
         if u0 is None:
             u0 = myg.metric.calcu0(u=u, v=v)
         if T is None:
             T = self.cc_data.get_var("temperature")
 
+        if rho is None:
+            c = self.rp.get_param("lm-gr.c")
+            gamma = self.rp.get_param("eos.gamma")
+            if Dh is None:
+                Dh = self.cc_data.get_var("enthalpy")
+                
+            U = myg.scratch_array(self.vars.nvar)
+            U.d[:,:,self.vars.iD] = D.d
+            U.d[:,:,self.vars.iUx] = u.d
+            U.d[:,:,self.vars.iUy] = v.d
+            U.d[:,:,self.vars.iDh] = Dh.d
+            U.d[:,:,self.vars.iDX] = DX.d
+
+            V = myg.scratch_array(self.vars.nvar)
+            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX)
+
+            rho = ArrayIndexer(d=V.d[:,:,self.vars.irho], grid=myg)
+            X = ArrayIndexer(d=V.d[:,:,self.vars.iX], grid=myg)
+
+        else:
+            X = DX / D
+
+
         # mean molecular weight = (2*(1-X) + 3/4 X)^-1
-        mu = 4./(8. * (1. - DX.d/D.d) + 3. * DX.d/D.d)
+        mu = 4./(8. * (1. - X.d) + 3. * X.d)
         # FIXME: hack to drive reactions
         mp_kB = 1.21147#e5#e-8
 
         # use p0 here as otherwise have to explicitly calculate pi somewhere?
         # TODO: could instead calculate this using Dh rather than p0?
-        T.d[:,:] = p0.d2d() * mu * u0.d * mp_kB / D.d
+        T.d[:,:] = p0.d2d() * mu * mp_kB / rho.d
 
 
-    def calc_Q_omega_dot(self, D=None, DX=None, u=None, v=None, u0=None, T=None):
+    def calc_Q_omega_dot(self, D=None, Dh=None, DX=None, u=None, v=None, u0=None, T=None, rho=None):
         r"""
         Calculates the energy generation rate according to eq. 2 of Cavecchi, Levin, Watts et al 2015 and the creation rate
 
@@ -170,6 +218,12 @@ class SimulationReact(Simulation):
             D = self.cc_data.get_var("density")
         if DX is None:
             DX = self.cc_data.get_var("mass-frac")
+        if Dh is None:
+            Dh = self.cc_data.get_var("enthalpy")
+        if u is None:
+            u = self.cc_data.get_var("x-velocity")
+        if v is None:
+            v = self.cc_data.get_var("y-velocity")
         if u0 is None:
             u0 = myg.metric.calcu0(u=u, v=v)
         if T is None:
@@ -178,9 +232,29 @@ class SimulationReact(Simulation):
         omega_dot = myg.scratch_array()
         # FIXME: hack to drive reactions
         T9 = T.d #* 1.e-9#1.e-9
-        D5 = D.d #* 1.e-5
 
-        Q.d[:,:] = 5.3 * (D5 / u0.d)**2 * ((1.-DX.d/D.d) * DX.d/D.d / T9)**3 * np.exp(-4.4 / T9)
+        if rho is None:
+            c = self.rp.get_param("lm-gr.c")
+            gamma = self.rp.get_param("eos.gamma")
+            U = myg.scratch_array(self.vars.nvar)
+            U.d[:,:,self.vars.iD] = D.d
+            U.d[:,:,self.vars.iUx] = u.d
+            U.d[:,:,self.vars.iUy] = v.d
+            U.d[:,:,self.vars.iDh] = Dh.d
+            U.d[:,:,self.vars.iDX] = DX.d
+
+            V = myg.scratch_array(self.vars.nvar)
+            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX)
+
+            rho = ArrayIndexer(d=V.d[:,:,self.vars.irho], grid=myg)
+            X = ArrayIndexer(d=V.d[:,:,self.vars.iX], grid=myg)
+
+        else:
+            X = DX / D
+
+        rho5 = rho.d #* 1.e-5
+
+        Q.d[:,:] = 5.3 * rho5**2 * ((1.-X.d) * X.d / T9)**3 * np.exp(-4.4 / T9)
 
         #print((np.exp(-4.4 / T9))[25:35,25:35])
 
@@ -198,7 +272,7 @@ class SimulationReact(Simulation):
         return Q, omega_dot
 
 
-    def react_state(self, S=None, D=None, Dh=None, DX=None, p0=None, T=None, scalar=None, Dh0=None, u=None, v=None, u0=None):
+    def react_state(self, S=None, D=None, Dh=None, DX=None, p0=None, T=None, scalar=None, Dh0=None, u=None, v=None, u0=None, rho=None, v_prim=None):
         """
         gravitational source terms in the continuity equation (called react
         state to mirror MAESTRO as here they just have source terms from the
@@ -251,14 +325,32 @@ class SimulationReact(Simulation):
         kB_mp = 8.254409#e7
         gamma = self.rp.get_param("eos.gamma")
 
-        Q, omega_dot = self.calc_Q_omega_dot(D=D, DX=DX, u=u, v=v, u0=u0, T=T)
+        if rho is None or v_prim is None:
+            c = self.rp.get_param("lm-gr.c")
+            U = myg.scratch_array(self.vars.nvar)
+            U.d[:,:,self.vars.iD] = D.d
+            U.d[:,:,self.vars.iUx] = u.d
+            U.d[:,:,self.vars.iUy] = v.d
+            U.d[:,:,self.vars.iDh] = Dh.d
+            U.d[:,:,self.vars.iDX] = DX.d
 
-        h_T = kB_mp * gamma * (3. - 2. * DX.d/D.d) / (6. * (gamma-1.))
+            V = myg.scratch_array(self.vars.nvar)
+            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX)
+
+            rho = ArrayIndexer(d=V.d[:,:,self.vars.irho], grid=myg)
+            X = ArrayIndexer(d=V.d[:,:,self.vars.iX], grid=myg)
+            v_prim = ArrayIndexer(d=V.d[:,:,self.vars.iUy], grid=myg)
+        else:
+            X = DX / D
+
+        Q, omega_dot = self.calc_Q_omega_dot(D=D, DX=DX, u=u, v=v, u0=u0, T=T, rho=rho)
+
+        h_T = kB_mp * gamma * (3. - 2. * X.d) / (6. * (gamma-1.))
         h_X = -kB_mp * T.d * gamma / (3. * (gamma-1.))
 
         # cannot call super here as it changes D which is then needed to calculate Dh, D
 
-        Dh.d[:,:] += 0.5 * self.dt * (S.d * Dh.d + u0.d * v.d * drp0.d2d() + D.d * Q.d)
+        Dh.d[:,:] += 0.5 * self.dt * (S.d * Dh.d + v_prim.d * drp0.d2d() + D.d * Q.d)
 
         DX.d[:,:] += 0.5 * self.dt * (S.d * DX.d + D.d * omega_dot.d)
 

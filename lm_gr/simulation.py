@@ -46,8 +46,32 @@ import multigrid.rect_MG as rect_MG
 import colormaps as cmaps
 from functools import partial
 import importlib
+import lm_gr.cons_to_prim as cy
 #from util import msg
 #import sys
+
+class Variables(object):
+    """
+    a container class for easy access to the different variables by an integer key
+    """
+    def __init__(self, iD=0, iUx=1, iUy=2, iDh=3, iDX=4):
+        self.nvar = 5
+
+        # conserved variables -- we set these when we initialize for
+        # they match the CellCenterData2d object
+        self.iD = iD
+        self.iUx = iUx
+        self.iUy = iUy
+        self.iDh = iDh
+        self.iDX = iDX
+
+        # primitive variables
+        self.irho = iD
+        self.iu = iUx
+        self.iv = iUy
+        self.ip = iDh
+        self.iX = iDX
+        #self.ih = 5
 
 
 class Basestate(object):
@@ -278,6 +302,12 @@ class Simulation(NullSimulation):
         my_data.create()
 
         self.cc_data = my_data
+
+        self.vars = Variables(iD = my_data.vars.index("density"),
+                              iUx = my_data.vars.index("x-velocity"),
+                              iUy = my_data.vars.index("y-velocity"),
+                              iDh = my_data.vars.index("enthalpy"),
+                              iDX = my_data.vars.index("mass-frac"))
 
         # some auxillary data that we'll need to fill GC in, but isn't
         # really part of the main solution
@@ -929,7 +959,7 @@ class Simulation(NullSimulation):
         return drpi
 
 
-    def react_state(self, S=None, D=None, Dh=None, DX=None, p0=None, T=None, scalar=None, D0=None, u=None, v=None, u0=None):
+    def react_state(self, S=None, D=None, Dh=None, DX=None, p0=None, T=None, scalar=None, D0=None, u=None, v=None, u0=None, v_prim=None):
         """
         gravitational source terms in the continuity equation (called react
         state to mirror MAESTRO as here they just have source terms from the
@@ -978,7 +1008,25 @@ class Simulation(NullSimulation):
         if S is None:
             S = self.aux_data.get_var("source_y")
 
-        Dh.d[:,:] += 0.5 * self.dt * (S.d * Dh.d + u0.d * v.d * drp0.d2d())
+        if v_prim is None:
+            c = self.rp.get_param("lm-gr.c")
+            gamma = self.rp.get_param("eos.gamma")
+            if u is None:
+                u = self.cc_data.get_var("y-velocity")
+
+            U = myg.scratch_array(self.vars.nvar)
+            U.d[:,:,self.vars.iD] = D.d
+            U.d[:,:,self.vars.iUx] = u.d
+            U.d[:,:,self.vars.iUy] = v.d
+            U.d[:,:,self.vars.iDh] = Dh.d
+            U.d[:,:,self.vars.iDX] = DX.d
+
+            V = myg.scratch_array(self.vars.nvar)
+            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX)
+
+            v_prim = patch.ArrayIndexer(d=V.d[:,:,self.vars.iUy], grid=myg)
+
+        Dh.d[:,:] += 0.5 * self.dt * (S.d * Dh.d + v_prim.d * drp0.d2d())
 
         D.d[:,:] += 0.5 * self.dt * (S.d * D.d)
 

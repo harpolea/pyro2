@@ -18,8 +18,7 @@ import importlib
 
 class Variables(object):
     """
-    a container class for easy access to the different compressible
-    variable by an integer key
+    a container class for easy access to the variables by an integer key
     """
     def __init__(self, iD=0, iSx=1, iSy=2, itau=3, iDX=4):
         self.nvar = 5

@@ -95,7 +95,7 @@ def test_simulation_sph_static():
     # finally compare original data to evolved
     assert_allclose([rho.d, u.d, v.d, h.d, eint.d, scalar.d, DX.d], [rho_old.d, u_old.d, v_old.d, h_old.d, eint_old.d, scalar_old.d, DX_old.d], rtol=1.e-8)
 
-def test_simulation_sph_xvel():
+def _test_simulation_sph_xvel():
     """
     Test to check that system with initial constant velocity in the x-direction evolves as it should.
     """
@@ -206,7 +206,7 @@ def test_simulation_sph_xvel():
         [v.v()],
         [v_old.v()], rtol=1.e-6, atol=1.e-8)
 
-def test_simulation_sph_yvel():
+def _test_simulation_sph_yvel():
     """
     Test to check that system with initial constant velocity in the y-direction evolves as it should.
     """
