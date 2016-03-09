@@ -87,6 +87,11 @@ class SimulationReact(Simulation):
             if DX is None:
                 DX = self.cc_data.get_var("mass-frac")
 
+            if isinstance(myg.metric.alpha, partial):
+                alpha = myg.metric.alpha(myg)
+            else:
+                alpha = myg.metric.alpha
+
             U = myg.scratch_array(self.vars.nvar)
             U.d[:,:,self.vars.iD] = D.d
             U.d[:,:,self.vars.iUx] = u.d
@@ -95,7 +100,7 @@ class SimulationReact(Simulation):
             U.d[:,:,self.vars.iDX] = DX.d
 
             V = myg.scratch_array(self.vars.nvar)
-            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX)
+            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX, alpha.d2df(myg.qx)**2)
 
             rho = ArrayIndexer(d=V.d[:,:,self.vars.irho], grid=myg)
 
@@ -159,7 +164,11 @@ class SimulationReact(Simulation):
             gamma = self.rp.get_param("eos.gamma")
             if Dh is None:
                 Dh = self.cc_data.get_var("enthalpy")
-                
+            if isinstance(myg.metric.alpha, partial):
+                alpha = myg.metric.alpha(myg)
+            else:
+                alpha = myg.metric.alpha
+
             U = myg.scratch_array(self.vars.nvar)
             U.d[:,:,self.vars.iD] = D.d
             U.d[:,:,self.vars.iUx] = u.d
@@ -168,7 +177,7 @@ class SimulationReact(Simulation):
             U.d[:,:,self.vars.iDX] = DX.d
 
             V = myg.scratch_array(self.vars.nvar)
-            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX)
+            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX, alpha.d2df(myg.qx)**2)
 
             rho = ArrayIndexer(d=V.d[:,:,self.vars.irho], grid=myg)
             X = ArrayIndexer(d=V.d[:,:,self.vars.iX], grid=myg)
@@ -243,8 +252,13 @@ class SimulationReact(Simulation):
             U.d[:,:,self.vars.iDh] = Dh.d
             U.d[:,:,self.vars.iDX] = DX.d
 
+            if isinstance(myg.metric.alpha, partial):
+                alpha = myg.metric.alpha(myg)
+            else:
+                alpha = myg.metric.alpha
+
             V = myg.scratch_array(self.vars.nvar)
-            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX)
+            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX, alpha.d2df(myg.qx)**2)
 
             rho = ArrayIndexer(d=V.d[:,:,self.vars.irho], grid=myg)
             X = ArrayIndexer(d=V.d[:,:,self.vars.iX], grid=myg)
@@ -334,8 +348,13 @@ class SimulationReact(Simulation):
             U.d[:,:,self.vars.iDh] = Dh.d
             U.d[:,:,self.vars.iDX] = DX.d
 
+            if isinstance(myg.metric.alpha, partial):
+                alpha = myg.metric.alpha(myg)
+            else:
+                alpha = myg.metric.alpha
+
             V = myg.scratch_array(self.vars.nvar)
-            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX)
+            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX, alpha.d2df(myg.qx)**2)
 
             rho = ArrayIndexer(d=V.d[:,:,self.vars.irho], grid=myg)
             X = ArrayIndexer(d=V.d[:,:,self.vars.iX], grid=myg)

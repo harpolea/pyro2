@@ -5,7 +5,7 @@ cimport numpy as np
 
 def cons_to_prim(np.ndarray[double, ndim=3] Q, float c, double gamma,
                  int qx, int qy, int nvar, int iD,
-                 int iUx, int iUy, int iDh, int iDX):
+                 int iUx, int iUy, int iDh, int iDX, np.ndarray[double, ndim=2] alphasq):
     """
     Cython implementation of code to change the vector of conservative variables (D, Sx, Sy, tau, DX) into the vector of primitive variables (rho, u, v, p, X). Root finder brentq is applied to the fortran function root_finding from interface_f.
 
@@ -27,7 +27,7 @@ def cons_to_prim(np.ndarray[double, ndim=3] Q, float c, double gamma,
     pmin[pmin > pmax] = 0.
 
     pmin[pmin < 0.] = 0.
-    pmin[arr_root_find_on_me(pmin, D, Dh, gamma) < 0.] = 0.
+    pmin[arr_root_find_on_me(pmin, D, Ux, Uy, Dh, alphasq, gamma) < 0.] = 0.
     pmax[pmax == 0.] = c
 
     # check they have different signs - positive if not.
@@ -43,7 +43,7 @@ def cons_to_prim(np.ndarray[double, ndim=3] Q, float c, double gamma,
 
     # NOTE: would it be quicker to do this as loops in cython??
     try:
-        V[:,:,iDh] = [[brentq(interface_f.root_finding, pmin[i,j], pmax[i,j], args=(D[i,j], Dh[i,j], gamma)) for j in range(qy)] for i in range(qx)]
+        V[:,:,iDh] = [[brentq(interface_f.root_finding, pmin[i,j], pmax[i,j], args=(D[i,j], Ux[i,j], Uy[i,j], Dh[i,j], alphasq[i,j], gamma)) for j in range(qy)] for i in range(qx)]
     except ValueError:
         print('pmin: {}'.format(pmin))
         print('pmax: {}'.format(pmax))
@@ -59,7 +59,10 @@ def cons_to_prim(np.ndarray[double, ndim=3] Q, float c, double gamma,
 
 def arr_root_find_on_me(np.ndarray[double, ndim=2] pbar,
                         np.ndarray[double, ndim=2] D,
+                        np.ndarray[double, ndim=2] Ux,
+                        np.ndarray[double, ndim=2] Uy,
                         np.ndarray[double, ndim=2] Dh,
+                        np.ndarray[double, ndim=2] alphasq,
                         double gamma):
     """
     Equation to root find on in order to find the primitive pressure.
@@ -67,7 +70,7 @@ def arr_root_find_on_me(np.ndarray[double, ndim=2] pbar,
     """
     cdef np.ndarray[double, ndim=2] eps, rho
     # eps * rho
-    rho = D * gamma * pbar / ((Dh - D) * (gamma - 1.))
-    eps = (Dh - D) / (D * gamma)
+    rho = D * np.sqrt(alphasq - Ux**2 - Uy**2)
+    h = Dh / D
 
-    return (gamma - 1.) * eps * rho - pbar
+    return (gamma - 1.) * (h - 1.) * rho / gamma  - pbar

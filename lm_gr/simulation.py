@@ -1014,6 +1014,11 @@ class Simulation(NullSimulation):
             if u is None:
                 u = self.cc_data.get_var("y-velocity")
 
+            if isinstance(myg.metric.alpha, partial):
+                alpha = myg.metric.alpha(myg)
+            else:
+                alpha = myg.metric.alpha
+
             U = myg.scratch_array(self.vars.nvar)
             U.d[:,:,self.vars.iD] = D.d
             U.d[:,:,self.vars.iUx] = u.d
@@ -1022,7 +1027,7 @@ class Simulation(NullSimulation):
             U.d[:,:,self.vars.iDX] = DX.d
 
             V = myg.scratch_array(self.vars.nvar)
-            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX)
+            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX, alpha.d2df(myg.qx)**2)
 
             v_prim = patch.ArrayIndexer(d=V.d[:,:,self.vars.iUy], grid=myg)
 
