@@ -4,7 +4,6 @@ python:
     - 2.7
 before_install:
     - sudo apt-get update
-    - sudo apt-get install gfortran
     - pip install codecov
 install:
     #- pip install -r requirements.txt
@@ -20,6 +19,7 @@ install:
     - source activate test-environment
     - pip install coverage
     - pip install cython
+    - sudo apt-get install gfortran
     - bash mk.sh
 # Run test
 script:
