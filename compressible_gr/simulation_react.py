@@ -85,7 +85,8 @@ class SimulationReact(Simulation):
         burning_dt = cfl * min(1./np.max(abs(Q.d)), 1./np.max(abs(omega_dot.d)))
 
         # FIXME: get rid of 0.01
-        self.dt = min(burning_dt, 0.01 * cfl * min(xtmp.min(), ytmp.min()))
+        #self.dt = min(burning_dt, 0.01 * cfl * min(xtmp.min(), ytmp.min()))
+        self.dt = 0.1 * min(burning_dt, cfl * min(xtmp.min(), ytmp.min()))
 
     def calc_T(self, p, D, X, rho):
         r"""
@@ -348,6 +349,16 @@ class SimulationReact(Simulation):
         sparseX = 0
         allYlabel = 1
 
+        # BRITGRAV PLOT
+        img = plt.imshow(np.transpose(X.v()),
+                    interpolation="nearest", origin="lower",
+                    extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax], vmin=0, vmax=1, cmap=plt.get_cmap('viridis'))
+        ax = plt.axes()
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+        plt.tight_layout()
+
+"""
         if L_x >= 2*L_y:
 
             # we want 4 rows:
@@ -476,3 +487,4 @@ class SimulationReact(Simulation):
         #plt.tight_layout()
 
         #plt.draw()
+"""

@@ -30,13 +30,6 @@ def cons_to_prim(np.ndarray[double, ndim=3] Q, float c, double gamma,
     pmin[arr_root_find_on_me(pmin, D, Ux, Uy, Dh, alphasq, gamma) < 0.] = 0.
     pmax[pmax == 0.] = c
 
-    # check they have different signs - positive if not.
-    #mask = arr_root_find_on_me(pmin, D, Sx, Sy, tau, c, gamma) * arr_root_find_on_me(pmax, D, Sx, Sy, tau, c, gamma) == 0.
-    #print(pmin[mask])
-
-    #pmin[mask] = 0.
-    #pmax[mask] *= 2.
-
     # find nans
     pmin[np.isnan(pmin)] = 0.
     pmax[np.isnan(pmax)] = c

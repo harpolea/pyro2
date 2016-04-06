@@ -518,7 +518,8 @@ class Simulation(NullSimulation):
         #zeta_edges.d[myg.jhi+1] = zeta.d[myg.jhi]
 
 
-    def compute_S(self, u=None, v=None, u0=None, p0=None, Q=None, D=None):
+    def compute_S(self, u=None, v=None, u0=None, p0=None, Q=None,
+                  D=None, rho=None, Dh=None, DX=None):
         r"""
         :math: `S = -\Gamma^\mu_(\mu \nu) U^\nu + \frac{D (\gamma-1)}{u^0 \gamma^2 p} H`  (see eq 6.34, 6.37 in LowMachGR).
         base["source-y"] is not updated here as it's sometimes necessary to
@@ -808,7 +809,8 @@ class Simulation(NullSimulation):
 
         return psi
 
-    def calc_T(self, p0=None, D=None, DX=None, u=None, v=None, u0=None, T=None):
+    def calc_T(self, p0=None, D=None, DX=None, u=None, v=None, u0=None,
+               T=None, rho=None, Dh=None):
         r"""
         Calculates the temperature assuming an ideal gas with a mixed composition and a constant ratio of specific heats:
         .. math::
@@ -845,7 +847,8 @@ class Simulation(NullSimulation):
         return
 
 
-    def calc_Q_omega_dot(self, D=None, DX=None, u=None, v=None, u0=None, T=None):
+    def calc_Q_omega_dot(self, D=None, Dh=None, DX=None, u=None,
+                         v=None, u0=None, T=None, rho=None):
         r"""
         Calculates the energy generation rate according to eq. 2 of Cavecchi, Levin, Watts et al 2015 and the creation rate
 
@@ -959,7 +962,9 @@ class Simulation(NullSimulation):
         return drpi
 
 
-    def react_state(self, S=None, D=None, Dh=None, DX=None, p0=None, T=None, scalar=None, D0=None, u=None, v=None, u0=None, v_prim=None):
+    def react_state(self, S=None, D=None, Dh=None, DX=None,
+                    p0=None, T=None, scalar=None, Dh0=None,
+                    u=None, v=None, u0=None, rho=None, v_prim=None):
         """
         gravitational source terms in the continuity equation (called react
         state to mirror MAESTRO as here they just have source terms from the
@@ -2386,8 +2391,8 @@ class Simulation(NullSimulation):
         #plot_me = self.aux_data.get_var("plot_me")
 
         myg = self.cc_data.grid
-        gamma_mat = myg.metric.gamma
-        grr = patch.ArrayIndexer(d=gamma_mat[:,:,1,1], grid=myg)
+        #gamma_mat = myg.metric.gamma
+        #grr = patch.ArrayIndexer(d=gamma_mat[:,:,1,1], grid=myg)
 
         psi = patch.ArrayIndexer(d=scalar.d/D.d, grid=myg)
         X = patch.ArrayIndexer(d=DX.d/D.d, grid=myg)
@@ -2400,6 +2405,17 @@ class Simulation(NullSimulation):
         du = 0.5 * (u.jp(1) - u.jp(-1)) / myg.dy
 
         vort.v()[:,:] = dv - du
+
+        # BRITGRAV PLOT
+        img = plt.imshow(np.transpose(X.v()[:,0.25*myg.qy:0.65*myg.qy]),
+                    interpolation="nearest", origin="lower",
+                    extent=[0, 2, 0, 1], vmin=0, vmax=1, cmap=plt.get_cmap('viridis'))
+        ax = plt.axes()
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+        plt.tight_layout()
+
+        """
 
         fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.3)
@@ -2428,5 +2444,6 @@ class Simulation(NullSimulation):
 
         plt.figtext(0.05,0.0125,
                     "n: %4d,   t = %10.5f" % (self.n, self.cc_data.t))
-
+        """
+        plt.tight_layout()
         plt.draw()

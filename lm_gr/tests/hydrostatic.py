@@ -66,7 +66,7 @@ def init_data(my_data, aux_data, base, rp, metric):
     p0.d[:] = np.mean(p.d, axis=0)
 
     u0 = metric.calcu0()
-    p0.d[:] = K * (D0.d / u0.d1d())**gamma
+    p0.d[:] = K * D0.d**gamma
 
     for i in range(myg.jlo, myg.jhi+1):
         p0.d[i] = p0.d[i-1] - \

@@ -121,7 +121,7 @@ def doit(solver_name, problem_name, param_file,
 
     # output the 0th data
     basename = rp.get_param("io.basename")
-    sim.cc_data.write("{}{:04d}".format(basename, sim.n))
+    sim.cc_data.write("{}{:05d}".format(basename, sim.n))
 
     # FIXME: DON'T EXIT HERE
     #sys.exit()
@@ -185,7 +185,7 @@ def doit(solver_name, problem_name, param_file,
             if verbose > 0:
                 msg.warning("outputting...")
             basename = rp.get_param("io.basename")
-            sim.cc_data.write("{}{:04d}".format(basename, sim.n))
+            sim.cc_data.write("{}{:05d}".format(basename, sim.n))
 
         # visualization
         if dovis:
@@ -197,7 +197,7 @@ def doit(solver_name, problem_name, param_file,
 
             if store == 1:
                 basename = rp.get_param("io.basename")
-                plt.savefig("{}{:04d}.png".format(basename, sim.n))
+                plt.savefig("{}{:05d}.png".format(basename, sim.n))
 
             tm_vis.end()
 

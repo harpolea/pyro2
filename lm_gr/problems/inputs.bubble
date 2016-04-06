@@ -10,6 +10,7 @@ cfl = 0.25
 grav = 80.
 c = 10.0
 radius = 1000.0
+react = 1     
 
 [io]
 basename = ../../Documents/Work/pyro/results/bubble/bubble_64_   ; basename for output files

@@ -35,7 +35,8 @@ class SimulationReact(Simulation):
 
         Simulation.__init__(self, solver_name, problem_name, rp, timers=timers, fortran=fortran, testing=testing)
 
-    def compute_S(self, u=None, v=None, u0=None, p0=None, Q=None, D=None, rho=None, Dh=None, DX=None):
+    def compute_S(self, u=None, v=None, u0=None, p0=None, Q=None, D=None,
+                  rho=None, Dh=None, DX=None):
         r"""
         :math: `S = -\Gamma^\mu_(\mu \nu) U^\nu + \frac{D (\gamma-1)}{u^0 \gamma^2 p} H`  (see eq 6.34, 6.37 in LowMachGR).
         base["source-y"] is not updated here as it's sometimes necessary to
@@ -72,16 +73,17 @@ class SimulationReact(Simulation):
             p0 = self.base["p0"]
         if Q is None:
             Q = myg.scratch_array()
-        if D is None:
-            D = self.cc_data.get_var("density")
+
         gamma = self.rp.get_param("eos.gamma")
 
-        chrls = myg.metric.chrls
+        #chrls = myg.metric.chrls
 
         S.d[:,:] = super(SimulationReact, self).compute_S(u=u, v=v, u0=u0, p0=p0).d
 
         if rho is None:
             c = self.rp.get_param("lm-gr.c")
+            if D is None:
+                D = self.cc_data.get_var("density")
             if Dh is None:
                 Dh = self.cc_data.get_var("enthalpy")
             if DX is None:
@@ -109,7 +111,8 @@ class SimulationReact(Simulation):
         return S
 
 
-    def calc_T(self, p0=None, D=None, DX=None, u=None, v=None, u0=None, T=None, rho=None, Dh=None):
+    def calc_T(self, p0=None, D=None, DX=None, u=None, v=None, u0=None,
+               T=None, rho=None, Dh=None):
         r"""
         Calculates the temperature assuming an ideal gas with a mixed composition and a constant ratio of specific heats:
         .. math::
@@ -196,7 +199,8 @@ class SimulationReact(Simulation):
         T.d[:,:] = p0.d2d() * mu * mp_kB / rho.d
 
 
-    def calc_Q_omega_dot(self, D=None, Dh=None, DX=None, u=None, v=None, u0=None, T=None, rho=None):
+    def calc_Q_omega_dot(self, D=None, Dh=None, DX=None, u=None,
+                         v=None, u0=None, T=None, rho=None):
         r"""
         Calculates the energy generation rate according to eq. 2 of Cavecchi, Levin, Watts et al 2015 and the creation rate
 
@@ -227,8 +231,6 @@ class SimulationReact(Simulation):
             D = self.cc_data.get_var("density")
         if DX is None:
             DX = self.cc_data.get_var("mass-frac")
-        if Dh is None:
-            Dh = self.cc_data.get_var("enthalpy")
         if u is None:
             u = self.cc_data.get_var("x-velocity")
         if v is None:
@@ -245,6 +247,9 @@ class SimulationReact(Simulation):
         if rho is None:
             c = self.rp.get_param("lm-gr.c")
             gamma = self.rp.get_param("eos.gamma")
+            if Dh is None:
+                Dh = self.cc_data.get_var("enthalpy")
+
             U = myg.scratch_array(self.vars.nvar)
             U.d[:,:,self.vars.iD] = D.d
             U.d[:,:,self.vars.iUx] = u.d
@@ -286,7 +291,9 @@ class SimulationReact(Simulation):
         return Q, omega_dot
 
 
-    def react_state(self, S=None, D=None, Dh=None, DX=None, p0=None, T=None, scalar=None, Dh0=None, u=None, v=None, u0=None, rho=None, v_prim=None):
+    def react_state(self, S=None, D=None, Dh=None, DX=None,
+                    p0=None, T=None, scalar=None, Dh0=None,
+                    u=None, v=None, u0=None, rho=None, v_prim=None):
         """
         gravitational source terms in the continuity equation (called react
         state to mirror MAESTRO as here they just have source terms from the
@@ -413,6 +420,49 @@ class SimulationReact(Simulation):
 
         vort.v()[:,:] = dv - du
 
+        # BRITGRAV PLOT
+        img = plt.imshow(np.transpose(X.v()),
+                    interpolation="nearest", origin="lower",
+                    extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax], vmin=0, vmax=1, cmap=plt.get_cmap('viridis'))
+        plt.setp(img.get_xticklabels(), visible=False)
+        plt.setp(img.get_yticklabels(), visible=False)
+        plt.tight_layout()
+        
+        """
+        fig, axes = plt.subplots(nrows=1, ncols=2, num=1)
+        #plt.subplots_adjust(hspace=0.3)
+
+        fields = [X, logT]
+        field_names = [r"$X$", r"$\ln T$"]
+        colourmaps = [cmaps.magma, cmaps.magma]
+
+        vmaxes = [None, 1.4]
+        vmins = [None, 1.25]
+
+        for n in range(len(fields)):
+            ax = axes.flat[n]
+
+            f = fields[n]
+            cmap = colourmaps[n]
+
+            img = ax.imshow(np.transpose(f.v()[0.25*myg.qx:0.75*myg.qx, 0.25*myg.qy:0.75*myg.qy]),
+                            interpolation="nearest", origin="lower",
+                            extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax],
+                            vmin=vmins[n], vmax=vmaxes[n], cmap=cmap)
+
+            ax.set_xlabel(r"$x$")
+            ax.set_ylabel(r"$y$")
+            ax.set_title(field_names[n])
+            plt.setp(ax.get_xticklabels(), visible=False)
+            plt.setp(ax.get_yticklabels(), visible=False)
+
+            #plt.colorbar(img, ax=ax)
+
+        plt.figtext(0.05,0.0125,
+                    "n: %4d,   t = %10.5f" % (self.n, self.cc_data.t))
+
+"""
+        """
         fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.3)
 
@@ -443,5 +493,9 @@ class SimulationReact(Simulation):
 
         plt.figtext(0.05,0.0125,
                     "n: %4d,   t = %10.5f" % (self.n, self.cc_data.t))
+        """
+
+
+        plt.rcParams.update({'font.size': 30})
 
         plt.draw()

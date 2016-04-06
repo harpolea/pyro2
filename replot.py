@@ -7,7 +7,10 @@ Make into mpeg:
     ffmpeg -framerate 10 -i bubble_256_%04d.png -c:v libx264 -r 10 bubble_256.mp4
 
 If have output e.g. every 5 steps, then use
-    ffmpeg -framerate 10 -pattern_type glob -i 'bubble_512_0*.png' -c:v libx264 -r 10 bubble_512.mp4
+    ffmpeg -framerate 10 -pattern_type glob -i 'bubble_512_?????.png' -c:v libx264 -r 10 bubble_512.mp4
+
+Note: firefox doesn't like the H264 format, so instead use webm:
+    ffmpeg -framerate 10 -pattern_type glob -i 'bubble_512_?????.png' -c:v libvpx -r 10 bubble_512.webm
 """
 
 #import numpy as np
@@ -191,10 +194,10 @@ if __name__== "__main__":
 
     for i in range(start, end+1, step):
         if solver == "compressible_gr" and problem == 'kh':
-            base = basedir + "/compressible_" + problem + "/" + problem + "_" + str(resolution) + '_' + format(i, '04')
+            base = basedir + "/compressible_" + problem + "/" + problem + "_" + str(resolution) + '_' + format(i, '05')
         else:
-            base = basedir + "/" + problem + "/" + problem + "_" + str(resolution) + '_' + format(i, '04')
-        outfile = base + ".png"
+            base = basedir + "/" + problem + "/" + problem + "_" + str(resolution) + '_' + format(i, '05')
+        outfile = base + "_britgrav.png"
 
         try:
             file = base + ".pyro"
@@ -204,8 +207,16 @@ if __name__== "__main__":
 
         try:
             myg, myd = patch.read(file)
-        except IOError:
-            # file doesn't exist: quietly exit.
-            break
+        except:
+            try: # backwards compatibility
+                if solver == "compressible_gr" and problem == 'kh':
+                    base = basedir + "/compressible_" + problem + "/" + problem + "_" + str(resolution) + '_' + format(i, '04')
+                else:
+                    base = basedir + "/" + problem + "/" + problem + "_" + str(resolution) + '_' + format(i, '04')
+                file = base + ".pyro"
+                myg, myd = patch.read(file)
+            except IOError:
+                # file doesn't exist: quietly exit.
+                break
 
         makeplot(myd, solver, problem, outfile, W, H, n=i, vmins=vmins, vmaxes=vmaxes)

@@ -64,7 +64,7 @@ def init_data(my_data, aux_data, base, rp, metric):
     p0.d[:] = np.mean(p.d, axis=0)
 
     u0 = metric.calcu0()
-    p0.d[:] = K * (D0.d / u0.d1d())**gamma
+    p0.d[:] = K * D0.d**gamma
 
     mu = 1./(2. * (1 - DX.d) + 4. * DX.d)
     mp_kB = 1.21147#e-8
