@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 """
+Generates plots used in transfer thesis.
+
 Make resulting png plot output into a gif with:
     convert -delay 20 -loop 0 ../../Work/pyro/results/bubble*.png  lm_gr/results/bubble_128.gif
 
@@ -27,7 +29,7 @@ from util import runparams, msg
 
 # plot an output file using the solver's dovis script
 
-def makeplot(myd, solver_name, problem_name, outfile, W, H, n=0, vmins=[None, None, None, None], vmaxes=[None, None, None, None]):
+def makeplot(myd_i, myd_r, solver_name, problem_name, outfile, W, H, n=0, vmins=[None, None, None, None], vmaxes=[None, None, None, None]):
 
     #exec ('import ' + solver_name + ' as solver')
     solver = importlib.import_module(solver_name)
@@ -61,16 +63,19 @@ def makeplot(myd, solver_name, problem_name, outfile, W, H, n=0, vmins=[None, No
         else:
             sim = solver.Simulation(solver_name, problem_name, rp)
     elif solver_name == "compressible_gr": # and rp.get_param("compressible-gr.react") != 0:
-        sim = solver.SimulationReact(solver_name, problem_name, rp)
+        sim_i = solver.SimulationReact(solver_name, problem_name, rp)
+        sim_r = solver.SimulationReact(solver_name, problem_name, rp)
     else:
         sim = solver.Simulation(solver_name, problem_name, rp)
 
-    sim.cc_data = myd
-    sim.n = n
+    sim_i.cc_data = myd_i
+    sim_i.n = n
+    sim_r.cc_data = myd_r
+    sim_r.n = n
 
     plt.figure(num=1, figsize=(W,H), dpi=100, facecolor='w')
 
-    sim.dovis(vmins=vmins, vmaxes=vmaxes)
+    sim_i.dovis_thesis(sim_r, vmins=vmins, vmaxes=vmaxes)
     plt.savefig(outfile)
     #plt.show()
 
@@ -113,7 +118,7 @@ if __name__== "__main__":
         sys.exit("invalid calling sequence")
 
     my_dpi = 96.
-    W = 1920/my_dpi
+    W = 1280/my_dpi
     H = 1080/my_dpi
     step = 1
 
@@ -164,7 +169,7 @@ if __name__== "__main__":
             # M10
             #vmaxes = [0.006, 20., 1., 2.]
             # M5
-            vmaxes = [0.005, None, 1., 2.]
+            vmaxes = [0.004, None, 1., 2.]
         elif problem == 'sod':
             vmins = [0., None, -0.05, 0.]
             vmaxes = [None, None, 1.05, None]
@@ -193,31 +198,35 @@ if __name__== "__main__":
 
 
     for i in range(start, end+1, step):
-        if solver == "compressible_gr" and problem == 'kh':
-            base = basedir + "/compressible_" + problem + "/" + problem + "_" + str(resolution) + '_' + format(i, '05')
+        if solver == "compressible_gr":
+            base_i = basedir + "/compressible_" + problem + "/" + problem + "_" + str(resolution) + '_iM5_' + format(i, '05')
+            base_r = basedir + "/compressible_" + problem + "/" + problem + "_" + str(resolution) + '_M5_' + format(i, '05')
+            base = basedir + "/" + problem + "/" + problem + "_" + str(resolution) + '_' + format(i, '05')
         else:
             base = basedir + "/" + problem + "/" + problem + "_" + str(resolution) + '_' + format(i, '05')
         #outfile = base + "_britgrav.png"
-        outfile = base + ".png"
+        outfile = base + "_transfer.png"
 
         try:
-            file = base + ".pyro"
+            file_i = base_i + ".pyro"
+            file_r = base_r + ".pyro"
             #file = "../../Work/pyro/results/kh_1024_" +  format(i, '04') + ".pyro"
-        except:
-            usage()
-
-        try:
-            myg, myd = patch.read(file)
+            myg_i, myd_i = patch.read(file_i)
+            myg_r, myd_r = patch.read(file_r)
         except:
             try: # backwards compatibility
-                if solver == "compressible_gr" and problem == 'kh':
-                    base = basedir + "/compressible_" + problem + "/" + problem + "_" + str(resolution) + '_' + format(i, '04')
+                if solver == "compressible_gr":
+                    base_i = basedir + "/" + problem + "/" + problem + "_" + str(resolution) + '_iM5_' + format(i, '04')
+                    base_r = basedir + "/" + problem + "/" + problem + "_" + str(resolution) + '_M5_' + format(i, '04')
+                    base = basedir + "/" + problem + "/" + problem + "_" + str(resolution) + '_' + format(i, '04')
                 else:
                     base = basedir + "/" + problem + "/" + problem + "_" + str(resolution) + '_' + format(i, '04')
-                file = base + ".pyro"
-                myg, myd = patch.read(file)
+                file_i = base_i + ".pyro"
+                file_r = base_r + ".pyro"
+                myg_i, myd_i = patch.read(file_i)
+                myg_r, myd_r = patch.read(file_r)
             except IOError:
                 # file doesn't exist: quietly exit.
                 break
 
-        makeplot(myd, solver, problem, outfile, W, H, n=i, vmins=vmins, vmaxes=vmaxes)
+        makeplot(myd_i, myd_r, solver, problem, outfile, W, H, n=i, vmins=vmins, vmaxes=vmaxes)

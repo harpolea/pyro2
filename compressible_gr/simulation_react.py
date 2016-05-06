@@ -4,6 +4,7 @@ from __future__ import print_function
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import ticker
 #import math
 
 #import compressible_gr.BC as BC
@@ -348,7 +349,7 @@ class SimulationReact(Simulation):
 
         sparseX = 0
         allYlabel = 1
-
+        """
         # BRITGRAV PLOT
         img = plt.imshow(np.transpose(X.v()),
                     interpolation="nearest", origin="lower",
@@ -358,7 +359,7 @@ class SimulationReact(Simulation):
         ax.set_yticklabels([])
         plt.tight_layout()
 
-"""
+        """
         if L_x >= 2*L_y:
 
             # we want 4 rows:
@@ -404,6 +405,8 @@ class SimulationReact(Simulation):
             colourmaps = [plt.get_cmap('viridis'), plt.get_cmap('viridis'), plt.get_cmap('viridis'),  plt.get_cmap('viridis')]
 
         elif self.problem_name == 'sr_bubble':
+            Q, omega_dot = self.calc_Q_omega_dot(D, X, rho, T)
+            #omega_dot.d[:,:] = 0.
             # Schlieren
             S.v()[:,:] = np.log(abs(discrete_Laplacian(rho)))
             # low pass and median filters to clean up plot
@@ -479,7 +482,16 @@ class SimulationReact(Simulation):
                 ax2.xaxis.set_major_locator(plt.MaxNLocator(3))
 
             ax2.set_ylim([vmins[n], vmaxes[n]])
-            plt.colorbar(img, ax=ax, orientation=orientation, shrink=0.75)
+            if vmins[n] is None:
+                vmin = np.amin(v.v())
+            else:
+                vmin = vmins[n]
+            if vmaxes[n] is None:
+                vmax = np.amax(v.v())
+            else:
+                vmax = vmaxes[n]
+            ticks = [vmin, 0.5*(vmin + vmax), vmax]
+            plt.colorbar(img, ax=ax, orientation=orientation, shrink=0.75, ticks=ticks)
 
 
         plt.figtext(0.05,0.0125, "n: %4d,   t = %10.5f" % (self.n, self.cc_data.t))
@@ -487,4 +499,189 @@ class SimulationReact(Simulation):
         #plt.tight_layout()
 
         #plt.draw()
-"""
+
+    def dovis_thesis(self, sim_r, vmins=[None, None, None, None], vmaxes=[None, None, None, None]):
+        """
+        Generates plots used in transfer thesis.
+        """
+
+        plt.clf()
+
+        plt.rc("font", size=18)
+        myg = self.cc_data.grid
+
+        D = self.cc_data.get_var("D")
+        DX = self.cc_data.get_var("DX")
+        Sx = self.cc_data.get_var("Sx")
+        Sy = self.cc_data.get_var("Sy")
+        tau = self.cc_data.get_var("tau")
+
+        D_r = sim_r.cc_data.get_var("D")
+        DX_r = sim_r.cc_data.get_var("DX")
+        Sx_r = sim_r.cc_data.get_var("Sx")
+        Sy_r = sim_r.cc_data.get_var("Sy")
+        tau_r = sim_r.cc_data.get_var("tau")
+
+        gamma = self.cc_data.get_aux("gamma")
+        c = self.cc_data.get_aux("c")
+
+        rho = myg.scratch_array()
+        p = myg.scratch_array()
+        X = myg.scratch_array()
+        u = myg.scratch_array()
+        v = myg.scratch_array()
+        h = myg.scratch_array()
+        S = myg.scratch_array()
+
+        rho_r = myg.scratch_array()
+        p_r = myg.scratch_array()
+        X_r = myg.scratch_array()
+        u_r = myg.scratch_array()
+        v_r = myg.scratch_array()
+        h_r = myg.scratch_array()
+        S_r = myg.scratch_array()
+
+        U = myg.scratch_array(self.vars.nvar)
+        U.d[:,:,self.vars.iD] = D.d
+        U.d[:,:,self.vars.iSx] = Sx.d
+        U.d[:,:,self.vars.iSy] = Sy.d
+        U.d[:,:,self.vars.itau] = tau.d
+        U.d[:,:,self.vars.iDX] = DX.d
+
+        U_r = myg.scratch_array(self.vars.nvar)
+        U_r.d[:,:,self.vars.iD] = D_r.d
+        U_r.d[:,:,self.vars.iSx] = Sx_r.d
+        U_r.d[:,:,self.vars.iSy] = Sy_r.d
+        U_r.d[:,:,self.vars.itau] = tau_r.d
+        U_r.d[:,:,self.vars.iDX] = DX_r.d
+
+        V = myg.scratch_array(self.vars.nvar)
+        V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iSx, self.vars.iSy, self.vars.itau, self.vars.iDX)
+
+        V_r = myg.scratch_array(self.vars.nvar)
+        V_r.d[:,:,:] = cy.cons_to_prim(U_r.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iSx, self.vars.iSy, self.vars.itau, self.vars.iDX)
+
+        rho.d[:,:] = V.d[:,:,self.vars.irho]
+        u.d[:,:] = V.d[:,:,self.vars.iu]
+        v.d[:,:] = V.d[:,:,self.vars.iv]
+        p.d[:,:] = V.d[:,:,self.vars.ip]
+        h.d[:,:] = V.d[:,:,self.vars.itau]
+        X.d[:,:] = V.d[:,:,self.vars.iX]
+
+        rho_r.d[:,:] = V_r.d[:,:,self.vars.irho]
+        u_r.d[:,:] = V_r.d[:,:,self.vars.iu]
+        v_r.d[:,:] = V_r.d[:,:,self.vars.iv]
+        p_r.d[:,:] = V_r.d[:,:,self.vars.ip]
+        h_r.d[:,:] = V_r.d[:,:,self.vars.itau]
+        X_r.d[:,:] = V_r.d[:,:,self.vars.iX]
+
+        def discrete_Laplacian(f):
+            return (f.ip(1) - 2.*f.v() + f.ip(-1)) / myg.dx**2 + \
+                   (f.jp(1) - 2.*f.v() + f.jp(-1)) / myg.dy**2
+
+        T = self.calc_T(p, D, X, rho)
+        T_r = self.calc_T(p_r, D_r, X_r, rho_r)
+        #T.d[:,:] = np.log(T.d)
+
+        vort = myg.scratch_array()
+
+        dv = 0.5 * (v.ip(1) - v.ip(-1)) / myg.dx
+        du = 0.5 * (u.jp(1) - u.jp(-1)) / myg.dy
+
+        vort.v()[:,:] = dv - du
+
+        # access gamma from the cc_data object so we can use dovis
+        # outside of a running simulation.
+
+        # figure out the geometry
+        L_x = myg.xmax - myg.xmin
+        L_y = myg.ymax - myg.ymin
+
+        orientation = "vertical"
+        shrink = 1.0
+
+        sparseX = 0
+        allYlabel = 1
+
+        fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
+        orientation = "horizontal"
+        if (L_x > 4.*L_y):
+            shrink = 0.75
+
+        onLeft = list(range(self.vars.nvar))
+
+        xcntr = np.round(0.5 * myg.qx).astype(int)
+        ycntr = np.round(0.5 * myg.qy).astype(int)
+
+        if self.problem_name == 'sr_bubble':
+            Q, omega_dot = self.calc_Q_omega_dot(D, X, rho, T)
+            Q, omega_dot_r = self.calc_Q_omega_dot(D_r, X_r, rho_r, T_r)
+            omega_dot.d[:,:] = 0.
+            # Schlieren
+            S.v()[:,:] = np.log(abs(discrete_Laplacian(rho)))
+            # low pass and median filters to clean up plot
+            S.d[S.d < -5] = -6.
+            S.d[:,:] = median_filter(S.d, 4)
+
+            S_r.v()[:,:] = np.log(abs(discrete_Laplacian(rho_r)))
+            # low pass and median filters to clean up plot
+            S_r.d[S_r.d < -5] = -6.
+            S_r.d[:,:] = median_filter(S_r.d, 4)
+
+            # Now going to try the whole symmetry thing
+            rho.d[:,:myg.qy*0.5] = rho_r.d[:,:myg.qy*0.5]
+            omega_dot.d[:,:myg.qy*0.5] = omega_dot_r.d[:,:myg.qy*0.5]
+            X.d[:,:myg.qy*0.5] = X_r.d[:,:myg.qy*0.5]
+            S.d[:,:myg.qy*0.5] = S_r.d[:,:myg.qy*0.5]
+
+            fields = [rho, omega_dot, X, S]
+            field_names = [r"$\rho$", r"$\dot{\omega}$", r"$X$", r"$\ln|\mathcal{S}|$"]
+            colourmaps = [plt.get_cmap('viridis'), plt.get_cmap('viridis'), plt.get_cmap('viridis'),  plt.get_cmap('Greys')]
+
+        else:
+            Q, omega_dot = self.calc_Q_omega_dot(D, X, rho, T)
+            fields = [rho, omega_dot, X, vort]
+            field_names = [r"$\rho$", r"$\dot{\omega}$", r"$X$", r"$\nabla\times u$"]
+            colourmaps = [plt.get_cmap('viridis'), plt.get_cmap('viridis'), plt.get_cmap('viridis'),  plt.get_cmap('viridis')]
+
+
+        for n in range(4):
+            ax = axes.flat[n]
+
+            v = fields[n]
+            img = ax.imshow(np.transpose(v.v()),
+                        interpolation="nearest", origin="lower",
+                        extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax], vmin=vmins[n], vmax=vmaxes[n], cmap=colourmaps[n])
+            ax.plot([0., 12.], [2.,2.], '-k')
+
+
+            ax.set_xlabel("$x$")
+            if n == 0:
+                ax.set_ylabel("$y$")
+            elif allYlabel:
+                ax.set_ylabel("$y$")
+
+            ax.set_title(field_names[n])
+
+            if not n in onLeft:
+                ax.yaxis.offsetText.set_visible(False)
+                if n > 0:
+                    ax.get_yaxis().set_visible(False)
+
+            if sparseX:
+                ax.xaxis.set_major_locator(plt.MaxNLocator(3))
+            if vmins[n] is None:
+                vmin = np.amin(v.v())
+            else:
+                vmin = vmins[n]
+            if vmaxes[n] is None:
+                vmax = np.amax(v.v())
+            else:
+                vmax = vmaxes[n]
+            ticks = [vmin, 0.5*(vmin + vmax), vmax]
+            ax.set_xlim([4., 9.])
+            plt.colorbar(img, ax=ax, orientation=orientation, shrink=0.75, ticks=ticks)
+        plt.subplots_adjust(left=0.02, right=0.98, bottom=0.02, top=0.96, hspace=0.2, wspace=0.1)
+        #plt.tight_layout()
+
+        #plt.draw()
