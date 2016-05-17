@@ -637,6 +637,12 @@ class SimulationReact(Simulation):
             fields = [rho, omega_dot, X, S]
             field_names = [r"$\rho$", r"$\dot{\omega}$", r"$X$", r"$\ln|\mathcal{S}|$"]
             colourmaps = [plt.get_cmap('viridis'), plt.get_cmap('viridis'), plt.get_cmap('viridis'),  plt.get_cmap('Greys')]
+        elif self.problem_name == 'sod':
+            # line plots
+            fields = [rho, p, u, v]
+            fields2 = [rho_r, p_r, u_r, v_r]
+            field_names = [r"$\rho$", r"$p$", r"$v$", r"$v_t$"]
+            #colours = ['blue', 'red', 'black', 'green']
 
         else:
             Q, omega_dot = self.calc_Q_omega_dot(D, X, rho, T)
@@ -649,39 +655,64 @@ class SimulationReact(Simulation):
             ax = axes.flat[n]
 
             v = fields[n]
-            img = ax.imshow(np.transpose(v.v()),
-                        interpolation="nearest", origin="lower",
-                        extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax], vmin=vmins[n], vmax=vmaxes[n], cmap=colourmaps[n])
-            ax.plot([0., 12.], [2.,2.], '-k')
+            v2 = fields2[n]
+            if self.problem_name == 'sod':
+                # line plots
+                xi = (myg.x - 0.5) / self.cc_data.t
+                ax.plot(xi, v2.d[:,ycntr], 'b', label='RHLLC')
+                ax.plot(xi, v.d[:,ycntr], '--r', label='RHLLE', linewidth=3)
+                ax.set_xlim([-1.05, 1.05])
 
+                ax.set_xlabel(r"$\xi$")
+                ax.set_ylabel(field_names[n], rotation='horizontal')
 
-            ax.set_xlabel("$x$")
-            if n == 0:
-                ax.set_ylabel("$y$")
-            elif allYlabel:
-                ax.set_ylabel("$y$")
+                if not n in onLeft:
+                    ax.yaxis.offsetText.set_visible(False)
+                    if n > 0:
+                        ax.get_yaxis().set_visible(False)
 
-            ax.set_title(field_names[n])
+                if sparseX:
+                    ax.xaxis.set_major_locator(plt.MaxNLocator(3))
 
-            if not n in onLeft:
-                ax.yaxis.offsetText.set_visible(False)
-                if n > 0:
-                    ax.get_yaxis().set_visible(False)
+                ax.set_ylim([vmins[n], vmaxes[n]])
 
-            if sparseX:
-                ax.xaxis.set_major_locator(plt.MaxNLocator(3))
-            if vmins[n] is None:
-                vmin = np.amin(v.v())
+                plt.subplots_adjust(left=0.05, right=0.95, bottom=0.05, top=0.96, hspace=0.2, wspace=0.3)
+
             else:
-                vmin = vmins[n]
-            if vmaxes[n] is None:
-                vmax = np.amax(v.v())
-            else:
-                vmax = vmaxes[n]
-            ticks = [vmin, 0.5*(vmin + vmax), vmax]
-            ax.set_xlim([4., 9.])
-            plt.colorbar(img, ax=ax, orientation=orientation, shrink=0.75, ticks=ticks)
-        plt.subplots_adjust(left=0.02, right=0.98, bottom=0.02, top=0.96, hspace=0.2, wspace=0.1)
+                img = ax.imshow(np.transpose(v.v()),
+                            interpolation="nearest", origin="lower",
+                            extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax], vmin=vmins[n], vmax=vmaxes[n], cmap=colourmaps[n])
+                ax.plot([0., 12.], [2.,2.], '-k')
+
+                ax.set_xlabel("$x$")
+                if n == 0:
+                    ax.set_ylabel("$y$")
+                elif allYlabel:
+                    ax.set_ylabel("$y$")
+
+                ax.set_title(field_names[n])
+
+                if not n in onLeft:
+                    ax.yaxis.offsetText.set_visible(False)
+                    if n > 0:
+                        ax.get_yaxis().set_visible(False)
+
+                if sparseX:
+                    ax.xaxis.set_major_locator(plt.MaxNLocator(3))
+                if vmins[n] is None:
+                    vmin = np.amin(v.v())
+                else:
+                    vmin = vmins[n]
+                if vmaxes[n] is None:
+                    vmax = np.amax(v.v())
+                else:
+                    vmax = vmaxes[n]
+                ticks = [vmin, 0.5*(vmin + vmax), vmax]
+                ax.set_xlim([4., 9.])
+                plt.colorbar(img, ax=ax, orientation=orientation, shrink=0.75, ticks=ticks)
+                plt.subplots_adjust(left=0.02, right=0.98, bottom=0.02, top=0.96, hspace=0.2, wspace=0.1)
+
+
         #plt.tight_layout()
 
         #plt.draw()

@@ -427,7 +427,7 @@ class SimulationReact(Simulation):
         plt.setp(img.get_xticklabels(), visible=False)
         plt.setp(img.get_yticklabels(), visible=False)
         plt.tight_layout()
-        
+
         """
         fig, axes = plt.subplots(nrows=1, ncols=2, num=1)
         #plt.subplots_adjust(hspace=0.3)
@@ -497,5 +497,129 @@ class SimulationReact(Simulation):
 
 
         plt.rcParams.update({'font.size': 30})
+
+        plt.draw()
+
+
+    def dovis_thesis(self, vmins=[None, None, None, None], vmaxes=[None, None, None, None]):
+        """
+        Do runtime visualization
+        """
+        plt.clf()
+
+        #plt.rc("font", size=10)
+
+        D = self.cc_data.get_var("density")
+        u = self.cc_data.get_var("x-velocity")
+        v = self.cc_data.get_var("y-velocity")
+
+        DX = self.cc_data.get_var("mass-frac")
+        scalar = self.cc_data.get_var("scalar")
+        T = self.cc_data.get_var("temperature")
+
+        #plot_me = self.aux_data.get_var("plot_me")
+
+        myg = self.cc_data.grid
+
+        psi = patch.ArrayIndexer(d=scalar.d/D.d, grid=myg)
+        X = patch.ArrayIndexer(d=DX.d/D.d, grid=myg)
+        logT = patch.ArrayIndexer(d=np.log(T.d), grid=myg)
+
+        magvel = np.sqrt(u**2 + v**2)
+
+        vort = myg.scratch_array()
+
+        dv = 0.5 * (v.ip(1) - v.ip(-1)) / myg.dx
+        du = 0.5 * (u.jp(1) - u.jp(-1)) / myg.dy
+
+        vort.v()[:,:] = dv - du
+
+
+
+        if self.problem_name == 'rt':
+            fig, axes = plt.subplots(nrows=1, ncols=2, num=1)
+            plt.subplots_adjust(hspace=0.3)
+            fields = [D, psi]
+            field_names = [r"$D$", r"$\psi$"]
+            colourmaps = [cmaps.magma_r, cmaps.magma]
+        elif self.problem_name == 'kh':
+            fig, axes = plt.subplots(nrows=1, ncols=2, num=1)
+            plt.subplots_adjust(hspace=0.3)
+            fields = [D, psi]
+            field_names = [r"$D$", r"$\psi$"]
+            colourmaps = [cmaps.magma_r, cmaps.magma]
+        else:
+            fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
+            plt.subplots_adjust(hspace=0.3)
+            fields = [D, X, psi, logT]
+            field_names = [r"$D$", r"$X$", r"$\psi$", r"$\ln T$"]
+            colourmaps = [cmaps.magma_r, cmaps.magma, cmaps.viridis_r,
+                          cmaps.magma]
+
+        #vmaxes = [0.05, 1.0, 0.64, None]
+        #vmins = [0.0, 0.95, 0.0, 3.0]
+        if self.problem_name == 'bubble':
+            # now going to change the range over which we plot
+            xmin = myg.x[myg.ng + myg.nx/8]
+            xmax = myg.x[myg.ng + 7*myg.nx/8]
+            ymin = myg.y[myg.ng + myg.ny/8]
+            ymax = myg.y[myg.ng + 7*myg.ny/8]
+        elif self.problem_name == 'kh':
+            xmin = myg.xmin
+            xmax = myg.xmax
+            ymin = myg.y[myg.ng + myg.ny/4]
+            ymax = myg.y[myg.ng + 3*myg.ny/4]
+        else:
+            xmin = myg.xmin
+            xmax = myg.xmax
+            ymin = myg.ymin
+            ymax = myg.ymax
+
+        for n in range(len(fields)):
+            ax = axes.flat[n]
+
+            f = fields[n]
+            cmap = colourmaps[n]
+
+            if self.problem_name == 'bubble':
+                data = f.v()[myg.nx/8:7*myg.nx/8, myg.ny/8:7*myg.ny/8]
+            elif self.problem_name == 'kh':
+                data = f.v()[:, myg.ny/4:3*myg.ny/4]
+            else:
+                data = f.v()
+
+            img = ax.imshow(np.transpose(data),
+                            interpolation="nearest", origin="lower",
+                            extent=[xmin, xmax, ymin, ymax],
+                            vmin=vmins[n], vmax=vmaxes[n], cmap=cmap)
+            #plt.setp(img.get_ticklabels(), visible=False)
+            #plt.setp(img.get_yticklabels(), visible=False)
+            ax.xaxis.set_major_formatter(plt.NullFormatter())
+            ax.yaxis.set_major_formatter(plt.NullFormatter())
+
+            ax.set_xlabel(r"$x$")
+            ax.set_ylabel(r"$y$")
+            ax.set_title(field_names[n])
+
+            #plt.colorbar(img, ax=ax)
+            if vmins[n] is None:
+                vmin = np.amin(data)
+            else:
+                vmin = vmins[n]
+            if vmaxes[n] is None:
+                vmax = np.amax(data)
+            else:
+                vmax = vmaxes[n]
+            ticks = [vmin, 0.25*(vmin + vmax), 0.5*(vmin + vmax), 0.75*(vmin + vmax), vmax]
+            plt.colorbar(img, ax=ax, shrink=0.85, ticks=ticks)
+
+        #plt.figtext(0.05,0.0125,
+        #            "n: %4d,   t = %10.5f" % (self.n, self.cc_data.t))
+
+        plt.rcParams.update({'font.size': 18})
+        if self.problem_name == 'kh':
+            plt.subplots_adjust(left=0.04, right=0.96, bottom=0.15, top=0.9, hspace=0.25, wspace=0.15)
+        else:
+            plt.subplots_adjust(left=0.08, right=0.92, bottom=0.05, top=0.96, hspace=0.25, wspace=0.25)
 
         plt.draw()
