@@ -68,7 +68,10 @@ def makeplot(myd, solver_name, problem_name, outfile, W, H, n=0, vmins=[None, No
     sim.cc_data = myd
     sim.n = n
 
-    plt.figure(num=1, figsize=(W,H), dpi=100, facecolor='w')
+    if problem_name == 'swirly':
+        plt.figure(num=1, figsize=(0.4*W,1.1*H), dpi=100, facecolor='w')
+    else:
+        plt.figure(num=1, figsize=(W,H), dpi=100, facecolor='w')
 
     sim.dovis(vmins=vmins, vmaxes=vmaxes)
     plt.savefig(outfile)
@@ -168,6 +171,9 @@ if __name__== "__main__":
         elif problem == 'sod':
             vmins = [0., None, -0.05, 0.]
             vmaxes = [None, None, 1.05, None]
+        elif problem == 'swirly':
+            vmins = [0.0001, 0., 0., -6.]
+            vmaxes = [0.0055, 0.01, 1., 2.]
         else:
             vmins = [None, None, None, None]
             vmaxes = [None, None, None, None]

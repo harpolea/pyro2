@@ -73,7 +73,7 @@ def makeplot(myd_i, myd_r, solver_name, problem_name, outfile, W, H, n=0, vmins=
             plt.figure(num=1, figsize=(W,H), dpi=100, facecolor='w')
         sim.dovis_thesis(vmins=vmins, vmaxes=vmaxes)
 
-    elif solver_name == "compressible_gr": # and rp.get_param("compressible-gr.react") != 0:
+    elif solver_name == "compressible_gr" and (problem_name == 'sr_bubble' or problem_name == 'swirly'): # and rp.get_param("compressible-gr.react") != 0:
         sim_i = solver.SimulationReact(solver_name, problem_name, rp)
         sim_r = solver.SimulationReact(solver_name, problem_name, rp)
 
@@ -194,6 +194,10 @@ if __name__== "__main__":
             #vmins = [0., None, -0.05, 0.]
             vmins = [None, None, None, None]
             vmaxes = [None, None, 1.05, None]
+        elif problem == 'swirly':
+            #vmins = [0., None, -0.05, 0.]
+            vmins = [0.0001, 0., 0., -6.]
+            vmaxes = [0.0055, 0.01, 1., 2.]
         else:
             vmins = [None, None, None, None]
             vmaxes = [None, None, None, None]
@@ -230,6 +234,10 @@ if __name__== "__main__":
                 base_i = basedir + "/" + problem + "/" + problem + "_" + str(resolution) + '_rp2_hlle_' + format(i, '05')
                 base_r = basedir + "/" + problem + "/" + problem + "_" + str(resolution) + '_rp2_' + format(i, '05')
                 base = basedir + "/" + problem + "/" + problem + "_" + str(resolution) + '_hlle_' + format(i, '05')
+            elif problem == 'sr_bubble' or problem == 'swirly':
+                base_i = basedir + "/" + problem + "/" + problem + "_" + str(resolution) + '_iM5_' + format(i, '05')
+                base_r = basedir + "/" + problem + "/" + problem + "_" + str(resolution) + '_M5_' + format(i, '05')
+                base = basedir + "/" + problem + "/" + problem + "_" + str(resolution) + '_' + format(i, '05')
             else:
                 base_i = basedir + "/compressible_" + problem + "/" + problem + "_" + str(resolution) + '_iM5_' + format(i, '05')
                 base_r = basedir + "/compressible_" + problem + "/" + problem + "_" + str(resolution) + '_M5_' + format(i, '05')

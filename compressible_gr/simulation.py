@@ -398,7 +398,11 @@ class Simulation(NullSimulation):
 
 
         plt.figtext(0.05,0.0125, "n: %4d,   t = %10.5f" % (self.n, self.cc_data.t))
-        plt.subplots_adjust(left=0.05, right=0.95, bottom=0.05, top=0.95, hspace=0.4, wspace=0.1)
+        if self.problem_name == 'swirly':
+            plt.rc("font", size=22)
+            plt.subplots_adjust(left=0.02, right=0.98, bottom=0.02, top=0.96, hspace=0.1, wspace=0.1)
+        else:
+            plt.subplots_adjust(left=0.02, right=0.98, bottom=0.02, top=0.96, hspace=0.2, wspace=0.1)
         #plt.tight_layout()
 
         plt.draw()

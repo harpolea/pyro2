@@ -87,7 +87,8 @@ class SimulationReact(Simulation):
 
         # FIXME: get rid of 0.01
         #self.dt = min(burning_dt, 0.01 * cfl * min(xtmp.min(), ytmp.min()))
-        self.dt = 0.1 * min(burning_dt, cfl * min(xtmp.min(), ytmp.min()))
+        #self.dt = 0.1 * min(burning_dt, cfl * min(xtmp.min(), ytmp.min()))
+        self.dt = min(burning_dt, cfl * min(xtmp.min(), ytmp.min()))
 
     def calc_T(self, p, D, X, rho):
         r"""
@@ -367,7 +368,10 @@ class SimulationReact(Simulation):
             #  |U|
             #   p
             #   e
-            fig, axes = plt.subplots(nrows=4, ncols=2, num=1)
+            if self.problem_name == 'swirly':
+                fig, axes = plt.subplots(nrows=4, ncols=1, num=1)
+            else:
+                fig, axes = plt.subplots(nrows=4, ncols=2, num=1)
             orientation = "horizontal"
             if (L_x > 4.*L_y):
                 shrink = 0.75
@@ -424,6 +428,15 @@ class SimulationReact(Simulation):
             fields = [rho, u, X, p]
             field_names = [r"$\rho$", r"$u$", r"$X$", r"$p$"]
             colourmaps = [plt.get_cmap('viridis'), plt.get_cmap('viridis'), plt.get_cmap('viridis'),  plt.get_cmap('viridis')]
+        elif self.problem_name == 'swirly':
+            S.v()[:,:] = np.log(abs(discrete_Laplacian(rho)))
+            # low pass and median filters to clean up plot
+            S.d[S.d < -5] = -6.
+            S.d[:,:] = median_filter(S.d, 4)
+            Q, omega_dot = self.calc_Q_omega_dot(D, X, rho, T)
+            fields = [rho, omega_dot, X, vort]
+            field_names = [r"$\rho$", r"$\dot{\omega}$", r"$X$", r"$\nabla\times u$"]
+            colourmaps = [plt.get_cmap('viridis'), plt.get_cmap('viridis'), plt.get_cmap('viridis'),  plt.get_cmap('viridis')]
 
         else:
             Q, omega_dot = self.calc_Q_omega_dot(D, X, rho, T)
@@ -435,8 +448,12 @@ class SimulationReact(Simulation):
         colours = ['blue', 'red', 'black', 'green']
 
         for n in range(4):
-            ax = axes.flat[2*n]
-            ax2 = axes.flat[2*n+1]
+            if self.problem_name == 'swirly':
+                ax = axes.flat[n]
+                ax2 = axes.flat[n]
+            else:
+                ax = axes.flat[2*n]
+                ax2 = axes.flat[2*n+1]
 
             v = fields[n]
             img = ax.imshow(np.transpose(v.v()),
@@ -455,33 +472,39 @@ class SimulationReact(Simulation):
                 x2 = myg.x
                 y2 = v.d[:,ycntr]
 
-            plt2 = ax2.plot(x2, y2, c=colours[n])
-            ax2.set_xlim([min(x2), max(x2)])
+            if self.problem_name == 'swirly':
+                if n == 0:
+                    ax.set_ylabel("$y$")
+                elif allYlabel:
+                    ax.set_ylabel("$y$")
+            else:
+                plt2 = ax2.plot(x2, y2, c=colours[n])
+                ax2.set_xlim([min(x2), max(x2)])
 
             #ax.set_xlabel("x")
-            if n==3:
-                ax2.set_xlabel("$x$")
-            if n == 0:
-                ax.set_ylabel("$y$")
-                ax2.set_ylabel(field_names[n], rotation='horizontal')
-            elif allYlabel:
-                ax.set_ylabel("$y$")
-                ax2.set_ylabel(field_names[n], rotation='horizontal')
+                if n==3:
+                    ax2.set_xlabel("$x$")
+                elif n == 0:
+                    ax.set_ylabel("$y$")
+                    ax2.set_ylabel(field_names[n], rotation='horizontal')
+                elif allYlabel:
+                    ax.set_ylabel("$y$")
+                    ax2.set_ylabel(field_names[n], rotation='horizontal')
 
             ax.set_title(field_names[n])
 
             if not n in onLeft:
                 ax.yaxis.offsetText.set_visible(False)
-                ax2.yaxis.offsetText.set_visible(False)
+                if not self.problem_name == 'swirly': ax2.yaxis.offsetText.set_visible(False)
                 if n > 0:
                     ax.get_yaxis().set_visible(False)
-                    ax2.get_yaxis().set_visible(False)
+                    if not self.problem_name == 'swirly': ax2.get_yaxis().set_visible(False)
 
             if sparseX:
                 ax.xaxis.set_major_locator(plt.MaxNLocator(3))
-                ax2.xaxis.set_major_locator(plt.MaxNLocator(3))
+                if not self.problem_name == 'swirly': ax2.xaxis.set_major_locator(plt.MaxNLocator(3))
 
-            ax2.set_ylim([vmins[n], vmaxes[n]])
+            if not self.problem_name == 'swirly': ax2.set_ylim([vmins[n], vmaxes[n]])
             if vmins[n] is None:
                 vmin = np.amin(v.v())
             else:
@@ -494,8 +517,13 @@ class SimulationReact(Simulation):
             plt.colorbar(img, ax=ax, orientation=orientation, shrink=0.75, ticks=ticks)
 
 
-        plt.figtext(0.05,0.0125, "n: %4d,   t = %10.5f" % (self.n, self.cc_data.t))
-        plt.subplots_adjust(left=0.05, right=0.95, bottom=0.05, top=0.95, hspace=0.4, wspace=0.1)
+
+        if self.problem_name == 'swirly':
+            #plt.rc("font", size=22)
+            plt.subplots_adjust(left=0.02, right=0.98, bottom=0.02, top=0.96, hspace=0.3, wspace=0.15)
+        else:
+            plt.subplots_adjust(left=0.02, right=0.98, bottom=0.02, top=0.96, hspace=0.2, wspace=0.1)
+            plt.figtext(0.05,0.0125, "n: %4d,   t = %10.5f" % (self.n, self.cc_data.t))
         #plt.tight_layout()
 
         #plt.draw()
@@ -629,14 +657,20 @@ class SimulationReact(Simulation):
             S_r.d[:,:] = median_filter(S_r.d, 4)
 
             # Now going to try the whole symmetry thing
-            rho.d[:,:myg.qy*0.5] = rho_r.d[:,:myg.qy*0.5]
-            omega_dot.d[:,:myg.qy*0.5] = omega_dot_r.d[:,:myg.qy*0.5]
-            X.d[:,:myg.qy*0.5] = X_r.d[:,:myg.qy*0.5]
-            S.d[:,:myg.qy*0.5] = S_r.d[:,:myg.qy*0.5]
+            rho.d[:,:myg.qy*0.5] = rho_r.d[:,:myg.qy*0.5-1:-1]
+            omega_dot.d[:,:myg.qy*0.5] = omega_dot_r.d[:,:myg.qy*0.5-1:-1]
+            X.d[:,:myg.qy*0.5] = X_r.d[:,:myg.qy*0.5-1:-1]
+            S.d[:,:myg.qy*0.5] = S_r.d[:,:myg.qy*0.5-1:-1]
 
             fields = [rho, omega_dot, X, S]
             field_names = [r"$\rho$", r"$\dot{\omega}$", r"$X$", r"$\ln|\mathcal{S}|$"]
             colourmaps = [plt.get_cmap('viridis'), plt.get_cmap('viridis'), plt.get_cmap('viridis'),  plt.get_cmap('Greys')]
+        elif self.problem_name == 'swirly':
+            Q, omega_dot = self.calc_Q_omega_dot(D, X, rho, T)
+
+            fields = [rho, omega_dot, X, vort]
+            field_names = [r"$\rho$", r"$\dot{\omega}$", r"$X$", r"$\nabla\times u$"]
+            colourmaps = [plt.get_cmap('viridis'), plt.get_cmap('viridis'), plt.get_cmap('viridis'),  plt.get_cmap('viridis')]
         elif self.problem_name == 'sod':
             # line plots
             fields = [rho, p, u, v]
@@ -655,8 +689,9 @@ class SimulationReact(Simulation):
             ax = axes.flat[n]
 
             v = fields[n]
-            v2 = fields2[n]
+
             if self.problem_name == 'sod':
+                v2 = fields2[n]
                 # line plots
                 xi = (myg.x - 0.5) / self.cc_data.t
                 ax.plot(xi, v2.d[:,ycntr], 'b', label='RHLLC')
@@ -682,7 +717,8 @@ class SimulationReact(Simulation):
                 img = ax.imshow(np.transpose(v.v()),
                             interpolation="nearest", origin="lower",
                             extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax], vmin=vmins[n], vmax=vmaxes[n], cmap=colourmaps[n])
-                ax.plot([0., 12.], [2.,2.], '-k')
+                if self.problem_name == 'sr_bubble':
+                    ax.plot([0., 12.], [2.,2.], '-k')
 
                 ax.set_xlabel("$x$")
                 if n == 0:
@@ -710,6 +746,7 @@ class SimulationReact(Simulation):
                 ticks = [vmin, 0.5*(vmin + vmax), vmax]
                 ax.set_xlim([4., 9.])
                 plt.colorbar(img, ax=ax, orientation=orientation, shrink=0.75, ticks=ticks)
+
                 plt.subplots_adjust(left=0.02, right=0.98, bottom=0.02, top=0.96, hspace=0.2, wspace=0.1)
 
 
