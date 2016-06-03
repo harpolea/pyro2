@@ -61,7 +61,7 @@ def init_data(my_data, rp):
     X[:,:] = 1.0
 
     # set velocity on left side to non-zero
-    idxl = myg.x2d <= 0.25*(xmin + xmax)
+    idxl = myg.x2d <= 0.3333333333333333*(xmin + xmax)
     u[idxl] = u_vel
     rho[idxl] = dens_left
     eint = eint_left

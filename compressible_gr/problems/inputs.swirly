@@ -1,25 +1,25 @@
 # simple inputs files for the four-corner problem.
 
 [driver]
-max_steps = 1000
+max_steps = 4000
 tmax = 10000000000.0
 
 
 [io]
-basename = ../../Documents/Work/pyro/results/swirly/swirly_128_iM5_
+basename = ../../Documents/Work/pyro/results/swirly/swirly_1024_M5_
 n_out = 50                   ; number of timesteps between writing to output files
 do_io = 1                   ; do we output at all? 1 = yes
 
 
 [mesh]
-nx = 384
-ny = 128
+#nx = 384
+#ny = 128
 #nx = 768
 #ny = 256
 #nx = 1536
 #ny = 512
-#nx = 3072
-#ny = 1024
+nx = 3072
+ny = 1024
 #nx = 6148     ; warning: it crashed when I tried to run this one
 #ny = 2048
 xmax = 12.0
@@ -54,5 +54,5 @@ wave_speed = 0.540738070436     ; speed the wave will travel at
 #wave_speed = 0.789337037964     ; speed the wave will travel at
 
 [compressible-gr]
-react = 0                  ; reactions = 1, no reactions != 1
+react = 1                  ; reactions = 1, no reactions != 1
 riemann = RHLLC            ; RHLLC or RHLLE

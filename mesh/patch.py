@@ -1286,7 +1286,7 @@ def read(filename):
         filename += ".pyro"
 
     pF = open(filename, "rb")
-    print(pF)
+    #print(pF)
     data = pickle.load(pF)
     pF.close()
 

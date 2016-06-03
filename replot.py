@@ -27,7 +27,7 @@ from util import runparams, msg
 
 # plot an output file using the solver's dovis script
 
-def makeplot(myd, solver_name, problem_name, outfile, W, H, n=0, vmins=[None, None, None, None], vmaxes=[None, None, None, None]):
+def makeplot(myd, solver_name, problem_name, outfile, W, H, n=0, vmins=[None, None, None, None], vmaxes=[None, None, None, None], video=False):
 
     #exec ('import ' + solver_name + ' as solver')
     solver = importlib.import_module(solver_name)
@@ -68,12 +68,13 @@ def makeplot(myd, solver_name, problem_name, outfile, W, H, n=0, vmins=[None, No
     sim.cc_data = myd
     sim.n = n
 
-    if problem_name == 'swirly':
-        plt.figure(num=1, figsize=(0.4*W,1.1*H), dpi=100, facecolor='w')
-    else:
+    if not video:
         plt.figure(num=1, figsize=(W,H), dpi=100, facecolor='w')
+        sim.dovis(vmins=vmins, vmaxes=vmaxes)
+    elif solver_name == "compressible_gr":
+        plt.figure(num=1, figsize=(0.75*W,1.5*H), dpi=100, facecolor='w')
+        sim.dovis_video(vmins=vmins, vmaxes=vmaxes)
 
-    sim.dovis(vmins=vmins, vmaxes=vmaxes)
     plt.savefig(outfile)
     #plt.show()
 
@@ -111,7 +112,7 @@ if __name__== "__main__":
     #sys.setdefaultencoding('utf-8')
 
     try:
-        opts, next = getopt.getopt(sys.argv[1:], "h:W:H:s:")
+        opts, next = getopt.getopt(sys.argv[1:], "h:W:H:s:v:")
     except getopt.GetoptError:
         sys.exit("invalid calling sequence")
 
@@ -119,6 +120,7 @@ if __name__== "__main__":
     W = 1920/my_dpi
     H = 1080/my_dpi
     step = 1
+    video = False
 
     for o, a in opts:
         if o == "-h":
@@ -129,6 +131,8 @@ if __name__== "__main__":
             H = float(a)
         if o == "-s":
             step = int(a)
+        if o == "-v":
+            video = True
 
     try:
         solver = next[0]
@@ -174,6 +178,8 @@ if __name__== "__main__":
         elif problem == 'swirly':
             vmins = [0.0001, 0., 0., -6.]
             vmaxes = [0.0055, 0.01, 1., 2.]
+            if video:
+                vmaxes = [0.0055, 1.0]
         else:
             vmins = [None, None, None, None]
             vmaxes = [None, None, None, None]
@@ -204,7 +210,10 @@ if __name__== "__main__":
         else:
             base = basedir + "/" + problem + "/" + problem + "_" + str(resolution) + '_' + format(i, '05')
         #outfile = base + "_britgrav.png"
-        outfile = base + ".png"
+        if video:
+            outfile = basedir + "/" + problem + "/" + problem + "_vid_" + str(resolution) + '_' + format(i, '05') + ".png"
+        else:
+            outfile = base + ".png"
 
         try:
             file = base + ".pyro"
@@ -226,4 +235,4 @@ if __name__== "__main__":
                 # file doesn't exist: quietly exit.
                 break
 
-        makeplot(myd, solver, problem, outfile, W, H, n=i, vmins=vmins, vmaxes=vmaxes)
+        makeplot(myd, solver, problem, outfile, W, H, n=i, vmins=vmins, vmaxes=vmaxes, video=video)
