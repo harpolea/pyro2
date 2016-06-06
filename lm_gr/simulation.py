@@ -352,7 +352,7 @@ class Simulation(NullSimulation):
 
         def alpha(g, R, c, grid):
             a = Basestate(grid.ny, ng=grid.ng)
-            a.d[:] = np.sqrt(1. - 2. * g * (1. - grid.y[:]/R) / (c**2))
+            a.d[:] = c * np.sqrt(1. - 2. * g * (1. - grid.y[:]/R) / (c**2))
             return a
         #alpha = Basestate(myg.ny, ng=myg.ng)
         #alpha.d[:] = np.sqrt(1. - 2. * g * (1. - myg.y[:]/R) / (R * c**2))
@@ -369,7 +369,7 @@ class Simulation(NullSimulation):
             #gamma_matrix[:,:,:,:] = 1. + 2. * g * \
             #    (1. - grid.y[np.newaxis, :, np.newaxis, np.newaxis] / R) / \
             #    (c**2) * np.eye(2)[np.newaxis, np.newaxis, :, :]
-            gamma_matrix[:,:,:,:] = 1./alpha(g, R, c, grid).d[np.newaxis, :, np.newaxis, np.newaxis]**2 * np.eye(2)[np.newaxis, np.newaxis, :, :]
+            gamma_matrix[:,:,:,:] = c**2/alpha(g, R, c, grid).d[np.newaxis, :, np.newaxis, np.newaxis]**2 * np.eye(2)[np.newaxis, np.newaxis, :, :]
             # assume spherical if not cartesian
             if not cartesian:
                 gamma_matrix[:,:,0,0] = grid.r2d**2

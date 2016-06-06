@@ -255,13 +255,13 @@ class Metric(object):
         if self.cartesian:
             # For simple time-lagged metric, only have 7 non-zero (4 unique) christoffels.
             # t_tr
-            christls[0, 0, 2] = g / (alpha.d[x[2]]**2 * c**2 * R)
+            christls[0, 0, 2] = g / (alpha.d[x[2]]**2 * R)
             # t_rt
             christls[0, 2, 0] = christls[0, 0, 2]
             # r_tt
             christls[2, 0, 0] = g * alpha.d[x[2]]**2 / (c**2 * R)
             # r_xx
-            christls[2, 1, 1] = g / (c**2 * R * alpha.d[x[2]]**2)
+            christls[2, 1, 1] = g / (R * alpha.d[x[2]]**2)
             # r_rr
             christls[2, 2, 2] = -christls[2, 1, 1]
             # x_xr
@@ -271,15 +271,15 @@ class Metric(object):
         else: # spherical polar
             alphasq = alpha.d[x[2]]**2
             # t_tr
-            christls[0, 0, 2] = g / (alphasq * c**2 * R)
+            christls[0, 0, 2] = g / (alphasq * R)
             # t_rt
             christls[0, 2, 0] = christls[0, 0, 2]
             # r_tt
             christls[2, 0, 0] = g * alphasq / (c**2 * R)
             # r_theta theta
-            christls[2, 1, 1] = -R * alphasq
+            christls[2, 1, 1] = -R * alphasq / c**2
             # r_rr
-            christls[2, 2, 2] = -2. * g * alphasq / (R * c**2)
+            christls[2, 2, 2] = -g / (R * alphasq)
             # theta_theta r
             christls[1, 1, 2] = 1. / R
             # theta_r theta
