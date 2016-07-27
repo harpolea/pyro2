@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import compare
 import mesh.patch as patch
 from util import msg, profile, runparams
+import sys
 
 def doit(solver_name, problem_name, param_file,
          other_commands=None,
@@ -213,7 +214,7 @@ def doit(solver_name, problem_name, param_file,
         try:
             bench_grid, bench_data = patch.read(compare_file)
         except:
-        msg.warning("ERROR opening compare file")
+            msg.warning("ERROR opening compare file")
             return "ERROR opening compare file"
 
 

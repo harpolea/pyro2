@@ -236,7 +236,7 @@ class Simulation(NullSimulation):
             python one.
         """
 
-        NullSimulation.__init__(self, solver_name, problem_name, rp, timers=timers, testing=testing)
+        NullSimulation.__init__(self, solver_name, problem_name, rp, timers=timers)#, testing=testing)
 
         self.base = {}
         self.aux_data = None
@@ -387,10 +387,10 @@ class Simulation(NullSimulation):
         # now set the initial conditions for the problem
         #exec(self.problem_name + '.init_data(self.cc_data, self.aux_data, self.base, self.rp, myg.metric)')
 
-        if self.testing:
-            getattr(importlib.import_module(self.solver_name + '.tests.' + self.problem_name), 'init_data' )(self.cc_data, self.aux_data, self.base, self.rp, myg.metric)
-        else:
-            getattr(importlib.import_module(self.solver_name + '.problems.' + self.problem_name), 'init_data' )(self.cc_data, self.aux_data, self.base, self.rp, myg.metric)
+        #if self.testing:
+        #    getattr(importlib.import_module(self.solver_name + '.tests.' + self.problem_name), 'init_data' )(self.cc_data, self.aux_data, self.base, self.rp, myg.metric)
+        #else:
+        getattr(importlib.import_module(self.solver_name + '.problems.' + self.problem_name), 'init_data' )(self.cc_data, self.aux_data, self.base, self.rp, myg.metric)
 
         # Construct zeta
         gamma = self.rp.get_param("eos.gamma")
@@ -964,7 +964,7 @@ class Simulation(NullSimulation):
 
     def react_state(self, S=None, D=None, Dh=None, DX=None,
                     p0=None, T=None, scalar=None, Dh0=None,
-                    u=None, v=None, u0=None, rho=None, v_prim=None):
+                    u=None, v=None, u0=None, rho=None, v_prim=None, D0=None):
         """
         gravitational source terms in the continuity equation (called react
         state to mirror MAESTRO as here they just have source terms from the
@@ -1009,6 +1009,8 @@ class Simulation(NullSimulation):
             v = self.cc_data.get_var("y-velocity")
         if u0 is None:
             u0 = myg.metric.calcu0(u=u, v=v)
+        if D0 is None:
+            D0 = self.base["D0"]
         drp0 = self.drp0(D0=D0, u=u, v=v, u0=u0)
         if S is None:
             S = self.aux_data.get_var("source_y")
