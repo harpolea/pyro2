@@ -22,7 +22,7 @@ https://github.com/zingale/pyro2
 The project webpage, where you'll find documentation, plots, notes,
 etc. is here:
 
-http://bender.astro.sunysb.edu/hydro_by_example/
+http://zingale.github.io/pyro2/
 
 
 ## Getting started
@@ -38,7 +38,7 @@ http://bender.astro.sunysb.edu/hydro_by_example/
   - You also need to make sure gfortran is present on you system. On
      a Fedora system, it can be installed as:
 
-       `dnf install gcc-gfortran`
+        `dnf install gcc-gfortran`
 
   - Not all matplotlib backends allow for the interactive plotting as
      pyro is run. One that does is the TkAgg backend. This can be made
@@ -110,7 +110,6 @@ pyro provides the following solvers (all in 2-d):
     constant-coefficient Helmholtz equation, as well as a
     variable-coefficient Poisson equation (which inherits from the
     constant-coefficient solver).
-
 
 ## Working with data
 

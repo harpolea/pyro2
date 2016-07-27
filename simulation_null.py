@@ -1,9 +1,7 @@
 import mesh.patch as patch
-#import mesh.patch_sph as patch_sph
 from util import profile
-import importlib
 
-def grid_setup(rp, ng=1, R=0.0):
+def grid_setup(rp, ng=1):
     nx = rp.get_param("mesh.nx")
     ny = rp.get_param("mesh.ny")
 
@@ -14,7 +12,7 @@ def grid_setup(rp, ng=1, R=0.0):
 
     my_grid = patch.Grid2d(nx, ny,
                            xmin=xmin, xmax=xmax,
-                           ymin=ymin, ymax=ymax, ng=ng, R=R)
+                           ymin=ymin, ymax=ymax, ng=ng)
     return my_grid
 
 
@@ -25,10 +23,7 @@ def bc_setup(rp):
     xrb_type = rp.get_param("mesh.xrboundary")
     ylb_type = rp.get_param("mesh.ylboundary")
     yrb_type = rp.get_param("mesh.yrboundary")
-
-    # CHANGED: density lower bc
     bc = patch.BCObject(xlb=xlb_type, xrb=xrb_type,
-                        #ylb="outflow", yrb=yrb_type)
                         ylb=ylb_type, yrb=yrb_type)
 
     # if we are reflecting, we need odd reflection in the normal
@@ -43,10 +38,9 @@ def bc_setup(rp):
 
     return bc, bc_xodd, bc_yodd
 
-
 class NullSimulation(object):
 
-    def __init__(self, solver_name, problem_name, rp, timers=None, fortran=True, testing=False):
+    def __init__(self, solver_name, problem_name, rp, timers=None):
         """
         Initialize the Simulation object
 
@@ -64,13 +58,11 @@ class NullSimulation(object):
         self.n = 0
         self.dt = -1.e33
 
-        try:
-            self.tmax = rp.get_param("driver.tmax")
+        try: self.tmax = rp.get_param("driver.tmax")
         except:
             self.tmax = None
 
-        try:
-            self.max_steps = rp.get_param("driver.max_steps")
+        try: self.max_steps = rp.get_param("driver.max_steps")
         except:
             self.max_steps = None
 
@@ -87,15 +79,11 @@ class NullSimulation(object):
         else:
             self.tc = timers
 
-        try:
-            self.verbose = self.rp.get_param("driver.verbose")
+        try: self.verbose = self.rp.get_param("driver.verbose")
         except:
             self.verbose = None
 
         self.n_num_out = 0
-
-        self.testing = testing
-
 
     def finished(self):
         """
@@ -111,15 +99,12 @@ class NullSimulation(object):
         dt_out = self.rp.get_param("io.dt_out")
         n_out = self.rp.get_param("io.n_out")
         do_io = self.rp.get_param("io.do_io")
-
-        #is_time = self.cc_data.t >= (self.n_num_out + 1)*dt_out or self.n%n_out == 0
-        is_time = (self.n%n_out == 0)
+        is_time = self.cc_data.t >= (self.n_num_out + 1)*dt_out or self.n%n_out == 0
         if is_time and do_io == 1:
             self.n_num_out += 1
             return True
         else:
             return False
-
 
     def initialize(self):
         pass
@@ -128,7 +113,6 @@ class NullSimulation(object):
     def compute_timestep(self):
         pass
 
-
     def preevolve(self):
         """
         Do any necessary evolution before the main evolve loop.  This
@@ -136,17 +120,14 @@ class NullSimulation(object):
         """
         pass
 
-
     def evolve(self):
 
         # increment the time
         self.cc_data.t += sim.dt
         self.n += 1
 
-
     def dovis(self):
         pass
-
 
     def finalize(self):
         """
@@ -154,9 +135,5 @@ class NullSimulation(object):
         finalize() method.
         """
         # there should be a cleaner way of doing this
-        if self.testing:
-            getattr(importlib.import_module(self.solver_name + '.tests.' + self.problem_name), 'finalize' )
-        else:
-            getattr(importlib.import_module(self.solver_name + '.problems.' + self.problem_name), 'finalize' )
-        #exec("import {}".format(self.solver_name))
-        #exec("{}.{}.finalize()".format(self.solver_name, self.problem_name))
+        exec("import {}".format(self.solver_name))
+        exec("{}.{}.finalize()".format(self.solver_name, self.problem_name))

@@ -12,8 +12,7 @@ import mesh.patch as patch
 
 def makeplot(myd, solver_name, outfile, W, H):
 
-    #exec 'import ' + solver_name + ' as solver'
-    solver = importlib.import_module(solver_name)
+    exec 'import ' + solver_name + ' as solver'
 
     sim = solver.Simulation(solver_name, None, None)
     sim.cc_data = myd

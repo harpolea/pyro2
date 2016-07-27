@@ -47,21 +47,29 @@ from functools import partial
 
 #from numba import jit
 
-valid = ["outflow", "periodic",
-         "reflect", "reflect-even", "reflect-odd",
-         "dirichlet", "neumann"]
+# keep track of whether the BCs are solid walls (passed into the
+# Riemann solver).
+bc_props = {}
+bc_props["outflow"] = False
+bc_props["periodic"] = False
+bc_props["reflect"] = True
+bc_props["reflect-even"] = True
+bc_props["reflect-odd"] = True
+bc_props["dirichlet"] = True
+bc_props["neumann"] = False
 
 extBCs = {}
 
-def define_bc(type, function):
+def define_bc(type, function, is_solid=False):
     """
     use this to extend the types of boundary conditions supported
     on a solver-by-solver basis.  Here we pass in the reference to
     a function that can be called with the data that needs to be
-    filled.
+    filled.  is_solid indicates whether it should be interpreted as
+    a solid wall (no flux through the BC)"
     """
 
-    valid.append(type)
+    bc_props[type] = is_solid
     extBCs[type] = function
 
 
@@ -159,6 +167,8 @@ class BCObject(object):
         # odd_reflect_dir specifies the corresponding direction ("x",
         # "y")
 
+        valid = list(bc_props.keys())
+
         # -x boundary
         if xlb in valid:
             self.xlb = xlb
@@ -213,7 +223,6 @@ class BCObject(object):
             self.yl_value = yl_func(grid.x)
         if not yr_func == None:
             self.yr_value = yr_func(grid.x)
-
 
     def __str__(self):
         """ print out some basic information about the BC object """
@@ -432,6 +441,163 @@ class ArrayIndexer(object):
             R = self.d[self.g.ilo+self.g.nx/2:self.g.ihi+2,
                        self.g.jlo:self.g.jhi+1]
 
+def _buf_split(b):
+    try: bxlo, bxhi, bylo, byhi = b
+    except:
+        try: blo, bhi = b
+        except:
+            blo = b
+            bhi = b
+        bxlo = bylo = blo
+        bxhi = byhi = bhi
+    return bxlo, bxhi, bylo, byhi
+
+
+class ArrayIndexer(object):
+    """ a class that wraps the data region of a single array (d)
+        and allows us to easily do array operations like d[i+1,j]
+        using the ip() method. """
+
+
+    # ?? Can we accomplish this a lot easier by subclassing
+    # the ndarray?
+    # e.g, the InfoArray example here:
+    # http://docs.scipy.org/doc/numpy/user/basics.subclassing.html
+    def __init__(self, d=None, grid=None):
+        self.d = d
+        self.g = grid
+        s = d.shape
+        self.c = len(s)
+
+    def __add__(self, other):
+        if isinstance(other, ArrayIndexer):
+            return ArrayIndexer(d=self.d + other.d, grid=self.g)
+        else:
+            return ArrayIndexer(d=self.d + other, grid=self.g)
+
+    def __radd__(self, other):
+        return self.__add__(other)
+
+    def __sub__(self, other):
+        if isinstance(other, ArrayIndexer):
+            return ArrayIndexer(d=self.d - other.d, grid=self.g)
+        else:
+            return ArrayIndexer(d=self.d - other, grid=self.g)
+
+    def __mul__(self, other):
+        if isinstance(other, ArrayIndexer):
+            return ArrayIndexer(d=self.d * other.d, grid=self.g)
+        else:
+            return ArrayIndexer(d=self.d * other, grid=self.g)
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
+
+    def __truediv__(self, other):
+        if isinstance(other, ArrayIndexer):
+            return ArrayIndexer(d=self.d / other.d, grid=self.g)
+        else:
+            return ArrayIndexer(d=self.d / other, grid=self.g)
+
+    def __div__(self, other):
+        if isinstance(other, ArrayIndexer):
+            return ArrayIndexer(d=self.d / other.d, grid=self.g)
+        else:
+            return ArrayIndexer(d=self.d / other, grid=self.g)
+
+    def __rdiv__(self, other):
+        if isinstance(other, ArrayIndexer):
+            return ArrayIndexer(d=other.d / self.d, grid=self.g)
+        else:
+            return ArrayIndexer(d=other / self.d, grid=self.g)
+
+    def __rtruediv__(self, other):
+        if isinstance(other, ArrayIndexer):
+            return ArrayIndexer(d=other.d / self.d, grid=self.g)
+        else:
+            return ArrayIndexer(d=other / self.d, grid=self.g)
+
+    def __pow__(self, other):
+        return ArrayIndexer(d=self.d**2, grid=self.g)
+
+    def __abs__(self):
+        return ArrayIndexer(d=np.abs(self.d), grid=self.g)
+
+    def v(self, buf=0, n=0, s=1):
+        return self.ip_jp(0, 0, buf=buf, n=n, s=s)
+
+    def ip(self, shift, buf=0, n=0, s=1):
+        return self.ip_jp(shift, 0, buf=buf, n=n, s=s)
+
+    def jp(self, shift, buf=0, n=0, s=1):
+        return self.ip_jp(0, shift, buf=buf, n=n, s=s)
+
+    def ip_jp(self, ishift, jshift, buf=0, n=0, s=1):
+        bxlo, bxhi, bylo, byhi = _buf_split(buf)
+
+        if self.c == 2:
+            return self.d[self.g.ilo-bxlo+ishift:self.g.ihi+1+bxhi+ishift:s,
+                          self.g.jlo-bylo+jshift:self.g.jhi+1+byhi+jshift:s]
+        else:
+            return self.d[self.g.ilo-bxlo+ishift:self.g.ihi+1+bxhi+ishift:s,
+                          self.g.jlo-bylo+jshift:self.g.jhi+1+byhi+jshift:s,n]
+
+    def norm(self, n=0):
+        """
+        find the norm of the quantity (index n) defined on the same grid,
+        in the domain's valid region
+
+        """
+        if self.c == 2:
+            return self.g.norm(self.d)
+        else:
+            return self.g.norm(self.d[:,:,n])
+
+    def sqrt(self):
+        return ArrayIndexer(d=np.sqrt(self.d), grid=self.g)
+
+    def min(self):
+        return self.d.min()
+
+    def max(self):
+        return self.d.max()
+
+    def copy(self):
+        return ArrayIndexer(d=self.d.copy(), grid=self.g)
+
+    def is_symmetric(self, nodal=False, tol=1.e-14):
+        if not nodal:
+            L = self.d[self.g.ilo:self.g.ilo+self.g.nx/2,
+                       self.g.jlo:self.g.jhi+1]
+            R = self.d[self.g.ilo+self.g.nx/2:self.g.ihi+1,
+                       self.g.jlo:self.g.jhi+1]
+        else:
+            print(self.g.ilo,self.g.ilo+self.g.nx/2+1)
+            L = self.d[self.g.ilo:self.g.ilo+self.g.nx/2+1,
+                       self.g.jlo:self.g.jhi+1]
+            print(self.g.ilo+self.g.nx/2,self.g.ihi+2)
+            R = self.d[self.g.ilo+self.g.nx/2:self.g.ihi+2,
+                       self.g.jlo:self.g.jhi+1]
+
+
+        e = abs(L - np.flipud(R)).max()
+        print(e, tol, e < tol)
+        return e < tol
+
+
+    def is_asymmetric(self, nodal=False, tol=1.e-14):
+        if not nodal:
+            L = self.d[self.g.ilo:self.g.ilo+self.g.nx/2,
+                       self.g.jlo:self.g.jhi+1]
+            R = self.d[self.g.ilo+self.g.nx/2:self.g.ihi+1,
+                       self.g.jlo:self.g.jhi+1]
+        else:
+            print(self.g.ilo,self.g.ilo+self.g.nx/2+1)
+            L = self.d[self.g.ilo:self.g.ilo+self.g.nx/2+1,
+                       self.g.jlo:self.g.jhi+1]
+            print(self.g.ilo+self.g.nx/2,self.g.ihi+2)
+            R = self.d[self.g.ilo+self.g.nx/2:self.g.ihi+2,
+                       self.g.jlo:self.g.jhi+1]
 
         e = abs(L + np.flipud(R)).max()
         print(e, tol, e < tol)
@@ -593,18 +759,35 @@ class Grid2d(object):
         """
         self.metric = metric.Metric(self, rp, alpha, beta, gamma, cartesian)
 
-
+    # TODO: find where used scratch_array with data != None and change that to copy.
     def scratch_array(self, nvar=1, data=None):
         """
         return a standard numpy array dimensioned to have the size
         and number of ghostcells as the parent grid
         """
+<<<<<<< HEAD
         if data is None:
             if nvar == 1:
                 data = np.zeros((self.qx, self.qy), dtype=np.float64)
             else:
                 data = np.zeros((self.qx, self.qy, nvar), dtype=np.float64)
         return ArrayIndexer(d=data, grid=self)
+=======
+        if nvar == 1:
+            _tmp = np.zeros((self.qx, self.qy), dtype=np.float64)
+        else:
+            _tmp = np.zeros((self.qx, self.qy, nvar), dtype=np.float64)
+        return ArrayIndexer(d=_tmp, grid=self)
+>>>>>>> 014811eac3efb98fae370f469ed5cd2aa7d32324
+
+
+    def norm(self, d):
+        """
+        find the norm of the quantity d defined on the same grid, in the
+        domain's valid region
+        """
+        return np.sqrt(self.dx*self.dy*
+                       np.sum((d[self.ilo:self.ihi+1,self.jlo:self.jhi+1]**2).flat))
 
 
     def norm(self, d):
@@ -651,6 +834,16 @@ class Grid2d(object):
             g.initialise_metric(self.metric.rp, self.metric.alpha, self.metric.beta, self.metric.gamma, self.metric.cartesian)
 
         return g
+
+
+    def fine_like(self, N):
+        """
+        return a new grid object finer by a factor n, but with
+        all the other properties the same
+        """
+        return Grid2d(self.nx*N, self.ny*N, ng=self.ng,
+                      xmin=self.xmin, xmax=self.xmax,
+                      ymin=self.ymin, ymax=self.ymax)
 
 
     def __str__(self):
@@ -934,19 +1127,11 @@ class CellCenterData2d(object):
         if self.BCs[name].xlb in ["outflow", "neumann"]:
 
             if self.BCs[name].xl_value == None:
-                # FIXME: not sure this is correct - copied over from y direction
-                #for i in range(self.grid.ilo):
-                #    self.data[n,i,:] = self.data[n,self.grid.ilo,:]
-                self.data[n,:self.grid.ilo,:] =  self.data[n,self.grid.ilo,np.newaxis,:]
-                #self.data[n,:self.grid.ilo,:] = self.data[np.newaxis,n,self.grid.ilo,:]
-                #np.transpose(np.tile(self.data[n,self.grid.ilo,:], (self.grid.ng,1)))
+                for i in range(self.grid.ilo):
+                    self.data[n,i,:] = self.data[n,self.grid.ilo,:]
             else:
                 self.data[n,self.grid.ilo-1,:] = \
                     self.data[n,self.grid.ilo,:] - self.grid.dx*self.BCs[name].xl_value[:]
-            #if name == "x-velocity":
-                #np.set_printoptions(threshold=np.nan)
-                #print('-x boundary: {}'.format(self.data[n,:,:]))
-
         elif self.BCs[name].xlb == "reflect-even":
 
             #for i in range(self.grid.ilo):
@@ -956,9 +1141,8 @@ class CellCenterData2d(object):
         elif self.BCs[name].xlb in ["reflect-odd", "dirichlet"]:
 
             if self.BCs[name].xl_value == None:
-                #for i in range(self.grid.ilo):
-                #    self.data[n,i,:] = -self.data[n,2*self.grid.ng-i-1,:]
-                self.data[n,:self.grid.ilo,:] = -self.data[n,2*self.grid.ng-1:2*self.grid.ng-self.grid.ilo-1:-1,:]
+                for i in range(self.grid.ilo):
+                    self.data[n,i,:] = -self.data[n,2*self.grid.ng-i-1,:]
             else:
                 self.data[n,self.grid.ilo-1,:] = \
                     2*self.BCs[name].xl_value[:] - self.data[n,self.grid.ilo,:]
@@ -974,17 +1158,11 @@ class CellCenterData2d(object):
         if self.BCs[name].xrb in ["outflow", "neumann"]:
 
             if self.BCs[name].xr_value == None:
-                #for i in range(self.grid.ihi+1, self.grid.nx+2*self.grid.ng):
-                #    self.data[n,i,:] = self.data[n,self.grid.ihi,:]
-                self.data[n,self.grid.ihi+1:,:] = self.data[n,self.grid.ihi,np.newaxis,:]
-
-                #self.data[n,self.grid.ihi+1:,:] = self.data[np.newaxis,n,self.grid.ihi,:] #np.transpose(np.tile(self.data[n,self.grid.ihi,:], (self.grid.ng,1)))
+                for i in range(self.grid.ihi+1, self.grid.nx+2*self.grid.ng):
+                    self.data[n,i,:] = self.data[n,self.grid.ihi,:]
             else:
                 self.data[n,self.grid.ihi+1,:] = \
                     self.data[n,self.grid.ihi,:] + self.grid.dx*self.BCs[name].xr_value[:]
-
-            #if name == "x-velocity":
-                #print('+x boundary: {}'.format(self.data[n,self.grid.ihi+1:,:]))
 
         elif self.BCs[name].xrb == "reflect-even":
 
@@ -998,9 +1176,9 @@ class CellCenterData2d(object):
         elif self.BCs[name].xrb in ["reflect-odd", "dirichlet"]:
 
             if self.BCs[name].xr_value == None:
-                #for i in range(self.grid.ng):
-                #    i_bnd = self.grid.ihi+1+i
-                #    i_src = self.grid.ihi-i
+                for i in range(self.grid.ng):
+                    i_bnd = self.grid.ihi+1+i
+                    i_src = self.grid.ihi-i
 
                 #    self.data[n,i_bnd,:] = -self.data[n,i_src,:]
                 self.data[n,self.grid.ihi+1:,:] = -self.data[n,self.grid.ihi:self.grid.ihi-self.grid.ng:-1,:]
@@ -1019,16 +1197,11 @@ class CellCenterData2d(object):
         if self.BCs[name].ylb in ["outflow", "neumann"]:
 
             if self.BCs[name].yl_value == None:
-                #for j in range(self.grid.jlo):
-                #    self.data[n,:,j] = self.data[n,:,self.grid.jlo]
-                self.data[n,:,:self.grid.jlo] = self.data[n,:,self.grid.jlo,np.newaxis] #np.transpose(np.tile(self.data[n,:,self.grid.jlo], (self.grid.ng,1)))
+                for j in range(self.grid.jlo):
+                    self.data[n,:,j] = self.data[n,:,self.grid.jlo]
             else:
                 self.data[n,:,self.grid.jlo-1] = \
                     self.data[n,:,self.grid.jlo] - self.grid.dy*self.BCs[name].yl_value[:]
-
-            #if name == "x-velocity":
-                #print('-y boundary: {}'.format(self.data[n,:,:self.grid.jlo]))
-
         elif self.BCs[name].ylb == "reflect-even":
 
             #for j in range(self.grid.jlo):
@@ -1038,13 +1211,11 @@ class CellCenterData2d(object):
         elif self.BCs[name].ylb in ["reflect-odd", "dirichlet"]:
 
             if self.BCs[name].yl_value == None:
-                #for j in range(self.grid.jlo):
-                #    self.data[n,:,j] = -self.data[n,:,2*self.grid.ng-j-1]
-                self.data[n,:,:self.grid.jlo] = -self.data[n,:,2*self.grid.ng-1:2*self.grid.ng-self.grid.jlo-1:-1]
+                for j in range(self.grid.jlo):
+                    self.data[n,:,j] = -self.data[n,:,2*self.grid.ng-j-1]
             else:
                 self.data[n,:,self.grid.jlo-1] = \
                     2*self.BCs[name].yl_value[:] - self.data[n,:,self.grid.jlo]
-
         elif self.BCs[name].ylb == "periodic":
 
             #for j in range(self.grid.jlo):
@@ -1061,16 +1232,11 @@ class CellCenterData2d(object):
         if self.BCs[name].yrb in ["outflow", "neumann"]:
 
             if self.BCs[name].yr_value == None:
-                #for j in range(self.grid.jhi+1, self.grid.ny+2*self.grid.ng):
-                #    self.data[n,:,j] = self.data[n,:,self.grid.jhi]
-                self.data[n,:,self.grid.jhi+1:] = self.data[n,:,self.grid.jhi,np.newaxis]
-                # np.transpose(np.tile(self.data[n,:,self.grid.jhi], (self.grid.ng,1)))
+                for j in range(self.grid.jhi+1, self.grid.ny+2*self.grid.ng):
+                    self.data[n,:,j] = self.data[n,:,self.grid.jhi]
             else:
                 self.data[n,:,self.grid.jhi+1] = \
                     self.data[n,:,self.grid.jhi] + self.grid.dy*self.BCs[name].yr_value[:]
-
-            #if name == "x-velocity":
-                #print('+y boundary: {}'.format(self.data[n,:,self.grid.jhi+1:]))
 
         elif self.BCs[name].yrb == "reflect-even":
 
@@ -1084,9 +1250,9 @@ class CellCenterData2d(object):
         elif self.BCs[name].yrb in ["reflect-odd", "dirichlet"]:
 
             if self.BCs[name].yr_value == None:
-                #for j in range(self.grid.ng):
-                #    j_bnd = self.grid.jhi+1+j
-                #    j_src = self.grid.jhi-j
+                for j in range(self.grid.ng):
+                    j_bnd = self.grid.jhi+1+j
+                    j_src = self.grid.jhi-j
 
                 #    self.data[n,:,j_bnd] = -self.data[n,:,j_src]
                 self.data[n,:,self.grid.jhi+1:] = -self.data[n,:,self.grid.jhi-self.grid.ng+1:self.grid.jhi+1]
@@ -1238,39 +1404,6 @@ class CellCenterData2d(object):
         a = self.get_var(var)
         a.pretty_print()
 
-
-    def cell_center_data_clone(self):
-        """
-        Create a new CellCenterData2d object that is a copy of an existing
-        one
-
-        Parameters
-        ----------
-        old : CellCenterData2d object
-            The CellCenterData2d object we wish to copy
-
-        Note
-        ----
-        It may be that this whole thing can be replaced with a copy.deepcopy()
-
-        """
-
-        if not isinstance(self, CellCenterData2d):
-            msg.fail("Can't clone object")
-
-        new = CellCenterData2d(self.grid, dtype=self.dtype)
-
-        for n in range(self.nvar):
-            new.register_var(self.vars[n], self.BCs[self.vars[n]])
-
-        new.create()
-
-        new.aux = copy.deepcopy(self.aux)
-        new.data = copy.deepcopy(self.data)
-
-        return new
-
-
 # backwards compatibility
 ccData2d = CellCenterData2d
 grid2d = Grid2d
@@ -1291,6 +1424,37 @@ def read(filename):
     pF.close()
 
     return data.grid, data
+
+def cell_center_data_clone(old):
+    """
+    Create a new CellCenterData2d object that is a copy of an existing
+    one
+
+    Parameters
+    ----------
+    old : CellCenterData2d object
+        The CellCenterData2d object we wish to copy
+
+    Note
+    ----
+    It may be that this whole thing can be replaced with a copy.deepcopy()
+
+    """
+
+    if not isinstance(old, CellCenterData2d):
+        msg.fail("Can't clone object")
+
+    new = CellCenterData2d(old.grid, dtype=old.dtype)
+
+    for n in range(old.nvar):
+        new.register_var(old.vars[n], old.BCs[old.vars[n]])
+
+    new.create()
+
+    new.aux = old.aux.copy()
+    new.data = old.data.copy()
+
+    return new
 
 if __name__== "__main__":
 

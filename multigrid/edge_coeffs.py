@@ -1,6 +1,3 @@
-#from functools import partial
-#from mesh.patch import ArrayIndexer
-
 class EdgeCoeffs(object):
     """
     a simple container class to hold edge-centered coefficients
@@ -20,13 +17,16 @@ class EdgeCoeffs(object):
 
             b = (0,1)
 
-            #eta_x.v(buf=b)[:,:] = 0.5*(gxx.ip(-1, buf=b) * eta.ip(-1, buf=b) + gxx.v(buf=b) * eta.v(buf=b))
-            if etay is None:
-                eta_x.v(buf=b)[:,:] = 0.5*(eta.ip(-1, buf=b) + eta.v(buf=b))
-                eta_y.v(buf=b)[:,:] = 0.5*(eta.jp(-1, buf=b) + eta.v(buf=b))
-            else:
-                eta_x.v(buf=b)[:,:] = 0.5*(eta.ip(-1, buf=b) + eta.v(buf=b))
-                eta_y.v(buf=b)[:,:] = 0.5*(etay.jp(-1, buf=b) + etay.v(buf=b))
+
+            #if etay is None:
+            #    eta_x.v(buf=b)[:,:] = 0.5*(eta.ip(-1, buf=b) + eta.v(buf=b))
+            #    eta_y.v(buf=b)[:,:] = 0.5*(eta.jp(-1, buf=b) + eta.v(buf=b))
+            #else:
+            #    eta_x.v(buf=b)[:,:] = 0.5*(eta.ip(-1, buf=b) + eta.v(buf=b))
+            #    eta_y.v(buf=b)[:,:] = 0.5*(etay.jp(-1, buf=b) + etay.v(buf=b))
+
+            eta_x.v(buf=b)[:,:] = 0.5*(eta.ip(-1, buf=b) + eta.v(buf=b))
+            eta_y.v(buf=b)[:,:] = 0.5*(eta.jp(-1, buf=b) + eta.v(buf=b))
 
             eta_x /= g.dx**2
             eta_y /= g.dy**2

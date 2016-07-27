@@ -76,6 +76,7 @@ Taylor expanding yields
                      +----------+-----------+  +----+----+   +---+---+
                                 |                   |            |
 
+
                     this is the monotonized   this is the   source term
                     central difference term   transverse
                                               flux term
@@ -131,7 +132,7 @@ import mesh.patch as patch
 
 from util import msg
 
-def unsplitFluxes(my_data, rp, vars, tc, dt):
+def unsplitFluxes(my_data, my_aux, rp, vars, solid, tc, dt):
     """
     unsplitFluxes returns the fluxes through the x and y interfaces by
     doing an unsplit reconstruction of the interface values and then
@@ -216,7 +217,6 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
         xi = 1.0
 
 
-
     # monotonized central differences in x-direction
     tm_limit = tc.timer("limiting")
     tm_limit.begin()
@@ -243,11 +243,9 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     tm_limit.end()
 
 
-
     #=========================================================================
     # x-direction
     #=========================================================================
-
 
     # left and right primitive variable states
     tm_states = tc.timer("interfaceStates")
@@ -319,21 +317,30 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     #=========================================================================
     grav = rp.get_param("compressible.grav")
 
+
+    ymom_src = my_aux.get_var("ymom_src")
+    ymom_src.v()[:,:] = dens.v()*grav
+    my_aux.fill_BC("ymom_src")
+
+    E_src = my_aux.get_var("E_src")
+    E_src.v()[:,:] = ymom.v()*grav
+    my_aux.fill_BC("E_src")
+
     # ymom_xl[i,j] += 0.5*dt*dens[i-1,j]*grav
-    U_xl.v(buf=1, n=vars.iymom)[:,:] += 0.5*dt*dens.ip(-1, buf=1)*grav
-    U_xl.v(buf=1, n=vars.iener)[:,:] += 0.5*dt*ymom.ip(-1, buf=1)*grav
+    U_xl.v(buf=1, n=vars.iymom)[:,:] += 0.5*dt*ymom_src.ip(-1, buf=1)
+    U_xl.v(buf=1, n=vars.iener)[:,:] += 0.5*dt*E_src.ip(-1, buf=1)
 
     # ymom_xr[i,j] += 0.5*dt*dens[i,j]*grav
-    U_xr.v(buf=1, n=vars.iymom)[:,:] += 0.5*dt*dens.v(buf=1)*grav
-    U_xr.v(buf=1, n=vars.iener)[:,:] += 0.5*dt*ymom.v(buf=1)*grav
+    U_xr.v(buf=1, n=vars.iymom)[:,:] += 0.5*dt*ymom_src.v(buf=1)
+    U_xr.v(buf=1, n=vars.iener)[:,:] += 0.5*dt*E_src.v(buf=1)
 
     # ymom_yl[i,j] += 0.5*dt*dens[i,j-1]*grav
-    U_yl.v(buf=1, n=vars.iymom)[:,:] += 0.5*dt*dens.jp(-1, buf=1)*grav
-    U_yl.v(buf=1, n=vars.iener)[:,:] += 0.5*dt*ymom.jp(-1, buf=1)*grav
+    U_yl.v(buf=1, n=vars.iymom)[:,:] += 0.5*dt*ymom_src.jp(-1, buf=1)
+    U_yl.v(buf=1, n=vars.iener)[:,:] += 0.5*dt*E_src.jp(-1, buf=1)
 
     # ymom_yr[i,j] += 0.5*dt*dens[i,j]*grav
-    U_yr.v(buf=1, n=vars.iymom)[:,:] += 0.5*dt*dens.v(buf=1)*grav
-    U_yr.v(buf=1, n=vars.iener)[:,:] += 0.5*dt*ymom.v(buf=1)*grav
+    U_yr.v(buf=1, n=vars.iymom)[:,:] += 0.5*dt*ymom_src.v(buf=1)
+    U_yr.v(buf=1, n=vars.iener)[:,:] += 0.5*dt*E_src.v(buf=1)
 
 
     #=========================================================================
@@ -354,15 +361,17 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
 
     _fx = riemannFunc(1, myg.qx, myg.qy, myg.ng,
                       vars.nvar, vars.idens, vars.ixmom, vars.iymom, vars.iener,
+                      solid.xl, solid.xr,
                       gamma, U_xl.d, U_xr.d)
 
     _fy = riemannFunc(2, myg.qx, myg.qy, myg.ng,
                       vars.nvar, vars.idens, vars.ixmom, vars.iymom, vars.iener,
+                      solid.yl, solid.yr,
                       gamma, U_yl.d, U_yr.d)
 
     F_x = patch.ArrayIndexer(d=_fx, grid=myg)
-    F_y = patch.ArrayIndexer(d=_fy, grid=myg)    
-    
+    F_y = patch.ArrayIndexer(d=_fy, grid=myg)
+
     tm_riem.end()
 
     #=========================================================================
@@ -417,11 +426,11 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
 
     dtdx = dt/myg.dx
     dtdy = dt/myg.dy
-    
+
     b = (2,1)
 
     for n in range(vars.nvar):
-            
+
         # U_xl[i,j,:] = U_xl[i,j,:] - 0.5*dt/dy * (F_y[i-1,j+1,:] - F_y[i-1,j,:])
         U_xl.v(buf=b, n=n)[:,:] += \
             - 0.5*dtdy*(F_y.ip_jp(-1, 1, buf=b, n=n) - F_y.ip(-1, buf=b, n=n))
@@ -437,7 +446,7 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
         # U_yr[i,j,:] = U_yr[i,j,:] - 0.5*dt/dx * (F_x[i+1,j,:] - F_x[i,j,:])
         U_yr.v(buf=b, n=n)[:,:] += \
             - 0.5*dtdx*(F_x.ip(1, buf=b, n=n) - F_x.v(buf=b, n=n))
-        
+
     tm_transverse.end()
 
 
@@ -452,15 +461,16 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
 
     _fx = riemannFunc(1, myg.qx, myg.qy, myg.ng,
                       vars.nvar, vars.idens, vars.ixmom, vars.iymom, vars.iener,
+                      solid.xl, solid.xr,
                       gamma, U_xl.d, U_xr.d)
 
     _fy = riemannFunc(2, myg.qx, myg.qy, myg.ng,
                       vars.nvar, vars.idens, vars.ixmom, vars.iymom, vars.iener,
+                      solid.yl, solid.yr,
                       gamma, U_yl.d, U_yr.d)
-
     F_x = patch.ArrayIndexer(d=_fx, grid=myg)
     F_y = patch.ArrayIndexer(d=_fy, grid=myg)
-    
+
     tm_riem.end()
 
     #=========================================================================
@@ -468,16 +478,16 @@ def unsplitFluxes(my_data, rp, vars, tc, dt):
     #=========================================================================
     cvisc = rp.get_param("compressible.cvisc")
 
-    _ax, _ay = interface_f.artificial_viscosity( 
-        myg.qx, myg.qy, myg.ng, myg.dx, myg.dy, 
+    _ax, _ay = interface_f.artificial_viscosity(
+        myg.qx, myg.qy, myg.ng, myg.dx, myg.dy,
         cvisc, u.d, v.d)
 
     avisco_x = patch.ArrayIndexer(d=_ax, grid=myg)
-    avisco_y = patch.ArrayIndexer(d=_ay, grid=myg)    
-    
-    
+    avisco_y = patch.ArrayIndexer(d=_ay, grid=myg)
+
+
     b = (2,1)
-    
+
     # F_x = F_x + avisco_x * (U(i-1,j) - U(i,j))
     F_x.v(buf=b, n=vars.idens)[:,:] += \
         avisco_x.v(buf=b)*(dens.ip(-1, buf=b) - dens.v(buf=b))

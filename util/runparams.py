@@ -45,7 +45,6 @@ read default values.
 
 from __future__ import print_function
 
-import string
 import re
 from util import msg
 
@@ -90,7 +89,7 @@ class RuntimeParameters(object):
         # actually looked- up
         self.used_params = []
 
-    def load_params(self, file, no_new=0):
+    def load_params(self, pfile, no_new=0):
         """
         Reads line from file and makes dictionary pairs from the data
         to store.
@@ -107,9 +106,9 @@ class RuntimeParameters(object):
         """
 
         # check to see whether the file exists
-        try: f = open(file, 'r')
+        try: f = open(pfile, 'r')
         except IOError:
-            msg.fail("ERROR: parameter file does not exist: %s" % (file))
+            msg.fail("ERROR: parameter file does not exist: {}".format(pfile))
 
         # we could use the ConfigParser, but we actually want to
         # have our configuration files be self-documenting, of the
@@ -202,24 +201,6 @@ class RuntimeParameters(object):
         else:
             msg.fail("ERROR: runtime parameter %s not found" % (key))
 
-    def set_param(self, key, value):
-        """
-        WARNING: VERY DANGEROUS AND HACKY. Used to overwrite parameters.
-        """
-
-        if self.params == {}:
-            msg.warning("WARNING: runtime parameters not yet initialized")
-            self.load_params("_defaults")
-
-        # debugging
-        if not key in self.used_params:
-            self.used_params.append(key)
-
-        if key in self.params.keys():
-            self.params[key] = value
-        else:
-            msg.fail("ERROR: runtime parameter %s not found" % (key))
-
 
     def print_unused_params(self):
         """
@@ -270,15 +251,15 @@ class RuntimeParameters(object):
 
         f.write('# automagically generated parameter file\n')
 
-        currentSection = " "
+        current_section = " "
 
         for key in keys:
             parts = key.split('.')
             section = parts[0]
             option = parts[1]
 
-            if (section != currentSection):
-                currentSection = section
+            if (section != current_section):
+                current_section = section
                 f.write('\n')
                 f.write('[' + section + ']\n')
 

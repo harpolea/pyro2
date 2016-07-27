@@ -178,7 +178,8 @@ class Simulation(NullSimulation):
         dt_buoy = np.sqrt(2.0*myg.dx/F_buoy)
 
         self.dt = min(dt, dt_buoy)
-        if self.verbose > 0: print("timestep is {}".format(self.dt))
+
+        if self.verbose > 0: print("timestep is {}".format(dt))
 
 
     def preevolve(self):
@@ -237,7 +238,6 @@ class Simulation(NullSimulation):
         mg.init_RHS(div_beta_U.d)
         mg.solve(rtol=1.e-10)
 
-
         # store the solution in our self.cc_data object -- include a single
         # ghostcell
         phi = self.cc_data.get_var("phi")
@@ -287,7 +287,6 @@ class Simulation(NullSimulation):
         if self.verbose > 0: print("done with the pre-evolution")
 
         self.in_preevolve = False
-
 
     def evolve(self):
         """
@@ -380,8 +379,6 @@ class Simulation(NullSimulation):
                                            ldelta_uy, ldelta_vy,
                                            coeff.d*gradp_x.d, coeff.d*gradp_y.d,
                                            source.d)
-        print('source: ', source.d[20:30, 20:30]*1.e5)
-
         u_MAC = patch.ArrayIndexer(d=_um, grid=myg)
         v_MAC = patch.ArrayIndexer(d=_vm, grid=myg)
 
@@ -485,6 +482,7 @@ class Simulation(NullSimulation):
         eint.v()[:,:] = self.base["p0"].v2d()/(gamma - 1.0)/rho.v()
 
 
+
         #---------------------------------------------------------------------
         # recompute the interface states, using the advective velocity
         # from above
@@ -531,6 +529,8 @@ class Simulation(NullSimulation):
             0.5*(u_MAC.v() + u_MAC.ip(1))*(v_xint.ip(1) - v_xint.v())/myg.dx +\
             0.5*(v_MAC.v() + v_MAC.jp(1))*(v_yint.jp(1) - v_yint.v())/myg.dy
 
+
+
         proj_type = self.rp.get_param("lm-atmosphere.proj_type")
 
         if proj_type == 1:
@@ -541,13 +541,12 @@ class Simulation(NullSimulation):
             u.v()[:,:] -= self.dt*advect_x.v()
             v.v()[:,:] -= self.dt*advect_y.v()
 
+
         # add the gravitational source
         rho_half = 0.5*(rho + rho_old)
         rhoprime = self.make_prime(rho_half, rho0)
         source.d[:,:] = (rhoprime*g/rho_half).d
         self.aux_data.fill_BC("source_y")
-
-        print('dt: ', self.dt, 'sourceee: ', self.dt * source.d[60:70, 60:70])
 
         v.d[:,:] += self.dt*source.d
 
@@ -689,4 +688,5 @@ class Simulation(NullSimulation):
 
         plt.figtext(0.05,0.0125, "t = %10.5f" % self.cc_data.t)
 
+        plt.pause(0.001)
         plt.draw()

@@ -8,7 +8,6 @@ from __future__ import print_function, division
 import argparse
 import importlib
 import os
-import sys
 
 import matplotlib.pyplot as plt
 
@@ -92,7 +91,6 @@ def doit(solver_name, problem_name, param_file,
         sim = solver.SimulationReact(solver_name, problem_name, rp, timers=tc)
     else:
         sim = solver.Simulation(solver_name, problem_name, rp, timers=tc)
-
     sim.initialize()
     dt_old = fix_dt
 
@@ -113,6 +111,10 @@ def doit(solver_name, problem_name, param_file,
     # evolve
     #-------------------------------------------------------------------------
 
+    init_tstep_factor = rp.get_param("driver.init_tstep_factor")
+    max_dt_change = rp.get_param("driver.max_dt_change")
+    fix_dt = rp.get_param("driver.fix_dt")
+
     verbose = rp.get_param("driver.verbose")
 
     plt.ion()
@@ -121,10 +123,7 @@ def doit(solver_name, problem_name, param_file,
 
     # output the 0th data
     basename = rp.get_param("io.basename")
-    sim.cc_data.write("{}{:05d}".format(basename, sim.n))
-
-    # FIXME: DON'T EXIT HERE
-    #sys.exit()
+    sim.cc_data.write("{}{:04d}".format(basename, sim.n))
 
     dovis = rp.get_param("vis.dovis")
     if dovis:
@@ -178,14 +177,14 @@ def doit(solver_name, problem_name, param_file,
         sim.evolve()
 
         if verbose > 0 and sim.do_output():
-            print("%5d %10.8f %10.8f" % (sim.n, sim.cc_data.t, sim.dt))
+            print("%5d %10.5f %10.5f" % (sim.n, sim.cc_data.t, sim.dt))
 
         # output
         if sim.do_output():
             if verbose > 0:
                 msg.warning("outputting...")
             basename = rp.get_param("io.basename")
-            sim.cc_data.write("{}{:05d}".format(basename, sim.n))
+            sim.cc_data.write("{}{:04d}".format(basename, sim.n))
 
         # visualization
         if dovis:
@@ -197,7 +196,7 @@ def doit(solver_name, problem_name, param_file,
 
             if store == 1:
                 basename = rp.get_param("io.basename")
-                plt.savefig("{}{:05d}.png".format(basename, sim.n))
+                plt.savefig("{}{:04d}.png".format(basename, sim.n))
 
             tm_vis.end()
 
@@ -214,7 +213,7 @@ def doit(solver_name, problem_name, param_file,
         try:
             bench_grid, bench_data = patch.read(compare_file)
         except:
-            msg.warning("ERROR opening compare file")
+        msg.warning("ERROR opening compare file")
             return "ERROR opening compare file"
 
 
@@ -284,5 +283,4 @@ if __name__ == "__main__":
     doit(args.solver[0], args.problem[0], args.param[0],
          other_commands=args.other,
          comp_bench=args.compare_benchmark,
-         make_bench=args.make_benchmark,
-         test_problem=args.test_problem)
+         make_bench=args.make_benchmark)

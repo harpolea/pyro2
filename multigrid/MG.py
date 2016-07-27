@@ -535,7 +535,7 @@ class CellCenterMG2d(object):
                         (v.jp(-1) + v.jp(1) - 2*v.v())/myg.dy**2)
 
 
-    def smooth(self, level, nsmooth, fortran=True):
+    def smooth(self, level, nsmooth):
         """
         Use red-black Gauss-Seidel iterations to smooth the solution
         at a given level.  This is used at each stage of the V-cycle
@@ -611,6 +611,7 @@ class CellCenterMG2d(object):
 
                 plt.suptitle(self.vis_title, fontsize=18)
 
+                plt.pause(0.001)
                 plt.draw()
                 plt.savefig("mg_%4.4d.png" % (self.frame))
                 self.frame += 1
@@ -753,7 +754,8 @@ class CellCenterMG2d(object):
             diff = (solnP.get_var("v").v() - old_solution.v())/ \
                 (solnP.get_var("v").v() + self.small)
 
-            relative_error = solnP.grid.normv(diff)
+            #relative_error = solnP.grid.normv(diff)
+            relative_error = solnP.grid.norm(diff)
 
             old_solution = solnP.get_var("v").copy()
 

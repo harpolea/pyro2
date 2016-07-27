@@ -7,9 +7,12 @@ def cons_to_prim(np.ndarray[double, ndim=3] Q, float c, double gamma,
                  int qx, int qy, int nvar, int iD,
                  int iUx, int iUy, int iDh, int iDX, np.ndarray[double, ndim=2] alphasq):
     """
-    Cython implementation of code to change the vector of conservative variables (D, Sx, Sy, tau, DX) into the vector of primitive variables (rho, u, v, p, X). Root finder brentq is applied to the fortran function root_finding from interface_f.
+    Cython implementation of code to change the vector of conservative variables
+    (D, Sx, Sy, tau, DX) into the vector of primitive variables (rho, u, v, p, X).
+    Root finder brentq is applied to the fortran function root_finding from interface_f.
 
-    Main looping done as a list comprehension as this is faster than nested for loops in pure python - not so sure this is the case for cython?
+    Main looping done as a list comprehension as this is faster than nested for
+    loops in pure python - not so sure this is the case for cython?
     """
 
     cdef np.ndarray[double, ndim=2] D = Q[:,:,iD]
@@ -36,7 +39,8 @@ def cons_to_prim(np.ndarray[double, ndim=3] Q, float c, double gamma,
 
     # NOTE: would it be quicker to do this as loops in cython??
     try:
-        V[:,:,iDh] = [[brentq(interface_f.root_finding, pmin[i,j], pmax[i,j], args=(D[i,j], Ux[i,j], Uy[i,j], Dh[i,j], alphasq[i,j], gamma)) for j in range(qy)] for i in range(qx)]
+        V[:,:,iDh] = [[brentq(interface_f.root_finding, pmin[i,j], pmax[i,j],
+        args=(D[i,j], Ux[i,j], Uy[i,j], Dh[i,j], alphasq[i,j], gamma)) for j in range(qy)] for i in range(qx)]
     except ValueError:
         print('pmin: {}'.format(pmin))
         print('pmax: {}'.format(pmax))
@@ -61,7 +65,7 @@ def arr_root_find_on_me(np.ndarray[double, ndim=2] pbar,
     Equation to root find on in order to find the primitive pressure.
     This works on arrays.
     """
-    cdef np.ndarray[double, ndim=2] eps, rho
+    cdef np.ndarray[double, ndim=2] h, rho
     # eps * rho
     rho = D * np.sqrt(alphasq - Ux**2 - Uy**2)
     h = Dh / D
