@@ -37,10 +37,6 @@ def cons_to_prim(np.ndarray[double, ndim=3] Q, float c, double gamma,
     pmin[np.isnan(pmin)] = 0.
     pmax[np.isnan(pmax)] = c
 
-    #print('pmin: {}, pmax: {}'.format(pmin, pmax))
-    # NOTE: would it be quicker to do this as loops in cython??
-    #print('D {}'.format(D))
-    #print('Dh {}'.format(Dh))
     try:
         V[:,:,iDh] = [[brentq(interface_f.root_finding, pmin[i,j], pmax[i,j],
         args=(D[i,j], Ux[i,j], Uy[i,j], Dh[i,j], alphasq[i,j], gamma)) for j in range(qy)] for i in range(qx)]
@@ -55,8 +51,6 @@ def cons_to_prim(np.ndarray[double, ndim=3] Q, float c, double gamma,
         V[:,:,iDh] = Dh
 
     cdef np.ndarray[double, ndim=2] u0 = (Dh - D) * (gamma - 1.) / (gamma * V[:,:,iDh])
-
-    #print('V[:,:,iDh]: {}'.format(V[:,:,iDh]))
 
     V[:,:,iD] = D / u0
     V[:,:,iDX] = DX / D
@@ -76,12 +70,6 @@ def arr_root_find_on_me(np.ndarray[double, ndim=2] pbar,
     Equation to root find on in order to find the primitive pressure.
     This works on arrays.
     """
-    #cdef np.ndarray[double, ndim=2] eps, rho
-    # eps * rho
-    #rho = D * gamma * pbar / ((Dh - D) * (gamma - 1.))
-    #eps = (Dh - D) / (D * gamma)
-
-    #return (gamma - 1.) * eps * rho - pbar
 
     cdef np.ndarray[double, ndim=2] h, rho
     # eps * rho

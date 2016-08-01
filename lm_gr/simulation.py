@@ -1034,8 +1034,6 @@ class Simulation(NullSimulation):
             U.d[:,:,self.vars.iDh] = Dh.d
             U.d[:,:,self.vars.iDX] = DX.d
 
-            #print('D : {}'.format(D.d-12.91))
-
             V = myg.scratch_array(self.vars.nvar)
             V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX, alpha.d2df(myg.qx)**2)
 
