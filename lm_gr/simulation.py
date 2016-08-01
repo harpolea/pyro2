@@ -352,6 +352,7 @@ class Simulation(NullSimulation):
 
         def alpha(g, R, c, grid):
             a = Basestate(grid.ny, ng=grid.ng)
+            #print(grid.y[:])
             a.d[:] = c * np.sqrt(1. - 2. * g * (1. - grid.y[:]/R) / (c**2))
             return a
         #alpha = Basestate(myg.ny, ng=myg.ng)
@@ -1033,6 +1034,8 @@ class Simulation(NullSimulation):
             U.d[:,:,self.vars.iDh] = Dh.d
             U.d[:,:,self.vars.iDX] = DX.d
 
+            #print('D : {}'.format(D.d-12.91))
+
             V = myg.scratch_array(self.vars.nvar)
             V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX, alpha.d2df(myg.qx)**2)
 
@@ -1406,8 +1409,10 @@ class Simulation(NullSimulation):
         # evolution.
 
         # store the current solution -- we'll restore it in a bit
-        orig_data = self.cc_data.cell_center_data_clone()
-        orig_aux = self.aux_data.cell_center_data_clone()
+        #orig_data = self.cc_data.cell_center_data_clone()
+        orig_data = patch.cell_center_data_clone(self.cc_data)
+        #orig_aux = self.aux_data.cell_center_data_clone()
+        orig_aux = patch.cell_center_data_clone(self.aux_data)
 
         # get the timestep
         self.compute_timestep(u0=u0)

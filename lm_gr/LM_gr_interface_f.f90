@@ -795,13 +795,17 @@ subroutine root_finding(pbar, D, Ux, Uy, Dh, alphasq, gamma)
 !f2py intent(out) :: pbar
 
     double precision :: rho, h
+    !double precision :: eps, h, rho
     double precision, parameter :: largep = 1.0e6
 
     if (pbar > 0.0d0) then
         rho = D * sqrt(alphasq - Ux**2 - Uy**2)
+        !rho = D * gamma * pbar / ((Dh - D) * (gamma - 1.0d0))
         h = Dh / D
+        !eps = (Dh - D)  / (D * gamma)
 
         pbar = (gamma - 1.0d0) * (h - 1.0d0) * rho / gamma - pbar
+        !pbar = (gamma - 1.0d0) * eps * rho - pbar
     else
         pbar = largep
     endif
