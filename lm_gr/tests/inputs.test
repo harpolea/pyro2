@@ -26,11 +26,11 @@ yrboundary = outflow
 
 
 [test]
-dens_base = 1.e5
+dens_base = 0.01
 
 [lm-gr]
 react = 0
 c = 1.0
 grav = 0.0                ; gravitational acceleration (in y-direction)
 cartesian = 1  ; cartesian or spherical polar coordinates? (0 = no, 1 = yes)
-radius = 60.75  ; 10 km
+radius = 1000.0  ; 10 km

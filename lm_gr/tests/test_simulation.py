@@ -320,7 +320,7 @@ def test_simulation_yvel():
         [v_old.v()], rtol=1.e-6, atol=1.e-9)
 
 # FIXME: add back in
-def _test_simulation_hydrostatic():
+def test_simulation_hydrostatic():
     """
     Test to check that an initially hydrostatic system stays that way.
     """

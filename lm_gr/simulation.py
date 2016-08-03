@@ -2411,6 +2411,8 @@ class Simulation(NullSimulation):
 
         vort.v()[:,:] = dv - du
 
+        """
+
         # BRITGRAV PLOT
         img = plt.imshow(np.transpose(X.v()[:,0.25*myg.qy:0.65*myg.qy]),
                     interpolation="nearest", origin="lower",
@@ -2438,7 +2440,8 @@ class Simulation(NullSimulation):
 
             img = ax.imshow(np.transpose(f.v()),
                             interpolation="nearest", origin="lower",
-                            extent=[myg.xmin*myg.R*0.08, myg.xmax*myg.R*0.08, myg.ymin, myg.ymax],
+                            extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax],
+                            #extent=[myg.xmin*myg.R*0.08, myg.xmax*myg.R*0.08, myg.ymin, myg.ymax],
                             vmin=vmins[n], vmax=vmaxes[n], cmap=cmap)
 
             ax.set_xlabel(r"$x$")
@@ -2449,6 +2452,6 @@ class Simulation(NullSimulation):
 
         plt.figtext(0.05,0.0125,
                     "n: %4d,   t = %10.5f" % (self.n, self.cc_data.t))
-        """
+
         plt.tight_layout()
         plt.draw()
