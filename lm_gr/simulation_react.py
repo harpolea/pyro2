@@ -288,8 +288,8 @@ class SimulationReact(Simulation):
 
         # FIXME: hackkkkk
         if self.problem_name == 'bubble':
-            Q.d[:,:] *= 1.e9
-            omega_dot.d[:,:] *= 5.
+            Q.d[:,:] *= 1.e7
+            omega_dot.d[:,:] *= 1.e2
         else:
             Q.d[:,:] *= 1.e12
             omega_dot.d[:,:] *= 1.e4
@@ -432,6 +432,8 @@ class SimulationReact(Simulation):
 
         vort.v()[:,:] = dv - du
 
+        """
+
         # BRITGRAV PLOT
         img = plt.imshow(np.transpose(X.v()),
                     interpolation="nearest", origin="lower",
@@ -440,7 +442,7 @@ class SimulationReact(Simulation):
         plt.setp(img.get_yticklabels(), visible=False)
         plt.tight_layout()
 
-        """
+
         fig, axes = plt.subplots(nrows=1, ncols=2, num=1)
         #plt.subplots_adjust(hspace=0.3)
 
@@ -474,12 +476,12 @@ class SimulationReact(Simulation):
                     "n: %4d,   t = %10.5f" % (self.n, self.cc_data.t))
 
 """
-        """
+
         fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.3)
 
-        fields = [D, X, u, logT]
-        field_names = [r"$D$", r"$X$", r"$u$", r"$\ln T$"]
+        fields = [D, X, v, logT]
+        field_names = [r"$D$", r"$X$", r"$v$", r"$\ln T$"]
         colourmaps = [cmaps.magma_r, cmaps.magma, cmaps.viridis_r,
                       cmaps.magma]
 
@@ -511,6 +513,8 @@ class SimulationReact(Simulation):
         plt.rcParams.update({'font.size': 30})
 
         plt.draw()
+
+        """
 
 
     def dovis_thesis(self, vmins=[None, None, None, None], vmaxes=[None, None, None, None]):

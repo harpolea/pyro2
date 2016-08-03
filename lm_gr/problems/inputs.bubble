@@ -11,7 +11,7 @@ grav = 80.0
 #grav = -80.0
 c = 100.0
 radius = 100.0
-react = 0
+react = 1
 
 [io]
 basename = ../../Documents/Work/pyro/results/bubble/bubble_64_   ; basename for output files
