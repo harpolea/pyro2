@@ -95,9 +95,9 @@ def test_bcs():
 
     myd.fill_BC("periodic")
     # x-boundaries
-    assert_array_equal(b.d[myg.ilo-1,myg.jlo:myg.jhi+1], 
+    assert_array_equal(b.d[myg.ilo-1,myg.jlo:myg.jhi+1],
                        b.d[myg.ihi,myg.jlo:myg.jhi+1])
-    assert_array_equal(b.d[myg.ilo,myg.jlo:myg.jhi+1], 
+    assert_array_equal(b.d[myg.ilo,myg.jlo:myg.jhi+1],
                        b.d[myg.ihi+1,myg.jlo:myg.jhi+1])
     # y-boundaries
     assert_array_equal(b.d[myg.ilo:myg.ihi+1,myg.jlo-1],
@@ -114,14 +114,16 @@ def test_bcs():
     # right
     assert_array_equal(c.d[myg.ihi-1:myg.ihi+1,myg.jlo:myg.jhi+1],
                        np.flipud(c.d[myg.ihi+1:myg.ihi+3,myg.jlo:myg.jhi+1]))
-    
+
+
     # bottom
     assert_array_equal(c.d[myg.ilo:myg.ihi+1,myg.jlo:myg.jlo+2],
                        np.fliplr(c.d[myg.ilo:myg.ihi+1,myg.jlo-2:myg.jlo]))
     # top
     assert_array_equal(c.d[myg.ilo:myg.ihi+1,myg.jhi-1:myg.jhi+1],
                        np.fliplr(c.d[myg.ilo:myg.ihi+1,myg.jhi+1:myg.jhi+3]))
-    
+
+
     myd.fill_BC("reflect-odd")
     # left -- we'll check 2 ghost cells here -- now we use flipud here
     # because our 'x' is the row index
@@ -131,7 +133,8 @@ def test_bcs():
     # right
     assert_array_equal(d.d[myg.ihi-1:myg.ihi+1,myg.jlo:myg.jhi+1],
                        -np.flipud(d.d[myg.ihi+1:myg.ihi+3,myg.jlo:myg.jhi+1]))
-    
+
+
     # bottom
     assert_array_equal(d.d[myg.ilo:myg.ihi+1,myg.jlo:myg.jlo+2],
                        -np.fliplr(d.d[myg.ilo:myg.ihi+1,myg.jlo-2:myg.jlo]))
@@ -148,7 +151,8 @@ def test_indexer():
     a = g.scratch_array()
 
     a.d[:,:] = np.arange(g.qx*g.qy).reshape(g.qx, g.qy)
-    
+
+
     assert_array_equal(a.v(), np.array([[16., 17., 18.], [23., 24., 25.]]))
 
     assert_array_equal(a.ip(1), np.array([[23., 24., 25.], [30., 31., 32.]]))
@@ -158,6 +162,3 @@ def test_indexer():
     assert_array_equal(a.jp(-1), np.array([[15., 16., 17.], [ 22., 23., 24.]]))
 
     assert_array_equal(a.ip_jp(1, 1), np.array([[24., 25., 26.], [ 31., 32., 33.]]))
-
-
-

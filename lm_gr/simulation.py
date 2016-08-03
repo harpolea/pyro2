@@ -42,7 +42,7 @@ import mesh.reconstruction_f as reconstruction_f
 import mesh.patch as patch
 from simulation_null import NullSimulation, grid_setup, bc_setup
 import multigrid.variable_coeff_MG as vcMG
-import multigrid.rect_MG as rect_MG
+#import multigrid.rect_MG as rect_MG
 import colormaps as cmaps
 from functools import partial
 import importlib
@@ -656,7 +656,7 @@ class Simulation(NullSimulation):
         if Dh is None:
             Dh = self.cc_data.get_var("enthalpy")
         if D0 is None:
-            D0 = self.base["Dh0"]
+            D0 = self.base["D0"]
         if u0 is None:
             u0 = myg.metric.calcu0(u=u, v=v)
 
@@ -674,13 +674,14 @@ class Simulation(NullSimulation):
         gxx = gamma[:,:,0,0]
         grr = gamma[:,:,1,1] #gxx
         drp0 = self.drp0(D0=D0, u=u, v=v, u0=u0)
+        c = self.rp.get_param("lm-gr.c")
 
         # time-independent metric
         chrls = myg.metric.chrls
         #print('gtt*grr: {}'.format(gtt * grr))
 
         # note metric components needed to lower the christoffel symbols
-        mom_source_x.d[:,:] = (gtt * chrls[:,:,0,0,1] +
+        mom_source_x.d[:,:] = -(gtt * chrls[:,:,0,0,1] +
             (gxx * chrls[:,:,1,0,1] +
              gtt * chrls[:,:,0,1,1]) * u.d +
             (grr * chrls[:,:,2,0,1] +
@@ -688,7 +689,7 @@ class Simulation(NullSimulation):
             gxx * chrls[:,:,1,1,1] * u.d**2 +
             grr * chrls[:,:,2,2,1] * v.d**2 +
             (grr * chrls[:,:,2,1,1] +
-             gxx * chrls[:,:,1,2,1]) * u.d * v.d)# / gxx
+             gxx * chrls[:,:,1,2,1]) * u.d * v.d) / c**2 # / gxx
         mom_source_r.d[:,:] = (gtt * chrls[:,:,0,0,2] +
             (gxx * chrls[:,:,1,0,2] +
              gtt * chrls[:,:,0,1,2]) * u.d +
@@ -697,12 +698,12 @@ class Simulation(NullSimulation):
             gxx * chrls[:,:,1,1,2] * u.d**2 +
             grr * chrls[:,:,2,2,2] * v.d**2 +
             (grr * chrls[:,:,2,1,2] +
-             gxx * chrls[:,:,1,2,2]) * u.d * v.d) #/ grr
+             gxx * chrls[:,:,1,2,2]) * u.d * v.d) / c**2 # / grr
 
         # check drp0 is not zero
+        #mom_source_r.d[:,:]  = 0.
         mask = (abs(drp0.d2df(myg.qx)) > 1.e-15)
         mom_source_r.d[mask] -=  drp0.d2df(myg.qx)[mask] / (Dh.d[mask]*u0.d[mask])
-        #mom_source_r.d[:,:]  = 0.
 
         #print('mom_source_r: {}'.format(mom_source_r.d))
 
@@ -1006,6 +1007,10 @@ class Simulation(NullSimulation):
             DX = self.cc_data.get_var("mass-frac")
         if scalar is None:
             scalar = self.cc_data.get_var("scalar")
+        if D0 is None:
+            D0 = self.base["D0"]
+        if u is None:
+            u = self.cc_data.get_var("x-velocity")
         if v is None:
             v = self.cc_data.get_var("y-velocity")
         if u0 is None:
@@ -1024,8 +1029,10 @@ class Simulation(NullSimulation):
 
             if isinstance(myg.metric.alpha, partial):
                 alpha = myg.metric.alpha(myg)
+                gamma_mat = myg.metric.gamma(myg)
             else:
                 alpha = myg.metric.alpha
+                gamma_mat = myg.metric.gamma
 
             U = myg.scratch_array(self.vars.nvar)
             U.d[:,:,self.vars.iD] = D.d
@@ -1035,7 +1042,8 @@ class Simulation(NullSimulation):
             U.d[:,:,self.vars.iDX] = DX.d
 
             V = myg.scratch_array(self.vars.nvar)
-            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX, alpha.d2df(myg.qx)**2)
+            #print('U.d[:,:,self.vars.iUx] = u.d: {}'.format(U.d[:,:,self.vars.iUx]))
+            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX, alpha.d2df(myg.qx)**2, gamma_mat)
 
             v_prim = patch.ArrayIndexer(d=V.d[:,:,self.vars.iUy], grid=myg)
 
@@ -2441,7 +2449,6 @@ class Simulation(NullSimulation):
             img = ax.imshow(np.transpose(f.v()),
                             interpolation="nearest", origin="lower",
                             extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax],
-                            #extent=[myg.xmin*myg.R*0.08, myg.xmax*myg.R*0.08, myg.ymin, myg.ymax],
                             vmin=vmins[n], vmax=vmaxes[n], cmap=cmap)
 
             ax.set_xlabel(r"$x$")
@@ -2455,3 +2462,4 @@ class Simulation(NullSimulation):
 
         plt.tight_layout()
         plt.draw()
+        """

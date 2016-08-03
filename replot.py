@@ -185,11 +185,11 @@ if __name__== "__main__":
             vmaxes = [None, None, None, None]
     elif solver == "lm_gr":
         if problem == "bubble":
-            vmins = [None, None, None, None]
-            vmaxes = [None, None, None, None]
             #vmins = [90., 0., 0.0, -0.2]
             #vmaxes = [105., 0.0021, 0.0021, 0.2]
             #vmaxes = [105., 0.0021, 1.0, 0.2]
+            vmins = [None, None, None, None]
+            vmaxes = [None, None, None, None]
         elif problem == "double_bubble":
             vmins = [50., 0., -0.0002, -0.05]
             vmaxes = [105., 0.0003, 0.0003, 0.05]
@@ -210,7 +210,8 @@ if __name__== "__main__":
         if solver == "compressible_gr" and problem == 'kh':
             base = basedir + "/compressible_" + problem + "/" + problem + "_" + str(resolution) + '_' + format(i, '05')
         else:
-            base = basedir + "/" + problem + "/" + problem + "_" + str(resolution) + '_' + format(i, '04')
+            base = basedir + "/" + problem + "/" + problem + "_" + str(resolution) + '_' + format(i, '05')
+        #outfile = base + "_britgrav.png"
         if video:
             outfile = basedir + "/" + problem + "/" + problem + "_vid_" + str(resolution) + '_' + format(i, '05') + ".png"
         else:
