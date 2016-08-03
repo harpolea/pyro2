@@ -91,8 +91,10 @@ class SimulationReact(Simulation):
 
             if isinstance(myg.metric.alpha, partial):
                 alpha = myg.metric.alpha(myg)
+                gamma_mat = myg.metric.gamma(myg)
             else:
                 alpha = myg.metric.alpha
+                gamma_mat = myg.metric.gamma
 
             U = myg.scratch_array(self.vars.nvar)
             U.d[:,:,self.vars.iD] = D.d
@@ -102,7 +104,7 @@ class SimulationReact(Simulation):
             U.d[:,:,self.vars.iDX] = DX.d
 
             V = myg.scratch_array(self.vars.nvar)
-            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX, alpha.d2df(myg.qx)**2)
+            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX, alpha.d2df(myg.qx)**2, gamma_mat)
 
             rho = ArrayIndexer(d=V.d[:,:,self.vars.irho], grid=myg)
 
@@ -169,8 +171,10 @@ class SimulationReact(Simulation):
                 Dh = self.cc_data.get_var("enthalpy")
             if isinstance(myg.metric.alpha, partial):
                 alpha = myg.metric.alpha(myg)
+                gamma_mat = myg.metric.gamma(myg)
             else:
                 alpha = myg.metric.alpha
+                gamma_mat = myg.metric.gamma(myg)
 
             U = myg.scratch_array(self.vars.nvar)
             U.d[:,:,self.vars.iD] = D.d
@@ -180,7 +184,7 @@ class SimulationReact(Simulation):
             U.d[:,:,self.vars.iDX] = DX.d
 
             V = myg.scratch_array(self.vars.nvar)
-            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX, alpha.d2df(myg.qx)**2)
+            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX, alpha.d2df(myg.qx)**2, gamma_mat)
 
             rho = ArrayIndexer(d=V.d[:,:,self.vars.irho], grid=myg)
             X = ArrayIndexer(d=V.d[:,:,self.vars.iX], grid=myg)
@@ -259,11 +263,13 @@ class SimulationReact(Simulation):
 
             if isinstance(myg.metric.alpha, partial):
                 alpha = myg.metric.alpha(myg)
+                gamma_mat = myg.metric.gamma(myg)
             else:
                 alpha = myg.metric.alpha
+                gamma_mat = myg.metric.gamma
 
             V = myg.scratch_array(self.vars.nvar)
-            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX, alpha.d2df(myg.qx)**2)
+            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX, alpha.d2df(myg.qx)**2, gamma_mat)
 
             rho = ArrayIndexer(d=V.d[:,:,self.vars.irho], grid=myg)
             X = ArrayIndexer(d=V.d[:,:,self.vars.iX], grid=myg)
@@ -292,7 +298,7 @@ class SimulationReact(Simulation):
 
 
     def react_state(self, S=None, D=None, Dh=None, DX=None,
-                    p0=None, T=None, scalar=None, Dh0=None,
+                    p0=None, T=None, scalar=None, D0=None,
                     u=None, v=None, u0=None, rho=None, v_prim=None):
         """
         gravitational source terms in the continuity equation (called react
@@ -334,11 +340,15 @@ class SimulationReact(Simulation):
             DX = self.cc_data.get_var("mass-frac")
         if scalar is None:
             scalar = self.cc_data.get_var("scalar")
+        if D0 is None:
+            D0 = self.base["D0"]
+        if u is None:
+            u = self.cc_data.get_var("x-velocity")
         if v is None:
             v = self.cc_data.get_var("y-velocity")
         if u0 is None:
             u0 = myg.metric.calcu0(u=u, v=v)
-        drp0 = self.drp0(Dh0=Dh0, u=u, v=v, u0=u0)
+        drp0 = self.drp0(D0=D0, u=u, v=v, u0=u0)
         if S is None:
             S = self.aux_data.get_var("source_y")
         if T is None:
@@ -357,11 +367,13 @@ class SimulationReact(Simulation):
 
             if isinstance(myg.metric.alpha, partial):
                 alpha = myg.metric.alpha(myg)
+                gamma_mat = myg.metric.gamma(myg)
             else:
                 alpha = myg.metric.alpha
+                gamma_mat = myg.metric.gamma
 
             V = myg.scratch_array(self.vars.nvar)
-            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX, alpha.d2df(myg.qx)**2)
+            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX, alpha.d2df(myg.qx)**2, gamma_mat)
 
             rho = ArrayIndexer(d=V.d[:,:,self.vars.irho], grid=myg)
             X = ArrayIndexer(d=V.d[:,:,self.vars.iX], grid=myg)

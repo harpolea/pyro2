@@ -785,11 +785,12 @@ end subroutine riemann_and_upwind
 
 
 !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-subroutine root_finding(pbar, D, Ux, Uy, Dh, alphasq, gamma)
+subroutine root_finding(pbar, D, Ux, Uy, Dh, alphasq, gamma_mat, gamma, c)
 
     implicit none
     double precision, intent(inout) :: pbar
-    double precision, intent(in) :: D, Ux, Uy, Dh, alphasq, gamma
+    double precision, intent(in) :: D, Ux, Uy, Dh, alphasq, gamma, c
+    double precision, intent(in) :: gamma_mat(0:1, 0:1)
 
 !f2py intent(in) :: pbar, D, Ux, Uy, Dh, alphasq, gamma
 !f2py intent(out) :: pbar
@@ -798,7 +799,7 @@ subroutine root_finding(pbar, D, Ux, Uy, Dh, alphasq, gamma)
     double precision, parameter :: largep = 1.0e6
 
     if (pbar > 0.0d0) then
-        rho = D * sqrt(alphasq - Ux**2 - Uy**2)
+        rho = D * sqrt(alphasq - (gamma_mat(0,0) * Ux**2 + gamma_mat(1,1) * Uy**2 + 2.0d0 * gamma_mat(0,1) * Ux * Uy)/c**2) / c
         h = Dh / D
 
         pbar = (gamma - 1.0d0) * (h - 1.0d0) * rho / gamma - pbar
