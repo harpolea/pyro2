@@ -12,7 +12,8 @@ import mesh.patch as patch
 from simulation_null import NullSimulation, grid_setup, bc_setup
 from compressible_gr.unsplitFluxes import *
 #from util import profile
-import compressible_gr.cons_to_prim as cy
+#import compressible_gr.cons_to_prim as cy
+import compressible_gr.cons_to_prim_pycuda as c2p
 import importlib
 
 
@@ -153,8 +154,9 @@ class Simulation(NullSimulation):
         U.d[:,:,self.vars.itau] = tau.d
         U.d[:,:,self.vars.iDX] = DX.d
 
-        V = myg.scratch_array(self.vars.nvar)
-        V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iSx, self.vars.iSy, self.vars.itau, self.vars.iDX)
+        #V = myg.scratch_array(self.vars.nvar)
+        #V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iSx, self.vars.iSy, self.vars.itau, self.vars.iDX)
+        V = c2p.cons_to_prim(U, c, gamma, myg, self.vars)
 
         rho = V.d[:,:,self.vars.irho]
         u = V.d[:,:,self.vars.iu]
@@ -282,11 +284,32 @@ class Simulation(NullSimulation):
         h = myg.scratch_array()
         S = myg.scratch_array()
 
-        for i in range(myg.qx):
-            for j in range(myg.qy):
-                F = (D.d[i,j], Sx.d[i,j], Sy.d[i,j], tau.d[i,j], DX.d[i,j])
-                Fp = cons_to_prim(F, c, gamma)
-                rho.d[i,j], u[i,j], v[i,j], h.d[i,j], p.d[i,j], _ = Fp
+        U = myg.scratch_array(self.vars.nvar)
+        U.d[:,:,self.vars.iD] = D.d
+        U.d[:,:,self.vars.iSx] = Sx.d
+        U.d[:,:,self.vars.iSy] = Sy.d
+        U.d[:,:,self.vars.itau] = tau.d
+        U.d[:,:,self.vars.iDX] = DX.d
+
+        V = c2p.cons_to_prim(U, c, gamma, myg, self.vars)
+
+        rho.d = V.d[:,:,self.vars.irho]
+        u = V.d[:,:,self.vars.iu]
+        v = V.d[:,:,self.vars.iv]
+        p.d = V.d[:,:,self.vars.ip]
+        h.d = 1. + p.d * gamma / (rho.d * (gamma - 1.))
+
+        #for i in range(myg.qx):
+        #    for j in range(myg.qy):
+        #        F = (D.d[i,j], Sx.d[i,j], Sy.d[i,j], tau.d[i,j], DX.d[i,j])
+                #Fp = cons_to_prim(F, c, gamma)
+        #        rho.d[i,j] = Fp.d[:,:,self.vars.irho]
+        #        u.d[i,j] = Fp.d[:,:,self.vars.iu]
+        #        v.d[i,j] = Fp.d[:,:,self.vars.iv]
+        #        p.d[i,j] = Fp.d[:,:,self.vars.ip]
+        #        h.d[i,j] = 1. + p.d[idxl] * gamma / (rho.d[idxl] * (gamma - 1.))
+
+        #        rho.d[i,j], u[i,j], v[i,j], h.d[i,j], p.d[i,j], _ = Fp
 
         # get the velocity magnitude
         magvel = myg.scratch_array()

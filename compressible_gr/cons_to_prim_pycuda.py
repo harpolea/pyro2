@@ -1,27 +1,31 @@
 import compressible_gr.interface_f as interface_f
-from scipy.optimize import brentq
 import numpy as np
 import pycuda.driver as cuda
 import pycuda.autoinit
 from pycuda.compiler import SourceModule
 import pycuda.gpuarray as gpuarray
 
-def cons_to_prim(Q, c, gamma, qx, qy, nvar, iD, iSx, iSy, itau, iDX):
+def cons_to_prim(Q, c, gamma, myg, var):#qx, qy, nvar, iD, iSx, iSy, itau, iDX):
     """
     PyCUDA implementation of code to change the vector of conservative variables (D, Sx, Sy, tau, DX) into the vector of primitive variables (rho, u, v, p, X). Root finder brentq is applied to the fortran function root_finding from interface_f.
 
     Main looping done as a list comprehension as this is faster than nested for loops in pure python - not so sure this is the case for cython?
     """
 
+    qx = myg.qx
+    qy = myg.qy
+
+    V = myg.scratch_array(var.nvar)
+
     mod = SourceModule("""
-        #include <cmath.h>
+        #include <math.h>
         __device__ float root_finding(float pbar, float D, float Sx, float Sy,
                                     float tau, float c, float gamma)
         {
             double largep = 1.e6;
 
-            if (pbar < 0.0) {
-                float v2 = (Sx^2 + Sy^2) / (c * (tau + D + pbar))^2;
+            if (pbar > 0.0) {
+                float v2 = (Sx*Sx + Sy*Sy) / pow((c * (tau + D + pbar)),2);
                 float w = 1.0 / sqrt(1.0 - v2);
                 float epsrho = (tau + D * (1.0 - w)) * (1.0 - v2) - pbar * v2;
 
@@ -33,65 +37,67 @@ def cons_to_prim(Q, c, gamma, qx, qy, nvar, iD, iSx, iSy, itau, iDX):
             return pbar;
         }
 
-        __global__ void find_p_c(float** pbars, float** pmins, float** pmaxes,
-                            float** Ds, float** Sxs, float** Sys,
-                            float** taus, float c, float gamma)
+        __global__ void find_p_c(float* pbars, float* pmins, float* pmaxes,
+                            float* Ds, float* Sxs, float* Sys,
+                            float* taus, int nx, int ny, float c, float gamma)
         {
             const int ITMAX=100;
-            cont float TOL=1.e-8;
+            const float TOL=1.e-8;
 
-            int n_x = blockDim.x*gridDim.x;
+            int n_x = blockDim.x * gridDim.x;
             int idx = threadIdx.x + blockDim.x*blockIdx.x;
             int idy = threadIdx.y + blockDim.y*blockIdx.y;
-            int threadId = idy*n_x+idx;
+            int tid = idy * n_x + idx;
 
-            float pmin = pmins[idx][idy];
-            float pmax = pmaxes[idx][idy];
+            if ((idx < nx) && (idy < ny)) {
 
-            int counter = 0;
+                float pmin = pmins[tid];
+                float pmax = pmaxes[tid];
 
-            float min_guess = root_finding(pmin, Ds[idx][idy],
-                    Sxs[idx][idy], Sys[idx][idy], taus[idx][idy],
-                    c, gamma);
-            float max_guess = root_finding(pmax, Ds[idx][idy],
-                                Sxs[idx][idy], Sys[idx][idy], taus[idx][idy],
-                                c, gamma);
-            float difference = max_guess - min_guess;
+                int counter = 0;
 
-            while (abs(difference > TOL)  && (counter < ITMAX) {
-                float pmid = 0.5 * (pmin + pmax);
-
-                float mid_guess = root_finding(pmid, Ds[idx][idy],
-                                    Sxs[idx][idy], Sys[idx][idy], taus[idx][idy],
+                float min_guess = root_finding(pmin, Ds[tid],
+                        Sxs[tid], Sys[tid], taus[tid],
+                        c, gamma);
+                float max_guess = root_finding(pmax, Ds[tid],
+                                    Sxs[tid], Sys[tid], taus[tid],
                                     c, gamma);
-                if (mid_guess * min_guess < 0) {
-                    pmax = pmid;
-                    max_guess = root_finding(pmax, Ds[idx][idy],
-                                        Sxs[idx][idy], Sys[idx][idy], taus[idx][idy],
+                float difference = max_guess - min_guess;
+
+                while (abs(float(difference > TOL))  && (counter < ITMAX)) {
+                    float pmid = 0.5 * (pmin + pmax);
+
+                    float mid_guess = root_finding(pmid, Ds[tid],
+                                        Sxs[tid], Sys[tid], taus[tid],
                                         c, gamma);
-                } else {
-                    pmin = pmid;
-                    min_guess = root_finding(pmin, Ds[idx][idy],
-                            Sxs[idx][idy], Sys[idx][idy], taus[idx][idy],
-                            c, gamma);
+                    if (mid_guess * min_guess < 0) {
+                        pmax = pmid;
+                        max_guess = root_finding(pmax, Ds[tid],
+                                            Sxs[tid], Sys[tid], taus[tid],
+                                            c, gamma);
+                    } else {
+                        pmin = pmid;
+                        min_guess = root_finding(pmin, Ds[tid],
+                                Sxs[tid], Sys[tid], taus[tid],
+                                c, gamma);
+                    }
+
+                    difference = max_guess - min_guess;
+                    counter++;
                 }
 
-                difference = max_guess - min_guess;
-                counter++;
+                pbars[tid] = 0.5 * (pmin + pmax);
             }
-
-            pbars[idx][idy] = 0.5 * (pmin + pmax);
-
         }
         """)
 
     find_p = mod.get_function("find_p_c")
 
-    D = Q[:,:,iD].astype(np.float32)
-    Sx = Q[:,:,iSx].astype(np.float32)
-    Sy = Q[:,:,iSy].astype(np.float32)
-    tau = Q[:,:,itau].astype(np.float32)
-    DX = Q[:,:,iDX].astype(np.float32)
+    D = Q.d[:,:,var.iD].astype(np.float32)
+    Sx = Q.d[:,:,var.iSx].astype(np.float32)
+    Sy = Q.d[:,:,var.iSy].astype(np.float32)
+    tau = Q.d[:,:,var.itau].astype(np.float32)
+    DX = Q.d[:,:,var.iDX].astype(np.float32)
 
     # allocate memory on device
     D_gpu = cuda.mem_alloc(D.nbytes)
@@ -99,10 +105,10 @@ def cons_to_prim(Q, c, gamma, qx, qy, nvar, iD, iSx, iSy, itau, iDX):
     Sy_gpu = cuda.mem_alloc(Sy.nbytes)
     tau_gpu = cuda.mem_alloc(tau.nbytes)
 
-    c_gpu = cuda.mem_alloc(c.nbytes)
-    gamma_gpu = cuda.mem_alloc(gamma.nbytes)
+    #c_gpu = cuda.mem_alloc(c.nbytes)
+    #gamma_gpu = cuda.mem_alloc((np.float32(gamma)).nbytes)
 
-    V = np.zeros((qx, qy, nvar), dtype=np.float32)
+    #V = np.zeros((qx, qy, var.nvar), dtype=np.float32)
 
     pmin = (Sx**2 + Sy**2)/c**2 - tau - D
     pmax = (gamma - 1.) * tau
@@ -110,7 +116,8 @@ def cons_to_prim(Q, c, gamma, qx, qy, nvar, iD, iSx, iSy, itau, iDX):
     pmin_gpu = cuda.mem_alloc(pmin.nbytes)
     pmax_gpu = cuda.mem_alloc(pmax.nbytes)
 
-    pbar_gpu = cuda.mem_alloc(pmax.nbytes)
+    pbar = np.zeros_like(pmin, dtype=np.float32)
+    pbar_gpu = gpuarray.to_gpu(pbar)#cuda.mem_alloc(pbar.nbytes)
 
     pmax[pmax < 0.] = np.fabs(pmax[pmax < 0.])
     pmin[pmin > pmax] = abs(np.sqrt(Sx[pmin > pmax]**2 + Sy[pmin > pmax]**2)/c - tau[pmin > pmax] - D[pmin > pmax])
@@ -135,16 +142,22 @@ def cons_to_prim(Q, c, gamma, qx, qy, nvar, iD, iSx, iSy, itau, iDX):
     cuda.memcpy_htod(Sx_gpu, Sx)
     cuda.memcpy_htod(Sy_gpu, Sy)
     cuda.memcpy_htod(tau_gpu, tau)
-    cuda.memcpy_htod(c_gpu, c)
-    cuda.memcpy_htod(gamma_gpu, gamma)
+    #cuda.memcpy_htod(c_gpu, np.float32(c))
+    #cuda.memcpy_htod(gamma_gpu, np.float32(gamma))
     cuda.memcpy_htod(pmin_gpu, pmin)
     cuda.memcpy_htod(pmax_gpu, pmax)
-    cuda.memcpy_htod(pbar_gpu, pmin)
+    #cuda.memcpy_htod(pbar_gpu, pbar)
+
+    # calculate thread, block sizes
+    block_dims = (32, 32, 1)
+    grid_dims = (int(np.ceil(qx/block_dims[0])), int(np.ceil(qy/block_dims[1])))
 
     find_p(pbar_gpu, pmin_gpu, pmax_gpu, D_gpu, Sx_gpu, Sy_gpu, tau_gpu,
-            c_gpu, gamma_gpu, block=(qx, qy, 1))
+            np.float32(c), np.float32(gamma), np.int32(qx), np.int32(qy), grid=grid_dims, block=block_dims)
 
-    cuda.memcpy_dtoh(V[:,:,itau], pbar_gpu)
+    #pbar = np.empty_like(pmin)
+    #cuda.memcpy_dtoh(pbar, pbar_gpu)
+    V.d[:,:,var.itau] = pbar_gpu.get()
 
     # NOTE: would it be quicker to do this as loops in cython??
     #try:
@@ -153,13 +166,13 @@ def cons_to_prim(Q, c, gamma, qx, qy, nvar, iD, iSx, iSy, itau, iDX):
     #    print('pmin: {}'.format(pmin))
     #    print('pmax: {}'.format(pmax))
 
-    V[:,:,iSx] = Sx / (tau + D + V[:,:,itau])
-    V[:,:,iSy] = Sy / (tau + D + V[:,:,itau])
+    V.d[:,:,var.iSx] = Sx / (tau + D + V.d[:,:,var.itau])
+    V.d[:,:,var.iSy] = Sy / (tau + D + V.d[:,:,var.itau])
 
-    w = 1. / np.sqrt(1. - (V[:,:,iSx]**2 + V[:,:,iSy]**2) / c**2)
+    w = 1. / np.sqrt(1. - (V.d[:,:,var.iSx]**2 + V.d[:,:,var.iSy]**2) / c**2)
 
-    V[:,:,iD] = D / w
-    V[:,:,iDX] = DX / D
+    V.d[:,:,var.iD] = D / w
+    V.d[:,:,var.iDX] = DX / D
 
     return V
 

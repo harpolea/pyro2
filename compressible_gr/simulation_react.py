@@ -15,7 +15,8 @@ import mesh.patch as patch
 from simulation_null import NullSimulation, grid_setup, bc_setup
 from compressible_gr.unsplitFluxes import *
 from scipy.ndimage import median_filter
-import compressible_gr.cons_to_prim as cy
+#import compressible_gr.cons_to_prim as cy
+import compressible_gr.cons_to_prim_pycuda as c2p
 from mesh.patch import ArrayIndexer
 
 class SimulationReact(Simulation):
@@ -55,8 +56,9 @@ class SimulationReact(Simulation):
         U.d[:,:,self.vars.itau] = tau.d
         U.d[:,:,self.vars.iDX] = DX.d
 
-        V = myg.scratch_array(self.vars.nvar)
-        V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iSx, self.vars.iSy, self.vars.itau, self.vars.iDX)
+        #V = myg.scratch_array(self.vars.nvar)
+        #V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iSx, self.vars.iSy, self.vars.itau, self.vars.iDX)
+        V = c2p.cons_to_prim(U, c, gamma, myg, self.vars)
 
         rho = ArrayIndexer(d=V.d[:,:,self.vars.irho], grid=myg)
         u = ArrayIndexer(d=V.d[:,:,self.vars.iu], grid=myg)
@@ -233,8 +235,9 @@ class SimulationReact(Simulation):
         p = myg.scratch_array()
         X = myg.scratch_array()
 
-        V = myg.scratch_array(self.vars.nvar)
-        V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iSx, self.vars.iSy, self.vars.itau, self.vars.iDX)
+        #V = myg.scratch_array(self.vars.nvar)
+        #V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iSx, self.vars.iSy, self.vars.itau, self.vars.iDX)
+        V = c2p.cons_to_prim(U, c, gamma, myg, self.vars)
 
         rho.d[:,:] = V.d[:,:,self.vars.irho]
         u.d[:,:] = V.d[:,:,self.vars.iu]
@@ -310,8 +313,9 @@ class SimulationReact(Simulation):
         U.d[:,:,self.vars.itau] = tau.d
         U.d[:,:,self.vars.iDX] = DX.d
 
-        V = myg.scratch_array(self.vars.nvar)
-        V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iSx, self.vars.iSy, self.vars.itau, self.vars.iDX)
+        #V = myg.scratch_array(self.vars.nvar)
+        #V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iSx, self.vars.iSy, self.vars.itau, self.vars.iDX)
+        V = c2p.cons_to_prim(U, c, gamma, myg, self.vars)
 
         rho.d[:,:] = V.d[:,:,self.vars.irho]
         u.d[:,:] = V.d[:,:,self.vars.iu]
@@ -583,11 +587,13 @@ class SimulationReact(Simulation):
         U_r.d[:,:,self.vars.itau] = tau_r.d
         U_r.d[:,:,self.vars.iDX] = DX_r.d
 
-        V = myg.scratch_array(self.vars.nvar)
-        V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iSx, self.vars.iSy, self.vars.itau, self.vars.iDX)
+        #V = myg.scratch_array(self.vars.nvar)
+        #V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iSx, self.vars.iSy, self.vars.itau, self.vars.iDX)
+        V = c2p.cons_to_prim(U, c, gamma, myg, self.vars)
 
-        V_r = myg.scratch_array(self.vars.nvar)
-        V_r.d[:,:,:] = cy.cons_to_prim(U_r.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iSx, self.vars.iSy, self.vars.itau, self.vars.iDX)
+        #V_r = myg.scratch_array(self.vars.nvar)
+        #V_r.d[:,:,:] = cy.cons_to_prim(U_r.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iSx, self.vars.iSy, self.vars.itau, self.vars.iDX)
+        V = c2p.cons_to_prim(U_r, c, gamma, myg, self.vars)
 
         rho.d[:,:] = V.d[:,:,self.vars.irho]
         u.d[:,:] = V.d[:,:,self.vars.iu]
@@ -789,8 +795,9 @@ class SimulationReact(Simulation):
         U.d[:,:,self.vars.itau] = tau.d
         U.d[:,:,self.vars.iDX] = DX.d
 
-        V = myg.scratch_array(self.vars.nvar)
-        V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iSx, self.vars.iSy, self.vars.itau, self.vars.iDX)
+        #V = myg.scratch_array(self.vars.nvar)
+        #V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iSx, self.vars.iSy, self.vars.itau, self.vars.iDX)
+        V = c2p.cons_to_prim(U, c, gamma, myg, self.vars)
 
         rho.d[:,:] = V.d[:,:,self.vars.irho]
         u.d[:,:] = V.d[:,:,self.vars.iu]
