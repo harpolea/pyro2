@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 
 from lm_gr.problems import *
 from lm_gr.simulation import *
-import lm_gr.cons_to_prim as cy
+#import lm_gr.cons_to_prim as cy
+import lm_gr.cons_to_prim_pycuda as c2p
 import multigrid.variable_coeff_MG as vcMG
 import colormaps as cmaps
 from mesh.patch import ArrayIndexer
@@ -103,8 +104,9 @@ class SimulationReact(Simulation):
             U.d[:,:,self.vars.iDh] = Dh.d
             U.d[:,:,self.vars.iDX] = DX.d
 
-            V = myg.scratch_array(self.vars.nvar)
-            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX, alpha.d2df(myg.qx)**2, gamma_mat)
+            #V = myg.scratch_array(self.vars.nvar)
+            #V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX, alpha.d2df(myg.qx)**2, gamma_mat)
+            V = c2p.cons_to_prim(U, c, gamma, alpha.d**2, gamma_mat, myg, self.vars)
 
             rho = ArrayIndexer(d=V.d[:,:,self.vars.irho], grid=myg)
 
@@ -183,8 +185,9 @@ class SimulationReact(Simulation):
             U.d[:,:,self.vars.iDh] = Dh.d
             U.d[:,:,self.vars.iDX] = DX.d
 
-            V = myg.scratch_array(self.vars.nvar)
-            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX, alpha.d2df(myg.qx)**2, gamma_mat)
+            #V = myg.scratch_array(self.vars.nvar)
+            #V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX, alpha.d2df(myg.qx)**2, gamma_mat)
+            V = c2p.cons_to_prim(U, c, gamma, alpha.d**2, gamma_mat, myg, self.vars)
 
             rho = ArrayIndexer(d=V.d[:,:,self.vars.irho], grid=myg)
             X = ArrayIndexer(d=V.d[:,:,self.vars.iX], grid=myg)
@@ -268,8 +271,9 @@ class SimulationReact(Simulation):
                 alpha = myg.metric.alpha
                 gamma_mat = myg.metric.gamma
 
-            V = myg.scratch_array(self.vars.nvar)
-            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX, alpha.d2df(myg.qx)**2, gamma_mat)
+            #V = myg.scratch_array(self.vars.nvar)
+            #V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX, alpha.d2df(myg.qx)**2, gamma_mat)
+            V = c2p.cons_to_prim(U, c, gamma, alpha.d**2, gamma_mat, myg, self.vars)
 
             rho = ArrayIndexer(d=V.d[:,:,self.vars.irho], grid=myg)
             X = ArrayIndexer(d=V.d[:,:,self.vars.iX], grid=myg)
@@ -372,8 +376,9 @@ class SimulationReact(Simulation):
                 alpha = myg.metric.alpha
                 gamma_mat = myg.metric.gamma
 
-            V = myg.scratch_array(self.vars.nvar)
-            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX, alpha.d2df(myg.qx)**2, gamma_mat)
+            #V = myg.scratch_array(self.vars.nvar)
+            #V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX, alpha.d2df(myg.qx)**2, gamma_mat)
+            V = c2p.cons_to_prim(U, c, gamma, alpha.d**2, gamma_mat, myg, self.vars)
 
             rho = ArrayIndexer(d=V.d[:,:,self.vars.irho], grid=myg)
             X = ArrayIndexer(d=V.d[:,:,self.vars.iX], grid=myg)

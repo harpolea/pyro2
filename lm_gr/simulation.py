@@ -46,7 +46,8 @@ import multigrid.variable_coeff_MG as vcMG
 import colormaps as cmaps
 from functools import partial
 import importlib
-import lm_gr.cons_to_prim as cy
+#import lm_gr.cons_to_prim as cy
+import lm_gr.cons_to_prim_pycuda as c2p
 #from util import msg
 #import sys
 
@@ -1038,9 +1039,10 @@ class Simulation(NullSimulation):
             U.d[:,:,self.vars.iDh] = Dh.d
             U.d[:,:,self.vars.iDX] = DX.d
 
-            V = myg.scratch_array(self.vars.nvar)
+            #V = myg.scratch_array(self.vars.nvar)
             #print('U.d[:,:,self.vars.iUx] = u.d: {}'.format(U.d[:,:,self.vars.iUx]))
-            V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX, alpha.d2df(myg.qx)**2, gamma_mat)
+            #V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iUx, self.vars.iUy, self.vars.iDh, self.vars.iDX, alpha.d2df(myg.qx)**2, gamma_mat)
+            V = c2p.cons_to_prim(U, c, gamma, alpha.d**2, gamma_mat, myg, self.vars)
 
             v_prim = patch.ArrayIndexer(d=V.d[:,:,self.vars.iUy], grid=myg)
 

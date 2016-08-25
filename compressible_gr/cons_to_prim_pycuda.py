@@ -12,13 +12,14 @@ def cons_to_prim(Q, c, gamma, myg, var):#qx, qy, nvar, iD, iSx, iSy, itau, iDX):
     Main looping done as a list comprehension as this is faster than nested for loops in pure python - not so sure this is the case for cython?
     """
 
-    qx = myg.qx
-    qy = myg.qy
+    nx = myg.qx
+    ny = myg.qy
 
     V = myg.scratch_array(var.nvar)
 
     mod = SourceModule("""
         #include <math.h>
+        #include <stdio.h>
         __device__ float root_finding(float pbar, float D, float Sx, float Sy,
                                     float tau, float c, float gamma)
         {
@@ -39,10 +40,10 @@ def cons_to_prim(Q, c, gamma, myg, var):#qx, qy, nvar, iD, iSx, iSy, itau, iDX):
 
         __global__ void find_p_c(float* pbars, float* pmins, float* pmaxes,
                             float* Ds, float* Sxs, float* Sys,
-                            float* taus, int nx, int ny, float c, float gamma)
+                            float* taus, float c, float gamma, int nx, int ny)
         {
-            const int ITMAX=100;
-            const float TOL=1.e-8;
+            const int ITMAX=1000;
+            const float TOL=1.e-5;
 
             int n_x = blockDim.x * gridDim.x;
             int idx = threadIdx.x + blockDim.x*blockIdx.x;
@@ -64,7 +65,7 @@ def cons_to_prim(Q, c, gamma, myg, var):#qx, qy, nvar, iD, iSx, iSy, itau, iDX):
                                     c, gamma);
                 float difference = max_guess - min_guess;
 
-                while (abs(float(difference > TOL))  && (counter < ITMAX)) {
+                while ((abs(float(difference)) > TOL)  && (counter < ITMAX)) {
                     float pmid = 0.5 * (pmin + pmax);
 
                     float mid_guess = root_finding(pmid, Ds[tid],
@@ -123,7 +124,7 @@ def cons_to_prim(Q, c, gamma, myg, var):#qx, qy, nvar, iD, iSx, iSy, itau, iDX):
     pmin[pmin > pmax] = abs(np.sqrt(Sx[pmin > pmax]**2 + Sy[pmin > pmax]**2)/c - tau[pmin > pmax] - D[pmin > pmax])
 
     pmin[pmin < 0.] = 0.
-    pmin[arr_root_find_on_me(pmin, D, Sx, Sy, tau, c, gamma) < 0.] = 0.
+    #pmin[arr_root_find_on_me(pmin, D, Sx, Sy, tau, c, gamma) < 0.] = 0.
     pmax[pmax == 0.] = c
 
     # check they have different signs - positive if not.
@@ -150,21 +151,14 @@ def cons_to_prim(Q, c, gamma, myg, var):#qx, qy, nvar, iD, iSx, iSy, itau, iDX):
 
     # calculate thread, block sizes
     block_dims = (32, 32, 1)
-    grid_dims = (int(np.ceil(qx/block_dims[0])), int(np.ceil(qy/block_dims[1])))
+    grid_dims = (int(np.ceil(float(nx)/float(block_dims[0]))), int(np.ceil(float(ny)/float(block_dims[1]))))
 
     find_p(pbar_gpu, pmin_gpu, pmax_gpu, D_gpu, Sx_gpu, Sy_gpu, tau_gpu,
-            np.float32(c), np.float32(gamma), np.int32(qx), np.int32(qy), grid=grid_dims, block=block_dims)
+            np.float32(c), np.float32(gamma), np.int32(nx), np.int32(ny), grid=grid_dims, block=block_dims)
 
     #pbar = np.empty_like(pmin)
     #cuda.memcpy_dtoh(pbar, pbar_gpu)
     V.d[:,:,var.itau] = pbar_gpu.get()
-
-    # NOTE: would it be quicker to do this as loops in cython??
-    #try:
-    #    V[:,:,itau] = [[brentq(interface_f.root_finding, pmin[i,j], pmax[i,j], args=(D[i,j], Sx[i,j], Sy[i,j], tau[i,j], c, gamma)) for j in range(qy)] for i in range(qx)]
-    #except ValueError:
-    #    print('pmin: {}'.format(pmin))
-    #    print('pmax: {}'.format(pmax))
 
     V.d[:,:,var.iSx] = Sx / (tau + D + V.d[:,:,var.itau])
     V.d[:,:,var.iSy] = Sy / (tau + D + V.d[:,:,var.itau])
