@@ -132,12 +132,11 @@ from scipy.optimize import brentq
 import numpy as np
 import math
 import sys
-#import compressible_gr.cons_to_prim as cy
 import compressible_gr.cons_to_prim_pycuda as c2p
 
 from util import msg
 
-def unsplitFluxes(my_data, rp, vars, tc, dt, burning_source):
+def unsplitFluxes(my_data, rp, vars, tc, dt, burning_source, find_p):
     """
     unsplitFluxes returns the fluxes through the x and y interfaces by
     doing an unsplit reconstruction of the interface values and then
@@ -209,10 +208,7 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, burning_source):
 
     # ideally would do U = my_data.data, but for some reason that
     # is indexed [ivar, x, y] rather than [x, y, ivar]
-    #V = myg.scratch_array(vars.nvar)
-
-    #V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, vars.nvar, vars.iD, vars.iSx, vars.iSy, vars.itau, vars.iDX)
-    V = c2p.cons_to_prim(U, c, gamma, myg, vars)
+    V = c2p.cons_to_prim(find_p, U, c, gamma, myg, vars)
     r.d[:,:] = V.d[:,:,vars.irho]
     u.d[:,:] = V.d[:,:,vars.iu]
     v.d[:,:] = V.d[:,:,vars.iv]
@@ -365,26 +361,10 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, burning_source):
     U_yr.v(buf=1, n=vars.iDX)[:,:] += 0.5 * dt * DX_F.v(buf=1)
 
     # transform back to primitive variables.
-    #V_xl.d[:,:,:] = cy.cons_to_prim(U_xl.d, c, gamma, myg.qx, myg.qy,
-    #                                vars.nvar, vars.iD,
-    #                                vars.iSx, vars.iSy, vars.itau,
-    #                                vars.iDX)
-    V_xl = c2p.cons_to_prim(U_xl, c, gamma, myg, vars)
-    #V_xr.d[:,:,:] = cy.cons_to_prim(U_xr.d, c, gamma, myg.qx, myg.qy,
-    #                                vars.nvar, vars.iD,
-    #                                vars.iSx, vars.iSy, vars.itau,
-    #                                vars.iDX)
-    V_xr = c2p.cons_to_prim(U_xr, c, gamma, myg, vars)
-    #V_yl.d[:,:,:] = cy.cons_to_prim(U_yl.d, c, gamma, myg.qx, myg.qy,
-    #                                vars.nvar, vars.iD,
-    #                                vars.iSx, vars.iSy, vars.itau,
-    #                                vars.iDX)
-    V_yl = c2p.cons_to_prim(U_yl, c, gamma, myg, vars)
-    #V_yr.d[:,:,:] = cy.cons_to_prim(U_yr.d, c, gamma, myg.qx, myg.qy,
-    #                                vars.nvar, vars.iD,
-    #                                vars.iSx, vars.iSy, vars.itau,
-    #                                vars.iDX)
-    V_yr = c2p.cons_to_prim(U_yr, c, gamma, myg, vars)
+    V_xl = c2p.cons_to_prim(find_p, U_xl, c, gamma, myg, vars)
+    V_xr = c2p.cons_to_prim(find_p, U_xr, c, gamma, myg, vars)
+    V_yl = c2p.cons_to_prim(find_p, U_yl, c, gamma, myg, vars)
+    V_yr = c2p.cons_to_prim(find_p, U_yr, c, gamma, myg, vars)
 
     #=========================================================================
     # compute transverse fluxes
@@ -498,26 +478,10 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, burning_source):
     # overwrite with the fluxes normal to the interfaces
 
     # transform back to primitive variables.
-    #V_xl.d[:,:,:] = cy.cons_to_prim(U_xl.d, c, gamma, myg.qx, myg.qy,
-    #                                vars.nvar, vars.iD,
-    #                                vars.iSx, vars.iSy, vars.itau,
-    #                                vars.iDX)
-    V_xl = c2p.cons_to_prim(U_xl, c, gamma, myg, vars)
-    #V_xr.d[:,:,:] = cy.cons_to_prim(U_xr.d, c, gamma, myg.qx, myg.qy,
-    #                                vars.nvar, vars.iD,
-    #                                vars.iSx, vars.iSy, vars.itau,
-    #                                vars.iDX)
-    V_xr = c2p.cons_to_prim(U_xr, c, gamma, myg, vars)
-    #V_yl.d[:,:,:] = cy.cons_to_prim(U_yl.d, c, gamma, myg.qx, myg.qy,
-    #                                vars.nvar, vars.iD,
-    #                                vars.iSx, vars.iSy, vars.itau,
-    #                                vars.iDX)
-    V_yl = c2p.cons_to_prim(U_yl, c, gamma, myg, vars)
-    #V_yr.d[:,:,:] = cy.cons_to_prim(U_yr.d, c, gamma, myg.qx, myg.qy,
-    #                                vars.nvar, vars.iD,
-    #                                vars.iSx, vars.iSy, vars.itau,
-    #                                vars.iDX)
-    V_yr = c2p.cons_to_prim(U_yr, c, gamma, myg, vars)
+    V_xl = c2p.cons_to_prim(find_p, U_xl, c, gamma, myg, vars)
+    V_xr = c2p.cons_to_prim(find_p, U_xr, c, gamma, myg, vars)
+    V_yl = c2p.cons_to_prim(find_p, U_yl, c, gamma, myg, vars)
+    V_yr = c2p.cons_to_prim(find_p, U_yr, c, gamma, myg, vars)
 
     tm_riem.begin()
 

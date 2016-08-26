@@ -5,18 +5,10 @@ import pycuda.autoinit
 from pycuda.compiler import SourceModule
 import pycuda.gpuarray as gpuarray
 
-def cons_to_prim(Q, c, gamma, alphasq, gamma_mat, myg, var):
+def initialise_c2p():
     """
-    PyCUDA implementation of code to change the vector of conservative variables (D, Ux, Uy, Dh, DX) into the vector of primitive variables (rho, u, v, p, X). Root finder brentq is applied to the fortran function root_finding from interface_f.
-
-    Main looping done as a list comprehension as this is faster than nested for loops in pure python - not so sure this is the case for cython?
+    Make the CUDA function.
     """
-
-    nx = myg.qx
-    ny = myg.qy
-
-    V = myg.scratch_array(var.nvar)
-
     mod = SourceModule("""
         #include <math.h>
         #include <stdio.h>
@@ -160,7 +152,19 @@ def cons_to_prim(Q, c, gamma, alphasq, gamma_mat, myg, var):
         }
         """)
 
-    find_p = mod.get_function("find_p_c")
+    return mod.get_function("find_p_c")
+
+def cons_to_prim(find_p, Q, c, gamma, alphasq, gamma_mat, myg, var):
+    """
+    PyCUDA implementation of code to change the vector of conservative variables (D, Ux, Uy, Dh, DX) into the vector of primitive variables (rho, u, v, p, X). Root finder brentq is applied to the fortran function root_finding from interface_f.
+
+    Main looping done as a list comprehension as this is faster than nested for loops in pure python - not so sure this is the case for cython?
+    """
+
+    nx = myg.qx
+    ny = myg.qy
+
+    V = myg.scratch_array(var.nvar)
 
     D = Q.d[:,:,var.iD].astype(np.float32)
     Ux = Q.d[:,:,var.iUx].astype(np.float32)
@@ -217,6 +221,14 @@ def cons_to_prim(Q, c, gamma, alphasq, gamma_mat, myg, var):
 
 
     cuda.memcpy_dtoh(pbar, pbar_gpu)
+
+    # FIXME: hack to get rid of zeros
+    if len(pbar[pbar <= 0.]) > 0:
+        for x in range(myg.qx):
+            for y in range(myg.qy):
+                if pbar[x, y] <= 0.:
+                    pbar[x,y] = 0.5 * (pbar[x-1, y] + pbar[x+1, y])
+
     V.d[:,:,var.iDh] = pbar[:,:] #pbar_gpu.get()
 
     u0 = (Dh - D) * (gamma - 1.) / (gamma * V.d[:,:,var.iDh])

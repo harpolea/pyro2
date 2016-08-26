@@ -5,17 +5,10 @@ import pycuda.autoinit
 from pycuda.compiler import SourceModule
 import pycuda.gpuarray as gpuarray
 
-def cons_to_prim(Q, c, gamma, myg, var):#qx, qy, nvar, iD, iSx, iSy, itau, iDX):
+def initialise_c2p():
     """
-    PyCUDA implementation of code to change the vector of conservative variables (D, Sx, Sy, tau, DX) into the vector of primitive variables (rho, u, v, p, X). Root finder brentq is applied to the fortran function root_finding from interface_f.
-
-    Main looping done as a list comprehension as this is faster than nested for loops in pure python - not so sure this is the case for cython?
+    Initialise c2p CUDA function.
     """
-
-    nx = myg.qx
-    ny = myg.qy
-
-    V = myg.scratch_array(var.nvar)
 
     mod = SourceModule("""
         #include <math.h>
@@ -138,7 +131,20 @@ def cons_to_prim(Q, c, gamma, myg, var):#qx, qy, nvar, iD, iSx, iSy, itau, iDX):
         }
         """)
 
-    find_p = mod.get_function("find_p_c")
+    return mod.get_function("find_p_c")
+
+
+def cons_to_prim(find_p, Q, c, gamma, myg, var):#qx, qy, nvar, iD, iSx, iSy, itau, iDX):
+    """
+    PyCUDA implementation of code to change the vector of conservative variables (D, Sx, Sy, tau, DX) into the vector of primitive variables (rho, u, v, p, X). Root finder brentq is applied to the fortran function root_finding from interface_f.
+
+    Main looping done as a list comprehension as this is faster than nested for loops in pure python - not so sure this is the case for cython?
+    """
+
+    nx = myg.qx
+    ny = myg.qy
+
+    V = myg.scratch_array(var.nvar)
 
     D = Q.d[:,:,var.iD].astype(np.float32)
     Sx = Q.d[:,:,var.iSx].astype(np.float32)

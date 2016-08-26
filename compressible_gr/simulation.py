@@ -115,6 +115,8 @@ class Simulation(NullSimulation):
 
         self.cc_data.fill_BC_all()
 
+        self.find_p = c2p.initialise_c2p()
+
         if self.verbose > 0:
             print(my_data)
 
@@ -154,9 +156,7 @@ class Simulation(NullSimulation):
         U.d[:,:,self.vars.itau] = tau.d
         U.d[:,:,self.vars.iDX] = DX.d
 
-        #V = myg.scratch_array(self.vars.nvar)
-        #V.d[:,:,:] = cy.cons_to_prim(U.d, c, gamma, myg.qx, myg.qy, self.vars.nvar, self.vars.iD, self.vars.iSx, self.vars.iSy, self.vars.itau, self.vars.iDX)
-        V = c2p.cons_to_prim(U, c, gamma, myg, self.vars)
+        V = c2p.cons_to_prim(self.find_p, U, c, gamma, myg, self.vars)
 
         rho = V.d[:,:,self.vars.irho]
         u = V.d[:,:,self.vars.iu]
@@ -226,7 +226,7 @@ class Simulation(NullSimulation):
 
         burning_source = self.burning_flux()
 
-        Flux_x, Flux_y = unsplitFluxes(self.cc_data, self.rp, self.vars, self.tc, self.dt, burning_source)
+        Flux_x, Flux_y = unsplitFluxes(self.cc_data, self.rp, self.vars, self.tc, self.dt, burning_source, self.find_p)
 
         # took in nan checking for speed
         #for i in range(myg.qx):
@@ -291,7 +291,7 @@ class Simulation(NullSimulation):
         U.d[:,:,self.vars.itau] = tau.d
         U.d[:,:,self.vars.iDX] = DX.d
 
-        V = c2p.cons_to_prim(U, c, gamma, myg, self.vars)
+        V = c2p.cons_to_prim(self.find_p, U, c, gamma, myg, self.vars)
 
         rho.d = V.d[:,:,self.vars.irho]
         u = V.d[:,:,self.vars.iu]
