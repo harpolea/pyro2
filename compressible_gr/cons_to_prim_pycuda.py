@@ -84,7 +84,7 @@ def cons_to_prim(Q, c, gamma, myg, var):#qx, qy, nvar, iD, iSx, iSy, itau, iDX):
                     fb = fs;
                 }
 
-                while (!(fb == 0) and (abs(float(pb-pa)) > TOL)  && (counter < ITMAX)) {
+                while (!(fb == 0) && (abs(float(pb-pa)) > TOL)  && (counter < ITMAX)) {
 
                     if (!(fa == fc) && !(fb == fc)) {
                         s = pa * fb * fc / ((fa - fb) * (fa - fc)) + \

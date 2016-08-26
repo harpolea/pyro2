@@ -65,38 +65,84 @@ def cons_to_prim(Q, c, gamma, alphasq, gamma_mat, myg, var):
 
                 //printf("%f, %f, %f", gamma_mat[0], gamma_mat[1], gamma_mat[3]);
 
-                float pmin = pmins[tid];
-                float pmax = pmaxes[tid];
+                float pa = pmins[tid];
+                float pb = pmaxes[tid];
 
                 int counter = 0;
 
-                float min_guess = root_finding(pmin, Ds[tid],
+                float fa = root_finding(pa, Ds[tid],
                         Uxs[tid], Uys[tid], Dhs[tid], alphasqs[tid],
                         gamma_mat, c, gamma);
-                float max_guess = root_finding(pmax, Ds[tid],
+                float fb = root_finding(pb, Ds[tid],
                                     Uxs[tid], Uys[tid], Dhs[tid], alphasqs[tid],
                                     gamma_mat, c, gamma);
-                float difference = max_guess - min_guess;
 
-                while ((abs(float(difference)) > TOL)  && (counter < ITMAX)) {
-                    float pmid = 0.5 * (pmin + pmax);
+                float pc = pa;
+                float fc = fa;
 
-                    float mid_guess = root_finding(pmid, Ds[tid],
-                                        Uxs[tid], Uys[tid], Dhs[tid], alphasqs[tid],
-                                        gamma_mat, c, gamma);
-                    if (mid_guess * min_guess < 0) {
-                        pmax = pmid;
-                        max_guess = root_finding(pmax, Ds[tid],
-                                            Uxs[tid], Uys[tid], Dhs[tid], alphasqs[tid],
-                                            gamma_mat, c, gamma);
+                bool mflag = true;
+
+                // initialise some variables here for later
+                float s = 0;
+                float d = 0;
+                float fs = 0;
+
+                if (abs(fa) < abs(fb)) {
+                    // swap
+                    s = pa;
+                    fs = fa;
+                    pa = pb;
+                    fa = fb;
+                    pb = s;
+                    fb = fs;
+                }
+
+                while (!(fb == 0) && (abs(float(pb-pa)) > TOL)  && (counter < ITMAX)) {
+
+                    if (!(fa == fc) && !(fb == fc)) {
+                        s = pa * fb * fc / ((fa - fb) * (fa - fc)) + \
+                        pb * fa * fc / ((fb - fa) * (fb - fc)) + \
+                        pc * fa * fb / ((fc - fa) * (fc - fb));
                     } else {
-                        pmin = pmid;
-                        min_guess = root_finding(pmin, Ds[tid],
-                                Uxs[tid], Uys[tid], Dhs[tid], alphasqs[tid],
-                                gamma_mat, c, gamma);
+                        s = pb - fb * (pb - pa) / (fb - fa);
                     }
 
-                    difference = max_guess - min_guess;
+                    if (((0.75 * pa + 0.25 * pb - s) * (pb - s) > 0) || \
+                        (mflag  && (abs(s-pb) >= 0.5*abs(pb-pc))) || \
+                        (!mflag && (abs(s-pb) >= 0.5*abs(pc-d))) || \
+                        (mflag && (abs(pb-pc) < TOL)) || \
+                        (!mflag && (abs(pc-d) < TOL))) {
+                        s = 0.5 * (pa + pb);
+                        mflag = true;
+                    } else {
+                        mflag = false;
+                    }
+
+                    fs = root_finding(s, Ds[tid],
+                            Uxs[tid], Uys[tid], Dhs[tid], alphasqs[tid],
+                            gamma_mat, c, gamma);
+                    d = pc;
+                    pc = pb;
+                    fc = fb;
+
+                    if (fa * fs < 0.0) {
+                        pb = s;
+                        fb = fs;
+                    } else {
+                        pa = s;
+                        fa = fs;
+                    }
+
+                    if (abs(fa) < abs(fb)) {
+                        // swap
+                        s = pa;
+                        fs = fa;
+                        pa = pb;
+                        fa = fb;
+                        pb = s;
+                        fb = fs;
+                    }
+
                     counter++;
                 }
 
@@ -108,7 +154,7 @@ def cons_to_prim(Q, c, gamma, alphasq, gamma_mat, myg, var):
 
                 //printf("pmin %f, pmax %f     ", pmin, pmax);
 
-                pbars[tid] = 0.5 * (pmin + pmax);
+                pbars[tid] = pb;
             }
             //if (tid > 4000) {printf("tid: %d, pbar: %f  ", tid, pbars[tid]);}
         }
