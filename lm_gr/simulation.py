@@ -2349,7 +2349,7 @@ class Simulation(NullSimulation):
 
         # FIXME: need base state forcing here!
         # However, it doesn't actually work: it just causes the atmosphere to rise up?
-        base_forcing = self.base_state_forcing()
+        #base_forcing = self.base_state_forcing()
         # FIXME: This line messes up the velocity somehow - what on earth is it doing????
         u.v()[:,:] += self.dt * (-coeff.v() * gxx.v() * gradphi_x.v())
         # FIXME: add back in??
@@ -2432,8 +2432,8 @@ class Simulation(NullSimulation):
         fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.3)
 
-        fields = [D, v, X, u]
-        field_names = [r"$D$", r"$v$", r"$X$", r"$u$"]
+        fields = [magvel, v, X, u]
+        field_names = [r"$|U|$", r"$v$", r"$X$", r"$u$"]
         colourmaps = [cmaps.magma_r, cmaps.magma, cmaps.viridis_r,
                       cmaps.magma]
 

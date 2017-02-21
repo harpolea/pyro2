@@ -15,6 +15,7 @@ from compressible_gr.unsplitFluxes import *
 #import compressible_gr.cons_to_prim as cy
 import compressible_gr.cons_to_prim_pycuda as c2p
 import importlib
+#import compressible_gr.interface_cuda as cuda
 
 
 class Variables(object):
@@ -64,6 +65,7 @@ class Simulation(NullSimulation):
         NullSimulation.__init__(self, solver_name, problem_name, rp, timers=timers, testing=testing)
 
         self.vars = Variables()
+        #self.cuda_funcs = {}
 
     def initialize(self):
         """
@@ -116,6 +118,9 @@ class Simulation(NullSimulation):
         self.cc_data.fill_BC_all()
 
         self.find_p = c2p.initialise_c2p()
+
+        #self.cuda_funcs['states'] = cuda.initialise_states()
+        #self.cuda_funcs['rhllc'] = cuda.initialise_rhllc()
 
         if self.verbose > 0:
             print(my_data)

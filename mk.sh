@@ -33,7 +33,7 @@ else
     do
 	cd ${d}
 	#${PYTHON} setup.py config_fc --f90flags "${FFLAGS}" build_ext --inplace
-    ${PYTHON} setup.py build_ext --inplace
+    ${PYTHON} setup.py build_ext --inplace 
 	cd ..
     done
 fi

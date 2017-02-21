@@ -133,12 +133,13 @@ import numpy as np
 import math
 import sys
 import compressible_gr.cons_to_prim_pycuda as c2p
+#import compressible_gr.interface_cuda as interface_cuda
 
 from util import msg
 
 def unsplitFluxes(my_data, rp, vars, tc, dt, burning_source, find_p):
     """
-    unsplitFluxes returns the fluxes through the x and y interfaces by
+    unsplitFluxes returns the fluxes throiniugh the x and y interfaces by
     doing an unsplit reconstruction of the interface values and then
     solving the Riemann problem through all the interfaces at once
 
@@ -275,20 +276,27 @@ def unsplitFluxes(my_data, rp, vars, tc, dt, burning_source, find_p):
     tm_states.begin()
 
     # ERROR: somehow, this makes v in V_l, V_r = 1.0 in all but the ghost cells (irrespective of the speed of light).
+    #if states_c is not None:
+        #U_xl, U_xr = interface_cuda.states(states_c, 1, myg, dt, vars, gamma, c, r, u, v, p, X,
+        #            D, Sx, Sy, tau, DX,
+        #            ldelta_Dx, ldelta_Sxx, ldelta_Syx, ldelta_taux, ldelta_DXx)
+    #else:
+
     _U_xl, _U_xr = interface_f.states(1, myg.qx, myg.qy, myg.ng, myg.dx, dt,
                                   vars.nvar,
                                   gamma, c,
                                   r.d, u.d, v.d, p.d, X.d,
                                   D.d, Sx.d, Sy.d, tau.d, DX.d,
                                   ldelta_Dx, ldelta_Sxx, ldelta_Syx, ldelta_taux, ldelta_DXx)
-
-    tm_states.end()
-
     U_xl = myg.scratch_array(vars.nvar)
     U_xr = myg.scratch_array(vars.nvar)
 
     U_xl.d[:,:] = _U_xl
     U_xr.d[:,:] = _U_xr
+
+    tm_states.end()
+
+
 
     # stop the nans
     smallr = 1.e-10

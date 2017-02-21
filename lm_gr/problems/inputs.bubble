@@ -11,12 +11,12 @@ grav = 80.0
 #grav = -80.0
 c = 100.0
 radius = 100.0
-react = 1
+react = 0
 
 [io]
-basename = ../../Documents/Work/pyro/results/bubble/bubble_64_   ; basename for output files
+basename = ../../Documents/Work/pyro/results/bubble/bubble_512_   ; basename for output files
 n_out = 50                   ; number of timesteps between writing output files
-do_io = 1                  ; do we output at all?
+do_io = 0                  ; do we output at all?
 
 [vis]
 

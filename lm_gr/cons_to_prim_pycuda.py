@@ -1,4 +1,4 @@
-import lm_gr.LM_gr_interface_f as interface_f
+#import lm_gr.LM_gr_interface_f as interface_f
 import numpy as np
 import pycuda.driver as cuda
 import pycuda.autoinit
@@ -54,8 +54,6 @@ def initialise_c2p():
                 for (int i=0; i < 4; i++) {
                     gamma_mat[i] = gamma_mats[tid * 4 + i];
                 }
-
-                //printf("%f, %f, %f", gamma_mat[0], gamma_mat[1], gamma_mat[3]);
 
                 float pa = pmins[tid];
                 float pb = pmaxes[tid];
@@ -142,13 +140,8 @@ def initialise_c2p():
                 //    printf("Reached ITMAX  ");
                 //}
 
-                //printf("abs difference: %f, min_guess %f, max_guess %f, counter: %d   ", abs(float(difference)), max_guess, min_guess, counter);
-
-                //printf("pmin %f, pmax %f     ", pmin, pmax);
-
                 pbars[tid] = pb;
             }
-            //if (tid > 4000) {printf("tid: %d, pbar: %f  ", tid, pbars[tid]);}
         }
         """)
 
@@ -222,14 +215,20 @@ def cons_to_prim(find_p, Q, c, gamma, alphasq, gamma_mat, myg, var):
 
     cuda.memcpy_dtoh(pbar, pbar_gpu)
 
-    # FIXME: hack to get rid of zeros
-    if len(pbar[pbar <= 0.]) > 0:
+    try:
+        # FIXME: hack to get rid of zeros
+        if len(pbar[pbar <= 0.]) > 0:
+            for x in range(myg.qx):
+                for y in range(myg.qy):
+                    if pbar[x, y] <= 0.:
+                        pbar[x,y] = 0.5 * (pbar[x-1, y] + pbar[x+1, y])
+    except FloatingPointError:
         for x in range(myg.qx):
             for y in range(myg.qy):
-                if pbar[x, y] <= 0.:
+                if np.isnan(pbar[x,y]):
                     pbar[x,y] = 0.5 * (pbar[x-1, y] + pbar[x+1, y])
 
-    V.d[:,:,var.iDh] = pbar[:,:] #pbar_gpu.get()
+    V.d[:,:,var.iDh] = pbar[:,:]
 
     u0 = (Dh - D) * (gamma - 1.) / (gamma * V.d[:,:,var.iDh])
 

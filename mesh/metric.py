@@ -38,7 +38,7 @@ class Metric(object):
         self.grid = grid
         self.rp = rp
         self.alpha = alpha
-        self.beta = beta
+        self.beta = np.array(beta)
         self.W = 1.  # Lorentz factor.
         self.gamma = gamma
         self.cartesian = cartesian
@@ -140,8 +140,10 @@ class Metric(object):
             alpha = self.alpha
             gamma = self.gamma
 
-        Vs = np.array([[np.array([u.d[i,j], v.d[i,j]]) + self.beta
-            for j in range(myg.qy)] for i in range(myg.qx)])
+        Vs = np.zeros((myg.qx, myg.qy, 2))
+        Vs[:,:,0] = u.d[:,:]
+        Vs[:,:,1] = v.d[:,:]
+        Vs[:,:,:] += self.beta[np.newaxis, np.newaxis, :]
 
         Vs[:,:,:] /= alpha.d2d()[:,:,np.newaxis]**2
 
