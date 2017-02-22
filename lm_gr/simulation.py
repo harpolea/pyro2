@@ -2384,7 +2384,7 @@ class Simulation(NullSimulation):
             self.cc_data.t += self.dt
             self.n += 1
 
-    def dovis(self, vmins=[None, None, None, None], vmaxes=[None, None, None, None]):
+    def dovis(self, vmins=[None, None, None, None], vmaxes=[None, None, None, None], magvel_init=None):
         """
         Do runtime visualization
         """
@@ -2429,11 +2429,20 @@ class Simulation(NullSimulation):
 
         """
 
+        if self.n == 0:
+            magvel_init[:,:] = magvel.d[:,:]
+            #print(magvel_init)
+            delta_magvel = patch.ArrayIndexer(d=np.zeros_like(magvel.d), grid=myg)
+        else:
+            #print(magvel_init)
+            delta_magvel = patch.ArrayIndexer(d=(magvel.d - magvel_init) / magvel_init, grid=myg)
+            vmaxes[1] = 1.e-5
+
         fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.3)
 
-        fields = [magvel, v, X, u]
-        field_names = [r"$|U|$", r"$v$", r"$X$", r"$u$"]
+        fields = [magvel, delta_magvel, X, u]
+        field_names = [r"$|U|$", r"$\Delta|U|$", r"$X$", r"$u$"]
         colourmaps = [cmaps.magma_r, cmaps.magma, cmaps.viridis_r,
                       cmaps.magma]
 

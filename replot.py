@@ -21,13 +21,14 @@ import sys
 import os
 import getopt
 import importlib
+import numpy as np
 
 import mesh.patch as patch
 from util import runparams, msg
 
 # plot an output file using the solver's dovis script
 
-def makeplot(myd, solver_name, problem_name, outfile, W, H, n=0, vmins=[None, None, None, None], vmaxes=[None, None, None, None], video=False):
+def makeplot(myd, solver_name, problem_name, outfile, W, H, n=0, vmins=[None, None, None, None], vmaxes=[None, None, None, None], video=False, magvel_init=None):
 
     #exec ('import ' + solver_name + ' as solver')
     solver = importlib.import_module(solver_name)
@@ -70,7 +71,8 @@ def makeplot(myd, solver_name, problem_name, outfile, W, H, n=0, vmins=[None, No
 
     if not video:
         plt.figure(num=1, figsize=(W,H), dpi=100, facecolor='w')
-        sim.dovis(vmins=vmins, vmaxes=vmaxes)
+        sim.dovis(vmins=vmins, vmaxes=vmaxes, magvel_init=magvel_init)
+        #sim.dovis(vmins=vmins, vmaxes=vmaxes)
     elif solver_name == "compressible_gr":
         plt.figure(num=1, figsize=(0.75*W,1.5*H), dpi=100, facecolor='w')
         sim.dovis_video(vmins=vmins, vmaxes=vmaxes)
@@ -205,6 +207,11 @@ if __name__== "__main__":
         vmins = [None, None, None, None]
         vmaxes = [None, None, None, None]
 
+    magvel_init = None
+
+    if problem == "gresho":
+        ng = 4
+        magvel_init = np.zeros((int(resolution)+2*ng, int(resolution)+2*ng))
 
     for i in range(start, end+1, step):
         if solver == "compressible_gr" and problem == 'kh':
@@ -237,4 +244,4 @@ if __name__== "__main__":
                 # file doesn't exist: quietly exit.
                 break
 
-        makeplot(myd, solver, problem, outfile, W, H, n=i, vmins=vmins, vmaxes=vmaxes, video=video)
+        makeplot(myd, solver, problem, outfile, W, H, n=i, vmins=vmins, vmaxes=vmaxes, video=video, magvel_init=magvel_init)
