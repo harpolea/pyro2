@@ -1,0 +1,37 @@
+# simple inputs files for the unsplit CTU hydro scheme
+
+[driver]
+max_steps = 300
+tmax = 1000000.0
+cfl = 0.25
+
+
+[lm-gr]
+grav = 0.0
+#grav = -80.0
+c = 1.01
+radius = 10000000000.0
+react = 0
+
+[io]
+basename = ../../Documents/Work/pyro/results/gresho/gresho_rel_64_   ; basename for output files
+n_out = 50                  ; number of timesteps between writing output files
+do_io = 1                 ; do we output at all?
+
+[vis]
+
+dovis = 0                  ; runtime visualization? (1=yes, 0=no)
+store_images = 0           ; store vis images to files (1=yes, 0=no)
+
+
+[mesh]
+nx = 64
+ny = 64
+xmax = 1.0
+ymax = 1.0
+
+xlboundary = periodic
+xrboundary = periodic
+
+ylboundary = periodic
+yrboundary = periodic

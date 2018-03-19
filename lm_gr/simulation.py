@@ -352,7 +352,7 @@ class Simulation(NullSimulation):
 
         def alpha(g, R, c, grid):
             a = Basestate(grid.ny, ng=grid.ng)
-            a.d[:] = np.sqrt(1. - 2. * g * (1. - grid.y[:]/R) / (c**2))
+            a.d[:] = c * np.sqrt(1. - 2. * g * (1. - grid.y[:]/R) / (c**2))
             return a
         #alpha = Basestate(myg.ny, ng=myg.ng)
         #alpha.d[:] = np.sqrt(1. - 2. * g * (1. - myg.y[:]/R) / (R * c**2))
@@ -369,7 +369,7 @@ class Simulation(NullSimulation):
             #gamma_matrix[:,:,:,:] = 1. + 2. * g * \
             #    (1. - grid.y[np.newaxis, :, np.newaxis, np.newaxis] / R) / \
             #    (c**2) * np.eye(2)[np.newaxis, np.newaxis, :, :]
-            gamma_matrix[:,:,:,:] = 1./alpha(g, R, c, grid).d[np.newaxis, :, np.newaxis, np.newaxis]**2 * np.eye(2)[np.newaxis, np.newaxis, :, :]
+            gamma_matrix[:,:,:,:] = c**2/alpha(g, R, c, grid).d[np.newaxis, :, np.newaxis, np.newaxis]**2 * np.eye(2)[np.newaxis, np.newaxis, :, :]
             # assume spherical if not cartesian
             if not cartesian:
                 gamma_matrix[:,:,0,0] = grid.r2d**2
@@ -655,7 +655,7 @@ class Simulation(NullSimulation):
         if Dh is None:
             Dh = self.cc_data.get_var("enthalpy")
         if D0 is None:
-            D0 = self.base["Dh0"]
+            D0 = self.base["D0"]
         if u0 is None:
             u0 = myg.metric.calcu0(u=u, v=v)
 
@@ -678,8 +678,10 @@ class Simulation(NullSimulation):
         chrls = myg.metric.chrls
         #print('gtt*grr: {}'.format(gtt * grr))
 
+        c = self.rp.get_param("lm-gr.c")
+
         # note metric components needed to lower the christoffel symbols
-        mom_source_x.d[:,:] = (gtt * chrls[:,:,0,0,1] +
+        mom_source_x.d[:,:] = -(gtt * chrls[:,:,0,0,1] +
             (gxx * chrls[:,:,1,0,1] +
              gtt * chrls[:,:,0,1,1]) * u.d +
             (grr * chrls[:,:,2,0,1] +
@@ -687,7 +689,7 @@ class Simulation(NullSimulation):
             gxx * chrls[:,:,1,1,1] * u.d**2 +
             grr * chrls[:,:,2,2,1] * v.d**2 +
             (grr * chrls[:,:,2,1,1] +
-             gxx * chrls[:,:,1,2,1]) * u.d * v.d)# / gxx
+             gxx * chrls[:,:,1,2,1]) * u.d * v.d) / c**2# / gxx
         mom_source_r.d[:,:] = (gtt * chrls[:,:,0,0,2] +
             (gxx * chrls[:,:,1,0,2] +
              gtt * chrls[:,:,0,1,2]) * u.d +
@@ -696,7 +698,7 @@ class Simulation(NullSimulation):
             gxx * chrls[:,:,1,1,2] * u.d**2 +
             grr * chrls[:,:,2,2,2] * v.d**2 +
             (grr * chrls[:,:,2,1,2] +
-             gxx * chrls[:,:,1,2,2]) * u.d * v.d) #/ grr
+             gxx * chrls[:,:,1,2,2]) * u.d * v.d) / c**2#/ grr
 
         # check drp0 is not zero
         mask = (abs(drp0.d2df(myg.qx)) > 1.e-15)
@@ -963,7 +965,7 @@ class Simulation(NullSimulation):
 
 
     def react_state(self, S=None, D=None, Dh=None, DX=None,
-                    p0=None, T=None, scalar=None, Dh0=None,
+                    p0=None, T=None, scalar=None, D0=None,
                     u=None, v=None, u0=None, rho=None, v_prim=None):
         """
         gravitational source terms in the continuity equation (called react
@@ -988,7 +990,7 @@ class Simulation(NullSimulation):
             passive advective scalar (* density)
         Dh0 : ArrayIndexer object, optional
             density * enthalpy base state
-        u : ArrayIndexer object, optional
+        u : ArrayIndexer object, optionalreact_stat
             horizontal velocity
         v : ArrayIndexer object, optional
             vertical velocity
@@ -1005,6 +1007,8 @@ class Simulation(NullSimulation):
             DX = self.cc_data.get_var("mass-frac")
         if scalar is None:
             scalar = self.cc_data.get_var("scalar")
+        if D0 is None:
+            D0 = self.base["D0"]
         if v is None:
             v = self.cc_data.get_var("y-velocity")
         if u0 is None:
@@ -2232,7 +2236,7 @@ class Simulation(NullSimulation):
         DX.d[:,:] = DX_2.d[:,:]
         scalar.d[:,:] = scalar_2.d[:,:]
         T.d[:,:] = T_2.d[:,:]
-        self.react_state(S=self.compute_S(u=u_MAC, v=v_MAC), D=D, Dh=Dh, DX=DX, T=T, scalar=scalar, u=u_MAC, v=v_MAC, u0=u0_MAC)
+        self.react_state(S=self.compute_S(u=u_MAC, v=v_MAC), D=D, Dh=Dh, DX=DX, T=T, scalar=scalar, D0=D0, u=u_MAC, v=v_MAC, u0=u0_MAC)
 
         self.cc_data.fill_BC("density")
         self.cc_data.fill_BC("enthalpy")

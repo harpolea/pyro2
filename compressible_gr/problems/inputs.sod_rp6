@@ -6,11 +6,11 @@ tmax = 10000000000.0
 
 [compressible-gr]
 limiter = 2
-riemann = RHLLC            ; RHLLC or RHLLE
+riemann = RHLLE            ; RHLLC or RHLLE
 react = 1
 
 [io]
-basename = ../../Documents/Work/pyro/results/sod/sod_4096_rp6_   ; basename for output files
+basename = ../../Documents/Work/pyro/results/sod/sod_1024_rp6_   ; basename for output files
 n_out = 50                   ; number of timesteps between writing output files
 do_io = 1                   ; do we output at all?
 
@@ -20,7 +20,7 @@ dovis = 0                  ; runtime visualization? (1=yes, 0=no)
 store_images = 0           ; store vis images to files (1=yes, 0=no)
 
 [mesh]
-nx = 4096
+nx = 1024
 ny = 4
 xmax = 1.0
 ymax = 0.1

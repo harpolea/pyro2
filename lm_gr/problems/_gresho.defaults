@@ -1,0 +1,5 @@
+[gresho]
+dens_base = 100.0            ; density at the base of the atmosphere
+
+[eos]
+gamma = 1.4
