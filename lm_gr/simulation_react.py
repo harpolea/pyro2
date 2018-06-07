@@ -3,6 +3,12 @@ from __future__ import print_function
 import numpy as np
 import matplotlib.pyplot as plt
 
+import matplotlib
+matplotlib.rcParams['font.family'] = 'serif'
+matplotlib.rcParams['mathtext.fontset'] = 'cm'
+plt.rcParams.update({'font.size': 16})
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
 from lm_gr.problems import *
 from lm_gr.simulation import *
 import lm_gr.cons_to_prim as cy
@@ -482,8 +488,9 @@ class SimulationReact(Simulation):
 
         fields = [D, X, v, logT]
         field_names = [r"$D$", r"$X$", r"$v$", r"$\ln T$"]
-        colourmaps = [cmaps.magma_r, cmaps.magma, cmaps.viridis_r,
-                      cmaps.magma]
+        colourmaps = ['viridis', 'viridis', 'viridis',
+                      'viridis']#[cmaps.magma_r, cmaps.magma, cmaps.viridis_r,
+                      #cmaps.magma]
 
         #vmaxes = [0.05, 1.0, 0.64, None]
         #vmins = [0.0, 0.95, 0.0, 3.0]
@@ -559,18 +566,20 @@ class SimulationReact(Simulation):
             field_names = [r"$D$", r"$\psi$"]
             colourmaps = [cmaps.magma_r, cmaps.magma]
         elif self.problem_name == 'kh':
-            fig, axes = plt.subplots(nrows=1, ncols=2, num=1)
+            fig, axes = plt.subplots()#nrows=1, ncols=2, num=1)
             plt.subplots_adjust(hspace=0.3)
             fields = [D, psi]
             field_names = [r"$D$", r"$\psi$"]
-            colourmaps = [cmaps.magma_r, cmaps.magma]
+            colourmaps = [cmaps.viridis, cmaps.viridis]#[cmaps.magma_r, cmaps.magma]
         else:
             fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
             plt.subplots_adjust(hspace=0.3)
             fields = [D, X, psi, logT]
             field_names = [r"$D$", r"$X$", r"$\psi$", r"$\ln T$"]
-            colourmaps = [cmaps.magma_r, cmaps.magma, cmaps.viridis_r,
-                          cmaps.magma]
+            colourmaps = ['viridis', 'viridis', 'viridis',
+                          'viridis']
+            #[cmaps.magma_r, cmaps.magma, cmaps.viridis_r,
+                          #cmaps.magma]
 
         #vmaxes = [0.05, 1.0, 0.64, None]
         #vmins = [0.0, 0.95, 0.0, 3.0]
@@ -591,8 +600,8 @@ class SimulationReact(Simulation):
             ymin = myg.ymin
             ymax = myg.ymax
 
-        for n in range(len(fields)):
-            ax = axes.flat[n]
+        for n in range(1,len(fields)):
+            ax = axes#.flat[n]
 
             f = fields[n]
             cmap = colourmaps[n]
@@ -604,18 +613,18 @@ class SimulationReact(Simulation):
             else:
                 data = f.v()
 
-            img = ax.imshow(np.transpose(data),
+            img = ax.imshow(np.transpose(data)[::-1,:],
                             interpolation="nearest", origin="lower",
                             extent=[xmin, xmax, ymin, ymax],
                             vmin=vmins[n], vmax=vmaxes[n], cmap=cmap)
             #plt.setp(img.get_ticklabels(), visible=False)
             #plt.setp(img.get_yticklabels(), visible=False)
-            ax.xaxis.set_major_formatter(plt.NullFormatter())
-            ax.yaxis.set_major_formatter(plt.NullFormatter())
+            # ax.xaxis.set_major_formatter(plt.NullFormatter())
+            # ax.yaxis.set_major_formatter(plt.NullFormatter())
 
             ax.set_xlabel(r"$x$")
             ax.set_ylabel(r"$y$")
-            ax.set_title(field_names[n])
+            # ax.set_title(field_names[n])
 
             #plt.colorbar(img, ax=ax)
             if vmins[n] is None:
@@ -627,12 +636,18 @@ class SimulationReact(Simulation):
             else:
                 vmax = vmaxes[n]
             ticks = [vmin, 0.25*(vmin + vmax), 0.5*(vmin + vmax), 0.75*(vmin + vmax), vmax]
-            plt.colorbar(img, ax=ax, shrink=0.85, ticks=ticks)
+
+            divider = make_axes_locatable(ax)
+            ax_cb = divider.new_horizontal(size="5%", pad=0.1)
+            fig1 = ax.get_figure()
+            fig1.add_axes(ax_cb)
+
+            plt.colorbar(img, cax=ax_cb)#, ticks=ticks)
 
         #plt.figtext(0.05,0.0125,
         #            "n: %4d,   t = %10.5f" % (self.n, self.cc_data.t))
 
-        plt.rcParams.update({'font.size': 18})
+        # plt.rcParams.update({'font.size': 22})
         if self.problem_name == 'kh':
             plt.subplots_adjust(left=0.04, right=0.96, bottom=0.15, top=0.9, hspace=0.25, wspace=0.15)
         else:

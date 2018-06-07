@@ -496,7 +496,7 @@ class Grid2d(object):
     The '*' marks the data locations.
     """
 
-    def __init__ (self, nx, ny, ng=1,
+    def __init__ (self, nx=1, ny=1, ng=1,
                   xmin=0.0, xmax=1.0, ymin=0.0, ymax=1.0, R=1.0):
         """
         Create a Grid2d object.
@@ -701,7 +701,7 @@ class CellCenterData2d(object):
    locked.  New variables cannot be added.
     """
 
-    def __init__ (self, grid, dtype=np.float64):
+    def __init__ (self, grid=None, dtype=np.float64):
 
         """
         Initialize the CellCenterData2d object.

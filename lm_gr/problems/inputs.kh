@@ -12,8 +12,8 @@ radius = 1000.0
 
 
 [io]
-basename = ../../Documents/Work/pyro/results/kh/kh_64_   ; basename for output files
-n_out = 5                   ; number of timesteps between writing output files
+basename = ../../Documents/Work/pyro/results/kh/kh_512_   ; basename for output files
+n_out = 50                   ; number of timesteps between writing output files
 do_io = 1                   ; do we output at all?
 
 [vis]
@@ -27,8 +27,8 @@ gamma = 1.4
 
 
 [mesh]
-nx = 128
-ny = 128
+nx = 512
+ny = 512
 xmax = 1.0
 ymax = 1.0
 

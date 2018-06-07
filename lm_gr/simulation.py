@@ -2432,8 +2432,11 @@ class Simulation(NullSimulation):
 
         fields = [D, v, X, u]
         field_names = [r"$D$", r"$v$", r"$X$", r"$u$"]
-        colourmaps = [cmaps.magma_r, cmaps.magma, cmaps.viridis_r,
-                      cmaps.magma]
+        colourmaps = ['viridis', 'viridis', 'viridis',
+                      'viridis']
+                      #[cmaps.magma_r, cmaps.magma, cmaps.viridis_r,
+                      #cmaps.magma]
+
 
         for n in range(len(fields)):
             ax = axes.flat[n]

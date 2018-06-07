@@ -96,7 +96,7 @@ def makeplot(myd_i, myd_r, solver_name, problem_name, outfile, W, H, n=0, vmins=
         plt.rc("font", size=18)
         plt.savefig(outfile, bbox_extra_artists=(lgd,), bbox_inches='tight')
     else:
-        plt.savefig(outfile)
+        plt.savefig(outfile, bbox_inches='tight')
     #plt.show()
 
     if (n % 10 == 0):
@@ -218,8 +218,8 @@ if __name__== "__main__":
             vmins = [99.0, 0.0]
             vmaxes = [101.0, 1.0]
         elif problem == 'kh':
-            vmins = [100.0, 0.0]
-            vmaxes = [101.1, 1.0]
+            vmins = [100.0, -0.03]
+            vmaxes = [101.1, 1.03]
         else:
             vmins = [None, None, None, None]
             vmaxes = [None, None, None, None]
