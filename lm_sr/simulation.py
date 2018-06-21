@@ -5,7 +5,8 @@ import importlib
 import numpy as np
 import matplotlib.pyplot as plt
 
-import lm_atm.LM_atm_interface_f as lm_interface_f
+import lm_sr.LM_sr_interface_f as lm_interface_f
+import lm_sr.eos as eos
 import mesh.reconstruction as reconstruction
 import mesh.boundary as bnd
 import mesh.patch as patch
@@ -198,11 +199,22 @@ class Simulation(NullSimulation):
         self.cc_data.fill_BC("x-velocity")
         self.cc_data.fill_BC("y-velocity")
 
+        gamma = self.rp.get_param("eos.gamma")
+        p0 = self.base["p0"]
+
         # 1. do the initial projection.  This makes sure that our original
         # velocity field satisties div U = 0
 
         # the coefficent for the elliptic equation is beta_0^2/rho
-        coeff = 1/rho
+        # coeff = 1/rho
+        U2 = u.v()**2 + v.v()**2
+        idx = (abs(U2) < 1.e-15)
+        W = np.ones_like(u.v())
+        W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
+
+        coeff = myg.scratch_array()
+        coeff.v()[:, :] = 1.0/(rho.v() *
+            eos.rhoh_from_rho_p(gamma, p0.v2d(), rho.v()/W ) * W)
         beta0 = self.base["beta0"]
         coeff.v()[:, :] = coeff.v()*beta0.v2d()**2
 
@@ -244,7 +256,14 @@ class Simulation(NullSimulation):
         # cells -- not ghost cells
         gradp_x, gradp_y = mg.get_solution_gradient(grid=myg)
 
-        coeff = 1.0/rho
+        # coeff = 1.0/rho
+        U2 = u.v()**2 + v.v()**2
+        idx = (abs(U2) < 1.e-15)
+        W = np.ones_like(u.v())
+        W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
+
+        coeff.v()[:, :] = 1.0/(rho.v() *
+            eos.rhoh_from_rho_p(gamma, p0.v2d(), rho.v()/W ) * W)
         coeff.v()[:, :] = coeff.v()*beta0.v2d()
 
         u.v()[:, :] -= coeff.v()*gradp_x.v()
@@ -300,8 +319,11 @@ class Simulation(NullSimulation):
         beta0_edges = self.base["beta0-edges"]
 
         rho0 = self.base["rho0"]
+        p0 = self.base["p0"]
 
         phi = self.cc_data.get_var("phi")
+
+        gamma = self.rp.get_param("eos.gamma")
 
         myg = self.cc_data.grid
 
@@ -350,11 +372,18 @@ class Simulation(NullSimulation):
 
         # create the coefficient to the grad (pi/beta) term
         coeff = self.aux_data.get_var("coeff")
-        coeff.v()[:, :] = 1.0/rho.v()
+        U2 = u.v()**2 + v.v()**2
+        idx = (abs(U2) < 1.e-15)
+        W = np.ones_like(u.v())
+        W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
+
+        coeff.v()[:, :] = 1.0/(rho.v() *
+            eos.rhoh_from_rho_p(gamma, p0.v2d(), rho.v()/W ) * W)
         coeff.v()[:, :] = coeff.v()*beta0.v2d()
         self.aux_data.fill_BC("coeff")
 
         # create the source term
+        # NOTE: in sr this should be fine, but not in GR
         source = self.aux_data.get_var("source_y")
 
         g = self.rp.get_param("lm-atmosphere.grav")
@@ -378,7 +407,7 @@ class Simulation(NullSimulation):
         # free
         #---------------------------------------------------------------------
 
-        # we will solve D (beta_0^2/rho) G phi = D (beta_0 U^MAC), where
+        # we will solve D (beta_0^2/rhohW) G phi = D (beta_0 U^MAC), where
         # phi is cell centered, and U^MAC is the MAC-type staggered
         # grid of the advective velocities.
 
@@ -387,7 +416,13 @@ class Simulation(NullSimulation):
 
         # create the coefficient array: beta0**2/rho
         # MZ!!!! probably don't need the buf here
-        coeff.v(buf=1)[:, :] = 1.0/rho.v(buf=1)
+        # coeff.v(buf=1)[:, :] = 1.0/rho.v(buf=1)
+        U2 = u.v(buf=1)**2 + v.v(buf=1)**2
+        idx = (abs(U2) < 1.e-15)
+        W = np.ones_like(u.v(buf=1))
+        W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
+        coeff.v(buf=1)[:, :] = 1.0/(rho.v(buf=1) *
+            eos.rhoh_from_rho_p(gamma, p0.v2d(buf=1), rho.v(buf=1)/W ) * W)
         coeff.v(buf=1)[:, :] = coeff.v(buf=1)*beta0.v2d(buf=1)**2
 
         # create the multigrid object
@@ -422,7 +457,14 @@ class Simulation(NullSimulation):
         phi_MAC[:, :] = mg.get_solution(grid=myg)
 
         coeff = self.aux_data.get_var("coeff")
-        coeff.v()[:, :] = 1.0/rho.v()
+        U2 = u.v()**2 + v.v()**2
+        idx = (abs(U2) < 1.e-15)
+        W = np.ones_like(u.v())
+        W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
+
+        coeff.v()[:, :] = 1.0/(rho.v() *
+            eos.rhoh_from_rho_p(gamma, p0.v2d(), rho.v()/W ) * W)
+        # coeff.v()[:, :] = 1.0/rho.v()
         coeff.v()[:, :] = coeff.v()*beta0.v2d()
         self.aux_data.fill_BC("coeff")
 
@@ -478,7 +520,15 @@ class Simulation(NullSimulation):
             print("  making u, v edge states")
 
         coeff = self.aux_data.get_var("coeff")
-        coeff.v()[:, :] = 2.0/(rho.v() + rho_old.v())
+        U2 = u.v()**2 + v.v()**2
+        idx = (abs(U2) < 1.e-15)
+        W = np.ones_like(u.v())
+        W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
+
+        coeff.v()[:, :] = 2.0/((rho.v() + rho_old.v()) *
+            eos.rhoh_from_rho_p(gamma, p0.v2d(), 0.5*(rho.v() + rho_old.v())/W ) * W)
+
+        # coeff.v()[:, :] = 2.0/(rho.v() + rho_old.v())
         coeff.v()[:, :] = coeff.v()*beta0.v2d()
         self.aux_data.fill_BC("coeff")
 
@@ -552,7 +602,14 @@ class Simulation(NullSimulation):
             print("  final projection")
 
         # create the coefficient array: beta0**2/rho
-        coeff = 1.0/rho
+        U2 = u.v()**2 + v.v()**2
+        idx = (abs(U2) < 1.e-15)
+        W = np.ones_like(u.v())
+        W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
+
+        coeff.v()[:, :] = 1.0/(rho.v() *
+            eos.rhoh_from_rho_p(gamma, p0.v2d(), rho.v()/W ) * W)
+        # coeff = 1.0/rho
         coeff.v()[:, :] = coeff.v()*beta0.v2d()**2
 
         # create the multigrid object
@@ -593,7 +650,14 @@ class Simulation(NullSimulation):
         gradphi_x, gradphi_y = mg.get_solution_gradient(grid=myg)
 
         # U = U - (beta_0/rho) grad (phi/beta_0)
-        coeff = 1.0/rho
+        U2 = u.v()**2 + v.v()**2
+        idx = (abs(U2) < 1.e-15)
+        W = np.ones_like(u.v())
+        W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
+
+        coeff.v()[:, :] = 1.0/(rho.v() *
+            eos.rhoh_from_rho_p(gamma, p0.v2d(), rho.v()/W ) * W)
+        # coeff = 1.0/rho
         coeff.v()[:, :] = coeff.v()*beta0.v2d()
 
         u.v()[:, :] -= self.dt*coeff.v()*gradphi_x.v()
