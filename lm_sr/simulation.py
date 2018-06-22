@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import lm_sr.LM_sr_interface_f as lm_interface_f
+import lm_sr.c2p_f as c2p_f
 import lm_sr.eos as eos
 import mesh.reconstruction as reconstruction
 import mesh.boundary as bnd
@@ -208,13 +209,15 @@ class Simulation(NullSimulation):
         # the coefficent for the elliptic equation is beta_0^2/rho
         # coeff = 1/rho
         U2 = u.v()**2 + v.v()**2
-        idx = (abs(U2) < 1.e-15)
+        idx = (U2 < 1.e-15)
         W = np.ones_like(u.v())
         W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
 
+        rho_prim = c2p_f.cons_to_prim(rho.v(), u.v(), v.v(), p0.v(), myg.qx - 2*myg.ng, myg.qy - 2*myg.ng, gamma)
+
         coeff = myg.scratch_array()
         coeff.v()[:, :] = 1.0/(rho.v() *
-            eos.rhoh_from_rho_p(gamma, p0.v2d(), rho.v()/W ) * W)
+            eos.rhoh_from_rho_p(gamma, p0.v2d(), rho_prim) * W)
         beta0 = self.base["beta0"]
         coeff.v()[:, :] = coeff.v()*beta0.v2d()**2
 
@@ -258,12 +261,14 @@ class Simulation(NullSimulation):
 
         # coeff = 1.0/rho
         U2 = u.v()**2 + v.v()**2
-        idx = (abs(U2) < 1.e-15)
+        idx = (U2 < 1.e-15)
         W = np.ones_like(u.v())
         W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
 
+        rho_prim = c2p_f.cons_to_prim(rho.v(), u.v(), v.v(), p0.v(), myg.qx - 2*myg.ng, myg.qy - 2*myg.ng, gamma)
+
         coeff.v()[:, :] = 1.0/(rho.v() *
-            eos.rhoh_from_rho_p(gamma, p0.v2d(), rho.v()/W ) * W)
+            eos.rhoh_from_rho_p(gamma, p0.v2d(), rho_prim) * W)
         coeff.v()[:, :] = coeff.v()*beta0.v2d()
 
         u.v()[:, :] -= coeff.v()*gradp_x.v()
@@ -373,12 +378,14 @@ class Simulation(NullSimulation):
         # create the coefficient to the grad (pi/beta) term
         coeff = self.aux_data.get_var("coeff")
         U2 = u.v()**2 + v.v()**2
-        idx = (abs(U2) < 1.e-15)
+        idx = (U2 < 1.e-15)
         W = np.ones_like(u.v())
         W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
 
+        rho_prim = c2p_f.cons_to_prim(rho.v(), u.v(), v.v(), p0.v(), myg.qx - 2*myg.ng, myg.qy - 2*myg.ng, gamma)
+
         coeff.v()[:, :] = 1.0/(rho.v() *
-            eos.rhoh_from_rho_p(gamma, p0.v2d(), rho.v()/W ) * W)
+            eos.rhoh_from_rho_p(gamma, p0.v2d(), rho_prim) * W)
         coeff.v()[:, :] = coeff.v()*beta0.v2d()
         self.aux_data.fill_BC("coeff")
 
@@ -418,11 +425,15 @@ class Simulation(NullSimulation):
         # MZ!!!! probably don't need the buf here
         # coeff.v(buf=1)[:, :] = 1.0/rho.v(buf=1)
         U2 = u.v(buf=1)**2 + v.v(buf=1)**2
-        idx = (abs(U2) < 1.e-15)
+        idx = (U2 < 1.e-15)
         W = np.ones_like(u.v(buf=1))
         W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
+
+        rho_prim = myg.scratch_array()
+        rho_prim.v(buf=1)[:, :] = c2p_f.cons_to_prim(rho.v(buf=1), u.v(buf=1), v.v(buf=1), p0.v(buf=1), myg.qx - 2*myg.ng+2, myg.qy - 2*myg.ng+2, gamma)
+
         coeff.v(buf=1)[:, :] = 1.0/(rho.v(buf=1) *
-            eos.rhoh_from_rho_p(gamma, p0.v2d(buf=1), rho.v(buf=1)/W ) * W)
+            eos.rhoh_from_rho_p(gamma, p0.v2d(buf=1), rho_prim.v(buf=1)) * W)
         coeff.v(buf=1)[:, :] = coeff.v(buf=1)*beta0.v2d(buf=1)**2
 
         # create the multigrid object
@@ -458,12 +469,14 @@ class Simulation(NullSimulation):
 
         coeff = self.aux_data.get_var("coeff")
         U2 = u.v()**2 + v.v()**2
-        idx = (abs(U2) < 1.e-15)
+        idx = (U2 < 1.e-15)
         W = np.ones_like(u.v())
         W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
 
+        rho_prim = c2p_f.cons_to_prim(rho.v(), u.v(), v.v(), p0.v(), myg.qx - 2*myg.ng, myg.qy - 2*myg.ng, gamma)
+
         coeff.v()[:, :] = 1.0/(rho.v() *
-            eos.rhoh_from_rho_p(gamma, p0.v2d(), rho.v()/W ) * W)
+            eos.rhoh_from_rho_p(gamma, p0.v2d(), rho_prim) * W)
         # coeff.v()[:, :] = 1.0/rho.v()
         coeff.v()[:, :] = coeff.v()*beta0.v2d()
         self.aux_data.fill_BC("coeff")
@@ -510,7 +523,17 @@ class Simulation(NullSimulation):
         # update eint as a diagnostic
         eint = self.cc_data.get_var("eint")
         gamma = self.rp.get_param("eos.gamma")
-        eint.v()[:, :] = self.base["p0"].v2d()/(gamma - 1.0)/rho.v()
+
+        # should I be using U here???? I think the MAC ones are edge centred so wouldn't work?? But it's not used anywhere so who cares?
+
+        U2 = u.v()**2 + v.v()**2
+        idx = (U2 < 1.e-15)
+        W = np.ones_like(u.v())
+        W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
+
+        rho_prim = c2p_f.cons_to_prim(rho.v(), u.v(), v.v(), p0.v(), myg.qx - 2*myg.ng, myg.qy - 2*myg.ng, gamma)
+
+        eint.v()[:, :] = self.base["p0"].v2d()/(gamma - 1.0)/rho_prim
 
         #---------------------------------------------------------------------
         # recompute the interface states, using the advective velocity
@@ -521,12 +544,14 @@ class Simulation(NullSimulation):
 
         coeff = self.aux_data.get_var("coeff")
         U2 = u.v()**2 + v.v()**2
-        idx = (abs(U2) < 1.e-15)
+        idx = (U2 < 1.e-15)
         W = np.ones_like(u.v())
         W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
 
+        rho_prim = c2p_f.cons_to_prim(0.5*(rho.v() + rho_old.v()), u.v(), v.v(), p0.v(), myg.qx - 2*myg.ng, myg.qy - 2*myg.ng, gamma)
+
         coeff.v()[:, :] = 2.0/((rho.v() + rho_old.v()) *
-            eos.rhoh_from_rho_p(gamma, p0.v2d(), 0.5*(rho.v() + rho_old.v())/W ) * W)
+            eos.rhoh_from_rho_p(gamma, p0.v2d(), rho_prim) * W)
 
         # coeff.v()[:, :] = 2.0/(rho.v() + rho_old.v())
         coeff.v()[:, :] = coeff.v()*beta0.v2d()
@@ -603,12 +628,14 @@ class Simulation(NullSimulation):
 
         # create the coefficient array: beta0**2/rho
         U2 = u.v()**2 + v.v()**2
-        idx = (abs(U2) < 1.e-15)
+        idx = (U2 < 1.e-15)
         W = np.ones_like(u.v())
         W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
 
+        rho_prim = c2p_f.cons_to_prim(rho.v(), u.v(), v.v(), p0.v(), myg.qx - 2*myg.ng, myg.qy - 2*myg.ng, gamma)
+
         coeff.v()[:, :] = 1.0/(rho.v() *
-            eos.rhoh_from_rho_p(gamma, p0.v2d(), rho.v()/W ) * W)
+            eos.rhoh_from_rho_p(gamma, p0.v2d(), rho_prim) * W)
         # coeff = 1.0/rho
         coeff.v()[:, :] = coeff.v()*beta0.v2d()**2
 
@@ -651,12 +678,14 @@ class Simulation(NullSimulation):
 
         # U = U - (beta_0/rho) grad (phi/beta_0)
         U2 = u.v()**2 + v.v()**2
-        idx = (abs(U2) < 1.e-15)
+        idx = (U2 < 1.e-15)
         W = np.ones_like(u.v())
         W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
 
+        rho_prim = c2p_f.cons_to_prim(rho.v(), u.v(), v.v(), p0.v(), myg.qx - 2*myg.ng, myg.qy - 2*myg.ng, gamma)
+
         coeff.v()[:, :] = 1.0/(rho.v() *
-            eos.rhoh_from_rho_p(gamma, p0.v2d(), rho.v()/W ) * W)
+            eos.rhoh_from_rho_p(gamma, p0.v2d(), rho_prim) * W)
         # coeff = 1.0/rho
         coeff.v()[:, :] = coeff.v()*beta0.v2d()
 

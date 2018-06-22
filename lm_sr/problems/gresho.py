@@ -2,7 +2,7 @@ from __future__ import print_function
 
 import sys
 import mesh.patch as patch
-import numpy
+import numpy as np
 from util import msg
 
 
@@ -46,7 +46,7 @@ def init_data(my_data, base, rp):
     pres = myg.scratch_array()
 
     for j in range(myg.jlo, myg.jhi+1):
-        dens[:, j] = max(dens_base*numpy.exp(-myg.y[j]/scale_height),
+        dens[:, j] = max(dens_base*np.exp(-myg.y[j]/scale_height),
                          dens_cutoff)
 
     cs2 = scale_height*abs(grav)
@@ -58,13 +58,13 @@ def init_data(my_data, base, rp):
     x_centre = 0.5 * (myg.x[0] + myg.x[-1])
     y_centre = 0.5 * (myg.y[0] + myg.y[-1])
 
-    r = numpy.sqrt((myg.x2d - x_centre)**2 + (myg.y2d - y_centre)**2)
+    r = np.sqrt((myg.x2d - x_centre)**2 + (myg.y2d - y_centre)**2)
 
     pres[r <= R] += 0.5 * (u0 * r[r<=R]/R)**2
-    pres[(r > R) & (r <= 2*R)] += u0**2 * (0.5 *(r[(r > R) & (r <= 2*R)]/R)**2 + 4 * (1 - r[(r > R) & (r <= 2*R)]/R + numpy.log(r[(r > R) & (r <= 2*R)]/R)))
-    pres[r > 2*R] += u0**2 * (4 * numpy.log(2) - 2)
+    pres[(r > R) & (r <= 2*R)] += u0**2 * (0.5 *(r[(r > R) & (r <= 2*R)]/R)**2 + 4 * (1 - r[(r > R) & (r <= 2*R)]/R + np.log(r[(r > R) & (r <= 2*R)]/R)))
+    pres[r > 2*R] += u0**2 * (4 * np.log(2) - 2)
     #
-    uphi = numpy.zeros_like(pres)
+    uphi = np.zeros_like(pres)
     uphi[r <= R] = u0 * r[r<=R]/R
     uphi[(r > R) & (r <= 2*R)] = u0 * (2 - r[(r > R) & (r <= 2*R)]/R)
 
@@ -73,9 +73,19 @@ def init_data(my_data, base, rp):
 
     dens[:,:] = pres[:,:]/(eint[:,:]*(gamma - 1.0))
 
+    # make relativistic
+    U2 = xvel**2 + yvel**2
+    idx = (U2 < 1.e-15)
+    W = np.ones_like(xvel)
+    W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
+
+    dens[:,:] *= W
+    xvel[:,:] /= W
+    yvel[:,:] /= W
+
     # do the base state
-    base["rho0"].d[:] = numpy.mean(dens, axis=0)
-    base["p0"].d[:] = numpy.mean(pres, axis=0)
+    base["rho0"].d[:] = np.mean(dens, axis=0)
+    base["p0"].d[:] = np.mean(pres, axis=0)
 
     # redo the pressure via HSE
     for j in range(myg.jlo+1, myg.jhi):

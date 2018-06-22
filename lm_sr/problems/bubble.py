@@ -3,6 +3,7 @@ from __future__ import print_function
 import sys
 import mesh.patch as patch
 import numpy
+import lm_sr.eos as eos
 from util import msg
 
 
@@ -42,6 +43,8 @@ def init_data(my_data, base, rp):
     yvel[:, :] = 0.0
     dens[:, :] = dens_cutoff
 
+    # as xvel=yvel=0, W=1 and we don't need to update the velocity or the dens to make them the Wilson variables.
+
     # set the density to be stratified in the y-direction
     myg = my_data.grid
     pres = myg.scratch_array()
@@ -52,7 +55,7 @@ def init_data(my_data, base, rp):
                          dens_cutoff)
 
     cs2 = scale_height*abs(grav)
-
+    
     # set the pressure (P = cs2*dens)
     pres = cs2*dens
     eint[:, :] = pres/(gamma - 1.0)/dens

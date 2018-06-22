@@ -3,6 +3,8 @@ This is a gamma-law equation of state: p = rho e (gamma - 1), where
 gamma is the constant ratio of specific heats.
 """
 
+import numpy as np
+
 
 def pres(gamma, dens, eint):
     """
@@ -81,10 +83,17 @@ def h_from_rho_p(gamma, rho, p):
     Given rho and pressure, return h
     """
 
-    return 1 + gamma * p / rho
+    return 1 + gamma * p / (gamma - 1) / rho
 
 def rhoh_from_rho_p(gamma, rho, p):
     """
     Given rho and p, return h
     """
     return rho + gamma / (gamma - 1) * p
+
+def cs_from_p_rho(gamma, p, rho):
+    """
+    Given pressure and density, return the relativistic sound speed
+    """
+    cs_N = np.sqrt(gamma * p / rho)
+    return cs_N / h_from_rho_p(gamma, rho, p)
