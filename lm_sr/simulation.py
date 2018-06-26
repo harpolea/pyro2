@@ -430,7 +430,9 @@ class Simulation(NullSimulation):
         W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
 
         rho_prim = myg.scratch_array()
-        rho_prim.v(buf=1)[:, :] = c2p_f.cons_to_prim(rho.v(buf=1), u.v(buf=1), v.v(buf=1), p0.v(buf=1), myg.qx - 2*myg.ng+2, myg.qy - 2*myg.ng+2, gamma)
+        rho_prim.v(buf=1)[:, :] = c2p_f.cons_to_prim(rho.v(buf=1),
+            u.v(buf=1), v.v(buf=1), p0.v(buf=1),
+            myg.qx - 2*myg.ng+2, myg.qy - 2*myg.ng+2, gamma)
 
         coeff.v(buf=1)[:, :] = 1.0/(rho.v(buf=1) *
             eos.rhoh_from_rho_p(gamma, p0.v2d(buf=1), rho_prim.v(buf=1)) * W)
@@ -524,7 +526,9 @@ class Simulation(NullSimulation):
         eint = self.cc_data.get_var("eint")
         gamma = self.rp.get_param("eos.gamma")
 
-        # should I be using U here???? I think the MAC ones are edge centred so wouldn't work?? But it's not used anywhere so who cares?
+        # should I be using U here???? I think the MAC ones are
+        # edge centred so wouldn't work?? But it's not used
+        # anywhere so who cares?
 
         U2 = u.v()**2 + v.v()**2
         idx = (U2 < 1.e-15)
@@ -548,7 +552,9 @@ class Simulation(NullSimulation):
         W = np.ones_like(u.v())
         W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
 
-        rho_prim = c2p_f.cons_to_prim(0.5*(rho.v() + rho_old.v()), u.v(), v.v(), p0.v(), myg.qx - 2*myg.ng, myg.qy - 2*myg.ng, gamma)
+        rho_prim = c2p_f.cons_to_prim(0.5*(rho.v() + rho_old.v()),
+            u.v(), v.v(), p0.v(), myg.qx - 2*myg.ng,
+            myg.qy - 2*myg.ng, gamma)
 
         coeff.v()[:, :] = 2.0/((rho.v() + rho_old.v()) *
             eos.rhoh_from_rho_p(gamma, p0.v2d(), rho_prim) * W)

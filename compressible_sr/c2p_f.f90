@@ -229,7 +229,7 @@ subroutine cons_to_prim(U, qx, qy, &
 
     if (naux > 0) then
         do i = 0, naux-1
-            q(:, :, ix+i) = U(:, :, irhox+i)/(q(:, :, irho) * W)
+            q(:, :, ix+i) = U(:, :, irhox+i)/U(:, :, idens)
         enddo
     endif
 

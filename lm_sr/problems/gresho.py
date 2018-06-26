@@ -33,7 +33,7 @@ def init_data(my_data, base, rp):
 
     R = rp.get_param("gresho.r")
     u0 = rp.get_param("gresho.u0")
-    p0 = rp.get_param("gresho.p0")
+    # p0 = rp.get_param("gresho.p0")
 
     # initialize the components -- we'll get a pressure too
     # but that is used only to initialize the base state
@@ -60,18 +60,21 @@ def init_data(my_data, base, rp):
 
     r = np.sqrt((myg.x2d - x_centre)**2 + (myg.y2d - y_centre)**2)
 
-    pres[r <= R] += 0.5 * (u0 * r[r<=R]/R)**2
-    pres[(r > R) & (r <= 2*R)] += u0**2 * (0.5 *(r[(r > R) & (r <= 2*R)]/R)**2 + 4 * (1 - r[(r > R) & (r <= 2*R)]/R + np.log(r[(r > R) & (r <= 2*R)]/R)))
+    pres[r <= R] += 0.5 * (u0 * r[r <= R]/R)**2
+    pres[(r > R) & (r <= 2*R)] += u0**2 * (0.5 *
+        (r[(r > R) & (r <= 2*R)]/R)**2 +
+        4 * (1 - r[(r > R) & (r <= 2*R)]/R +
+        np.log(r[(r > R) & (r <= 2*R)]/R)))
     pres[r > 2*R] += u0**2 * (4 * np.log(2) - 2)
     #
     uphi = np.zeros_like(pres)
-    uphi[r <= R] = u0 * r[r<=R]/R
+    uphi[r <= R] = u0 * r[r <= R]/R
     uphi[(r > R) & (r <= 2*R)] = u0 * (2 - r[(r > R) & (r <= 2*R)]/R)
 
-    xvel[:,:] = -uphi[:,:] * (myg.y2d - y_centre) / r[:,:]
-    yvel[:,:] = uphi[:,:] * (myg.x2d - x_centre) / r[:,:]
+    xvel[:, :] = -uphi[:, :] * (myg.y2d - y_centre) / r[:, :]
+    yvel[:, :] = uphi[:, :] * (myg.x2d - x_centre) / r[:, :]
 
-    dens[:,:] = pres[:,:]/(eint[:,:]*(gamma - 1.0))
+    dens[:, :] = pres[:, :]/(eint[:, :]*(gamma - 1.0))
 
     # make relativistic
     U2 = xvel**2 + yvel**2
@@ -79,9 +82,9 @@ def init_data(my_data, base, rp):
     W = np.ones_like(xvel)
     W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
 
-    dens[:,:] *= W
-    xvel[:,:] /= W
-    yvel[:,:] /= W
+    dens[:, :] *= W
+    xvel[:, :] /= W
+    yvel[:, :] /= W
 
     # do the base state
     base["rho0"].d[:] = np.mean(dens, axis=0)

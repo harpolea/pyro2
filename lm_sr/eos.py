@@ -71,12 +71,14 @@ def rhoe(gamma, pres):
     """
     return pres/(gamma - 1.0)
 
+
 def h_from_eps(gamma, eint):
     """
     Given rho and internal energy, return h
     """
 
     return 1 + gamma * eint
+
 
 def h_from_rho_p(gamma, rho, p):
     """
@@ -85,11 +87,13 @@ def h_from_rho_p(gamma, rho, p):
 
     return 1 + gamma * p / (gamma - 1) / rho
 
+
 def rhoh_from_rho_p(gamma, rho, p):
     """
     Given rho and p, return h
     """
     return rho + gamma / (gamma - 1) * p
+
 
 def cs_from_p_rho(gamma, p, rho):
     """

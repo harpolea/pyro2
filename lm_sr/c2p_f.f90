@@ -156,8 +156,8 @@ subroutine cons_to_prim(D, Ux, Uy, p0, qx, qy, gamma, rho)
 
     U2 = Ux**2 + Uy**2
 
-    do j = 0, qx-1
-        do i = 0, qy-1
+    do j = 0, qy-1
+        do i = 0, qx-1
             if (U2(i, j) < 1.0d-15) then
                 W = 1.0d0
             else

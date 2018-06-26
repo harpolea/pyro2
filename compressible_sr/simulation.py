@@ -123,6 +123,9 @@ class Simulation(NullSimulation):
         if extra_vars is not None:
             for v in extra_vars:
                 my_data.register_var(v, bc)
+        # # make a passive scalar
+        # if self.problem_name == "kh":
+        #     my_data.register_var("scalar", bc)
 
         # store the EOS gamma as an auxillary quantity so we can have a
         # self-contained object stored in output files to make plots.
@@ -252,6 +255,7 @@ class Simulation(NullSimulation):
         u = q[:, :, ivars.iu]
         v = q[:, :, ivars.iv]
         p = q[:, :, ivars.ip]
+        # X = q[:, :, ivars.ix]
         try:
             e = eos.rhoe(gamma, p)/rho
         except FloatingPointError:

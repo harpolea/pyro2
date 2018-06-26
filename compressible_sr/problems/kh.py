@@ -23,6 +23,7 @@ def init_data(my_data, rp):
     xmom = my_data.get_var("x-momentum")
     ymom = my_data.get_var("y-momentum")
     ener = my_data.get_var("energy")
+    # X = my_data.get_var("scalar")
 
     # initialize the components, remember, that ener here is rho*eint
     # + 0.5*rho*v**2, where eint is the specific internal energy
@@ -55,18 +56,22 @@ def init_data(my_data, rp):
     # lower quarter
     dens[idx1] = rho_1 - rhom*np.exp((myg.y2d[idx1] - 0.25)/dy)
     xmom[idx1] = v_1 - vm*np.exp((myg.y2d[idx1] - 0.25)/dy)
+    # X[idx1] = 1.0
 
     # second quarter
     dens[idx2] = rho_2 + rhom*np.exp((0.25 - myg.y2d[idx2])/dy)
     xmom[idx2] = v_2 + vm*np.exp((0.25 - myg.y2d[idx2])/dy)
+    # X[idx2] = 0.0
 
     # third quarter
     dens[idx3] = rho_2 + rhom*np.exp((myg.y2d[idx3] - 0.75)/dy)
     xmom[idx3] = v_2 + vm*np.exp((myg.y2d[idx3] - 0.75)/dy)
+    # X[idx3] = 0.0
 
     # fourth quarter
     dens[idx4] = rho_1 - rhom*np.exp((0.75 - myg.y2d[idx4])/dy)
     xmom[idx4] = v_1 - vm*np.exp((0.75 - myg.y2d[idx4])/dy)
+    # X[idx4] = 1.0
 
     # upper half
     xmom[:, :] *= dens
@@ -85,6 +90,8 @@ def init_data(my_data, rp):
     ymom[:, :] = rhoh[:, :]*v*W**2
 
     ener[:, :] = rhoh[:, :]*W**2 - p - dens[:, :]
+
+    # X[:, :] *= dens
 
 
 def finalize():
