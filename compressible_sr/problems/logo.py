@@ -37,7 +37,7 @@ def init_data(my_data, rp):
     logo = np.rot90(np.rot90(np.rot90((256-data[:, :, 1])/255.0)))
 
     # get the density, momenta, and energy as separate variables
-    dens = my_data.get_var("densityW")
+    dens = my_data.get_var("density")
     xmom = my_data.get_var("x-momentum")
     ymom = my_data.get_var("y-momentum")
     ener = my_data.get_var("energy")
@@ -53,7 +53,7 @@ def init_data(my_data, rp):
     # set the density in the logo zones to be really large
     logo_dens = 0.1
 
-    dens[:, :] = logo_dens * (0.5 + logo[0,0])
+    dens[:, :] = logo_dens * (0.5 + logo[0, 0])
 
     dens.v()[:, :] = (0.5 + logo[:, :]) * logo_dens
 
@@ -62,27 +62,20 @@ def init_data(my_data, rp):
 
     p_ambient = 1.e-1
     p = myg.scratch_array(nvar=1)
-    p[:,:] = p_ambient * (0.8 + logo[0,0])
-    p.v()[:,:] *= (0.8 + logo[:, :])
+    p[:, :] = p_ambient * (0.8 + logo[0, 0])
+    p.v()[:, :] *= (0.8 + logo[:, :])
     # ener[:, :] = p/(gamma - 1.0)
-    # ener.v()[:,:] *= (0.2 + logo[:, :])
-
-    # explosion
-    # ener[myg.ilo, myg.jlo] = 1.0
-    # ener[myg.ilo, myg.jhi] = 1.0
-    # ener[myg.ihi, myg.jlo] = 1.0
-    # ener[myg.ihi, myg.jhi] = 1.0
-
+    # ener.v()[:, :] *= (0.2 + logo[:, :])
     rhoh = eos.rhoh_from_rho_p(gamma, dens, p)
 
     u = xmom/dens
     v = ymom/dens
     W = 1./np.sqrt(1-u**2-v**2)
-    dens[:,:] *= W
+    dens[:, :] *= W
     xmom[:, :] = rhoh[:, :]*u*W**2
     ymom[:, :] = rhoh[:, :]*v*W**2
 
-    ener[:,:] = rhoh[:,:]*W**2 - p - dens[:,:]
+    ener[:, :] = rhoh[:, :]*W**2 - p - dens[:, :]
 
 
 def finalize():

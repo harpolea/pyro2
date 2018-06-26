@@ -1,11 +1,8 @@
 from __future__ import print_function
 
 import importlib
-
-import numpy as np
-np.seterr(all='raise')
 import matplotlib.pyplot as plt
-from scipy.optimize import brentq
+import numpy as np
 
 import compressible_sr.BC as BC
 import compressible_sr.eos as eos
@@ -14,6 +11,8 @@ import compressible_sr.unsplit_fluxes as flx
 import mesh.boundary as bnd
 from simulation_null import NullSimulation, grid_setup, bc_setup
 import util.plot_tools as plot_tools
+
+# np.seterr(all='raise')
 
 
 class Variables(object):
@@ -27,7 +26,7 @@ class Variables(object):
         # conserved variables -- we set these when we initialize for
         # they match the CellCenterData2d object
         try:
-            self.idens = myd.names.index("densityW")
+            self.idens = myd.names.index("density")
             self.ixmom = myd.names.index("x-momentum")
             self.iymom = myd.names.index("y-momentum")
             self.iener = myd.names.index("energy")
@@ -64,13 +63,21 @@ def prim_to_cons(q, gamma, ivars, myg):
 
     U = myg.scratch_array(nvar=ivars.nvar)
 
-    W = 1 / np.sqrt(1 - q[:, :, ivars.iu]**2 - q[:, :, ivars.iv]**2)
+    u = q[:, :, ivars.iu]
+    v = q[:, :, ivars.iv]
+
+    try:
+        W = 1 / np.sqrt(1 - u**2 - v**2)
+    except FloatingPointError:
+        u[np.isnan(u)] = 0
+        v[np.isnan(v)] = 0
+        W = np.ones_like(u)
 
     rhoh = eos.rhoh_from_rho_p(gamma, q[:, :, ivars.irho], q[:, :, ivars.ip])
 
     U[:, :, ivars.idens] = q[:, :, ivars.irho] * W
-    U[:, :, ivars.ixmom] = q[:, :, ivars.iu] * rhoh * W**2
-    U[:, :, ivars.iymom] = q[:, :, ivars.iv] * rhoh * W**2
+    U[:, :, ivars.ixmom] = u * rhoh * W**2
+    U[:, :, ivars.iymom] = v * rhoh * W**2
 
     U[:, :, ivars.iener] = rhoh * W**2 - q[:, :, ivars.ip] - U[:, :, ivars.idens]
 
@@ -98,6 +105,7 @@ class Simulation(NullSimulation):
 
         # define solver specific boundary condition routines
         bnd.define_bc("hse", BC.user, is_solid=False)
+        bnd.define_bc("ramp", BC.user, is_solid=False)  # for double mach reflection problem
 
         bc, bc_xodd, bc_yodd = bc_setup(self.rp)
 
@@ -106,7 +114,7 @@ class Simulation(NullSimulation):
         self.solid = bnd.bc_is_solid(bc)
 
         # density and energy
-        my_data.register_var("densityW", bc)
+        my_data.register_var("density", bc)
         my_data.register_var("energy", bc)
         my_data.register_var("x-momentum", bc_xodd)
         my_data.register_var("y-momentum", bc_yodd)
@@ -167,6 +175,8 @@ class Simulation(NullSimulation):
         # print(f'v = {v}')
         # print(f'cs = {cs}')
 
+        # print(sum(abs(u)))
+
         # the timestep is min(dx/(|u| + cs), dy/(|v| + cs))
         xtmp = self.cc_data.grid.dx/(abs(u) + cs)
         ytmp = self.cc_data.grid.dy/(abs(v) + cs)
@@ -182,7 +192,7 @@ class Simulation(NullSimulation):
         tm_evolve = self.tc.timer("evolve")
         tm_evolve.begin()
 
-        dens = self.cc_data.get_var("densityW")
+        dens = self.cc_data.get_var("density")
         ymom = self.cc_data.get_var("y-momentum")
         ener = self.cc_data.get_var("energy")
 
@@ -238,7 +248,6 @@ class Simulation(NullSimulation):
 
         q = flx.cons_to_prim_wrapper(self.cc_data.data, gamma, ivars, myg)
 
-
         rho = q[:, :, ivars.irho]
         u = q[:, :, ivars.iu]
         v = q[:, :, ivars.iv]
@@ -246,17 +255,10 @@ class Simulation(NullSimulation):
         try:
             e = eos.rhoe(gamma, p)/rho
         except FloatingPointError:
-            print(np.isfinite(p).all())
-            print(f'ener = {self.cc_data.data[:,:,ivars.iener]}')
-            print(f'ip = {ivars.ip}')
-            print(f'p = {p}')
-            p[:,:] = self.cc_data.data[:,:,ivars.iener] * (gamma-1)
-            e = self.cc_data.data[:,:,ivars.iener] #p / (gamma - 1)
+            p[:, :] = self.cc_data.data[:, :, ivars.iener] * (gamma-1)
+            e = self.cc_data.data[:, :, ivars.iener]  # p / (gamma - 1)
 
         magvel = np.sqrt(u**2 + v**2)
-        # print(rho)
-        # print(magvel)
-        # exit()
 
         fields = [rho, magvel, p, e]
         field_names = [r"$\rho$", r"U", "p", "e"]

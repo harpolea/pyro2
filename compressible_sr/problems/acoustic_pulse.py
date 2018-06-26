@@ -1,7 +1,5 @@
 from __future__ import print_function
 
-import sys
-import mesh.fv as fv
 import numpy as np
 from util import msg
 
@@ -21,7 +19,7 @@ def init_data(myd, rp):
     #     sys.exit()
 
     # get the density, momenta, and energy as separate variables
-    dens = myd.get_var("densityW")
+    dens = myd.get_var("density")
     xmom = myd.get_var("x-momentum")
     ymom = myd.get_var("y-momentum")
     ener = myd.get_var("energy")
@@ -58,7 +56,7 @@ def init_data(myd, rp):
 
     rhoh = eos.rhoh_from_rho_p(gamma, dens, p)
 
-    ener[:,:] = rhoh[:,:] - p - dens[:,:]
+    ener[:, :] = rhoh[:, :] - p - dens[:, :]
 
 
 def finalize():
