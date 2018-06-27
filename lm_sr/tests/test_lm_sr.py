@@ -1,9 +1,5 @@
-import numpy as np
-from numpy.testing import assert_array_equal
-
 from util import runparams
 import lm_sr.simulation as sn
-import pytest
 
 
 class TestSimulation(object):
