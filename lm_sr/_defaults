@@ -14,3 +14,16 @@ gamma = 1.4    ; pres = rho ener (gamma - 1)
 [driver]
 
 cfl = 0.8
+
+[mesh]
+
+nx = 128
+ny = 128
+xmax = 1.0
+ymax = 1.0
+
+xlboundary = periodic
+xrboundary = periodic
+
+ylboundary = reflect
+yrboundary = outflow
