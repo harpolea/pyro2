@@ -48,7 +48,6 @@ def init_data(my_data, base, rp):
     myg = my_data.grid
     pres = myg.scratch_array()
 
-    j = myg.jlo
     for j in range(myg.jlo, myg.jhi+1):
         dens[:, j] = max(dens_base*numpy.exp(-myg.y[j]/scale_height),
                          dens_cutoff)

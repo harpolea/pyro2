@@ -1,0 +1,13 @@
+[rt]
+dens_base = 10.0            ; density at the base of the atmosphere
+scale_height = 2.0          ; scale height of the isothermal atmosphere
+
+dens_cutoff  = 0.01
+
+p0_base = 1.0
+
+rho_1 = 1.0
+rho_2 = 2.0
+
+vel_amplitude = 0.25
+vel_width = 0.025

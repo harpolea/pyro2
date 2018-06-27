@@ -77,10 +77,11 @@ def init_data(my_data, base, rp):
     dens[:, :] = pres[:, :]/(eint[:, :]*(gamma - 1.0))
 
     # make relativistic
-    U2 = xvel**2 + yvel**2
-    idx = (U2 < 1.e-15)
-    W = np.ones_like(xvel)
-    W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
+    # U2 = xvel**2 + yvel**2
+    # idx = (U2 < 1.e-15)
+    # W = np.ones_like(xvel)
+    # W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
+    W = 1.0 / np.sqrt(1.0 - xvel**2 - yvel**2)
 
     dens[:, :] *= W
     xvel[:, :] /= W
@@ -92,7 +93,9 @@ def init_data(my_data, base, rp):
 
     # redo the pressure via HSE
     for j in range(myg.jlo+1, myg.jhi):
-        base["p0"].d[j] = base["p0"].d[j-1] + 0.5*myg.dy*(base["rho0"].d[j] + base["rho0"].d[j-1])*grav
+        base["p0"].d[j] = base["p0"].d[j-1] + \
+            0.5*myg.dy*(base["rho0"].d[j]/np.mean(W[:, j]) +
+            base["rho0"].d[j-1]/np.mean(W[:, j-1]))*grav
 
 
 def finalize():
