@@ -77,10 +77,6 @@ def init_data(my_data, base, rp):
     dens[:, :] = pres[:, :]/(eint[:, :]*(gamma - 1.0))
 
     # make relativistic
-    # U2 = xvel**2 + yvel**2
-    # idx = (U2 < 1.e-15)
-    # W = np.ones_like(xvel)
-    # W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
     W = 1.0 / np.sqrt(1.0 - xvel**2 - yvel**2)
 
     dens[:, :] *= W

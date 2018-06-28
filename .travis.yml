@@ -25,9 +25,9 @@ script:
   - pytest -v --cov=. --cov-config .coveragerc --nbval --ignore=docs --ignore=./multigrid/variable_coeff_elliptic.ipynb --ignore=examples
 
 after_success:
-    - codecov
+  - codecov
 after_failure:
-   - codecov
+  - codecov
 #   - travis-sphinx build
 
 # after_success:

@@ -96,9 +96,6 @@ def init_data(my_data, base, rp):
 
     # redo the pressure via HSE
     for j in range(myg.jlo+1, myg.jhi):
-        # base["p0"].d[j] = base["p0"].d[j-1] + \
-        #     0.5*myg.dy*(base["rho0"].d[j]/numpy.mean(W[:, j]) +
-        #     base["rho0"].d[j-1]/numpy.mean(W[:, j-1]))*grav
         base["p0"].d[j] = base["p0"].d[j-1] + \
             0.5*myg.dy*(prim_rho0[j] + prim_rho0[j-1])*grav
 

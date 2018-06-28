@@ -208,12 +208,9 @@ class Simulation(NullSimulation):
 
         # the coefficent for the elliptic equation is beta_0^2/rho
         # coeff = 1/rho
-        U2 = u.v()**2 + v.v()**2
-        idx = (U2 < 1.e-15)
-        W = np.ones_like(u.v())
-        W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
-
         rho_prim = c2p_f.cons_to_prim(rho.v(), u.v(), v.v(), p0.v(), myg.qx - 2*myg.ng, myg.qy - 2*myg.ng, gamma)
+
+        W = rho.v() / rho_prim
 
         coeff = myg.scratch_array()
         coeff.v()[:, :] = 1.0/(rho.v() *
@@ -260,12 +257,10 @@ class Simulation(NullSimulation):
         gradp_x, gradp_y = mg.get_solution_gradient(grid=myg)
 
         # coeff = 1.0/rho
-        U2 = u.v()**2 + v.v()**2
-        idx = (U2 < 1.e-15)
-        W = np.ones_like(u.v())
-        W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
 
         rho_prim = c2p_f.cons_to_prim(rho.v(), u.v(), v.v(), p0.v(), myg.qx - 2*myg.ng, myg.qy - 2*myg.ng, gamma)
+
+        W = rho.v() / rho_prim
 
         coeff.v()[:, :] = 1.0/(rho.v() *
             eos.h_from_rho_p(gamma, p0.v2d(), rho_prim) * W)
@@ -377,12 +372,10 @@ class Simulation(NullSimulation):
 
         # create the coefficient to the grad (pi/beta) term
         coeff = self.aux_data.get_var("coeff")
-        U2 = u.v()**2 + v.v()**2
-        idx = (U2 < 1.e-15)
-        W = np.ones_like(u.v())
-        W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
 
         rho_prim = c2p_f.cons_to_prim(rho.v(), u.v(), v.v(), p0.v(), myg.qx - 2*myg.ng, myg.qy - 2*myg.ng, gamma)
+
+        W = rho.v() / rho_prim
 
         coeff.v()[:, :] = 1.0/(rho.v() *
             eos.h_from_rho_p(gamma, p0.v2d(), rho_prim) * W)
@@ -424,15 +417,13 @@ class Simulation(NullSimulation):
         # create the coefficient array: beta0**2/rho
         # MZ!!!! probably don't need the buf here
         # coeff.v(buf=1)[:, :] = 1.0/rho.v(buf=1)
-        U2 = 0.25*(u_MAC.v(buf=1)+u_MAC.ip(1, buf=1))**2 + 0.25*(v_MAC.v(buf=1)+v_MAC.jp(1, buf=1))**2
-        idx = (U2 < 1.e-15)
-        W = np.ones_like(U2)
-        W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
 
         rho_prim = myg.scratch_array()
         rho_prim.v(buf=1)[:, :] = c2p_f.cons_to_prim(rho.v(buf=1),
             u.v(buf=1), v.v(buf=1), p0.v(buf=1),
             myg.qx - 2*myg.ng+2, myg.qy - 2*myg.ng+2, gamma)
+
+        W = rho.v(buf=1) / rho_prim.v(buf=1)
 
         coeff.v(buf=1)[:, :] = 1.0/(rho.v(buf=1) *
             eos.h_from_rho_p(gamma, p0.v2d(buf=1), rho_prim.v(buf=1)) * W)
@@ -470,12 +461,10 @@ class Simulation(NullSimulation):
         phi_MAC[:, :] = mg.get_solution(grid=myg)
 
         coeff = self.aux_data.get_var("coeff")
-        U2 = 0.25*(u_MAC.v()+u_MAC.ip(1))**2 + 0.25*(v_MAC.v()+v_MAC.jp(1))**2
-        idx = (U2 < 1.e-15)
-        W = np.ones_like(u_MAC.v())
-        W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
 
         rho_prim = c2p_f.cons_to_prim(rho.v(), u.v(), v.v(), p0.v(), myg.qx - 2*myg.ng, myg.qy - 2*myg.ng, gamma)
+
+        W = rho.v() / rho_prim
 
         coeff.v()[:, :] = 1.0/(rho.v() *
             eos.h_from_rho_p(gamma, p0.v2d(), rho_prim) * W)
@@ -526,15 +515,6 @@ class Simulation(NullSimulation):
         eint = self.cc_data.get_var("eint")
         gamma = self.rp.get_param("eos.gamma")
 
-        # should I be using U here???? I think the MAC ones are
-        # edge centred so wouldn't work?? But it's not used
-        # anywhere so who cares?
-
-        U2 = 0.25*(u_MAC.v()+u_MAC.ip(1))**2 + 0.25*(v_MAC.v()+v_MAC.jp(1))**2
-        idx = (U2 < 1.e-15)
-        W = np.ones_like(u_MAC.v())
-        W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
-
         rho_prim = c2p_f.cons_to_prim(rho.v(),
             0.5*(u_MAC.v()+u_MAC.ip(1)),
             0.5*(v_MAC.v()+v_MAC.jp(1)), p0.v(),
@@ -550,14 +530,12 @@ class Simulation(NullSimulation):
             print("  making u, v edge states")
 
         coeff = self.aux_data.get_var("coeff")
-        U2 = u.v()**2 + v.v()**2
-        idx = (U2 < 1.e-15)
-        W = np.ones_like(u.v())
-        W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
 
         rho_prim = c2p_f.cons_to_prim(0.5*(rho.v() + rho_old.v()),
             u.v(), v.v(), p0.v(), myg.qx - 2*myg.ng,
             myg.qy - 2*myg.ng, gamma)
+
+        W = rho.v() / rho_prim
 
         coeff.v()[:, :] = 2.0/((rho.v() + rho_old.v()) *
             eos.h_from_rho_p(gamma, p0.v2d(), rho_prim) * W)
@@ -636,12 +614,10 @@ class Simulation(NullSimulation):
             print("  final projection")
 
         # create the coefficient array: beta0**2/rho
-        U2 = u.v()**2 + v.v()**2
-        idx = (U2 < 1.e-15)
-        W = np.ones_like(u.v())
-        W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
 
         rho_prim = c2p_f.cons_to_prim(rho.v(), u.v(), v.v(), p0.v(), myg.qx - 2*myg.ng, myg.qy - 2*myg.ng, gamma)
+
+        W = rho.v() / rho_prim
 
         coeff.v()[:, :] = 1.0/(rho.v() *
             eos.h_from_rho_p(gamma, p0.v2d(), rho_prim) * W)
@@ -685,13 +661,9 @@ class Simulation(NullSimulation):
         # this differs depending on what we projected.
         gradphi_x, gradphi_y = mg.get_solution_gradient(grid=myg)
 
-        # U = U - (beta_0/rho) grad (phi/beta_0)
-        U2 = u.v()**2 + v.v()**2
-        idx = (U2 < 1.e-15)
-        W = np.ones_like(u.v())
-        W[~idx] = np.sqrt(0.5/U2[~idx] + np.sqrt(0.25/U2[~idx]**2 + 1.))
-
         rho_prim = c2p_f.cons_to_prim(rho.v(), u.v(), v.v(), p0.v(), myg.qx - 2*myg.ng, myg.qy - 2*myg.ng, gamma)
+
+        W = rho.v() / rho_prim
 
         coeff.v()[:, :] = 1.0/(rho.v() *
             eos.h_from_rho_p(gamma, p0.v2d(), rho_prim) * W)
@@ -737,9 +709,9 @@ class Simulation(NullSimulation):
         u = self.cc_data.get_var("x-velocity")
         v = self.cc_data.get_var("y-velocity")
 
-        U2 = u**2 + v**2
+        # U2 = u**2 + v**2
 
-        W = np.sqrt(0.5 / U2 + np.sqrt(0.25/U2**2 + 1))
+        # W = np.sqrt(0.5 / U2 + np.sqrt(0.25/U2**2 + 1))
 
         myg = self.cc_data.grid
 
