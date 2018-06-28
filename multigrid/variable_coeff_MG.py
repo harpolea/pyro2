@@ -123,9 +123,8 @@ class VarCoeffCCMG2d(MG.CellCenterMG2d):
         eta_x = self.edge_coeffs[level].x
         eta_y = self.edge_coeffs[level].y
 
-        # print( "min/max c: {}, {}".format(np.min(c), np.max(c)))
-        # print( "min/max eta_x: {}, {}".format(np.min(eta_x), np.max(eta_x)))
-        # print( "min/max eta_y: {}, {}".format(np.min(eta_y), np.max(eta_y)))
+        myg = self.grids[level].grid
+        eg = self.edge_coeffs[level].grid
 
         # do red-black G-S
         for i in range(nsmooth):
@@ -147,21 +146,60 @@ class VarCoeffCCMG2d(MG.CellCenterMG2d):
             #
             # groups 1 and 3 are done together, then we need to
             # fill ghost cells, and then groups 2 and 4
+            #
+            # Found that ip_jp indexing was taking about 50% of runtime,
+            # so switched to messy array indexing
 
             for n, (ix, iy) in enumerate([(0, 0), (1, 1), (1, 0), (0, 1)]):
 
-                denom = (eta_x.ip_jp(1+ix, iy, s=2) + eta_x.ip_jp(ix, iy, s=2) +
-                         eta_y.ip_jp(ix, 1+iy, s=2) + eta_y.ip_jp(ix, iy, s=2))
+                # denom = (eta_x.ip_jp(1+ix, iy, s=2) + eta_x.ip_jp(ix, iy, s=2) +
+                #          eta_y.ip_jp(ix, 1+iy, s=2) + eta_y.ip_jp(ix, iy, s=2))
 
-                v.ip_jp(ix, iy, s=2)[:, :] = (-f.ip_jp(ix, iy, s=2) +
+                denom = (
+                    eta_x[eg.ilo+1+ix:eg.ihi+2+ix:2,
+                          eg.jlo+iy:eg.jhi+iy+1:2] +
+                    eta_x[eg.ilo+ix:eg.ihi+1+ix:2,
+                          eg.jlo+iy:eg.jhi+iy+1:2] +
+                    eta_y[eg.ilo+ix:eg.ihi+1+ix:2,
+                          eg.jlo+iy+1:eg.jhi+iy+2:2] +
+                    eta_y[eg.ilo+ix:eg.ihi+1+ix:2,
+                          eg.jlo+iy:eg.jhi+iy+1:2]
+                          )
+
+                # v.ip_jp(ix, iy, s=2)[:, :] = (-f.ip_jp(ix, iy, s=2) +
+                #     # eta_{i+1/2,j} phi_{i+1,j}
+                #     eta_x.ip_jp(1+ix, iy, s=2) * v.ip_jp(1+ix, iy, s=2) +
+                #     # eta_{i-1/2,j} phi_{i-1,j}
+                #     eta_x.ip_jp(ix, iy, s=2) * v.ip_jp(-1+ix, iy, s=2) +
+                #     # eta_{i,j+1/2} phi_{i,j+1}
+                #     eta_y.ip_jp(ix, 1+iy, s=2) * v.ip_jp(ix, 1+iy, s=2) +
+                #     # eta_{i,j-1/2} phi_{i,j-1}
+                #     eta_y.ip_jp(ix, iy, s=2) * v.ip_jp(ix, -1+iy, s=2)) / denom
+
+                v[myg.ilo+ix:myg.ihi+1+ix:2,
+                      myg.jlo+iy:myg.jhi+iy+1:2] = (
+                    -f[myg.ilo+ix:myg.ihi+1+ix:2,
+                          myg.jlo+iy:myg.jhi+iy+1:2] +
                     # eta_{i+1/2,j} phi_{i+1,j}
-                    eta_x.ip_jp(1+ix, iy, s=2) * v.ip_jp(1+ix, iy, s=2) +
+                    eta_x[eg.ilo+1+ix:eg.ihi+2+ix:2,
+                          eg.jlo+iy:eg.jhi+iy+1:2] *
+                    v[myg.ilo+1+ix:myg.ihi+2+ix:2,
+                          myg.jlo+iy:myg.jhi+iy+1:2] +
                     # eta_{i-1/2,j} phi_{i-1,j}
-                    eta_x.ip_jp(ix, iy, s=2) * v.ip_jp(-1+ix, iy, s=2) +
+                    eta_x[eg.ilo+ix:eg.ihi+1+ix:2,
+                          eg.jlo+iy:eg.jhi+iy+1:2] *
+                    v[myg.ilo+ix-1:myg.ihi+ix:2,
+                          myg.jlo+iy:myg.jhi+iy+1:2] +
                     # eta_{i,j+1/2} phi_{i,j+1}
-                    eta_y.ip_jp(ix, 1+iy, s=2) * v.ip_jp(ix, 1+iy, s=2) +
+                    eta_y[eg.ilo+ix:eg.ihi+1+ix:2,
+                          eg.jlo+iy+1:eg.jhi+iy+2:2] *
+                    v[myg.ilo+ix:myg.ihi+1+ix:2,
+                          myg.jlo+iy+1:myg.jhi+iy+2:2] +
                     # eta_{i,j-1/2} phi_{i,j-1}
-                    eta_y.ip_jp(ix, iy, s=2) * v.ip_jp(ix, -1+iy, s=2)) / denom
+                    eta_y[eg.ilo+ix:eg.ihi+1+ix:2,
+                          eg.jlo+iy:eg.jhi+iy+1:2] *
+                    v[myg.ilo+ix:myg.ihi+1+ix:2,
+                          myg.jlo+iy-1:myg.jhi+iy:2]) / denom
 
                 if n == 1 or n == 3:
                     self.grids[level].fill_BC("v")
