@@ -184,6 +184,7 @@ def parse_and_run():
                      "advection_rk",
                      "advection_fv4",
                      "advection_weno",
+                     "burgers",
                      "compressible",
                      "compressible_rk",
                      "compressible_fv4",
