@@ -213,9 +213,9 @@ class Simulation(NullSimulation):
         for n in range(self.ivars.nvar):
             var = self.cc_data.get_var_by_index(n)
 
-            var.v()[:, :] += \
-                dtdx*(Flux_x.v(n=n) - Flux_x.ip(1, n=n)) + \
-                dtdy*(Flux_y.v(n=n) - Flux_y.jp(1, n=n))
+            var.vi()[:, :] += \
+                dtdx*(Flux_x.vi(n=n) - Flux_x.ip(1, n=n)) + \
+                dtdy*(Flux_y.vi(n=n) - Flux_y.jp(1, n=n))
 
         # gravitational source terms
         ymom[:, :] += 0.5*self.dt*(dens[:, :] + old_dens[:, :])*grav
@@ -250,11 +250,14 @@ class Simulation(NullSimulation):
         u = q[:, :, ivars.iu]
         v = q[:, :, ivars.iv]
         p = q[:, :, ivars.ip]
-        e = eos.rhoe(gamma, p)/rho
-
-        magvel = np.sqrt(u**2 + v**2)
 
         myg = self.cc_data.grid
+
+        magvel = myg.scratch_array()
+        magvel[:, :] = np.sqrt(u**2 + v**2)
+
+        e = myg.scratch_array()
+        e[:, :] = eos.rhoe(gamma, p)/rho
 
         fields = [rho, magvel, p, e]
         field_names = [r"$\rho$", r"U", "p", "e"]
@@ -264,7 +267,7 @@ class Simulation(NullSimulation):
         for n, ax in enumerate(axes):
             v = fields[n]
 
-            img = ax.imshow(np.transpose(v.v()),
+            img = ax.imshow(np.transpose(v.vi()),
                             interpolation="nearest", origin="lower",
                             extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax],
                             cmap=self.cm)

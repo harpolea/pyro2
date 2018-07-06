@@ -39,7 +39,7 @@ import h5py
 from util import msg
 
 import mesh.boundary as bnd
-import mesh.array_indexer as ai
+import mesh.array_units as ai
 
 
 class Grid2d(object):
@@ -155,7 +155,7 @@ class Grid2d(object):
             _tmp = np.zeros((self.qx, self.qy), dtype=np.float64)
         else:
             _tmp = np.zeros((self.qx, self.qy, nvar), dtype=np.float64)
-        return ai.ArrayIndexer(d=_tmp, grid=self)
+        return ai.UnitsArrayIndexer(d=_tmp, grid=self)
 
     def norm(self, d):
         """
@@ -330,7 +330,7 @@ class CellCenterData2d(object):
 
         _tmp = np.zeros((self.grid.qx, self.grid.qy, self.nvar),
                         dtype=self.dtype)
-        self.data = ai.ArrayIndexer(_tmp, grid=self.grid)
+        self.data = ai.UnitsArrayIndexer(_tmp, grid=self.grid)
 
         self.initialized = 1
 
@@ -387,7 +387,7 @@ class CellCenterData2d(object):
                     return var
             raise KeyError("name {} is not valid".format(name))
         else:
-            return ai.ArrayIndexer(d=self.data[:, :, n], grid=self.grid)
+            return ai.UnitsArrayIndexer(d=self.data[:, :, n], grid=self.grid)
 
     def get_var_by_index(self, n):
         """
@@ -406,7 +406,7 @@ class CellCenterData2d(object):
             The array of data corresponding to the index
 
         """
-        return ai.ArrayIndexer(d=self.data[:, :, n], grid=self.grid)
+        return ai.UnitsArrayIndexer(d=self.data[:, :, n], grid=self.grid)
 
     def get_vars(self):
         """
@@ -419,7 +419,7 @@ class CellCenterData2d(object):
             The array of data
 
         """
-        return ai.ArrayIndexer(d=self.data, grid=self.grid)
+        return ai.UnitsArrayIndexer(d=self.data, grid=self.grid)
 
     def get_aux(self, keyword):
         """
@@ -498,14 +498,14 @@ class CellCenterData2d(object):
         return the minimum of the variable name in the domain's valid region
         """
         n = self.names.index(name)
-        return np.min(self.data.v(buf=ng, n=n))
+        return np.min(self.data.vi(buf=ng, n=n))
 
     def max(self, name, ng=0):
         """
         return the maximum of the variable name in the domain's valid region
         """
         n = self.names.index(name)
-        return np.max(self.data.v(buf=ng, n=n))
+        return np.max(self.data.vi(buf=ng, n=n))
 
     def restrict(self, varname, N=2):
         """
@@ -525,12 +525,12 @@ class CellCenterData2d(object):
         # by averaging the fine cells into the corresponding coarse cell
         # that encompasses them.
         if N == 2:
-            cdata.v()[:, :] = \
-                0.25*(fdata.v(s=2) + fdata.ip(1, s=2) +
+            cdata.vi()[:, :] = \
+                0.25*(fdata.vi(s=2) + fdata.ip(1, s=2) +
                       fdata.jp(1, s=2) + fdata.ip_jp(1, 1, s=2))
         elif N == 4:
-            cdata.v()[:, :] = \
-                (fdata.v(s=4) +
+            cdata.vi()[:, :] = \
+                (fdata.vi(s=4) +
                  fdata.ip(1, s=4) +
                  fdata.ip(2, s=4) + fdata.ip(3, s=4) +
                  fdata.jp(1, s=4) + fdata.ip_jp(1, 1, s=4) +
@@ -592,16 +592,16 @@ class CellCenterData2d(object):
 
         # slopes for the coarse data
         m_x = coarse_grid.scratch_array()
-        m_x.v()[:, :] = 0.5*(cdata.ip(1) - cdata.ip(-1))
+        m_x.vi()[:, :] = 0.5*(cdata.ip(1) - cdata.ip(-1))
 
         m_y = coarse_grid.scratch_array()
-        m_y.v()[:, :] = 0.5*(cdata.jp(1) - cdata.jp(-1))
+        m_y.vi()[:, :] = 0.5*(cdata.jp(1) - cdata.jp(-1))
 
         # fill the children
-        fdata.v(s=2)[:, :] = cdata.v() - 0.25*m_x.v() - 0.25*m_y.v()      # 1 child
-        fdata.ip(1, s=2)[:, :] = cdata.v() + 0.25*m_x.v() - 0.25*m_y.v()  # 2
-        fdata.jp(1, s=2)[:, :] = cdata.v() - 0.25*m_x.v() + 0.25*m_y.v()  # 3
-        fdata.ip_jp(1, 1, s=2)[:, :] = cdata.v() + 0.25*m_x.v() + 0.25*m_y.v()  # 4
+        fdata.vi(s=2)[:, :] = cdata.vi() - 0.25*m_x.vi() - 0.25*m_y.vi()      # 1 child
+        fdata.ip(1, s=2)[:, :] = cdata.vi() + 0.25*m_x.vi() - 0.25*m_y.vi()  # 2
+        fdata.jp(1, s=2)[:, :] = cdata.vi() - 0.25*m_x.vi() + 0.25*m_y.vi()  # 3
+        fdata.ip_jp(1, 1, s=2)[:, :] = cdata.vi() + 0.25*m_x.vi() + 0.25*m_y.vi()  # 4
 
         return fdata
 
@@ -646,7 +646,7 @@ class CellCenterData2d(object):
         for n in range(self.nvar):
             gvar = gstate.create_group(self.names[n])
             gvar.create_dataset("data",
-                                data=self.get_var_by_index(n).v())
+                                data=self.get_var_by_index(n).vi())
             gvar.attrs["xlb"] = self.BCs[self.names[n]].xlb
             gvar.attrs["xrb"] = self.BCs[self.names[n]].xrb
             gvar.attrs["ylb"] = self.BCs[self.names[n]].ylb

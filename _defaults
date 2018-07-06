@@ -9,6 +9,8 @@ max_dt_change = 2.0        ; max amount the timestep can change between steps
 
 verbose = 1.0              ; verbosity
 
+use_units = 1              ; do we use units? (1=yes, 0=no)
+
 
 [io]
 
@@ -31,14 +33,9 @@ ymin = 0.0                ; domain minimum y-coordinate
 ymax = 1.0                ; domain maximum y-coordinate
 
 xlboundary = reflect     ; minimum x BC ('reflect', 'outflow', or 'periodic')
-xrboundary = reflect     ; maximum x BC ('reflect', 'outflow', or 'periodic') 
+xrboundary = reflect     ; maximum x BC ('reflect', 'outflow', or 'periodic')
 ylboundary = reflect     ; minimum y BC ('reflect', 'outflow', or 'periodic')
 yrboundary = reflect     ; maximum y BC ('reflect', 'outflow', or 'periodic')
 
 nx = 25                   ; number of zones in the x-direction
 ny = 25                   ; number of zones in the y-direction
-
-
-
-
-
