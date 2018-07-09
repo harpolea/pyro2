@@ -13,6 +13,6 @@ ext_modules = [Extension("compressible.interface_f", ["compressible/interface_f.
                Extension("incompressible.incomp_interface_f", ["incompressible/incomp_interface_f.f90"]),
                Extension("swe.interface_f", ["swe/interface_f.f90"])]
 
-ext_modules = cythonize("compressible/interface.pyx", annotate=True)
+#ext_modules = cythonize("compressible/interface.pyx", annotate=True)
 
 setup(ext_modules=ext_modules)

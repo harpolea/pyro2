@@ -1,11 +1,19 @@
+# cython: profile=True
+
 import numpy as np
 cimport numpy as np
+cimport cython
 
 DTYPE = np.float64
-ctypedef np.float_t DTYPE_t
+ctypedef np.float64_t DTYPE_t
 
-def states(int idir, int qx, int qy, int ng, float dx,
-           float dt, int irho, int iu, int iv, int ip, int ix, int nvar, int nspec, float gamma,
+cdef extern from "math.h":
+    double sqrt(double m)
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def states(int idir, int qx, int qy, int ng, DTYPE_t dx,
+           DTYPE_t dt, int irho, int iu, int iv, int ip, int ix, int nvar, int nspec, DTYPE_t gamma,
            np.ndarray[DTYPE_t, ndim=3] qv, np.ndarray[DTYPE_t, ndim=3] dqv):
     cdef np.ndarray q_l = np.zeros([qx, qy, nvar], dtype=DTYPE)
     cdef np.ndarray q_r = np.zeros([qx, qy, nvar], dtype=DTYPE)
@@ -21,8 +29,8 @@ def states(int idir, int qx, int qy, int ng, float dx,
     cdef np.ndarray betal = np.zeros(nvar, dtype=DTYPE)
     cdef np.ndarray betar = np.zeros(nvar, dtype=DTYPE)
 
-    cdef float dtdx, dtdx4, cs
-    cdef float sum, sum_l, sum_r, factor
+    cdef DTYPE_t dtdx, dtdx4, cs
+    cdef DTYPE_t sum, sum_l, sum_r, factor
     cdef int ns
 
     nx = qx - 2*ng
@@ -44,7 +52,7 @@ def states(int idir, int qx, int qy, int ng, float dx,
             dq[:] = dqv[i,j,:]
             q[:] = qv[i,j,:]
 
-            cs = np.sqrt(gamma*q[ip]/q[irho])
+            cs = sqrt(gamma*q[ip]/q[irho])
 
             lvec[:,:] = 0.0
             rvec[:,:] = 0.0
@@ -136,7 +144,7 @@ def riemann_cgf(int idir, int qx, int qy, int ng,
                 int nvar, int idens, int ixmom, int iymom,
                 int iener, int irhoX, int nspec,
                 int lower_solid, int upper_solid,
-                float gamma, np.ndarray[DTYPE_t, ndim=3] U_l, np.ndarray[DTYPE_t, ndim=3] U_r):
+                DTYPE_t gamma, np.ndarray[DTYPE_t, ndim=3] U_l, np.ndarray[DTYPE_t, ndim=3] U_r):
     """
     # Solve riemann shock tube problem for a general equation of
     # state using the method of Colella, Glaz, and Ferguson.  See
@@ -172,20 +180,19 @@ def riemann_cgf(int idir, int qx, int qy, int ng,
     cdef int nx, ny
     cdef int i, j
 
-    cdef float smallc = 1.e-10
-    cdef float smallrho = 1.e-10
-    cdef float smallp = 1.e-10
+    cdef DTYPE_t smallc = 1.e-10
+    cdef DTYPE_t smallrho = 1.e-10
+    cdef DTYPE_t smallp = 1.e-10
 
-    cdef float rho_l, un_l, ut_l, p_l, rhoe_l
-    cdef float rho_r, un_r, ut_r, p_r, rhoe_r
+    cdef DTYPE_t rho_l, un_l, ut_l, p_l, rhoe_l
+    cdef DTYPE_t rho_r, un_r, ut_r, p_r, rhoe_r
     cdef np.ndarray xn = np.zeros(nspec, dtype=DTYPE)
-    cdef float rhostar_l, rhostar_r, rhoestar_l, rhoestar_r
-    cdef float ustar, pstar, cstar_l, cstar_r
-    cdef float lambda_l, lambdastar_l, lambda_r, lambdastar_r
-    cdef float W_l, W_r, c_l, c_r, sigma, alpha
+    cdef DTYPE_t rhostar_l, rhostar_r, rhoestar_l, rhoestar_r
+    cdef DTYPE_t ustar, pstar, cstar_l, cstar_r
+    cdef DTYPE_t lambda_l, lambdastar_l, lambda_r, lambdastar_r
+    cdef DTYPE_t W_l, W_r, c_l, c_r, sigma, alpha
 
-    cdef float rho_state, un_state, ut_state, p_state, rhoe_state
-
+    cdef DTYPE_t rho_state, un_state, ut_state, p_state, rhoe_state
 
     nx = qx - 2*ng
     ny = qy - 2*ng
@@ -228,12 +235,12 @@ def riemann_cgf(int idir, int qx, int qy, int ng,
             p_r = max(p_r, smallp)
 
             # define the Lagrangian sound speed
-            W_l = max(smallrho*smallc, np.sqrt(gamma*p_l*rho_l))
-            W_r = max(smallrho*smallc, np.sqrt(gamma*p_r*rho_r))
+            W_l = max(smallrho*smallc, sqrt(gamma*p_l*rho_l))
+            W_r = max(smallrho*smallc, sqrt(gamma*p_r*rho_r))
 
             # and the regular sound speeds
-            c_l = max(smallc, np.sqrt(gamma*p_l/rho_l))
-            c_r = max(smallc, np.sqrt(gamma*p_r/rho_r))
+            c_l = max(smallc, sqrt(gamma*p_l/rho_l))
+            c_r = max(smallc, sqrt(gamma*p_r/rho_r))
 
             # define the star states
             pstar = (W_l*p_r + W_r*p_l + W_l*W_r*(un_l - un_r))/(W_l + W_r)
@@ -250,8 +257,8 @@ def riemann_cgf(int idir, int qx, int qy, int ng,
             rhoestar_r = rhoe_r + \
                  (pstar - p_r)*(rhoe_r/rho_r + p_r/rho_r)/c_r**2
 
-            cstar_l = max(smallc, np.sqrt(gamma*pstar/rhostar_l))
-            cstar_r = max(smallc, np.sqrt(gamma*pstar/rhostar_r))
+            cstar_l = max(smallc, sqrt(gamma*pstar/rhostar_l))
+            cstar_r = max(smallc, sqrt(gamma*pstar/rhostar_r))
 
             # figure out which state we are in, based on the location of
             # the waves
@@ -427,7 +434,7 @@ def riemann_prim(int idir, int qx, int qy, int ng,
                  int nvar, int irho, int iu, int iv, int ip,
                  int iX, int nspec,
                  int lower_solid, int upper_solid,
-                 float gamma,
+                 DTYPE_t gamma,
                  np.ndarray[DTYPE_t, ndim=3] q_l,
                  np.ndarray[DTYPE_t, ndim=3] q_r):
     """
@@ -470,20 +477,20 @@ def riemann_prim(int idir, int qx, int qy, int ng,
     cdef int nx, ny
     cdef int i, j
 
-    cdef float smallc = 1.e-10
-    cdef float smallrho = 1.e-10
-    cdef float smallp = 1.e-10
+    cdef DTYPE_t smallc = 1.e-10
+    cdef DTYPE_t smallrho = 1.e-10
+    cdef DTYPE_t smallp = 1.e-10
 
-    cdef float rho_l, un_l, ut_l, p_l
-    cdef float rho_r, un_r, ut_r, p_r
+    cdef DTYPE_t rho_l, un_l, ut_l, p_l
+    cdef DTYPE_t rho_r, un_r, ut_r, p_r
     cdef np.ndarray xn = np.zeros(nspec, dtype=DTYPE)
-    cdef float rhostar_l, rhostar_r
-    cdef float ustar, pstar, cstar_l, cstar_r
-    cdef float lambda_l, lambdastar_l, lambda_r, lambdastar_r
-    cdef float W_l, W_r, c_l, c_r, sigma
-    cdef float alpha
+    cdef DTYPE_t rhostar_l, rhostar_r
+    cdef DTYPE_t ustar, pstar, cstar_l, cstar_r
+    cdef DTYPE_t lambda_l, lambdastar_l, lambda_r, lambdastar_r
+    cdef DTYPE_t W_l, W_r, c_l, c_r, sigma
+    cdef DTYPE_t alpha
 
-    cdef float rho_state, un_state, ut_state, p_state
+    cdef DTYPE_t rho_state, un_state, ut_state, p_state
 
     nx = qx - 2*ng
     ny = qy - 2*ng
@@ -523,12 +530,12 @@ def riemann_prim(int idir, int qx, int qy, int ng,
             p_r = max(p_r, smallp)
 
             # define the Lagrangian sound speed
-            W_l = max(smallrho*smallc, np.sqrt(gamma*p_l*rho_l))
-            W_r = max(smallrho*smallc, np.sqrt(gamma*p_r*rho_r))
+            W_l = max(smallrho*smallc, sqrt(gamma*p_l*rho_l))
+            W_r = max(smallrho*smallc, sqrt(gamma*p_r*rho_r))
 
             # and the regular sound speeds
-            c_l = max(smallc, np.sqrt(gamma*p_l/rho_l))
-            c_r = max(smallc, np.sqrt(gamma*p_r/rho_r))
+            c_l = max(smallc, sqrt(gamma*p_l/rho_l))
+            c_r = max(smallc, sqrt(gamma*p_r/rho_r))
 
             # define the star states
             pstar = (W_l*p_r + W_r*p_l + W_l*W_r*(un_l - un_r))/(W_l + W_r)
@@ -540,8 +547,8 @@ def riemann_prim(int idir, int qx, int qy, int ng,
             rhostar_l = rho_l + (pstar - p_l)/c_l**2
             rhostar_r = rho_r + (pstar - p_r)/c_r**2
 
-            cstar_l = max(smallc, np.sqrt(gamma*pstar/rhostar_l))
-            cstar_r = max(smallc, np.sqrt(gamma*pstar/rhostar_r))
+            cstar_l = max(smallc, sqrt(gamma*pstar/rhostar_l))
+            cstar_r = max(smallc, sqrt(gamma*pstar/rhostar_r))
 
             # figure out which state we are in, based on the location of
             # the waves
@@ -714,24 +721,24 @@ def riemann_hllc(idir, qx, qy, ng,
     cdef int nx, ny
     cdef int i, j
 
-    cdef float smallc = 1.e-10
-    cdef float smallrho = 1.e-10
-    cdef float smallp = 1.e-10
+    cdef DTYPE_t smallc = 1.e-10
+    cdef DTYPE_t smallrho = 1.e-10
+    cdef DTYPE_t smallp = 1.e-10
 
-    cdef float rho_l, un_l, ut_l, rhoe_l, p_l
-    cdef float rho_r, un_r, ut_r, rhoe_r, p_r
+    cdef DTYPE_t rho_l, un_l, ut_l, rhoe_l, p_l
+    cdef DTYPE_t rho_r, un_r, ut_r, rhoe_r, p_r
     cdef np.ndarray xn = np.zeros(nspec, dtype=DTYPE)
 
-    cdef float rhostar_l, rhostar_r, rho_avg
-    cdef float ustar, pstar
-    cdef float Q, p_min, p_max, p_lr, p_guess
-    cdef float factor, factor2
-    cdef float g_l, g_r, A_l, B_l, A_r, B_r, z
-    cdef float S_l, S_r, S_c
-    cdef float c_l, c_r, c_avg
+    cdef DTYPE_t rhostar_l, rhostar_r, rho_avg
+    cdef DTYPE_t ustar, pstar
+    cdef DTYPE_t Q, p_min, p_max, p_lr, p_guess
+    cdef DTYPE_t factor, factor2
+    cdef DTYPE_t g_l, g_r, A_l, B_l, A_r, B_r, z
+    cdef DTYPE_t S_l, S_r, S_c
+    cdef DTYPE_t c_l, c_r, c_avg
 
     cdef np.ndarray U_state = np.zeros(nvar, dtype=DTYPE)
-    cdef float HLLCfactor
+    cdef DTYPE_t HLLCfactor
 
     nx = qx - 2*ng
     ny = qy - 2*ng
@@ -774,8 +781,8 @@ def riemann_hllc(idir, qx, qy, ng,
             p_r = max(p_r, smallp)
 
             # compute the sound speeds
-            c_l = max(smallc, np.sqrt(gamma*p_l/rho_l))
-            c_r = max(smallc, np.sqrt(gamma*p_r/rho_r))
+            c_l = max(smallc, sqrt(gamma*p_l/rho_l))
+            c_r = max(smallc, sqrt(gamma*p_r/rho_r))
 
             # Estimate the star quantities -- use one of three methods to
             # for this -- the primitive variable Riemann solver, the two
@@ -835,8 +842,8 @@ def riemann_hllc(idir, qx, qy, ng,
                   # guess of the pressure
                   p_guess = max(0.0, pstar)
 
-                  g_l = np.sqrt(A_l / (p_guess + B_l))
-                  g_r = np.sqrt(A_r / (p_guess + B_r))
+                  g_l = sqrt(A_l / (p_guess + B_l))
+                  g_r = sqrt(A_r / (p_guess + B_r))
 
                   pstar = (g_l*p_l + g_r*p_r - (un_r - un_l))/(g_l + g_r)
 
@@ -856,7 +863,7 @@ def riemann_hllc(idir, qx, qy, ng,
                S_l = un_l - c_l
             else:
                # shock
-               S_l = un_l - c_l*np.sqrt(1.0 +
+               S_l = un_l - c_l*sqrt(1.0 +
                     ((gamma+1.0)/(2.0*gamma))* (pstar/p_l - 1.0))
 
 
@@ -865,7 +872,7 @@ def riemann_hllc(idir, qx, qy, ng,
                S_r = un_r + c_r
             else:
                # shock
-               S_r = un_r + c_r*np.sqrt(1.0 +
+               S_r = un_r + c_r*sqrt(1.0 +
                      ((gamma+1.0)/(2.0/gamma))* (pstar/p_r - 1.0))
 
 
@@ -961,12 +968,12 @@ def riemann_hllc(idir, qx, qy, ng,
             # we should deal with solid boundaries somehow here
     return F
 
-def consFlux(int idir, float gamma, int idens, int ixmom, int iymom,
+cdef inline np.ndarray[DTYPE_t, ndim=1] consFlux(int idir, DTYPE_t gamma, int idens, int ixmom, int iymom,
              int iener, int irhoX, int nvar, int nspec, np.ndarray[DTYPE_t, ndim=1] U_state):
 
     cdef np.ndarray F = np.zeros(nvar, dtype=DTYPE)
 
-    cdef float p, u, v
+    cdef DTYPE_t p, u, v
 
     u = U_state[ixmom]/U_state[idens]
     v = U_state[iymom]/U_state[idens]
@@ -992,8 +999,8 @@ def consFlux(int idir, float gamma, int idens, int ixmom, int iymom,
     return F
 
 
-def artificial_viscosity(int qx, int qy, int ng, float dx, float dy,
-                         float cvisc,
+def artificial_viscosity(int qx, int qy, int ng, DTYPE_t dx, DTYPE_t dy,
+                         DTYPE_t cvisc,
                          np.ndarray[DTYPE_t, ndim=2] u,
                          np.ndarray[DTYPE_t, ndim=2] v):
     """
@@ -1030,7 +1037,7 @@ def artificial_viscosity(int qx, int qy, int ng, float dx, float dy,
     cdef int ilo, ihi, jlo, jhi
     cdef int nx, ny
     cdef int i, j
-    cdef float divU_x, divU_y
+    cdef DTYPE_t divU_x, divU_y
 
     nx = qx - 2*ng
     ny = qy - 2*ng
