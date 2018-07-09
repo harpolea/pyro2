@@ -128,6 +128,7 @@ import mesh.reconstruction as reconstruction
 import mesh.array_units as ai
 
 from util import msg
+from unyt import cm, s
 
 
 def unsplit_fluxes(my_data, my_aux, rp, ivars, solid, tc, dt):
@@ -428,11 +429,11 @@ def unsplit_fluxes(my_data, my_aux, rp, ivars, solid, tc, dt):
         var = my_data.get_var_by_index(n)
 
         F_x.vi(buf=b, n=n)[:, :] += \
-            avisco_x.vi(buf=b)*(var.ip(-1, buf=b) - var.vi(buf=b))
+            (avisco_x.vi(buf=b)*(var.ip(-1, buf=b) - var.vi(buf=b)))/var.units
 
         # F_y = F_y + avisco_y * (U(i,j-1) - U(i,j))
         F_y.vi(buf=b, n=n)[:, :] += \
-            avisco_y.vi(buf=b)*(var.jp(-1, buf=b) - var.vi(buf=b))
+            avisco_y.vi(buf=b)*(var.jp(-1, buf=b) - var.vi(buf=b))/var.units
 
     tm_flux.end()
 

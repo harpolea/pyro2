@@ -15,6 +15,7 @@ from util import msg
 
 import math
 import numpy as np
+from unyt import cm, g, s
 
 
 def user(bc_name, bc_edge, variable, ccdata):
@@ -64,7 +65,7 @@ def user(bc_name, bc_edge, variable, ccdata):
                 ymom = ccdata.get_var("y-momentum")
                 ener = ccdata.get_var("energy")
 
-                grav = ccdata.get_aux("grav")
+                grav = ccdata.get_aux("grav") * cm/s**2
                 gamma = ccdata.get_aux("gamma")
 
                 dens_base = dens[:, myg.jlo]
@@ -79,7 +80,7 @@ def user(bc_name, bc_edge, variable, ccdata):
                 # differencing the HSE equation
                 j = myg.jlo-1
                 while j >= 0:
-                    pres_below = pres_base - grav*dens_base*myg.dy
+                    pres_below = pres_base - grav*dens_base*myg.dy*cm
                     rhoe = eos.rhoe(gamma, pres_below)
 
                     ener[:, j] = rhoe + ke_base
@@ -108,7 +109,7 @@ def user(bc_name, bc_edge, variable, ccdata):
                 ymom = ccdata.get_var("y-momentum")
                 ener = ccdata.get_var("energy")
 
-                grav = ccdata.get_aux("grav")
+                grav = ccdata.get_aux("grav") * cm/s**2
                 gamma = ccdata.get_aux("gamma")
 
                 dens_base = dens[:, myg.jhi]
@@ -122,7 +123,7 @@ def user(bc_name, bc_edge, variable, ccdata):
                 # formulation of HSE, so the pressure comes simply from
                 # differencing the HSE equation
                 for j in range(myg.jhi+1, myg.jhi+myg.ng+1):
-                    pres_above = pres_base + grav*dens_base*myg.dy
+                    pres_above = pres_base + grav*dens_base*myg.dy*cm
                     rhoe = eos.rhoe(gamma, pres_above)
 
                     ener[:, j] = rhoe + ke_base

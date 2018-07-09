@@ -13,6 +13,7 @@ import mesh.boundary as bnd
 from simulation_null import NullSimulation, grid_setup, bc_setup
 import util.plot_tools as plot_tools
 import particles.particles as particles
+from unyt import cm, s, g
 
 
 class Variables(object):
@@ -122,10 +123,10 @@ class Simulation(NullSimulation):
         self.solid = bnd.bc_is_solid(bc)
 
         # density and energy
-        my_data.register_var("density", bc)
-        my_data.register_var("energy", bc)
-        my_data.register_var("x-momentum", bc_xodd)
-        my_data.register_var("y-momentum", bc_yodd)
+        my_data.register_var("density", bc, units="g/cm**3")
+        my_data.register_var("energy", bc, units="erg/cm**3")
+        my_data.register_var("x-momentum", bc_xodd, units="g*cm/s/cm**3")
+        my_data.register_var("y-momentum", bc_yodd, units="g*cm/s/cm**3")
 
         # any extras?
         if extra_vars is not None:
@@ -200,7 +201,7 @@ class Simulation(NullSimulation):
         ymom = self.cc_data.get_var("y-momentum")
         ener = self.cc_data.get_var("energy")
 
-        grav = self.rp.get_param("compressible.grav")
+        grav = self.rp.get_param("compressible.grav") * cm/s**2
 
         myg = self.cc_data.grid
 
@@ -217,13 +218,13 @@ class Simulation(NullSimulation):
         for n in range(self.ivars.nvar):
             var = self.cc_data.get_var_by_index(n)
 
-            var.vi()[:, :] += \
-                dtdx*(Flux_x.vi(n=n) - Flux_x.ip(1, n=n)) + \
-                dtdy*(Flux_y.vi(n=n) - Flux_y.jp(1, n=n))
+            var.vi()[:, :] += (
+                dtdx*(Flux_x.vi(n=n) - Flux_x.ip(1, n=n)) +
+                dtdy*(Flux_y.vi(n=n) - Flux_y.jp(1, n=n))) * var.units
 
         # gravitational source terms
-        ymom[:, :] += 0.5*self.dt*(dens[:, :] + old_dens[:, :])*grav
-        ener[:, :] += 0.5*self.dt*(ymom[:, :] + old_ymom[:, :])*grav
+        ymom[:, :] += 0.5*self.dt*(dens[:, :] + old_dens[:, :])*grav*s
+        ener[:, :] += 0.5*self.dt*(ymom[:, :] + old_ymom[:, :])*grav*s
 
         if self.particles is not None:
             self.particles.update_particles(self.dt)

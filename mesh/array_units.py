@@ -6,13 +6,17 @@ from mesh.array_indexer import _buf_split
 
 class UnitsArrayIndexer(unyt.unyt_array):
     """
-    Array indexer object with units
+    Array indexer object with units.abs
+
+    This is essentially the same as the ArrayIndexer class, however inherits from
+    unyt.unyt_array rather than np.ndarray.
     """
 
-    def __new__(cls, d, input_units="dimensionless", registry=None, dtype=None,
+    def __new__(cls, d, units="dimensionless", registry=None, dtype=None,
                 bypass_validation=False, grid=None):
 
-        obj = unyt.unyt_array(input_array=np.asarray(d), input_units=input_units, registry=registry, dtype=d.dtype,
+        obj = unyt.unyt_array(input_array=np.asarray(d), input_units=units,
+                    registry=registry, dtype=d.dtype,
                     bypass_validation=bypass_validation).view(cls)
 
         obj.g = grid
@@ -99,7 +103,7 @@ class UnitsArrayIndexer(unyt.unyt_array):
         the same units
         """
         return UnitsArrayIndexer(np.asarray(self).copy(),
-                                 input_units=self.units, grid=self.g)
+                                 units=self.units, grid=self.g)
 
     def is_symmetric(self, nodal=False, tol=1.e-14, asymmetric=False):
         """return True is the data is left-right symmetric (to the tolerance

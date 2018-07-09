@@ -5,6 +5,7 @@ import numpy as np
 import sys
 import mesh.patch as patch
 from util import msg
+from unyt import cm, dyne, g, s
 
 
 def init_data(my_data, rp):
@@ -26,11 +27,11 @@ def init_data(my_data, rp):
 
     gamma = rp.get_param("eos.gamma")
 
-    grav = rp.get_param("compressible.grav")
+    grav = rp.get_param("compressible.grav") * cm/s**2
 
-    dens1 = rp.get_param("rt.dens1")
-    dens2 = rp.get_param("rt.dens2")
-    p0 = rp.get_param("rt.p0")
+    dens1 = rp.get_param("rt.dens1") * g/cm**3
+    dens2 = rp.get_param("rt.dens2") * g/cm**3
+    p0 = rp.get_param("rt.p0") * dyne/cm**2
     amp = rp.get_param("rt.amp")
     sigma = rp.get_param("rt.sigma")
 
@@ -46,23 +47,23 @@ def init_data(my_data, rp):
 
     ycenter = 0.5*(myg.ymin + myg.ymax)
 
-    p = myg.scratch_array()
+    p = myg.scratch_array(units="dyne/cm**2")
 
     j = myg.jlo
     while j <= myg.jhi:
         if (myg.y[j] < ycenter):
             dens[:, j] = dens1
-            p[:, j] = p0 + dens1*grav*myg.y[j]
+            p[:, j] = p0 + dens1*grav*myg.y[j]*cm
 
         else:
             dens[:, j] = dens2
-            p[:, j] = p0 + dens1*grav*ycenter + dens2*grav*(myg.y[j] - ycenter)
+            p[:, j] = p0 + dens1*grav*ycenter*cm + dens2*grav*(myg.y[j] - ycenter)*cm
 
         j += 1
 
     ymom[:, :] = amp*np.cos(2.0*np.pi*myg.x2d/(myg.xmax-myg.xmin))*np.exp(-(myg.y2d-ycenter)**2/sigma**2)
 
-    ymom *= dens
+    ymom *= dens.value
 
     # set the energy (P = cs2*dens)
     ener[:, :] = p[:, :]/(gamma - 1.0) + \

@@ -146,7 +146,7 @@ class Grid2d(object):
         y2d = np.transpose(y2d)
         self.y2d = y2d
 
-    def scratch_array(self, nvar=1):
+    def scratch_array(self, nvar=1, units="dimensionless"):
         """
         return a standard numpy array dimensioned to have the size
         and number of ghostcells as the parent grid
@@ -155,7 +155,7 @@ class Grid2d(object):
             _tmp = np.zeros((self.qx, self.qy), dtype=np.float64)
         else:
             _tmp = np.zeros((self.qx, self.qy, nvar), dtype=np.float64)
-        return ai.UnitsArrayIndexer(d=_tmp, grid=self)
+        return ai.UnitsArrayIndexer(d=_tmp, grid=self, units=units)
 
     def norm(self, d):
         """
@@ -261,6 +261,8 @@ class CellCenterData2d(object):
 
         self.aux = {}
 
+        self.units = {}
+
         # derived variables will have a callback function
         self.derives = []
 
@@ -271,7 +273,7 @@ class CellCenterData2d(object):
 
         self.initialized = 0
 
-    def register_var(self, name, bc):
+    def register_var(self, name, bc, units="dimensionless"):
         """
         Register a variable with CellCenterData2d object.
 
@@ -292,7 +294,9 @@ class CellCenterData2d(object):
 
         self.BCs[name] = bc
 
-    def set_aux(self, keyword, value):
+        self.units[name] = units
+
+    def set_aux(self, keyword, value, units="dimensionless"):
         """
         Set any auxillary (scalar) data.  This data is simply carried
         along with the CellCenterData2d object
@@ -305,6 +309,8 @@ class CellCenterData2d(object):
             The value to associate with the keyword
         """
         self.aux[keyword] = value
+
+        self.units[keyword] = units
 
     def add_derived(self, func):
         """
@@ -350,6 +356,7 @@ class CellCenterData2d(object):
         for n in range(self.nvar):
             my_str += "%16s: min: %15.10f    max: %15.10f\n" % \
                 (self.names[n], self.min(self.names[n]), self.max(self.names[n]))
+            my_str += "%16s  units: %-12s\n" % (" ", self.units[self.names[n]])
             my_str += "%16s  BCs: -x: %-12s +x: %-12s -y: %-12s +y: %-12s\n" %\
                 (" ", self.BCs[self.names[n]].xlb,
                       self.BCs[self.names[n]].xrb,
@@ -387,7 +394,8 @@ class CellCenterData2d(object):
                     return var
             raise KeyError("name {} is not valid".format(name))
         else:
-            return ai.UnitsArrayIndexer(d=self.data[:, :, n], grid=self.grid)
+            return ai.UnitsArrayIndexer(d=self.data[:, :, n],
+                units=self.units[self.names[n]], grid=self.grid)
 
     def get_var_by_index(self, n):
         """
@@ -406,7 +414,8 @@ class CellCenterData2d(object):
             The array of data corresponding to the index
 
         """
-        return ai.UnitsArrayIndexer(d=self.data[:, :, n], grid=self.grid)
+        return ai.UnitsArrayIndexer(d=self.data[:, :, n],
+            units=self.units[self.names[n]], grid=self.grid)
 
     def get_vars(self):
         """
@@ -652,6 +661,8 @@ class CellCenterData2d(object):
             gvar.attrs["ylb"] = self.BCs[self.names[n]].ylb
             gvar.attrs["yrb"] = self.BCs[self.names[n]].yrb
 
+            gvar.attrs["units"] = str(self.get_var_by_index(n).units)
+
     def pretty_print(self, var, fmt=None):
         """print out the contents of the data array with pretty formatting
         indicating where ghost cells are."""
@@ -684,13 +695,15 @@ def cell_center_data_clone(old):
     new = myt(old.grid, dtype=old.dtype)
 
     for n in range(old.nvar):
-        new.register_var(old.names[n], old.BCs[old.names[n]])
+        new.register_var(old.names[n], old.BCs[old.names[n]],
+            units=old.units[old.names[n]])
 
     new.create()
 
     new.aux = old.aux.copy()
     new.data = old.data.copy()
     new.derives = old.derives.copy()
+    new.units = old.units.copy()
 
     return new
 
