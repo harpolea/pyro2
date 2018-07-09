@@ -5,11 +5,14 @@
 # Note the setup.cfg directs the build to be done in-place.
 
 from numpy.distutils.core import setup, Extension
+from Cython.Build import cythonize
 
 ext_modules = [Extension("compressible.interface_f", ["compressible/interface_f.f90"]),
                Extension("advection_fv4.interface_f", ["advection_fv4/interface_states.f90"]),
                Extension("lm_atm.LM_atm_interface_f", ["lm_atm/LM_atm_interface_f.f90"]),
                Extension("incompressible.incomp_interface_f", ["incompressible/incomp_interface_f.f90"]),
                Extension("swe.interface_f", ["swe/interface_f.f90"])]
+
+ext_modules = cythonize("compressible/interface.pyx", annotate=True)
 
 setup(ext_modules=ext_modules)

@@ -286,6 +286,7 @@ subroutine riemann_cgf(idir, qx, qy, ng, &
 
         ! primitive variable states
         rho_l  = U_l(i,j,idens)
+        rhoe_l  = U_l(i,j,iener)
 
         ! un = normal velocity; ut = transverse velocity
         if (idir == 1) then
@@ -295,6 +296,8 @@ subroutine riemann_cgf(idir, qx, qy, ng, &
            un_l    = U_l(i,j,iymom)/rho_l
            ut_l    = U_l(i,j,ixmom)/rho_l
         endif
+
+        rhoe_l = U_l(i,j,iener) - 0.5*rho_l*(un_l**2 + ut_l**2)
 
         p_l   = rhoe_l*(gamma - 1.0d0)
         p_l = max(p_l, smallp)
@@ -615,7 +618,7 @@ subroutine riemann_prim(idir, qx, qy, ng, &
 
         ! primitive variable states
         rho_l  = q_l(i,j,irho)
-        
+
         ! un = normal velocity; ut = transverse velocity
         if (idir == 1) then
            un_l    = q_l(i,j,iu)
