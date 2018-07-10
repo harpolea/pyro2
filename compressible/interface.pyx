@@ -705,10 +705,13 @@ def riemann_prim(int idir, int qx, int qy, int ng,
     return q_int
 
 
-def riemann_hllc(idir, qx, qy, ng,
-                nvar, idens, ixmom, iymom, iener, irhoX, nspec,
-                lower_solid, upper_solid,
-                gamma, U_l, U_r):
+def riemann_hllc(int idir, int qx, int qy, int ng,
+                int nvar, int idens, int ixmom, int iymom,
+                int iener, int irhoX, int nspec,
+                int lower_solid, int upper_solid,
+                DTYPE_t gamma,
+                np.ndarray[DTYPE_t, ndim=3] U_l,
+                np.ndarray[DTYPE_t, ndim=3] U_r):
     """
     # this is the HLLC Riemann solver.  The implementation follows
     # directly out of Toro's book.  Note: this fores not handle the
@@ -968,8 +971,10 @@ def riemann_hllc(idir, qx, qy, ng,
             # we should deal with solid boundaries somehow here
     return F
 
-cdef inline np.ndarray[DTYPE_t, ndim=1] consFlux(int idir, DTYPE_t gamma, int idens, int ixmom, int iymom,
-             int iener, int irhoX, int nvar, int nspec, np.ndarray[DTYPE_t, ndim=1] U_state):
+cdef inline np.ndarray[DTYPE_t, ndim=1] consFlux(int idir,
+             DTYPE_t gamma, int idens, int ixmom, int iymom,
+             int iener, int irhoX, int nvar, int nspec,
+             np.ndarray[DTYPE_t, ndim=1] U_state):
 
     cdef np.ndarray F = np.zeros(nvar, dtype=DTYPE)
 
@@ -999,7 +1004,8 @@ cdef inline np.ndarray[DTYPE_t, ndim=1] consFlux(int idir, DTYPE_t gamma, int id
     return F
 
 
-def artificial_viscosity(int qx, int qy, int ng, DTYPE_t dx, DTYPE_t dy,
+def artificial_viscosity(int qx, int qy, int ng,
+                         DTYPE_t dx, DTYPE_t dy,
                          DTYPE_t cvisc,
                          np.ndarray[DTYPE_t, ndim=2] u,
                          np.ndarray[DTYPE_t, ndim=2] v):

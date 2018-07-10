@@ -29,6 +29,7 @@ else
 	FFLAGS="-C"
     fi
 
-    ${PYTHON} setup.py config_fc --f90flags "${FFLAGS}" build_ext
+    # ${PYTHON} setup.py config_fc --f90flags "${FFLAGS}" build_ext
+    ${PYTHON} setup.py build_ext --inplace
 
 fi
