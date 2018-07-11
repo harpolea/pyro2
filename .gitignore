@@ -2,7 +2,7 @@
 *.so
 *.png
 *.eps
-*wrapper.c
+*wrapper.cpp
 *~
 \#*
 build/

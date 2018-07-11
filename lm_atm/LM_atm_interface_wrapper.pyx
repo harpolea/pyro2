@@ -28,7 +28,21 @@ cdef extern from "LM_atm_interface_h.h":
                   double *ldelta_rx, double *ldelta_ry,
                   double *rho_xint, double *rho_yint)
 
+ctg = np.ascontiguousarray
+
 def mac_vels(int qx, int qy, int ng, double dx,
+          double dy, double dt,
+          u, v, ldelta_ux, ldelta_vx,
+          ldelta_uy, ldelta_vy,
+          gradp_x, gradp_y, source):
+
+    return mac_vels_w(qx, qy, ng, dx, dy, dt,
+              ctg(u), ctg(v),
+              ctg(ldelta_ux), ctg(ldelta_vx),
+              ctg(ldelta_uy), ctg(ldelta_vy),
+              ctg(gradp_x), ctg(gradp_y), ctg(source))
+
+def mac_vels_w(int qx, int qy, int ng, double dx,
               double dy, double dt,
               np.ndarray[np.float64_t, ndim=2] u not None,
               np.ndarray[np.float64_t, ndim=2] v not None,
@@ -54,6 +68,20 @@ def mac_vels(int qx, int qy, int ng, double dx,
     return u_MAC, v_MAC
 
 def states(int qx, int qy, int ng, double dx,
+            double dy, double dt,
+            u, v, ldelta_ux, ldelta_vx,
+            ldelta_uy, ldelta_vy,
+            gradp_x, gradp_y, source,
+            u_MAC, v_MAC):
+
+    return states_w(qx, qy, ng, dx, dy, dt,
+                ctg(u), ctg(v),
+                ctg(ldelta_ux), ctg(ldelta_vx),
+                ctg(ldelta_uy), ctg(ldelta_vy),
+                ctg(gradp_x), ctg(gradp_y), ctg(source),
+                ctg(u_MAC), ctg(v_MAC))
+
+def states_w(int qx, int qy, int ng, double dx,
           double dy, double dt,
           np.ndarray[np.float64_t, ndim=2] u not None,
           np.ndarray[np.float64_t, ndim=2] v not None,
@@ -85,6 +113,16 @@ def states(int qx, int qy, int ng, double dx,
     return u_xint, v_xint, u_yint, v_yint
 
 def rho_states(int qx, int qy, int ng, double dx,
+            double dy, double dt,
+            rho, u_MAC, v_MAC, ldelta_rx,
+            ldelta_ry):
+
+    return rho_states_w(qx, qy, ng, dx, dy, dt,
+                ctg(rho),
+                ctg(u_MAC), ctg(v_MAC),
+                ctg(ldelta_rx), ctg(ldelta_ry))
+
+def rho_states_w(int qx, int qy, int ng, double dx,
                 double dy, double dt,
                 np.ndarray[np.float64_t, ndim=2] rho not None,
                 np.ndarray[np.float64_t, ndim=2] u_MAC not None,

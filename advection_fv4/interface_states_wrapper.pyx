@@ -9,7 +9,13 @@ cdef extern from "interface_states_h.h":
                           int ng, int idir,
                           double *al, double *ar)
 
-def states(np.ndarray[np.float64_t, ndim=2] a not None,
+ctg = np.ascontiguousarray
+
+def states(a, int qx, int qy, int ng, int idir):
+
+    return states_w(ctg(a), qx, qy, ng, idir)
+
+def states_w(np.ndarray[np.float64_t, ndim=2] a not None,
            int qx, int qy, int ng, int idir):
 
     cdef np.ndarray al = np.zeros([qx, qy],
@@ -22,7 +28,11 @@ def states(np.ndarray[np.float64_t, ndim=2] a not None,
 
     return al, ar
 
-def states_nolimit(np.ndarray[np.float64_t, ndim=2] a not None,
+def states_nolimit(a, int qx, int qy, int ng, int idir):
+
+    return states_nolimit_w(ctg(a), qx, qy, ng, idir)
+
+def states_nolimit_w(np.ndarray[np.float64_t, ndim=2] a not None,
            int qx, int qy, int ng, int idir):
 
     cdef np.ndarray al = np.zeros([qx, qy],

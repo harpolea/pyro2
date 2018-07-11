@@ -5,7 +5,7 @@ import importlib
 import numpy as np
 import matplotlib.pyplot as plt
 
-import incompressible.incomp_interface_f as incomp_interface
+import incompressible.incomp_interface_c as incomp_interface
 import mesh.reconstruction as reconstruction
 import mesh.patch as patch
 import mesh.array_indexer as ai
@@ -46,11 +46,14 @@ class Simulation(NullSimulation):
 
         if self.rp.get_param("particles.do_particles") == 1:
             n_particles = self.rp.get_param("particles.n_particles")
-            particle_generator = self.rp.get_param("particles.particle_generator")
-            self.particles = particles.Particles(self.cc_data, bc, n_particles, particle_generator)
+            particle_generator = self.rp.get_param(
+                "particles.particle_generator")
+            self.particles = particles.Particles(
+                self.cc_data, bc, n_particles, particle_generator)
 
         # now set the initial conditions for the problem
-        problem = importlib.import_module("incompressible.problems.{}".format(self.problem_name))
+        problem = importlib.import_module(
+            "incompressible.problems.{}".format(self.problem_name))
         problem.init_data(self.cc_data, self.rp)
 
     def method_compute_timestep(self):
@@ -69,10 +72,10 @@ class Simulation(NullSimulation):
         v = self.cc_data.get_var("y-velocity")
 
         # the timestep is min(dx/|u|, dy|v|)
-        xtmp = self.cc_data.grid.dx/(abs(u))
-        ytmp = self.cc_data.grid.dy/(abs(v))
+        xtmp = self.cc_data.grid.dx / (abs(u))
+        ytmp = self.cc_data.grid.dy / (abs(v))
 
-        self.dt = cfl*float(min(xtmp.min(), ytmp.min()))
+        self.dt = cfl * float(min(xtmp.min(), ytmp.min()))
 
     def preevolve(self):
         """
@@ -111,7 +114,8 @@ class Simulation(NullSimulation):
         divU = mg.soln_grid.scratch_array()
 
         divU.v()[:, :] = \
-            0.5*(u.ip(1) - u.ip(-1))/myg.dx + 0.5*(v.jp(1) - v.jp(-1))/myg.dy
+            0.5 * (u.ip(1) - u.ip(-1)) / myg.dx + \
+            0.5 * (v.jp(1) - v.jp(-1)) / myg.dy
 
         # solve L phi = DU
 
@@ -181,9 +185,9 @@ class Simulation(NullSimulation):
 
         myg = self.cc_data.grid
 
-        #---------------------------------------------------------------------
+        # ---------------------------------------------------------------------
         # create the limited slopes of u and v (in both directions)
-        #---------------------------------------------------------------------
+        # ---------------------------------------------------------------------
         limiter = self.rp.get_param("incompressible.limiter")
 
         ldelta_ux = reconstruction.limit(u, myg, 1, limiter)
@@ -192,9 +196,9 @@ class Simulation(NullSimulation):
         ldelta_uy = reconstruction.limit(u, myg, 2, limiter)
         ldelta_vy = reconstruction.limit(v, myg, 2, limiter)
 
-        #---------------------------------------------------------------------
+        # ---------------------------------------------------------------------
         # get the advective velocities
-        #---------------------------------------------------------------------
+        # ---------------------------------------------------------------------
 
         """
         the advective velocities are the normal velocity through each cell
@@ -223,19 +227,19 @@ class Simulation(NullSimulation):
             print("  making MAC velocities")
 
         _um, _vm = incomp_interface.mac_vels(myg.qx, myg.qy, myg.ng,
-                                               myg.dx, myg.dy, self.dt,
-                                               u, v,
-                                               ldelta_ux, ldelta_vx,
-                                               ldelta_uy, ldelta_vy,
-                                               gradp_x, gradp_y)
+                                             myg.dx, myg.dy, self.dt,
+                                             u, v,
+                                             ldelta_ux, ldelta_vx,
+                                             ldelta_uy, ldelta_vy,
+                                             gradp_x, gradp_y)
 
         u_MAC = ai.ArrayIndexer(d=_um, grid=myg)
         v_MAC = ai.ArrayIndexer(d=_vm, grid=myg)
 
-        #---------------------------------------------------------------------
+        # ---------------------------------------------------------------------
         # do a MAC projection ot make the advective velocities divergence
         # free
-        #---------------------------------------------------------------------
+        # ---------------------------------------------------------------------
 
         # we will solve L phi = D U^MAC, where phi is cell centered, and
         # U^MAC is the MAC-type staggered grid of the advective
@@ -259,7 +263,8 @@ class Simulation(NullSimulation):
 
         # MAC velocities are edge-centered.  divU is cell-centered.
         divU.v()[:, :] = \
-            (u_MAC.ip(1) - u_MAC.v())/myg.dx + (v_MAC.jp(1) - v_MAC.v())/myg.dy
+            (u_MAC.ip(1) - u_MAC.v()) / myg.dx + \
+            (v_MAC.jp(1) - v_MAC.v()) / myg.dy
 
         # solve the Poisson problem
         mg.init_zeros()
@@ -275,35 +280,37 @@ class Simulation(NullSimulation):
 
         # we need the MAC velocities on all edges of the computational domain
         b = (0, 1, 0, 0)
-        u_MAC.v(buf=b)[:, :] -= (phi_MAC.v(buf=b) - phi_MAC.ip(-1, buf=b))/myg.dx
+        u_MAC.v(buf=b)[:, :] -= (phi_MAC.v(buf=b) -
+                                 phi_MAC.ip(-1, buf=b)) / myg.dx
 
         b = (0, 0, 0, 1)
-        v_MAC.v(buf=b)[:, :] -= (phi_MAC.v(buf=b) - phi_MAC.jp(-1, buf=b))/myg.dy
+        v_MAC.v(buf=b)[:, :] -= (phi_MAC.v(buf=b) -
+                                 phi_MAC.jp(-1, buf=b)) / myg.dy
 
-        #---------------------------------------------------------------------
+        # ---------------------------------------------------------------------
         # recompute the interface states, using the advective velocity
         # from above
-        #---------------------------------------------------------------------
+        # ---------------------------------------------------------------------
         if self.verbose > 0:
             print("  making u, v edge states")
 
         _ux, _vx, _uy, _vy = \
-               incomp_interface.states(myg.qx, myg.qy, myg.ng,
-                                         myg.dx, myg.dy, self.dt,
-                                         u, v,
-                                         ldelta_ux, ldelta_vx,
-                                         ldelta_uy, ldelta_vy,
-                                         gradp_x, gradp_y,
-                                         u_MAC, v_MAC)
+            incomp_interface.states(myg.qx, myg.qy, myg.ng,
+                                    myg.dx, myg.dy, self.dt,
+                                    u, v,
+                                    ldelta_ux, ldelta_vx,
+                                    ldelta_uy, ldelta_vy,
+                                    gradp_x, gradp_y,
+                                    u_MAC, v_MAC)
 
         u_xint = ai.ArrayIndexer(d=_ux, grid=myg)
         v_xint = ai.ArrayIndexer(d=_vx, grid=myg)
         u_yint = ai.ArrayIndexer(d=_uy, grid=myg)
         v_yint = ai.ArrayIndexer(d=_vy, grid=myg)
 
-        #---------------------------------------------------------------------
+        # ---------------------------------------------------------------------
         # update U to get the provisional velocity field
-        #---------------------------------------------------------------------
+        # ---------------------------------------------------------------------
 
         if self.verbose > 0:
             print("  doing provisional update of u, v")
@@ -316,30 +323,32 @@ class Simulation(NullSimulation):
 
         # u u_x + v u_y
         advect_x.v()[:, :] = \
-            0.5*(u_MAC.v() + u_MAC.ip(1))*(u_xint.ip(1) - u_xint.v())/myg.dx + \
-            0.5*(v_MAC.v() + v_MAC.jp(1))*(u_yint.jp(1) - u_yint.v())/myg.dy
+            0.5 * (u_MAC.v() + u_MAC.ip(1)) * (u_xint.ip(1) - u_xint.v()) / myg.dx + \
+            0.5 * (v_MAC.v() + v_MAC.jp(1)) * \
+            (u_yint.jp(1) - u_yint.v()) / myg.dy
 
         # u v_x + v v_y
         advect_y.v()[:, :] = \
-            0.5*(u_MAC.v() + u_MAC.ip(1))*(v_xint.ip(1) - v_xint.v())/myg.dx + \
-            0.5*(v_MAC.v() + v_MAC.jp(1))*(v_yint.jp(1) - v_yint.v())/myg.dy
+            0.5 * (u_MAC.v() + u_MAC.ip(1)) * (v_xint.ip(1) - v_xint.v()) / myg.dx + \
+            0.5 * (v_MAC.v() + v_MAC.jp(1)) * \
+            (v_yint.jp(1) - v_yint.v()) / myg.dy
 
         proj_type = self.rp.get_param("incompressible.proj_type")
 
         if proj_type == 1:
-            u[:, :] -= (self.dt*advect_x[:, :] + self.dt*gradp_x[:, :])
-            v[:, :] -= (self.dt*advect_y[:, :] + self.dt*gradp_y[:, :])
+            u[:, :] -= (self.dt * advect_x[:, :] + self.dt * gradp_x[:, :])
+            v[:, :] -= (self.dt * advect_y[:, :] + self.dt * gradp_y[:, :])
 
         elif proj_type == 2:
-            u[:, :] -= self.dt*advect_x[:, :]
-            v[:, :] -= self.dt*advect_y[:, :]
+            u[:, :] -= self.dt * advect_x[:, :]
+            v[:, :] -= self.dt * advect_y[:, :]
 
         self.cc_data.fill_BC("x-velocity")
         self.cc_data.fill_BC("y-velocity")
 
-        #---------------------------------------------------------------------
+        # ---------------------------------------------------------------------
         # project the final velocity
-        #---------------------------------------------------------------------
+        # ---------------------------------------------------------------------
 
         # now we solve L phi = D (U* /dt)
         if self.verbose > 0:
@@ -359,9 +368,10 @@ class Simulation(NullSimulation):
 
         # u/v are cell-centered, divU is cell-centered
         divU.v()[:, :] = \
-            0.5*(u.ip(1) - u.ip(-1))/myg.dx + 0.5*(v.jp(1) - v.jp(-1))/myg.dy
+            0.5 * (u.ip(1) - u.ip(-1)) / myg.dx + \
+            0.5 * (v.jp(1) - v.jp(-1)) / myg.dy
 
-        mg.init_RHS(divU/self.dt)
+        mg.init_RHS(divU / self.dt)
 
         # use the old phi as our initial guess
         phiGuess = mg.soln_grid.scratch_array()
@@ -379,8 +389,8 @@ class Simulation(NullSimulation):
         gradphi_x, gradphi_y = mg.get_solution_gradient(grid=myg)
 
         # u = u - grad_x phi dt
-        u[:, :] -= self.dt*gradphi_x
-        v[:, :] -= self.dt*gradphi_y
+        u[:, :] -= self.dt * gradphi_x
+        v[:, :] -= self.dt * gradphi_y
 
         # store gradp for the next step
         if proj_type == 1:
@@ -419,12 +429,12 @@ class Simulation(NullSimulation):
         divU = myg.scratch_array()
 
         vort.v()[:, :] = \
-             0.5*(v.ip(1) - v.ip(-1))/myg.dx - \
-             0.5*(u.jp(1) - u.jp(-1))/myg.dy
+            0.5 * (v.ip(1) - v.ip(-1)) / myg.dx - \
+            0.5 * (u.jp(1) - u.jp(-1)) / myg.dy
 
         divU.v()[:, :] = \
-            0.5*(u.ip(1) - u.ip(-1))/myg.dx + \
-            0.5*(v.jp(1) - v.jp(-1))/myg.dy
+            0.5 * (u.ip(1) - u.ip(-1)) / myg.dx + \
+            0.5 * (v.jp(1) - v.jp(-1)) / myg.dy
 
         fig, axes = plt.subplots(nrows=2, ncols=2, num=1)
         plt.subplots_adjust(hspace=0.25)
@@ -454,7 +464,7 @@ class Simulation(NullSimulation):
 
             # plot particles
             ax.scatter(particle_positions[:, 0],
-                particle_positions[:, 1], s=5, c=colors, alpha=0.8, cmap="Greys")
+                       particle_positions[:, 1], s=5, c=colors, alpha=0.8, cmap="Greys")
             ax.set_xlim([myg.xmin, myg.xmax])
             ax.set_ylim([myg.ymin, myg.ymax])
 

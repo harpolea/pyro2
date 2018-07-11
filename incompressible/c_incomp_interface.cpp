@@ -151,16 +151,17 @@ void get_interface_states(int qx, int qy, int ng,
 	for (int i = ilo-2; i < ihi+2; i++) {
 		for (int j = jlo-2; j < jhi+2; j++) {
 			int idx = i*qy+j;
+			int idx_ip = (i+1)*qy+j;
 
 			// u on x-edges
-			u_xl[(i+1)*qy+j] = u[idx] +
-			                   0.5*(1.0 - dtdx*u[idx]) * ldelta_ux[idx];
+			u_xl[idx_ip] = u[idx] +
+			               0.5*(1.0 - dtdx*u[idx]) * ldelta_ux[idx];
 			u_xr[idx] = u[idx] -
 			            0.5*(1.0 + dtdx*u[idx])*ldelta_ux[idx];
 
 			// v on x-edges
-			v_xl[(i+1)*qy+j] = v[idx] +
-			                   0.5*(1.0 - dtdx*u[idx]) * ldelta_vx[idx];
+			v_xl[idx_ip] = v[idx] +
+			               0.5*(1.0 - dtdx*u[idx]) * ldelta_vx[idx];
 			v_xr[idx] = v[idx] -
 			            0.5*(1.0 + dtdx*u[idx])*ldelta_vx[idx];
 
@@ -204,23 +205,24 @@ void get_interface_states(int qx, int qy, int ng,
 	for (int i = ilo-2; i < ihi+2; i++) {
 		for (int j = jlo-2; j < jhi+2; j++) {
 			int idx = i*qy+j;
+			int idx_ip = (i+1)*qy+j;
 
-			double ubar = 0.5*(uhat_adv[idx] + uhat_adv[(i+1)*qy+j]);
+			double ubar = 0.5*(uhat_adv[idx] + uhat_adv[idx_ip]);
 			double vbar = 0.5*(vhat_adv[idx] + vhat_adv[idx+1]);
 
 			// v du/dy is the transerse term for the u states on x-interfaces
 			double vu_y = vbar*(u_yint[idx+1] - u_yint[idx]);
 
-			u_xl[(i+1)*qy+j] = u_xl[(i+1)*qy+j] -
-			                   0.5*dtdy*vu_y - 0.5*dt*gradp_x[idx];
+			u_xl[idx_ip] = u_xl[idx_ip] -
+			               0.5*dtdy*vu_y - 0.5*dt*gradp_x[idx];
 			u_xr[idx] = u_xr[idx] - 0.5*dtdy*vu_y -
 			            0.5*dt*gradp_x[idx];
 
 			// v dv/dy is the transverse term for the v states on x-interfaces
 			double vv_y = vbar*(v_yint[idx+1] - v_yint[idx]);
 
-			v_xl[(i+1)*qy+j] = v_xl[(i+1)*qy+j] -
-			                   0.5*dtdy*vv_y - 0.5*dt*gradp_y[idx];
+			v_xl[idx_ip] = v_xl[idx_ip] -
+			               0.5*dtdy*vv_y - 0.5*dt*gradp_y[idx];
 			v_xr[idx] = v_xr[idx] - 0.5*dtdy*vv_y -
 			            0.5*dt*gradp_y[idx];
 
@@ -317,7 +319,7 @@ void riemann_and_upwind(int qx, int qy, int ng, double *q_l, double *q_r, double
 
 	double s[qx*qy];
 
-	for (int i = 0; i < qx*qy; i++) 
+	for (int i = 0; i < qx*qy; i++)
 		s[i] = 0;
 
 	riemann(qx, qy, ng, q_l, q_r, s);

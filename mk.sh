@@ -26,6 +26,10 @@ if [ "$1" == "clean" ]; then
     find . -name "*wrapper.cpp" -exec rm -f {} \;
 
 elif [ "$1" == "cython" ]; then
+    # compiler looks for changes in the .cpp files rather than
+    # the .pyx files, so delete them to force recompilation.
+    # This would work better with a makefile where the file
+    # dependencies could be made explicit
     find . -name "*wrapper.cpp" -exec rm -f {} \;
 
     ${PYTHON} setup_cython.py build_ext --inplace

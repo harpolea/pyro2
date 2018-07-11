@@ -20,16 +20,31 @@ cdef extern from "incomp_interface_h.h":
                 double *u_xint, double *v_xint,
                 double *u_yint, double *v_yint);
 
-def mac_vels(int qx, int qy, int ng, np.float64_t dx,
-            np.float64_t dy, np.float64_t dt,
-            np.ndarray[np.float64_t, ndim=2] u not None,
-            np.ndarray[np.float64_t, ndim=2] v not None,
-            np.ndarray[np.float64_t, ndim=2] ldelta_ux not None,
-            np.ndarray[np.float64_t, ndim=2] ldelta_vx not None,
-            np.ndarray[np.float64_t, ndim=2] ldelta_uy not None,
-            np.ndarray[np.float64_t, ndim=2] ldelta_vy not None,
-            np.ndarray[np.float64_t, ndim=2] gradp_x not None,
-            np.ndarray[np.float64_t, ndim=2] gradp_y not None):
+ctg = np.ascontiguousarray
+
+# we need extra wrappers here to make sure that the arrays are passed in as C-contiguous
+def mac_vels(int qx, int qy, int ng, double dx,
+            double dy, double dt,
+            u, v, ldelta_ux, ldelta_vx,
+            ldelta_uy, ldelta_vy,
+            gradp_x, gradp_y):
+
+    return mac_vels_w(qx, qy, ng, dx, dy, dt,
+                ctg(u), ctg(v),
+                ctg(ldelta_ux), ctg(ldelta_vx),
+                ctg(ldelta_uy), ctg(ldelta_vy),
+                ctg(gradp_x), ctg(gradp_y))
+
+def mac_vels_w(int qx, int qy, int ng, double dx,
+            double dy, double dt,
+            np.ndarray[double, ndim=2, mode="c"] u not None,
+            np.ndarray[double, ndim=2, mode="c"] v not None,
+            np.ndarray[double, ndim=2, mode="c"] ldelta_ux not None,
+            np.ndarray[double, ndim=2, mode="c"] ldelta_vx not None,
+            np.ndarray[double, ndim=2, mode="c"] ldelta_uy not None,
+            np.ndarray[double, ndim=2, mode="c"] ldelta_vy not None,
+            np.ndarray[double, ndim=2, mode="c"] gradp_x not None,
+            np.ndarray[double, ndim=2, mode="c"] gradp_y not None):
 
     cdef np.ndarray u_MAC = np.zeros([qx, qy], dtype=np.float64)
     cdef np.ndarray v_MAC = np.zeros([qx, qy], dtype=np.float64)
@@ -43,18 +58,33 @@ def mac_vels(int qx, int qy, int ng, np.float64_t dx,
 
     return u_MAC, v_MAC
 
-def states(int qx, int qy, int ng, np.float64_t dx,
-            np.float64_t dy, np.float64_t dt,
-            np.ndarray[np.float64_t, ndim=2] u not None,
-            np.ndarray[np.float64_t, ndim=2] v not None,
-            np.ndarray[np.float64_t, ndim=2] ldelta_ux not None,
-            np.ndarray[np.float64_t, ndim=2] ldelta_vx not None,
-            np.ndarray[np.float64_t, ndim=2] ldelta_uy not None,
-            np.ndarray[np.float64_t, ndim=2] ldelta_vy not None,
-            np.ndarray[np.float64_t, ndim=2] gradp_x not None,
-            np.ndarray[np.float64_t, ndim=2] gradp_y not None,
-            np.ndarray[np.float64_t, ndim=2] u_MAC not None,
-            np.ndarray[np.float64_t, ndim=2] v_MAC not None):
+def states(int qx, int qy, int ng, double dx,
+            double dy, double dt,
+            u, v, ldelta_ux, ldelta_vx,
+            ldelta_uy, ldelta_vy,
+            gradp_x, gradp_y,
+            u_MAC, v_MAC):
+
+    return states_w(qx, qy, ng, dx, dy, dt,
+                ctg(u), ctg(v),
+                ctg(ldelta_ux), ctg(ldelta_vx),
+                ctg(ldelta_uy), ctg(ldelta_vy),
+                ctg(gradp_x), ctg(gradp_y),
+                ctg(u_MAC),
+                ctg(v_MAC))
+
+def states_w(int qx, int qy, int ng, double dx,
+            double dy, double dt,
+            np.ndarray[double, ndim=2, mode="c"] u not None,
+            np.ndarray[double, ndim=2, mode="c"] v not None,
+            np.ndarray[double, ndim=2, mode="c"] ldelta_ux not None,
+            np.ndarray[double, ndim=2, mode="c"] ldelta_vx not None,
+            np.ndarray[double, ndim=2, mode="c"] ldelta_uy not None,
+            np.ndarray[double, ndim=2, mode="c"] ldelta_vy not None,
+            np.ndarray[double, ndim=2, mode="c"] gradp_x not None,
+            np.ndarray[double, ndim=2, mode="c"] gradp_y not None,
+            np.ndarray[double, ndim=2, mode="c"] u_MAC not None,
+            np.ndarray[double, ndim=2, mode="c"] v_MAC not None):
 
     cdef np.ndarray u_xint = np.zeros([qx, qy], dtype=np.float64)
     cdef np.ndarray v_xint = np.zeros([qx, qy], dtype=np.float64)

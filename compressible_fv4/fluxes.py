@@ -2,7 +2,7 @@
 
 import numpy as np
 
-import advection_fv4.interface_f as interface_f
+import advection_fv4.interface_c as interface
 import compressible as comp
 import compressible.interface_c as cf
 import mesh.reconstruction as reconstruction
@@ -102,7 +102,7 @@ def fluxes(myd, rp, ivars, solid, tc):
 
         else:
             for n in range(ivars.nq):
-                q_l[:, :, n], q_r[:, :, n] = interface_f.states(q_avg[:, :, n], myg.qx, myg.qy, myg.ng, idir)
+                q_l[:, :, n], q_r[:, :, n] = interface.states(q_avg[:, :, n], myg.qx, myg.qy, myg.ng, idir)
 
             # apply flattening
             for n in range(ivars.nq):
