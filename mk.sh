@@ -18,13 +18,15 @@ if [ "$1" == "clean" ]; then
     rm -rf incompressible/*.so
     rm -rf compressible/*.so
     rm -rf lm_atm/*.so
+    rm -rf swe/*.so
+    rm -rf advection_fv4/*.so
     find . -name "*.pyc" -exec rm -f {} \;
     find . -type d -name "__pycache__" -exec rm -rf {} \;
     find . -type d -name "build" -exec rm -rf {} \;
-    find . -name "*wrapper.c" -exec rm -f {} \;
+    find . -name "*wrapper.cpp" -exec rm -f {} \;
 
 elif [ "$1" == "cython" ]; then
-    find . -name "*wrapper.c" -exec rm -f {} \;
+    find . -name "*wrapper.cpp" -exec rm -f {} \;
 
     ${PYTHON} setup_cython.py build_ext --inplace
 
