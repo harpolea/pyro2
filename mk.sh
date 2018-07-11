@@ -23,6 +23,11 @@ if [ "$1" == "clean" ]; then
     find . -type d -name "build" -exec rm -rf {} \;
     find . -name "*wrapper.c" -exec rm -f {} \;
 
+elif [ "$1" == "cython" ]; then
+    find . -name "*wrapper.c" -exec rm -f {} \;
+
+    ${PYTHON} setup_cython.py build_ext --inplace
+
 else
     if [ "$1" == "debug" ]; then
 	FFLAGS="-fbounds-check -fbacktrace -Wuninitialized -Wunused -ffpe-trap=invalid -finit-real=snan"
@@ -30,7 +35,6 @@ else
 	FFLAGS="-C"
     fi
 
-    # ${PYTHON} setup.py config_fc --f90flags "${FFLAGS}" build_ext
-    ${PYTHON} setup.py build_ext --inplace
+    ${PYTHON} setup.py config_fc --f90flags "${FFLAGS}" build_ext
 
 fi

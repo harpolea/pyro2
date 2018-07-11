@@ -5,7 +5,7 @@ import importlib
 import numpy as np
 import matplotlib.pyplot as plt
 
-import lm_atm.LM_atm_interface_c as lm_interface_c
+import lm_atm.LM_atm_interface_f as lm_interface_f
 import mesh.reconstruction as reconstruction
 import mesh.boundary as bnd
 import mesh.patch as patch
@@ -362,7 +362,7 @@ class Simulation(NullSimulation):
         source.v()[:, :] = rhoprime.v()*g/rho.v()
         self.aux_data.fill_BC("source_y")
 
-        _um, _vm = lm_interface_c.mac_vels(myg.qx, myg.qy, myg.ng,
+        _um, _vm = lm_interface_f.mac_vels(myg.qx, myg.qy, myg.ng,
                                            myg.dx, myg.dy, self.dt,
                                            u, v,
                                            ldelta_ux, ldelta_vx,
@@ -447,7 +447,7 @@ class Simulation(NullSimulation):
         #---------------------------------------------------------------------
         # predict rho to the edges and do its conservative update
         #---------------------------------------------------------------------
-        _rx, _ry = lm_interface_c.rho_states(myg.qx, myg.qy, myg.ng,
+        _rx, _ry = lm_interface_f.rho_states(myg.qx, myg.qy, myg.ng,
                                              myg.dx, myg.dy, self.dt,
                                              rho, u_MAC, v_MAC,
                                              ldelta_rx, ldelta_ry)
@@ -483,7 +483,7 @@ class Simulation(NullSimulation):
         self.aux_data.fill_BC("coeff")
 
         _ux, _vx, _uy, _vy = \
-               lm_interface_c.states(myg.qx, myg.qy, myg.ng,
+               lm_interface_f.states(myg.qx, myg.qy, myg.ng,
                                      myg.dx, myg.dy, self.dt,
                                      u, v,
                                      ldelta_ux, ldelta_vx,

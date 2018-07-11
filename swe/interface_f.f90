@@ -246,7 +246,6 @@ subroutine riemann_Roe(idir, qx, qy, ng, &
   double precision :: h_l, un_l, ut_l, c_l
   double precision :: h_r, un_r, ut_r, c_r
   double precision :: h_star, u_star, c_star
-  double precision :: xn(nspec)
 
   double precision :: U_roe(0:nvar-1), c_roe, un_roe
   double precision :: lambda_roe(0:nvar-1), K_roe(0:nvar-1, 0:nvar-1)
@@ -400,9 +399,8 @@ subroutine riemann_HLLC(idir, qx, qy, ng, &
 
   double precision :: h_l, un_l, ut_l
   double precision :: h_r, un_r, ut_r
-  double precision :: xn(nspec)
 
-  double precision :: hstar_l, hstar_r, h_avg
+  double precision :: h_avg
   double precision :: hstar, ustar, u_avg
   double precision :: S_l, S_r, S_c
   double precision :: c_l, c_r, c_avg

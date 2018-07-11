@@ -9,56 +9,56 @@ void states_c(int idir, int qx, int qy, int ng,
               double *q_l, double *q_r)
 
 {
-	/*
-	   predict the cell-centered state to the edges in one-dimension
-	   using the reconstructed, limited slopes.
+/*
+   predict the cell-centered state to the edges in one-dimension
+   using the reconstructed, limited slopes.
 
-	   We follow the convection here that V_l[i] is the left state at the
-	   i-1/2 interface and V_l[i+1] is the left state at the i+1/2
-	   interface.
+   We follow the convection here that V_l[i] is the left state at the
+   i-1/2 interface and V_l[i+1] is the left state at the i+1/2
+   interface.
 
 
-	   We need the left and right eigenvectors and the eigenvalues for
-	   the system projected along the x-direction
+   We need the left and right eigenvectors and the eigenvalues for
+   the system projected along the x-direction
 
-	   Taking our state vector as Q = (rho, u, v, p)^T, the eigenvalues
-	   are u - c, u, u + c.
+   Taking our state vector as Q = (rho, u, v, p)^T, the eigenvalues
+   are u - c, u, u + c.
 
-	   We look at the equations of hydrodynamics in a split fashion --
-	   i.e., we only consider one dimension at a time.
+   We look at the equations of hydrodynamics in a split fashion --
+   i.e., we only consider one dimension at a time.
 
-	   Considering advection in the x-direction, the Jacobian matrix for
-	   the primitive variable formulation of the Euler equations
-	   projected in the x-direction is:
+   Considering advection in the x-direction, the Jacobian matrix for
+   the primitive variable formulation of the Euler equations
+   projected in the x-direction is:
 
-	       / u   0   0 \
-	 | g   u   0 |
-	   A = \ 0   0   u /
+   / u   0   0 \
+ | g   u   0 |
+   A = \ 0   0   u /
 
-	   The right eigenvectors are
+   The right eigenvectors are
 
-	       /  h  \       /  0  \      /  h  \
-	   r1 = | -c  |  r2 = |  0  | r3 = |  c  |
-	 \  0  /       \  1  /      \  0  /
+   /  h  \       /  0  \      /  h  \
+   r1 = | -c  |  r2 = |  0  | r3 = |  c  |
+ \  0  /       \  1  /      \  0  /
 
-	   The left eigenvectors are
+   The left eigenvectors are
 
-	   l1 =     ( 1/(2h),  -h/(2hc),  0 )
-	   l2 =     ( 0,          0,  1 )
-	   l3 =     ( -1/(2h), -h/(2hc),  0 )
+   l1 =     ( 1/(2h),  -h/(2hc),  0 )
+   l2 =     ( 0,          0,  1 )
+   l3 =     ( -1/(2h), -h/(2hc),  0 )
 
-	   The fluxes are going to be defined on the left edge of the
-	   computational zones
+   The fluxes are going to be defined on the left edge of the
+   computational zones
 
-	 |             |             |             |
-	 |             |             |             |
-	         -+------+------+------+------+------+------+--
-	 |     i-1     |      i      |     i+1     |
-	                       ^ ^           ^
-	                   q_l,i q_r,i  q_l,i+1
+ |             |             |             |
+ |             |             |             |
+     -+------+------+------+------+------+------+--
+ |     i-1     |      i      |     i+1     |
+                   ^ ^           ^
+               q_l,i q_r,i  q_l,i+1
 
-	   q_r,i and q_l,i+1 are computed using the information in zone i,j.
-	 */
+   q_r,i and q_l,i+1 are computed using the information in zone i,j.
+ */
 
 
 	double dq[nvar];
@@ -638,7 +638,7 @@ void riemann_HLLC_c(int idir, int qx, int qy, int ng,
 
 		}
 	}
-} // void riemann_HLLC
+}
 
 
 void consFlux(int idir, double g, int ih, int ixmom,
@@ -677,4 +677,4 @@ void consFlux(int idir, double g, int ih, int ixmom,
 		}
 	}
 
-} // void consFlux
+}

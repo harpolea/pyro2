@@ -2,6 +2,7 @@
 *.so
 *.png
 *.eps
+*wrapper.c
 *~
 \#*
 build/
