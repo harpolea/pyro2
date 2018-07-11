@@ -17,17 +17,25 @@ from Cython.Build import build_ext
 # ext_modules = cythonize("compressible/interface.pyx", annotate=True)
 
 ext_modules = [Extension("compressible.interface_c",
-               sources=["compressible/interface_wrapper.pyx",
-               "compressible/c_interface.c"],
-               include_dirs=[numpy.get_include()]),
+                   sources=["compressible/interface_wrapper.pyx",
+                   "compressible/c_interface.c"],
+                   include_dirs=[numpy.get_include()]),
                Extension("incompressible.incomp_interface_c",
-              sources=["incompressible/incomp_interface_wrapper.pyx",
-              "incompressible/c_incomp_interface.c"],
-              include_dirs=[numpy.get_include()]),
+                  sources=["incompressible/incomp_interface_wrapper.pyx",
+                  "incompressible/c_incomp_interface.c"],
+                  include_dirs=[numpy.get_include()]),
               Extension("advection_fv4.interface_c",
-                         sources=["advection_fv4/interface_states_wrapper.pyx",
-                         "advection_fv4/c_interface_states.c"],
-                         include_dirs=[numpy.get_include()])]
+                 sources=["advection_fv4/interface_states_wrapper.pyx",
+                 "advection_fv4/c_interface_states.c"],
+                 include_dirs=[numpy.get_include()]),
+            Extension("lm_atm.LM_atm_interface_c",
+               sources=["lm_atm/LM_atm_interface_wrapper.pyx",
+               "lm_atm/c_LM_atm_interface.c"],
+               include_dirs=[numpy.get_include()]),
+           Extension("swe.interface_c",
+                  sources=["swe/interface_wrapper.pyx",
+                  "swe/c_interface.c"],
+                  include_dirs=[numpy.get_include()])]
 
 setup(
     cmdclass={'build_ext': build_ext},
