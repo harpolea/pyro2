@@ -21,6 +21,7 @@ if [ "$1" == "clean" ]; then
     find . -name "*.pyc" -exec rm -f {} \;
     find . -type d -name "__pycache__" -exec rm -rf {} \;
     find . -type d -name "build" -exec rm -rf {} \;
+    find . -name "*wrapper.c" -exec rm -f {} \;
 
 else
     if [ "$1" == "debug" ]; then

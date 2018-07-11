@@ -122,7 +122,7 @@ Updating U_{i,j}:
 
 """
 
-import compressible.interface_wrapper as ifc
+import compressible.interface_c as ifc
 import compressible as comp
 import mesh.reconstruction as reconstruction
 import mesh.array_indexer as ai

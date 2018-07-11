@@ -6,7 +6,7 @@
 
 from numpy.distutils.core import setup, Extension
 import numpy
-from Cython.Build import cythonize, build_ext
+from Cython.Build import build_ext
 
 # ext_modules = [Extension("compressible.interface_f", ["compressible/interface_f.f90"]),
 #                Extension("advection_fv4.interface_f", ["advection_fv4/interface_states.f90"]),
@@ -16,10 +16,19 @@ from Cython.Build import cythonize, build_ext
 
 # ext_modules = cythonize("compressible/interface.pyx", annotate=True)
 
-ext_modules = [Extension("compressible.interface_wrapper",
-               sources=["compressible/interface_wrapper.pyx", "compressible/c_interface.c"],
-               include_dirs=[numpy.get_include()])]
+ext_modules = [Extension("compressible.interface_c",
+               sources=["compressible/interface_wrapper.pyx",
+               "compressible/c_interface.c"],
+               include_dirs=[numpy.get_include()]),
+               Extension("incompressible.incomp_interface_c",
+              sources=["incompressible/incomp_interface_wrapper.pyx",
+              "incompressible/c_incomp_interface.c"],
+              include_dirs=[numpy.get_include()]),
+              Extension("advection_fv4.interface_c",
+                         sources=["advection_fv4/interface_states_wrapper.pyx",
+                         "advection_fv4/c_interface_states.c"],
+                         include_dirs=[numpy.get_include()])]
 
 setup(
-    cmdclass = {'build_ext': build_ext},
+    cmdclass={'build_ext': build_ext},
     ext_modules=ext_modules)

@@ -7,6 +7,20 @@ cdef extern from "interface_h.h":
                double* qv, double* dqv,
                double* q_l, double* q_r)
 
+    void riemann_cgf_c(int idir, int qx, int qy, int ng,
+                  int nvar, int idens, int ixmom, int iymom,
+                  int iener, int irhoX, int nspec,
+                  int lower_solid, int upper_solid,
+                  double gamma, double* U_l, double* U_r, double* F)
+
+    void riemann_prim_c(int idir, int qx, int qy, int ng,
+                  int nvar, int irho, int iu, int iv, int ip,
+                  int iX, int nspec,
+                  int lower_solid, int upper_solid,
+                  double gamma,
+                  double* q_l,
+                  double* q_r, double* q_int)
+
     void riemann_hllc_c(int idir, int qx, int qy, int ng,
                     int nvar, int idens, int ixmom, int iymom,
                     int iener, int irhoX, int nspec,
@@ -34,6 +48,44 @@ def states(int idir, int qx, int qy, int ng, double dx,
                <double*> q_l.data, <double*> q_r.data)
 
     return q_l, q_r
+
+def riemann_cgf(int idir, int qx, int qy, int ng,
+               int nvar, int idens, int ixmom, int iymom,
+               int iener, int irhoX, int nspec,
+               int lower_solid, int upper_solid,
+               double gamma,
+               np.ndarray[np.float64_t, ndim=3] U_l not None,
+               np.ndarray[np.float64_t, ndim=3] U_r not None):
+
+    cdef np.ndarray F = np.zeros([qx, qy, nvar], dtype=np.float64)
+
+    riemann_cgf_c(idir, qx, qy, ng,
+                   nvar, idens, ixmom, iymom,
+                   iener, irhoX, nspec,
+                   lower_solid, upper_solid,
+                   gamma, <double*> U_l.data,
+                   <double*> U_r.data, <double*> F.data)
+
+    return F
+
+def riemann_prim(int idir, int qx, int qy, int ng,
+               int nvar, int irho, int iu, int iv, int ip,
+               int iX, int nspec,
+               int lower_solid, int upper_solid,
+               double gamma,
+               np.ndarray[np.float64_t, ndim=3] q_l not None,
+               np.ndarray[np.float64_t, ndim=3] q_r not None):
+
+    cdef np.ndarray q_int = np.zeros([qx, qy, nvar], dtype=np.float64)
+
+    riemann_prim_c(idir, qx, qy, ng,
+                   nvar, irho, iu, iv, ip,
+                   iX, nspec,
+                   lower_solid, upper_solid,
+                   gamma, <double*> q_l.data,
+                   <double*> q_r.data, <double*> q_int.data)
+
+    return q_int
 
 def riemann_hllc(int idir, int qx, int qy, int ng,
                int nvar, int idens, int ixmom, int iymom,
