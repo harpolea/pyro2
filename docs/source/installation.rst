@@ -13,11 +13,13 @@ The following python packages are required:
 
 * ``numpy``
 * ``matplotlib``
-* ``f2py`` (part of NumPy)
+* ``f2py`` (part of NumPy) **or** ``cython``
 * ``pytest`` (for unit tests)
 
-Additionally, you will need ``gfortran`` installed on your computer, for
-``f2py`` to be able to compile the code.
+Pyro can be built using either Fortran modules or C++ modules. To build the
+Fortran modules, you will need ``gfortran`` installed on your computer, for
+``f2py`` to be able to compile the code. To build the C++ modules, you will need
+a C++ compiler (e.g. ``gcc``) installed on your computer.
 
 The following steps are needed before running pyro:
 
@@ -28,12 +30,21 @@ The following steps are needed before running pyro:
 
    export PYTHONPATH="/path/to/pyro/:${PYTHONPATH}"
 
-* build the Fortran modules, by running the ``mk.sh`` script. It
-  should be sufficient to just do:
+* either:
 
-.. code-block:: none
+    - build the Fortran modules, by running the ``mk.sh`` script. It
+      should be sufficient to just do:
 
-   ./mk.sh
+    .. code-block:: none
+
+       ./mk.sh
+
+    - build the C++ modules by running the ``mk.sh`` script with the ``cython``
+      argument:
+
+    .. code-block:: none
+
+        ./mk.sh cython
 
 * define the environment variable ``PYRO_HOME`` to point to
   the ``pyro2/`` directory (only needed for regression testing)
