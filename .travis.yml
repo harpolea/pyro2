@@ -7,10 +7,8 @@ matrix:
   include:
     - env:
           MK_ARGS=""
-          IGNORE_NB=solver-test-cython.ipynb
     - env:
           MK_ARGS=cython
-          IGNORE_NB=solver-test.ipynb
 
 before_install:
   - export PATH=$(echo $PATH | tr ':' "\n" | sed '/\/opt\/python/d' | tr "\n" ":" | sed "s|::|:|g")
@@ -31,7 +29,7 @@ before_script:
 
 script:
   - flake8 .
-  - pytest -v --cov=. --cov-config .coveragerc --nbval --ignore=$IGNORE_NB --ignore=docs --ignore=./multigrid/variable_coeff_elliptic.ipynb --ignore=examples
+  - pytest -v --cov=. --cov-config .coveragerc --nbval --ignore=docs --ignore=./multigrid/variable_coeff_elliptic.ipynb --ignore=examples
 #   - travis-sphinx build
 
 # after_success:

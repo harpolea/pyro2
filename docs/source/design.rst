@@ -2,12 +2,13 @@ Design ideas
 ============
 
 pyro is written primarily in python (by default, we expect python 3),
-with a few low-level routines written in Fortran for performance. The
+with a few low-level routines written in Fortran/C++ for performance. The code
+can be built with either the Fortran or the C++ routines. The
 ``numpy`` package is used for representing arrays throughout the
 python code and the ``matplotlib`` library is used for
 visualization. We use ``f2py`` (part of NumPy) to interface with some
-Fortran code. Finally, ``pytest`` is used for unit testing of some
-components.
+Fortran code (or ``cython`` to interface with C++ code). Finally, ``pytest`` is
+used for unit testing of some components.
 
 All solvers are written for a 2-d grid.  This gives a good balance
 between complexity and speed.
@@ -95,23 +96,28 @@ The overall structure is:
   modes.
 
 
-Fortran
--------
+Fortran and C++
+---------------
 
-Fortran is used to speed up some critical portions of the code, and in
+Fortran/C++ is used to speed up some critical portions of the code, and in
 many cases, provides more clarity than trying to write optimized
-python code using array operations in numpy. The Fortran code
-seemlessly integrates into python using f2py.
+python code using array operations in numpy. It is up to the user which of the two
+they wish to use. There is very little difference in performance between them,
+however for some systems it can be more difficult to install the compiler and
+library required to build the Fortran code, making the C++ code the easier
+choice. The Fortran code seemlessly integrates into python using f2py; the C++ code integrates into
+python using cython.
 
-Wherever Fortran is used, we enforce the following design rule: the
-Fortran functions must be completely self-contained, with all
+Wherever Fortran/C++ is used, we enforce the following design rule: the
+Fortran/C++ functions must be completely self-contained, with all
 information coming through the interface. No external dependencies
-are allowed. Each pyro module will have (at most) a single Fortran
+are allowed. Each pyro module will have (at most) a single Fortran/C++
 file and can be compiled into a library via a single f2py command line
-invocation.
+invocation (or cython wrapper).
 
 A single script, ``mk.sh``, in the top-level directory will compile
-all the Fortran source.
+all the Fortran source. The C++ source can be compiled by passing an additional
+argument to the script: ``mk.sh cython``.
 
 
 Main driver
