@@ -19,7 +19,6 @@ install:
 before_script:
   - export PYTHONPATH=$PYTHONPATH:$(pwd)
   - ./mk.sh
-  - ./mk.sh cython
 
 script:
   - flake8 .

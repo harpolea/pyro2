@@ -1,6 +1,7 @@
 #include "LM_atm_interface_h.h"
 
-int is_symmetric_pair(int qx, int qy, int ng, int nodal, double *sl, double *sr) {
+int is_symmetric_pair(int qx, int qy, int ng, int nodal,
+                      double *sl, double *sr) {
 
 	int nx = qx - 2*ng;
 	int ny = qy - 2*ng;
@@ -13,8 +14,8 @@ int is_symmetric_pair(int qx, int qy, int ng, int nodal, double *sl, double *sr)
 
 	if (nodal == 0) {
 		int exit_loop = 0;
-		for (int j = jlo; j < jhi; j++) {
-			for (int i = 0; i < nx/2; i++) {
+		for (int i = 0; i < nx/2; i++) {
+			for (int j = jlo; j < jhi; j++) {
 				int il = ilo + i;
 				int ir = ihi - i;
 
@@ -32,8 +33,8 @@ int is_symmetric_pair(int qx, int qy, int ng, int nodal, double *sl, double *sr)
 
 		int exit_loop = 0;
 
-		for (int j = jlo; j < jhi; j++) {
-			for (int i = 0; i < nx/2; i++) {
+		for (int i = 0; i < nx/2; i++) {
+			for (int j = jlo; j < jhi; j++) {
 				int il = ilo + i;
 				int ir = ihi - i + 1;
 
@@ -59,7 +60,8 @@ int is_symmetric(int qx, int qy, int ng, int nodal, double *s) {
 }
 
 
-int is_asymmetric_pair(int qx, int qy, int ng, int nodal, double *sl, double *sr) {
+int is_asymmetric_pair(int qx, int qy, int ng, int nodal,
+                       double *sl, double *sr) {
 
 
 	int nx = qx - 2*ng;
@@ -74,8 +76,8 @@ int is_asymmetric_pair(int qx, int qy, int ng, int nodal, double *sl, double *sr
 	int break_loop = 0;
 
 	if (nodal == 0) {
-		for (int j = jlo; j < jhi; j++) {
-			for (int i = 0; i < nx/2; i++) {
+		for (int i = 0; i < nx/2; i++) {
+			for (int j = jlo; j < jhi; j++) {
 				int il = ilo + i;
 				int ir = ihi - i;
 
@@ -91,8 +93,8 @@ int is_asymmetric_pair(int qx, int qy, int ng, int nodal, double *sl, double *sr
 
 	} else {
 
-		for (int j = jlo; j < jhi; j++) {
-			for (int i = 0; i < nx/2; i++) {
+		for (int i = 0; i < nx/2; i++) {
+			for (int j = jlo; j < jhi; j++) {
 				int il = ilo + i;
 				int ir = ihi - i + 1;
 
@@ -116,13 +118,13 @@ int is_asymmetric(int qx, int qy, int ng, int nodal, double *s) {
 } //void is_asymmetric
 
 void mac_vels_c(int qx, int qy, int ng, double dx,
-              double dy, double dt,
-              double *u, double *v,
-              double *ldelta_ux, double *ldelta_vx,
-              double *ldelta_uy, double *ldelta_vy,
-              double *gradp_x, double *gradp_y,
-              double *source,
-              double *u_MAC, double *v_MAC) {
+                double dy, double dt,
+                double *u, double *v,
+                double *ldelta_ux, double *ldelta_vx,
+                double *ldelta_uy, double *ldelta_vy,
+                double *gradp_x, double *gradp_y,
+                double *source,
+                double *u_MAC, double *v_MAC) {
 
 	double u_xl[qx*qy], u_xr[qx*qy];
 	double u_yl[qx*qy], u_yr[qx*qy];
@@ -153,15 +155,15 @@ void mac_vels_c(int qx, int qy, int ng, double dx,
 
 //xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 void states_c(int qx, int qy, int ng, double dx,
-            double dy, double dt,
-            double *u, double *v,
-            double *ldelta_ux, double *ldelta_vx,
-            double *ldelta_uy, double *ldelta_vy,
-            double *gradp_x, double *gradp_y,
-            double *source,
-            double *u_MAC, double *v_MAC,
-            double *u_xint, double *v_xint,
-            double *u_yint, double *v_yint) {
+              double dy, double dt,
+              double *u, double *v,
+              double *ldelta_ux, double *ldelta_vx,
+              double *ldelta_uy, double *ldelta_vy,
+              double *gradp_x, double *gradp_y,
+              double *source,
+              double *u_MAC, double *v_MAC,
+              double *u_xint, double *v_xint,
+              double *u_yint, double *v_yint) {
 
 	// this is similar to mac_vels, but it predicts the interface states
 	// of both u and v on both interfaces, using the MAC velocities to
@@ -196,10 +198,10 @@ void states_c(int qx, int qy, int ng, double dx,
 
 //xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 void rho_states_c(int qx, int qy, int ng, double dx,
-                double dy, double dt,
-                double *rho, double *u_MAC, double *v_MAC,
-                double *ldelta_rx, double *ldelta_ry,
-                double *rho_xint, double *rho_yint) {
+                  double dy, double dt,
+                  double *rho, double *u_MAC, double *v_MAC,
+                  double *ldelta_rx, double *ldelta_ry,
+                  double *rho_xint, double *rho_yint) {
 
 	// this predicts rho to the interfaces.  We use the MAC velocities to for (int
 	// the upwinding
@@ -219,13 +221,14 @@ void rho_states_c(int qx, int qy, int ng, double dx,
 	double dtdx = dt/dx;
 	double dtdy = dt/dy;
 
-	for (int j = jlo-2; j < jhi+2; j++) {
-		for (int i = ilo-2; i < ihi+2; i++) {
+	for (int i = ilo-2; i < ihi+2; i++) {
+		for (int j = jlo-2; j < jhi+2; j++) {
 			int idx = i*qy + j;
 
 			// u on x-edges
 			rho_xl[(i+1)*qy+j] = rho[idx] +
-			                     0.5*(1.0 - dtdx*u_MAC[(i+1)*qy+j]) * ldelta_rx[idx];
+			                     0.5*(1.0 - dtdx*u_MAC[(i+1)*qy+j]) *
+			                     ldelta_rx[idx];
 			rho_xr[idx] = rho[idx] -
 			              0.5*(1.0 + dtdx*u_MAC[idx]) * ldelta_rx[idx];
 
@@ -246,8 +249,8 @@ void rho_states_c(int qx, int qy, int ng, double dx,
 
 	// now add the transverse term and the non-advective part of the normal
 	// divergence
-	for (int j = jlo-2; j < jhi+2; j++) {
-		for (int i = ilo-2; i < ihi+2; i++) {
+	for (int i = ilo-2; i < ihi+2; i++) {
+		for (int j = jlo-2; j < jhi+2; j++) {
 			int idx = i*qy + j;
 
 			u_x = (u_MAC[(i+1)*qy+j] - u_MAC[idx])/dx;
@@ -288,12 +291,9 @@ void rho_states_c(int qx, int qy, int ng, double dx,
 void get_interface_states(int qx, int qy, int ng,
                           double dx, double dy, double dt,
                           double *u, double *v,
-                          double *ldelta_ux,
-                          double *ldelta_vx,
-                          double *ldelta_uy,
-                          double *ldelta_vy,
-                          double *gradp_x,
-                          double *gradp_y,
+                          double *ldelta_ux, double *ldelta_vx,
+                          double *ldelta_uy, double *ldelta_vy,
+                          double *gradp_x, double *gradp_y,
                           double *source,
                           double *u_xl, double *u_xr,
                           double *u_yl, double *u_yr,
@@ -329,8 +329,8 @@ void get_interface_states(int qx, int qy, int ng,
 	double dtdx = dt/dx;
 	double dtdy = dt/dy;
 
-	for (int j = jlo-2; j < jhi+2; j++) {
-		for (int i = ilo-2; i < ihi+2; i++) {
+	for (int i = ilo-2; i < ihi+2; i++) {
+		for (int j = jlo-2; j < jhi+2; j++) {
 			int idx = i * qy + j;
 
 			// u on x-edges
@@ -383,8 +383,8 @@ void get_interface_states(int qx, int qy, int ng,
 
 
 	// add the transverse flux differences to the preliminary interface states
-	for (int j = jlo-1; j < jhi+1; j++) {
-		for (int i = ilo-1; i < ihi+1; i++) {
+	for (int i = ilo-1; i < ihi+1; i++) {
+		for (int j = jlo-1; j < jhi+1; j++) {
 			int idx = i * qy + j;
 
 			ubar = 0.5*(uhat_adv[idx] + uhat_adv[(i+1)*qy+j]);
@@ -444,8 +444,8 @@ void upwind(int qx, int qy, int ng, double *q_l,
 	int jlo = ng;
 	int jhi = ng+ny;
 
-	for (int j = jlo-1; j < jhi+2; j++) {
-		for (int i = ilo-1; i < ihi+2; i++) {
+	for (int i = ilo-1; i < ihi+2; i++) {
+		for (int j = jlo-1; j < jhi+2; j++) {
 			int idx = i * qy + j;
 
 			if (s[idx] > 0.0) {
@@ -478,8 +478,8 @@ void riemann(int qx, int qy, int ng,
 	int jlo = ng;
 	int jhi = ng+ny;
 
-	for (int j = jlo-1; j < jhi+2; j++) {
-		for (int i = ilo-1; i < ihi+2; i++) {
+	for (int i = ilo-1; i < ihi+2; i++) {
+		for (int j = jlo-1; j < jhi+2; j++) {
 			int idx = i * qy + j;
 
 			if (q_l[idx] > 0.0 && q_l[idx] + q_r[idx] > 0.0) {
@@ -497,7 +497,8 @@ void riemann(int qx, int qy, int ng,
 
 
 //xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-void riemann_and_upwind(int qx, int qy, int ng, double *q_l, double *q_r, double *q_int) {
+void riemann_and_upwind(int qx, int qy, int ng,
+                        double *q_l, double *q_r, double *q_int) {
 
 	// First solve the Riemann problem given q_l and q_r to give the
 	// velocity on the interface and { use this velocity to upwind to

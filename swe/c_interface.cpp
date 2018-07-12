@@ -60,7 +60,6 @@ void states_c(int idir, int qx, int qy, int ng,
    q_r,i and q_l,i+1 are computed using the information in zone i,j.
  */
 
-
 	double dq[nvar];
 	double q[nvar];
 	double lvec[nvar*nvar];
@@ -84,8 +83,8 @@ void states_c(int idir, int qx, int qy, int ng,
 	double dtdx3 = 0.33333*dtdx;
 
 	// this is the loop over zones.  For zone i, we see q_l[i+1] and q_r[i]
-	for (int j = jlo-2; j < jhi+2; j++) {
-		for (int i = ilo-2; i < ihi+2; i++) {
+	for (int i = ilo-2; i < ihi+2; i++) {
+		for (int j = jlo-2; j < jhi+2; j++) {
 			int idx = (i*qy + j) * nvar;
 
 			for (int m = 0; m < nvar; m++) {
@@ -184,37 +183,32 @@ void states_c(int idir, int qx, int qy, int ng,
 				// this is one the right face of the current zone,
 				// so the fastest moving eigenvalue is eval[2] = u + c
 				factor = 0.5*(1.0 - dtdx*fmax(eval[2], 0.0));
-				for (int n = 0; n < nvar; n++) {
+				for (int n = 0; n < nvar; n++)
 					q_l[((i+1)*qy+j)*nvar+n] = q[n] + factor*dq[n];
-				}
 
 				// left face of the current zone, so the fastest moving
 				// eigenvalue is eval[3] = u - c
 				factor = 0.5*(1.0 + dtdx*fmin(eval[0], 0.0));
-				for (int n = 0; n < nvar; n++) {
+				for (int n = 0; n < nvar; n++)
 					q_r[idx+n] = q[n] - factor*dq[n];
-				}
 
 			} else {
 
 				factor = 0.5*(1.0 - dtdx*fmax(eval[2], 0.0));
-				for (int n = 0; n < nvar; n++) {
+				for (int n = 0; n < nvar; n++)
 					q_l[(i*qy+j+1)*nvar+n] = q[n] + factor*dq[n];
-				}
 
 				factor = 0.5*(1.0 + dtdx*fmin(eval[0], 0.0));
-				for (int n = 0; n < nvar; n++) {
+				for (int n = 0; n < nvar; n++)
 					q_r[idx+n] = q[n] - factor*dq[n];
-				}
 
 			}
 
 			// compute the Vhat functions
 			for (int m = 0; m < nvar; m++) {
 				double sum = 0;
-				for (int n = 0; n < nvar; n++) {
+				for (int n = 0; n < nvar; n++)
 					sum += lvec[m*nvar+n]*dq[n];
-				}
 
 				betal[m] = dtdx3*(eval[2] - eval[m]) *
 				           (copysign(1.0,eval[m]) + 1.0)*sum;
@@ -286,8 +280,8 @@ void riemann_Roe_c(int idir, int qx, int qy, int ng,
 
 	int ns = nvar - nspec;
 
-	for (int j = jlo-1; j < jhi+1; j++) {
-		for (int i = ilo-1; i < ihi+1; i++) {
+	for (int i = ilo-1; i < ihi+1; i++) {
+		for (int j = jlo-1; j < jhi+1; j++) {
 			int idx = (i*qy+j)*nvar;
 
 			// primitive variable states
@@ -338,17 +332,15 @@ void riemann_Roe_c(int idir, int qx, int qy, int ng,
 				un_roe = U_roe[iymom];
 			}
 
-			for (int n = 0; n < nvar*nvar; n++) {
+			for (int n = 0; n < nvar*nvar; n++)
 				K_roe[n] = 0;
-			}
 
 			double lamda_roe_tmp[3] = {un_roe - c_roe,
 				                       un_roe, un_roe + c_roe};
 
-			for (int n = 0; n < 3; n++) {
+			for (int n = 0; n < 3; n++)
 				lambda_roe[n] = lamda_roe_tmp[n];
-			}
-			// lambda_roe(0:2) = [un_roe - c_roe, un_roe, un_roe + c_roe];
+
 			if (idir == 1) {
 				double alpha_roe_tmp[3] = {0.5*(delta[ih] - U_roe[ih]/c_roe*delta[ixmom]),
 					                       U_roe[ih] * delta[iymom],
@@ -388,12 +380,12 @@ void riemann_Roe_c(int idir, int qx, int qy, int ng,
 			for (int n = ns; n < nvar; n++) {
 				lambda_roe[n] = un_roe;
 				alpha_roe[n] = U_roe[ih] * delta[n];
-				for (int m = 0; m < nvar; m++) {
+
+				for (int m = 0; m < nvar; m++)
 					K_roe[n*nvar+m] = 0;
-				}
+
 				K_roe[n*nvar+n] = 1.0;
 			}
-
 
 			double U_s[nvar];
 
@@ -480,8 +472,8 @@ void riemann_HLLC_c(int idir, int qx, int qy, int ng,
 	int jlo = ng;
 	int jhi = ng+ny;
 
-	for (int j = jlo-1; j < jhi+1; j++) {
-		for (int i = ilo-1; i < ihi+1; i++) {
+	for (int i = ilo-1; i < ihi+1; i++) {
+		for (int j = jlo-1; j < jhi+1; j++) {
 			int idx = (i*qy + j) * nvar;
 
 			// primitive variable states
@@ -582,6 +574,7 @@ void riemann_HLLC_c(int idir, int qx, int qy, int ng,
 
 				for (int n = 0; n < nvar; n++)
 					U_s[n] = U_r[idx+n];
+
 				// find the flux on the right interface
 				consFlux(idir, g, ih, ixmom, iymom, ihX, nvar, nspec,
 				         U_s, F_state);
@@ -629,6 +622,7 @@ void riemann_HLLC_c(int idir, int qx, int qy, int ng,
 
 				consFlux(idir, g, ih, ixmom, iymom, ihX, nvar, nspec,
 				         U_state, F_state);
+
 				for (int n = 0; n < nvar; n++)
 					F[idx+n] = F_state[n];
 
@@ -654,7 +648,6 @@ void consFlux(int idir, double g, int ih, int ixmom,
    F = | hu^2 + gh^2/2 |
  \      huv      /
  */
-
 
 	double u = U_state[ixmom]/U_state[ih];
 	double v = U_state[iymom]/U_state[ih];

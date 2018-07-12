@@ -247,7 +247,8 @@ void get_interface_states(int qx, int qy, int ng,
 
 
 //xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-void upwind(int qx, int qy, int ng, double *q_l, double *q_r, double *s, double *q_int) {
+void upwind(int qx, int qy, int ng, double *q_l, double *q_r,
+            double *s, double *q_int) {
 
 	// upwind the left and right states based on the specified input
 	// velocity, s.  The resulting interface state is q_int
@@ -308,7 +309,8 @@ void riemann(int qx, int qy, int ng, double *q_l, double *q_r, double *s) {
 }
 
 //xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-void riemann_and_upwind(int qx, int qy, int ng, double *q_l, double *q_r, double *q_int) {
+void riemann_and_upwind(int qx, int qy, int ng,
+                        double *q_l, double *q_r, double *q_int) {
 
 	// First solve the Riemann problem given q_l and q_r to give the
 	// velocity on the interface and { use this velocity to upwind to

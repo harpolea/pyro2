@@ -8,23 +8,23 @@ from numpy.distutils.core import setup, Extension
 import numpy
 from Cython.Build import build_ext
 
-ext_modules = [Extension("compressible.interface_c",
+ext_modules = [Extension("compressible.interface",
                          sources=["compressible/interface_wrapper.pyx",
                                   "compressible/c_interface.cpp"],
                          include_dirs=[numpy.get_include()], language="c++"),
-               Extension("incompressible.incomp_interface_c",
+               Extension("incompressible.incomp_interface",
                          sources=["incompressible/incomp_interface_wrapper.pyx",
                                   "incompressible/c_incomp_interface.cpp"],
                          include_dirs=[numpy.get_include()], language="c++"),
-               Extension("advection_fv4.interface_c",
+               Extension("advection_fv4.interface",
                          sources=["advection_fv4/interface_states_wrapper.pyx",
                                   "advection_fv4/c_interface_states.cpp"],
                          include_dirs=[numpy.get_include()], language="c++"),
-               Extension("lm_atm.LM_atm_interface_c",
+               Extension("lm_atm.LM_atm_interface",
                          sources=["lm_atm/LM_atm_interface_wrapper.pyx",
                                   "lm_atm/c_LM_atm_interface.cpp"],
                          include_dirs=[numpy.get_include()], language="c++"),
-               Extension("swe.interface_c",
+               Extension("swe.interface",
                          sources=["swe/interface_wrapper.pyx",
                                   "swe/c_interface.cpp"],
                          include_dirs=[numpy.get_include()], language="c++")]

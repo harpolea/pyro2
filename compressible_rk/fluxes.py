@@ -19,7 +19,7 @@ Taylor expanding *in space only* yields::
 
 """
 
-import compressible.interface_c as interface_c
+import compressible.interface as interface
 import compressible as comp
 import mesh.reconstruction as reconstruction
 import mesh.array_indexer as ai
@@ -164,9 +164,9 @@ def fluxes(my_data, rp, ivars, solid, tc):
     riemann = rp.get_param("compressible.riemann")
 
     if riemann == "HLLC":
-        riemannFunc = interface_c.riemann_hllc
+        riemannFunc = interface.riemann_hllc
     elif riemann == "CGF":
-        riemannFunc = interface_c.riemann_cgf
+        riemannFunc = interface.riemann_cgf
     else:
         msg.fail("ERROR: Riemann solver undefined")
 
@@ -190,7 +190,7 @@ def fluxes(my_data, rp, ivars, solid, tc):
     #=========================================================================
     cvisc = rp.get_param("compressible.cvisc")
 
-    _ax, _ay = interface_c.artificial_viscosity(
+    _ax, _ay = interface.artificial_viscosity(
         myg.qx, myg.qy, myg.ng, myg.dx, myg.dy,
         cvisc, q.v(n=ivars.iu, buf=myg.ng), q.v(n=ivars.iv, buf=myg.ng))
 

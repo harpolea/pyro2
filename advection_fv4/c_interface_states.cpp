@@ -2,7 +2,7 @@
 #include "interface_states_h.h"
 
 void states_c(double *a, int qx, int qy, int ng, int idir,
-            double *al, double *ar) {
+              double *al, double *ar) {
 
 	double a_int[qx*qy];
 	double dafm[qx*qy];
@@ -32,12 +32,13 @@ void states_c(double *a, int qx, int qy, int ng, int idir,
 	// we need interface values on all faces of the domain
 	if (idir == 1)  {
 
-		for (int j = jlo-1; j < jhi+1; j++) {
-			for (int i = ilo-2; i < ihi+3; i++) {
+		for (int i = ilo-2; i < ihi+3; i++) {
+			for (int j = jlo-1; j < jhi+1; j++) {
 				int idx = i*qy+j;
 
 				// interpolate to the edges
-				a_int[idx] = (7.0/12.0)*(a[(i-1)*qy+j] + a[idx]) - (1.0/12.0)*(a[(i-2)*qy+j] + a[(i+1)*qy+j]);
+				a_int[idx] = (7.0/12.0)*(a[(i-1)*qy+j] + a[idx]) -
+				             (1.0/12.0)*(a[(i-2)*qy+j] + a[(i+1)*qy+j]);
 
 				al[idx] = a_int[idx];
 				ar[idx] = a_int[idx];
@@ -45,8 +46,8 @@ void states_c(double *a, int qx, int qy, int ng, int idir,
 			}
 		}
 
-		for (int j = jlo-1; j < jhi+1; j++) {
-			for (int i = ilo-2; i < ihi+3; i++) {
+		for (int i = ilo-2; i < ihi+3; i++) {
+			for (int j = jlo-1; j < jhi+1; j++) {
 				int idx = i*qy+j;
 				// these live on cell-centers
 				dafm[idx] = a[idx] - a_int[idx];
@@ -57,15 +58,15 @@ void states_c(double *a, int qx, int qy, int ng, int idir,
 			}
 		}
 
-		for (int j = jlo-1; j < jhi+1; j++) {
-			for (int i = ilo-3; i < ihi+3; i++) {
+		for (int i = ilo-3; i < ihi+3; i++) {
+			for (int j = jlo-1; j < jhi+1; j++) {
 				int idx = i*qy+j;
 				d2ac[idx] = a[(i-1)*qy+j] - 2.0*a[idx] + a[(i+1)*qy+j];
 			}
 		}
 
-		for (int j = jlo-1; j < jhi+1; j++) {
-			for (int i = ilo-2; i < ihi+3; i++) {
+		for (int i = ilo-2; i < ihi+3; i++) {
+			for (int j = jlo-1; j < jhi+1; j++) {
 				int idx = i*qy+j;
 				// this lives on the interface
 				d3a[idx] = d2ac[idx] - d2ac[(i-1)*qy+j];
@@ -74,8 +75,8 @@ void states_c(double *a, int qx, int qy, int ng, int idir,
 
 		// this is a look over cell centers, affecting
 		// i-1/2,R and i+1/2,L
-		for (int j = jlo-1; j < jhi+1; j++) {
-			for (int i = ilo-1; i < ihi+1; i++) {
+		for (int i = ilo-1; i < ihi+1; i++) {
+			for (int j = jlo-1; j < jhi+1; j++) {
 				int idx = i*qy+j;
 
 				// limit? MC Eq. 24 and 25
@@ -89,8 +90,10 @@ void states_c(double *a, int qx, int qy, int ng, int idir,
 					    s == copysign(1.0, d2ac[(i+1)*qy+j]) &&
 					    s == copysign(1.0, d2af[idx]))  {
 						// MC Eq. 26
-						d2a_lim = s*fmin(fmin(fabs(d2af[idx]), C2*fabs(d2ac[(i-1)*qy+j])),
-						                 fmin(C2*fabs(d2ac[idx]), C2*fabs(d2ac[(i+1)*qy+j])));
+						d2a_lim = s*fmin(fmin(fabs(d2af[idx]),
+						                      C2*fabs(d2ac[(i-1)*qy+j])),
+						                 fmin(C2*fabs(d2ac[idx]),
+						                      C2*fabs(d2ac[(i+1)*qy+j])));
 					} else {
 						d2a_lim = 0.0;
 					}
@@ -114,7 +117,8 @@ void states_c(double *a, int qx, int qy, int ng, int idir,
 						d3a_fmax = fmax(fmax(d3a[(i-1)*qy+j], d3a[idx]),
 						                fmax(d3a[(i+1)*qy+j], d3a[(i+2)*qy+j]));
 
-						if (C3*fmax(fabs(d3a_fmin), fabs(d3a_fmax)) <= (d3a_fmax - d3a_fmin))  {
+						if (C3*fmax(fabs(d3a_fmin),
+						            fabs(d3a_fmax)) <= (d3a_fmax - d3a_fmin))  {
 							// limit
 							if (dafm[idx]*dafp[idx] < 0.0)  {
 								// Eqs. 29, 30
@@ -122,10 +126,13 @@ void states_c(double *a, int qx, int qy, int ng, int idir,
 								al[(i+1)*qy+j] = a[idx] + rho*dafp[idx];
 							} else if (fabs(dafm[idx]) >= 2.0*fabs(dafp[idx]))  {
 								// Eq. 31
-								ar[idx] = a[idx] - 2.0*(1.0 - rho)*dafp[idx] - rho*dafm[idx];
+								ar[idx] = a[idx] -
+								          2.0*(1.0 - rho)*dafp[idx] - rho*dafm[idx];
 							} else if (fabs(dafp[idx]) >= 2.0*fabs(dafm[idx]))  {
 								// Eq. 32
-								al[(i+1)*qy+j] = a[idx] + 2.0*(1.0 - rho)*dafm[idx] + rho*dafp[idx];
+								al[(i+1)*qy+j] = a[idx] +
+								                 2.0*(1.0 - rho)*dafm[idx] +
+								                 rho*dafp[idx];
 							}
 
 						}
@@ -146,12 +153,13 @@ void states_c(double *a, int qx, int qy, int ng, int idir,
 
 	} else if (idir == 2)  {
 
-		for (int j = jlo-2; j < jhi+3; j++) {
-			for (int i = ilo-1; i < ihi+1; i++) {
+		for (int i = ilo-1; i < ihi+1; i++) {
+			for (int j = jlo-2; j < jhi+3; j++) {
 				int idx = i*qy+j;
 
 				// interpolate to the edges
-				a_int[idx] = (7.0/12.0)*(a[idx-1] + a[idx]) - (1.0/12.0)*(a[idx-2] + a[idx+1]);
+				a_int[idx] = (7.0/12.0)*(a[idx-1] + a[idx]) -
+				             (1.0/12.0)*(a[idx-2] + a[idx+1]);
 
 				al[idx] = a_int[idx];
 				ar[idx] = a_int[idx];
@@ -159,8 +167,8 @@ void states_c(double *a, int qx, int qy, int ng, int idir,
 			}
 		}
 
-		for (int j = jlo-2; j < jhi+3; j++) {
-			for (int i = ilo-1; i < ihi+1; i++) {
+		for (int i = ilo-1; i < ihi+1; i++) {
+			for (int j = jlo-2; j < jhi+3; j++) {
 				int idx = i*qy+j;
 				// these live on cell-centers
 				dafm[idx] = a[idx] - a_int[idx];
@@ -171,8 +179,8 @@ void states_c(double *a, int qx, int qy, int ng, int idir,
 			}
 		}
 
-		for (int j = jlo-3; j < jhi+3; j++) {
-			for (int i = ilo-1; i < ihi+1; i++) {
+		for (int i = ilo-1; i < ihi+1; i++) {
+			for (int j = jlo-3; j < jhi+3; j++) {
 				int idx = i*qy+j;
 				d2ac[idx] = a[idx-1] - 2.0*a[idx] + a[idx+1];
 			}
@@ -188,8 +196,8 @@ void states_c(double *a, int qx, int qy, int ng, int idir,
 
 		// this is a look over cell centers, affecting
 		// j-1/2,R and j+1/2,L
-		for (int j = jlo-1; j < jhi+1; j++) {
-			for (int i = ilo-1; i < ihi+1; i++) {
+		for (int i = ilo-1; i < ihi+1; i++) {
+			for (int j = jlo-1; j < jhi+1; j++) {
 				int idx = i*qy+j;
 
 				// limit? MC Eq. 24 and 25
@@ -199,7 +207,8 @@ void states_c(double *a, int qx, int qy, int ng, int idir,
 					// we are at an extrema
 
 					s = copysign(1.0, d2ac[idx]);
-					if (s == copysign(1.0, d2ac[idx-1]) && s == copysign(1.0, d2ac[idx+1]) &&
+					if (s == copysign(1.0, d2ac[idx-1]) &&
+					    s == copysign(1.0, d2ac[idx+1]) &&
 					    s == copysign(1.0, d2af[idx]))  {
 						// MC Eq. 26
 						d2a_lim = s*fmin(fmin(fabs(d2af[idx]),
@@ -229,7 +238,8 @@ void states_c(double *a, int qx, int qy, int ng, int idir,
 						d3a_fmax = fmax(fmax(d3a[idx-1], d3a[idx]),
 						                fmax(d3a[idx+1], d3a[idx+2]));
 
-						if (C3*fmax(fabs(d3a_fmin), fabs(d3a_fmax)) <= (d3a_fmax - d3a_fmin))  {
+						if (C3*fmax(fabs(d3a_fmin),
+						            fabs(d3a_fmax)) <= (d3a_fmax - d3a_fmin))  {
 							// limit
 							if (dafm[idx]*dafp[idx] < 0.0)  {
 								// Eqs. 29, 30
@@ -237,10 +247,12 @@ void states_c(double *a, int qx, int qy, int ng, int idir,
 								al[idx+1] = a[idx] + rho*dafp[idx];
 							} else if (fabs(dafm[idx]) >= 2.0*fabs(dafp[idx]))  {
 								// Eq. 31
-								ar[idx] = a[idx] - 2.0*(1.0 - rho)*dafp[idx] - rho*dafm[idx];
+								ar[idx] = a[idx] - 2.0*(1.0 - rho)*dafp[idx] -
+								          rho*dafm[idx];
 							} else if (fabs(dafp[idx]) >= 2.0*fabs(dafm[idx]))  {
 								// Eq. 32
-								al[idx+1] = a[idx] + 2.0*(1.0 - rho)*dafm[idx] + rho*dafp[idx];
+								al[idx+1] = a[idx] + 2.0*(1.0 - rho)*dafm[idx] +
+								            rho*dafp[idx];
 							}
 
 						}
@@ -265,8 +277,8 @@ void states_c(double *a, int qx, int qy, int ng, int idir,
 
 
 void states_nolimit_c(double *a, int qx, int qy,
-                    int ng, int idir,
-                    double *al, double *ar) {
+                      int ng, int idir,
+                      double *al, double *ar) {
 
 	double a_int[qx*qy];;
 
@@ -285,14 +297,14 @@ void states_nolimit_c(double *a, int qx, int qy,
 	// we need interface values on all faces of the domain
 	if (idir == 1)  {
 
-		for (int j = jlo-1; j < jhi+1; j++) {
-			for (int i = ilo-2; i < ihi+3; i++) {
+		for (int i = ilo-2; i < ihi+3; i++) {
+			for (int j = jlo-1; j < jhi+1; j++) {
 				int idx = i*qy+j;
 
 				// interpolate to the edges
 				a_int[idx] = (7.0/12.0)*
-				             (a[(i-1)*qy+j] + a[idx]) - (1.0/12.0)*(a[(i-2)*qy+j] +
-				                                                    a[(i+1)*qy+j]);
+				             (a[(i-1)*qy+j] + a[idx]) -
+				             (1.0/12.0)*(a[(i-2)*qy+j] + a[(i+1)*qy+j]);
 
 				al[idx] = a_int[idx];
 				ar[idx] = a_int[idx];
@@ -302,8 +314,8 @@ void states_nolimit_c(double *a, int qx, int qy,
 
 	} else if (idir == 2)  {
 
-		for (int j = jlo-2; j < jhi+3; j++) {
-			for (int i = ilo-1; i < ihi+1; i++) {
+		for (int i = ilo-1; i < ihi+1; i++) {
+			for (int j = jlo-2; j < jhi+3; j++) {
 				int idx = i*qy+j;
 
 				// interpolate to the edges

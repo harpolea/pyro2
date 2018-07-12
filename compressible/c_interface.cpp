@@ -151,8 +151,10 @@ void states_c(int idir, int qx, int qy, int ng,
 				for (int n = 0; n < nvar; n++)
 					sum += lvec[m*nvar+n]*dq[n];
 
-				betal[m] = dtdx4*(eval[3] - eval[m])*(copysign(1.0, eval[m]) + 1.0)*sum;
-				betar[m] = dtdx4*(eval[0] - eval[m])*(1.0 - copysign(1.0, eval[m]))*sum;
+				betal[m] = dtdx4*(eval[3] - eval[m]) *
+				           (copysign(1.0, eval[m]) + 1.0)*sum;
+				betar[m] = dtdx4*(eval[0] - eval[m]) *
+				           (1.0 - copysign(1.0, eval[m]))*sum;
 			}
 
 			// construct the states
@@ -469,7 +471,8 @@ void riemann_cgf_c(int idir, int qx, int qy, int ng,
 
 
 			F[idx+iener] = rhoe_state*un_state +
-			               0.5*rho_state*(un_state*un_state + ut_state*ut_state)*un_state +
+			               0.5*rho_state*(un_state*un_state +
+			                              ut_state*ut_state)*un_state +
 			               p_state*un_state;
 
 			if (nspec > 0) {
@@ -483,12 +486,10 @@ void riemann_cgf_c(int idir, int qx, int qy, int ng,
 
 void riemann_prim_c(int idir, int qx, int qy, int ng,
                     int nvar, int irho, int iu,
-                    int iv, int ip,
-                    int iX, int nspec,
+                    int iv, int ip, int iX, int nspec,
                     int lower_solid, int upper_solid,
                     double gamma,
-                    double *q_l,
-                    double *q_r,
+                    double *q_l, double *q_r,
                     double *q_int) {
 
 	// this is like riemann_cgf, except that it works on a primitive
@@ -785,12 +786,10 @@ void riemann_hllc_c(int idir, int qx, int qy,int ng,
 	// transonic rarefaction.
 
 	double smallc = 1.e-10;
-	double smallrho = 1.e-10;
 	double smallp = 1.e-10;
 
 	double rho_l, un_l, ut_l, rhoe_l, p_l;
 	double rho_r, un_r, ut_r, rhoe_r, p_r;
-	double xn[nspec];
 
 	double rhostar_l, rhostar_r, rho_avg;
 	double ustar, pstar;
@@ -945,8 +944,8 @@ void riemann_hllc_c(int idir, int qx, int qy,int ng,
 				S_r = un_r + c_r;
 			} else {
 				// shock
-				S_r = un_r + c_r*sqrt(1.0 +
-				                      ((gamma+1.0)/(2.0/gamma))* (pstar/p_r - 1.0));
+				S_r = un_r + c_r*sqrt(1.0 + ((gamma+1.0)/(2.0/gamma)) *
+				                      (pstar/p_r - 1.0));
 			}
 
 			//  We could just take S_c = u_star as the estimate for the
@@ -1063,6 +1062,7 @@ void riemann_hllc_c(int idir, int qx, int qy,int ng,
 				consFlux(idir, gamma, idens, ixmom, iymom,
 				         iener, irhoX, nvar, nspec,
 				         U_state, F_state);
+
 				for (int n = 0; n < nvar; n++)
 					F[idx+n] = F_state[n];
 			}
@@ -1080,7 +1080,8 @@ void consFlux(int idir,
 	double u = U_state[ixmom]/U_state[idens];
 	double v = U_state[iymom]/U_state[idens];
 
-	double p = (U_state[iener] - 0.5*U_state[idens]*(u*u + v*v))*(gamma - 1.0);
+	double p = (U_state[iener] -
+	            0.5*U_state[idens]*(u*u + v*v))*(gamma - 1.0);
 
 	if (idir == 1) {
 		F[idens] = U_state[idens]*u;

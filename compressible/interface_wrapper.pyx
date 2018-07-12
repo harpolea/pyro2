@@ -34,8 +34,20 @@ cdef extern from "interface_h.h":
                            double* u, double* v,
                            double* avisco_x, double* avisco_y)
 
+ctg = np.ascontiguousarray
+
 def states(int idir, int qx, int qy, int ng, double dx,
-           double dt, int irho, int iu, int iv, int ip, int ix, int nvar, int nspec, double gamma,
+           double dt, int irho, int iu, int iv, int ip,
+           int ix, int nvar, int nspec, double gamma,
+           qv, dqv):
+    return states_w(idir, qx, qy, ng, dx,
+               dt, irho, iu, iv, ip, ix, nvar,
+               nspec, gamma, ctg(qv), ctg(dqv))
+
+
+def states_w(int idir, int qx, int qy, int ng, double dx,
+           double dt, int irho, int iu, int iv, int ip, int ix,
+           int nvar, int nspec, double gamma,
            np.ndarray[np.float64_t, ndim=3] qv not None,
            np.ndarray[np.float64_t, ndim=3] dqv not None):
 
@@ -50,6 +62,20 @@ def states(int idir, int qx, int qy, int ng, double dx,
     return q_l, q_r
 
 def riemann_cgf(int idir, int qx, int qy, int ng,
+               int nvar, int idens, int ixmom, int iymom,
+               int iener, int irhoX, int nspec,
+               int lower_solid, int upper_solid,
+               double gamma,
+               U_l, U_r):
+
+    return riemann_cgf_w(idir, qx, qy, ng,
+                   nvar, idens, ixmom, iymom,
+                   iener, irhoX, nspec,
+                   lower_solid, upper_solid,
+                   gamma,
+                   ctg(U_l), ctg(U_r))
+
+def riemann_cgf_w(int idir, int qx, int qy, int ng,
                int nvar, int idens, int ixmom, int iymom,
                int iener, int irhoX, int nspec,
                int lower_solid, int upper_solid,
@@ -69,6 +95,18 @@ def riemann_cgf(int idir, int qx, int qy, int ng,
     return F
 
 def riemann_prim(int idir, int qx, int qy, int ng,
+               int nvar, int irho, int iu, int iv, int ip,
+               int iX, int nspec,
+               int lower_solid, int upper_solid,
+               double gamma, q_l, q_r):
+
+    return riemann_prim_w(idir, qx, qy, ng,
+                          nvar, irho, iu, iv, ip,
+                          iX, nspec,
+                          lower_solid, upper_solid, gamma,
+                          ctg(q_l), ctg(q_r))
+
+def riemann_prim_w(int idir, int qx, int qy, int ng,
                int nvar, int irho, int iu, int iv, int ip,
                int iX, int nspec,
                int lower_solid, int upper_solid,
@@ -92,6 +130,20 @@ def riemann_hllc(int idir, int qx, int qy, int ng,
                int iener, int irhoX, int nspec,
                int lower_solid, int upper_solid,
                double gamma,
+               U_l, U_r):
+
+    return riemann_hllc_w(idir, qx, qy, ng,
+                   nvar, idens, ixmom, iymom,
+                   iener, irhoX, nspec,
+                   lower_solid, upper_solid,
+                   gamma,
+                   ctg(U_l), ctg(U_r))
+
+def riemann_hllc_w(int idir, int qx, int qy, int ng,
+               int nvar, int idens, int ixmom, int iymom,
+               int iener, int irhoX, int nspec,
+               int lower_solid, int upper_solid,
+               double gamma,
                np.ndarray[np.float64_t, ndim=3] U_l not None,
                np.ndarray[np.float64_t, ndim=3] U_r not None):
 
@@ -107,6 +159,14 @@ def riemann_hllc(int idir, int qx, int qy, int ng,
     return F
 
 def artificial_viscosity(int qx, int qy, int ng,
+                       double dx, double dy,
+                       double cvisc, u, v):
+
+    return artificial_viscosity_w(qx, qy, ng,
+                           dx, dy,
+                           cvisc, ctg(u), ctg(v))
+
+def artificial_viscosity_w(int qx, int qy, int ng,
                        double dx, double dy,
                        double cvisc,
                        np.ndarray[np.float64_t, ndim=2] u not None,
