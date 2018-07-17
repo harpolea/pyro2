@@ -87,8 +87,8 @@ def unsplit_fluxes(my_data, rp, ivars, dt):
     # idx = u.v(buf=1) < 0
 
     for n in range(ivars.nvar):
-        q_xl.v(buf=1, n=n)[:, :] = q.v(buf=1, n=n) + \
-            0.5 * (1.0 - cx) * ldx.v(buf=1, n=n)
+        q_xl.v(buf=1, n=n)[:, :] = q.ip(-1, buf=1, n=n) + \
+            0.5 * (1.0 - cx) * ldx.ip(-1, buf=1, n=n)
         q_xr.v(buf=1, n=n)[:, :] = q.v(buf=1, n=n) - \
             0.5 * (1.0 + cx) * ldx.v(buf=1, n=n)
         # q_x.v(buf=1, n=n)[idx] = q.v(buf=1, n=n)[idx] - 0.5*(1.0 + cx[idx])*ldx.v(buf=1, n=n)[idx]
@@ -103,8 +103,8 @@ def unsplit_fluxes(my_data, rp, ivars, dt):
 
     # upwind
     for n in range(ivars.nvar):
-        q_yl.v(buf=1, n=n)[:, :] = q.v(buf=1, n=n) + \
-            0.5 * (1.0 - cy) * ldy.v(buf=1, n=n)
+        q_yl.v(buf=1, n=n)[:, :] = q.jp(-1, buf=1, n=n) + \
+            0.5 * (1.0 - cy) * ldy.jp(-1, buf=1, n=n)
         q_yr.v(buf=1, n=n)[:, :] = q.v(buf=1, n=n) - \
             0.5 * (1.0 + cy) * ldy.v(buf=1, n=n)
         # q_y.v(buf=1, n=n)[idx] = q.v(buf=1, n=n)[idx] - 0.5*(1.0 + cy[idx])*ldy.v(buf=1, n=n)[idx]
