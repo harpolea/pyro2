@@ -79,38 +79,30 @@ def unsplit_fluxes(my_data, rp, ivars, dt):
         ldx[:, :, n] = reconstruction.limit(q[:, :, n], myg, 1, limiter)
         ldy[:, :, n] = reconstruction.limit(q[:, :, n], myg, 2, limiter)
 
+    # upwind
+    # x-direction
     q_xl = myg.scratch_array(nvar=ivars.nvar)
     q_xr = myg.scratch_array(nvar=ivars.nvar)
     q_x = myg.scratch_array(nvar=ivars.nvar)
-
-    # upwind
-    # idx = u.v(buf=1) < 0
 
     for n in range(ivars.nvar):
         q_xl.v(buf=1, n=n)[:, :] = q.ip(-1, buf=1, n=n) + \
             0.5 * (1.0 - cx) * ldx.ip(-1, buf=1, n=n)
         q_xr.v(buf=1, n=n)[:, :] = q.v(buf=1, n=n) - \
             0.5 * (1.0 + cx) * ldx.v(buf=1, n=n)
-        # q_x.v(buf=1, n=n)[idx] = q.v(buf=1, n=n)[idx] - 0.5*(1.0 + cx[idx])*ldx.v(buf=1, n=n)[idx]
-        # q_x.v(buf=1, n=n)[~idx] = q.ip(-1, buf=1, n=n)[~idx] + 0.5*(1.0 - cx[~idx])*ldx.ip(-1, buf=1, n=n)[~idx]
 
     # y-direction
     q_yl = myg.scratch_array(nvar=ivars.nvar)
     q_yr = myg.scratch_array(nvar=ivars.nvar)
     q_y = myg.scratch_array(nvar=ivars.nvar)
 
-    # idx = v.v(buf=1) < 0
-
-    # upwind
     for n in range(ivars.nvar):
         q_yl.v(buf=1, n=n)[:, :] = q.jp(-1, buf=1, n=n) + \
             0.5 * (1.0 - cy) * ldy.jp(-1, buf=1, n=n)
         q_yr.v(buf=1, n=n)[:, :] = q.v(buf=1, n=n) - \
             0.5 * (1.0 + cy) * ldy.v(buf=1, n=n)
-        # q_y.v(buf=1, n=n)[idx] = q.v(buf=1, n=n)[idx] - 0.5*(1.0 + cy[idx])*ldy.v(buf=1, n=n)[idx]
-        # q_y.v(buf=1, n=n)[~idx] = q.jp(-1, buf=1, n=n)[~idx] + 0.5*(1.0 - cy[~idx])*ldy.jp(-1, buf=1, n=n)[~idx]
 
-    # compute the transverse flux differences.  The flux is just (u q)
+    # compute the transverse flux differences. The flux is just (u q)
     for j in range(myg.qy):
         for i in range(myg.qx):
             # x-dir
@@ -124,14 +116,14 @@ def unsplit_fluxes(my_data, rp, ivars, dt):
                 elif S < 0:
                     q_x[i, j, :] = q_xr[i, j, :]
                 else:
-                    q_x[i, j, ivars.iv] = q[i, j, ivars.iv]
+                    q_x[i, j, ivars.iv] = v[i, j]
             else:
                 if ul > 0:
                     q_x[i, j, :] = q_xl[i, j, :]
                 elif ur < 0:
                     q_x[i, j, :] = q_xr[i, j, :]
                 else:
-                    q_x[i, j, ivars.iv] = q[i, j, ivars.iv]
+                    q_x[i, j, ivars.iv] = v[i, j]
 
             # y-dir
             ul = q_yl[i, j, ivars.iv]
@@ -144,27 +136,14 @@ def unsplit_fluxes(my_data, rp, ivars, dt):
                 elif S < 0:
                     q_y[i, j, :] = q_yr[i, j, :]
                 else:
-                    q_y[i, j, ivars.iu] = q[i, j, ivars.iu]
+                    q_y[i, j, ivars.iu] = u[i, j]
             else:
                 if ul > 0:
                     q_y[i, j, :] = q_yl[i, j, :]
                 elif ur < 0:
                     q_y[i, j, :] = q_yr[i, j, :]
                 else:
-                    q_y[i, j, ivars.iu] = q[i, j, ivars.iu]
-
-    # S = myg.scratch_array(nvar=ivars.nvar)
-    # # x-dir
-    # S[:, :, :] = 0.5 * (q_xl[:,:,ivars.iu, np.newaxis] + q_xr[:,:,ivars.iu, np.newaxis])
-    #
-    # q_x[S > 0] = q_xl[S > 0]
-    # q_x[S < 0] = q_xr[S < 0]
-    #
-    # # y-dir
-    # S[:, :, :] = 0.5 * (q_yl[:,:,ivars.iv, np.newaxis] + q_yr[:,:,ivars.iv, np.newaxis])
-    #
-    # q_y[S > 0] = q_yl[S > 0]
-    # q_y[S < 0] = q_yr[S < 0]
+                    q_y[i, j, ivars.iu] = u[i, j]
 
     F_xt = u[:, :, np.newaxis] * q_x
     F_yt = v[:, :, np.newaxis] * q_y
@@ -181,29 +160,9 @@ def unsplit_fluxes(my_data, rp, ivars, dt):
         q_y.v(buf=1, n=n)[:, :] -= 0.5 * dtdx2 * (F_xt.ip(1, buf=1, n=n) -
                                                   F_xt.ip(-1, buf=1, n=n))
 
-    # the zone where we grab the transverse flux derivative from
-    # depends on the sign of the advective velocity
-
-    # idx = u.v(buf=1) <= 0
-
     for n in range(ivars.nvar):
         F_x.v(buf=1, n=n)[:, :] = 0.5 * q_x.v(buf=1, n=n)**2
-        # F_x.v(buf=1, n=n)[idx] = u.v(buf=1, n=n)[idx]*(q_x.v(buf=1, n=n)[idx] -
-        #                        dtdy2*(F_yt.ip_jp(0, 1, buf=1, n=n)[idx] -
-        #                               F_yt.ip(0, buf=1, n=n)[idx]))
-        # F_x.v(buf=1, n=n)[~idx] = u.v(buf=1, n=n)[~idx]*(q_x.v(buf=1, n=n)[~idx] -
-        #                        dtdy2*(F_yt.ip_jp(-1, 1, buf=1, n=n)[~idx] -
-        #                               F_yt.ip(-1, buf=1, n=n)[~idx]))
 
-    # idx = v.v(buf=1) <= 0
-
-    for n in range(ivars.nvar):
         F_y.v(buf=1, n=n)[:, :] = 0.5 * q_y.v(buf=1, n=n)**2
-        # F_y.v(buf=1, n=n)[idx] = v.v(buf=1, n=n)[idx]*(q_y.v(buf=1, n=n)[idx] -
-        #                        dtdx2*(F_xt.ip_jp(1, 0, buf=1, n=n)[idx] -
-        #                               F_xt.jp(0, buf=1, n=n)[idx]))
-        # F_y.v(buf=1, n=n)[~idx] = v.v(buf=1, n=n)[~idx]*(q_y.v(buf=1, n=n)[~idx] -
-        #                        dtdx2*(F_xt.ip_jp(1, -1, buf=1, n=n)[~idx] -
-        #                               F_xt.jp(-1, buf=1, n=n)[~idx]))
 
     return F_x, F_y

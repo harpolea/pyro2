@@ -6,6 +6,7 @@ import burgers.burgers_fluxes as flx
 # import mesh.patch as patch
 from simulation_null import NullSimulation, grid_setup, bc_setup
 import util.plot_tools as plot_tools
+import particles.particles as particles
 
 
 class Variables(object):
@@ -37,6 +38,32 @@ class Variables(object):
         self.iv = 1
 
 
+def derive_primitives(myd, varnames):
+    """
+    Return the velocity
+    """
+
+    derived_vars = []
+
+    if isinstance(varnames, str):
+        wanted = [varnames]
+    else:
+        wanted = list(varnames)
+
+    for var in wanted:
+
+        if var == "velocity":
+            u = myd.get_var("xvel")
+            v = myd.get_var("yvel")
+            derived_vars.append(u)
+            derived_vars.append(v)
+
+    if len(derived_vars) > 1:
+        return derived_vars
+    else:
+        return derived_vars[0]
+
+
 class Simulation(NullSimulation):
 
     def initialize(self):
@@ -57,7 +84,13 @@ class Simulation(NullSimulation):
 
         self.cc_data = my_data
 
+        if self.rp.get_param("particles.do_particles") == 1:
+            n_particles = self.rp.get_param("particles.n_particles")
+            self.particles = particles.Particles(self.cc_data, bc, n_particles)
+
         self.ivars = Variables(my_data)
+
+        self.cc_data.add_derived(derive_primitives)
 
         # now set the initial conditions for the problem
         problem = importlib.import_module(
@@ -115,6 +148,9 @@ class Simulation(NullSimulation):
             q.v(n=n)[:, :] = q.v(n=n) + dtdx * (flux_x.v(n=n) - flux_x.ip(1, n=n)) + \
                 dtdy * (flux_y.v(n=n) - flux_y.jp(1, n=n))
 
+        if self.particles is not None:
+            self.particles.update_particles(self.dt)
+
         # increment the time
         self.cc_data.t += self.dt
         self.n += 1
@@ -157,6 +193,18 @@ class Simulation(NullSimulation):
                 cb.ax.set_title(field_names[n])
             else:
                 ax.set_title(field_names[n])
+
+        if self.particles is not None:
+            ax = axes[0]
+            particle_positions = self.particles.get_positions()
+            # dye particles
+            colors = self.particles.get_init_positions()[:, 0]
+
+            # plot particles
+            ax.scatter(particle_positions[:, 0],
+                       particle_positions[:, 1], s=5, c=colors, alpha=0.8, cmap="Greys")
+            ax.set_xlim([myg.xmin, myg.xmax])
+            ax.set_ylim([myg.ymin, myg.ymax])
 
         plt.figtext(0.05, 0.0125, "t = {:10.5f}".format(self.cc_data.t))
 

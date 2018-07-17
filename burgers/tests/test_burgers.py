@@ -1,5 +1,5 @@
 from util import runparams
-import advection.simulation as sn
+import burgers.simulation as sn
 
 
 class TestSimulation(object):
@@ -19,8 +19,9 @@ class TestSimulation(object):
 
         self.rp.params["mesh.nx"] = 8
         self.rp.params["mesh.ny"] = 8
+        self.rp.params["particles.do_particles"] = 0
 
-        self.sim = sn.Simulation("advection", "test", self.rp)
+        self.sim = sn.Simulation("burgers", "test", self.rp)
         self.sim.initialize()
 
     def teardown_method(self):
@@ -29,5 +30,7 @@ class TestSimulation(object):
         self.sim = None
 
     def test_initializationst(self):
-        dens = self.sim.cc_data.get_var("density")
-        assert dens.min() == 1.0 and dens.max() == 1.0
+        u = self.sim.cc_data.get_var("xvel")
+        v = self.sim.cc_data.get_var("yvel")
+        assert u.min() == 1.0 and u.max() == 1.0
+        assert v.min() == 0.5 and v.max() == 0.5

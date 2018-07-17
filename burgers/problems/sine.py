@@ -2,17 +2,18 @@ from __future__ import print_function
 
 import sys
 import mesh.patch as patch
+import numpy as np
 from util import msg
 
 
 def init_data(my_data, rp):
-    """ initialize the smooth burgers problem """
+    """ initialize the sinusoidal burgers problem """
 
-    msg.bold("initializing the smooth burgers problem...")
+    msg.bold("initializing the sinusoidal burgers problem...")
 
     # make sure that we are passed a valid patch object
     if not isinstance(my_data, patch.CellCenterData2d):
-        print("ERROR: patch invalid in smooth.py")
+        print("ERROR: patch invalid in sine.py")
         print(my_data.__class__)
         sys.exit()
 
@@ -21,10 +22,14 @@ def init_data(my_data, rp):
 
     xmin = my_data.grid.xmin
     xmax = my_data.grid.xmax
-    xctr = 0.5 * (xmin + xmax)
 
-    u[my_data.grid.x2d < xctr] = 1
-    u[my_data.grid.x2d >= xctr] = 2
+    x_third = (xmin + xmax) / 3
+
+    u[:, :] = 1
+
+    mask = (my_data.grid.x2d > x_third) & (my_data.grid.x2d < 2 * x_third)
+    u[mask] = 1 + \
+        0.5 * np.sin(6 * np.pi * (my_data.grid.x2d[mask] - 1 / 3))
 
     v[:, :] = 0
 

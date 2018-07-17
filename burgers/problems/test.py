@@ -13,13 +13,13 @@ def init_data(my_data, rp):
         print(my_data.__class__)
         sys.exit()
 
-    # get the density, momenta, and energy as separate variables
-    dens = my_data.get_var("density")
+    # get the separate variables
+    u = my_data.get_var("xvel")
+    v = my_data.get_var("yvel")
 
-    # initialize the components, remember, that ener here is rho*eint
-    # + 0.5*rho*v**2, where eint is the specific internal energy
-    # (erg/g)
-    dens[:, :] = 1.0
+    # initialize the components
+    u[:, :] = 1.0
+    v[:, :] = 0.5
 
 
 def finalize():

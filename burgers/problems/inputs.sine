@@ -2,31 +2,31 @@
 
 [driver]
 max_steps = 500
-tmax = 1.0
+tmax = 0.1
 
 max_dt_change = 1.e33
-init_tstep_factor = 1.0
+#init_tstep_factor = 1.0
 
+
+[driver]
 cfl = 0.8
 
-
 [io]
-basename = tophat_
-n_out = 10
+basename = sine_
+dt_out = 0.2
 
 [mesh]
-nx = 32
-ny = 32
+nx = 128
+ny = 16
 xmax = 1.0
-ymax = 1.0
+ymax = 0.125
 
-xlboundary = periodic
-xrboundary = periodic
+xlboundary = outflow
+xrboundary = outflow
 
 ylboundary = periodic
 yrboundary = periodic
 
 
 [burgers]
-
 limiter = 2
