@@ -1,0 +1,8 @@
+[driver]
+cfl       = 0.8           ; advective CFL number
+
+
+[burgers]
+
+limiter = 2  ; limiter (0 = none, 1 = 2nd order, 2 = 4th order)
+visc = 0.1     ; viscosity

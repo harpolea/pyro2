@@ -2,24 +2,24 @@
 
 [driver]
 max_steps = 500
-tmax = 0.15
+tmax = 1
 
 max_dt_change = 1.e33
-#init_tstep_factor = 1.0
+init_tstep_factor = 1.0
 
 
 [driver]
 cfl = 0.8
 
 [io]
-basename = step_
+basename = sine_
 dt_out = 0.2
 
 [mesh]
-nx = 128
-ny = 16
+nx = 64
+ny = 64
 xmax = 1.0
-ymax = 0.125
+ymax = 1.0
 
 xlboundary = outflow
 xrboundary = outflow

@@ -185,6 +185,8 @@ def parse_and_run():
                      "advection_fv4",
                      "advection_weno",
                      "burgers",
+                     "burgers_viscid",
+                     "burgers_weno",
                      "compressible",
                      "compressible_rk",
                      "compressible_fv4",
