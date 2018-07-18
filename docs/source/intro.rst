@@ -32,6 +32,10 @@ equations. In particular, the following solvers are developed:
 
 * low Mach number atmospheric hydrodynamics
 
+* shallow water equations
+
+* Burgers' equation
+
 Runtime visualization shows the evolution as the equations are solved.
 
 In the pages that follow, the following format is adopted:

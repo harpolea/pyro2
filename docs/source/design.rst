@@ -46,6 +46,11 @@ The overall structure is:
   * ``problems/``: This is a symbolic link to the advection/problems/ directory.
   * ``tests/``: Reference advection output files for comparison and regression testing.
 
+* ``burgers/``: The Burgers' equation solver. All Burgers-specific routines live here.
+
+  * ``problems/``: The problem setups for the Burgers solver.
+  * ``tests/``: Reference Burgers output files for comparison and regression testing.
+
 * ``analysis/``: Various analysis scripts for processing pyro output files.
 
 * ``compressible/``: The compressible hydrodynamics solver using the

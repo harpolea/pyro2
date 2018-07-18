@@ -2,7 +2,6 @@
 
 from __future__ import print_function
 
-import numpy as np
 import sys
 import os
 import matplotlib.pyplot as plt
@@ -36,20 +35,12 @@ myg = myd.grid
 
 # time of file
 t = myd.t
-if myg.nx > myg.ny:
-    # x-problem
-    xmin = myg.xmin
-    xmax = myg.xmax
-    param_file = "inputs.sine"
-else:
-    # y-problem
-    xmin = myg.ymin
-    xmax = myg.ymax
-    param_file = "inputs.sine"
 
+xmin = myg.xmin
+xmax = myg.xmax
+param_file = "inputs.compare"
 
 u = myd.get_var("xvel")
-v = myd.get_var("yvel")
 
 # get the 1-d profile from the simulation data -- assume that whichever
 # coordinate is the longer one is the direction of the problem
@@ -58,7 +49,7 @@ v = myd.get_var("yvel")
 rp = runparams.RuntimeParameters()
 rp.load_params("../_defaults")
 rp.load_params("../burgers/_defaults")
-rp.load_params("../burgers/problems/_sine.defaults")
+rp.load_params("../burgers/problems/_compare.defaults")
 
 # now read in the inputs file
 if not os.path.isfile(param_file):
@@ -73,19 +64,10 @@ x = myg.x[myg.ilo:myg.ihi + 1]
 jj = myg.ny // 2
 
 u = u[myg.ilo:myg.ihi + 1, jj]
-ut = v[myg.ilo:myg.ihi + 1, jj]
-
-# print(myg)
 
 x_exact = x
-u_exact = np.ones_like(x)
 
-t = 0.1
-
-nu = 1
-a = 2
-
-u_exact[:] = x / (1 + t)
+u_exact = x / (1 + t)
 
 # plot
 fig, ax = plt.subplots(nrows=1, ncols=1, num=1)
@@ -98,7 +80,7 @@ ax.scatter(x, u, marker="x", s=7, color="r", label='pyro')
 ax.set_ylabel(r"$u$")
 ax.set_xlim(0, 1.0)
 
-ax.set_xlabel(r"x")
+ax.set_xlabel(r"$x$")
 
 lgd = ax.legend()
 

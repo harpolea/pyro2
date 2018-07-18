@@ -21,7 +21,7 @@ def unsplit_fluxes(my_data, rp, ivars, dt):
     at each interface, and the zone the information comes from depends
     on the sign of the velocity.
 
-    Our convection is that the fluxes are going to be defined on the
+    Our convention is that the fluxes are going to be defined on the
     left edge of the computational zones::
 
         |             |             |             |

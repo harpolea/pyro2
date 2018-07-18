@@ -22,6 +22,12 @@ with their data.
 
 * ``analysis/``
 
+  * ``burgers_compare.py``: this takes an output file from the
+    Burgers solver's ``compare`` problem and plots a slice
+    through the domain against the analytic solution.
+
+    usage: ``./burgers_compare.py file``
+
   * ``convergence.py``: this compares two files with different
     resolutions (one a factor of 2 finer than the other).  It coarsens
     the finer data and then computes the norm of the difference.  This

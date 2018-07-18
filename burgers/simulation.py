@@ -142,8 +142,6 @@ class Simulation(NullSimulation):
 
         q = self.cc_data.data
 
-        # print(f'q: {np.shape(q.v())}, flux_x: {np.shape(flux_x.ip(1))}')
-
         for n in range(self.ivars.nvar):
             q.v(n=n)[:, :] = q.v(n=n) + dtdx * (flux_x.v(n=n) - flux_x.ip(1, n=n)) + \
                 dtdy * (flux_y.v(n=n) - flux_y.jp(1, n=n))

@@ -8,6 +8,7 @@ pyro2
    advection_fv4
    advection_rk
    advection_weno
+   burgers
    compare
    compressible
    compressible_fv4

@@ -1,1 +1,1 @@
-__all__ = ['compare', 'smooth', 'sine', 'test']
+__all__ = ['compare', 'step', 'sine', 'test']

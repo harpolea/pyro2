@@ -6,13 +6,13 @@ from util import msg
 
 
 def init_data(my_data, rp):
-    """ initialize the smooth burgers problem """
+    """ initialize the step burgers problem """
 
-    msg.bold("initializing the smooth burgers problem...")
+    msg.bold("initializing the step burgers problem...")
 
     # make sure that we are passed a valid patch object
     if not isinstance(my_data, patch.CellCenterData2d):
-        print("ERROR: patch invalid in smooth.py")
+        print("ERROR: patch invalid in step.py")
         print(my_data.__class__)
         sys.exit()
 
