@@ -4,14 +4,14 @@ import numpy as np
 
 def unsplit_fluxes(my_data, rp, ivars, dt):
     """
-    Construct the fluxes through the interfaces for the linear burgers
+    Construct the advective fluxes through the interfaces for the viscid burgers
     equations:
 
     .. math::
 
-       u_t  + u u_x  + v u_y  = 0
+       u_t  + u u_x  + v u_y  = \nu \nabla^2 u
 
-       v_t  + u v_x  + v v_y  = 0
+       v_t  + u v_x  + v v_y  = \nu \nabla^2 v
 
     We use a second-order (piecewise linear) unsplit Godunov method
     (following Colella 1990).
@@ -176,14 +176,29 @@ def unsplit_fluxes(my_data, rp, ivars, dt):
 
 
 def viscous_flux(u, v, myg, nu, ivars):
+    """
+    Calculate the viscous term in the viscid Burgers equations, :math:`\nu \nabla^2 u`.
 
-    # nu = rp.get_param("burgers.visc")
-    # myg = my_data.grid
+    Parameters
+    ----------
+    u : ArrayIndexer object
+        x-velocity
+    v : ArrayIndexer object
+        y-velocity
+    myg : Grid2d object
+        grid
+    nu : float
+        The viscosity
+    ivars : Variables object
+        indices of the variables
+
+    Returns
+    -------
+    flux : ArrayIndexer object
+        The viscous term
+    """
 
     flux = myg.scratch_array(nvar=ivars.nvar)
-
-    # u = my_data.get_var("xvel")
-    # v = my_data.get_var("yvel")
 
     # x-dir
     flux.v(n=ivars.iu)[:, :] = nu * (

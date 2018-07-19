@@ -4,7 +4,7 @@ import numpy as np
 
 def unsplit_fluxes(my_data, rp, ivars, dt):
     """
-    Construct the fluxes through the interfaces for the linear burgers
+    Construct the fluxes through the interfaces for the inviscid burgers
     equations:
 
     .. math::

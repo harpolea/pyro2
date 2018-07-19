@@ -9,6 +9,7 @@ pyro2
    advection_rk
    advection_weno
    burgers
+   burgers_viscid
    compare
    compressible
    compressible_fv4

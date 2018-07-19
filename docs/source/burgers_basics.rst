@@ -1,19 +1,44 @@
-Burgers solver
-==============
+Burgers solvers
+===============
+
+Solvers for the inviscid and viscid Burgers' equation.
+
+
+Inviscid
+--------
 
 The 2d inviscid Burgers' equations are given by:
 
 .. math::
 
-   u_t + u u_x + v u_y = 0
+   u_t + u u_x + v u_y = 0,
 
-   v_t + u v_x + v v_y = 0
+   v_t + u v_x + v v_y = 0.
 
 This is similar to the advection equation, however the speed is now both the quantity being advected and the speed at which it is moving.
 
 The :py:mod:`burgers` solver implements the directionally unsplit corner transport upwind algorithm with piecewise linear reconstruction.
 
-The main parameters that affect this solver are:
+Viscid
+------
+
+The 2d viscid Burgers' equations are given by:
+
+.. math::
+
+   u_t + u u_x + v u_y = \nu \nabla^2 u,
+
+   v_t + u v_x + v v_y = \nu \nabla^2 v,
+
+where :math:`\nu` is the dynamic viscosity. The viscosity acts to smooth out shocks: rather than being infinitely thin, they will now have a finite width.
+
+The viscid Burgers' equations are solved by the :py:mod:`burgers_viscid` solver. The advective parts of the equations are solved in the same was as for the inviscid case (though with the addition of a diffusive source term when we predict the interface states). The viscous source is solved implicitly using a Crank-Nicolson discretization (i.e. we solve it as a diffusion equation using the same method used by the :doc:`diffusion <diffusion_basics>` solver).
+
+
+Parameters
+----------
+
+The main parameters that affect these solvers are:
 
 +-------------------------------------------------------------------------------------------------------------------------------+
 | ``[driver]``                                                                                                                  |
@@ -27,11 +52,8 @@ The main parameters that affect this solver are:
 |``limiter``          | what type of limiting to use in reconstructing the slopes. 0 means use an unlimited second-order        |
 |                     | centered difference. 1 is the MC limiter, and 2 is the 4th-order MC limiter                             |
 +---------------------+---------------------------------------------------------------------------------------------------------+
-
-
-The main use for the Burgers solver is to understand how Godunov
-techniques work for hyperbolic problems. These same ideas will be used
-in the compressible and incompressible solvers.
+|``visc``             | the viscosity (`burgers_viscid` only)                                                                   |
++---------------------+---------------------------------------------------------------------------------------------------------+
 
 Examples
 --------
@@ -59,7 +81,7 @@ The sine problem initializes the domain with sinusoidal data. Over time, this st
 compare
 ^^^^^^^
 
-This problem is designed for use with the `burgers_compare.py` script. It initializes the domain with the data :math:`u(0, x) = x`. At time :math:`t`, the solution is :math:`u(t, x) = \frac{x}{1+t}`. The problem is run as
+This problem is designed for use with the `burgers_compare.py` script and the `burgers` solver. It initializes the domain with the data :math:`u(0, x) = x`. At time :math:`t`, the solution is :math:`u(t, x) = \frac{x}{1+t}`. The problem is run as
 
 .. code-block:: none
 

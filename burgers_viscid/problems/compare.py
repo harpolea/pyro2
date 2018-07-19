@@ -3,6 +3,7 @@ from __future__ import print_function
 import sys
 import mesh.patch as patch
 from util import msg
+import numpy as np
 
 
 def init_data(my_data, rp):
@@ -26,7 +27,10 @@ def init_data(my_data, rp):
 
     myg = my_data.grid
 
-    u[:, :] = myg.x2d
+    a = 10
+    nu = 0.01
+
+    u[:, :] = 2 * nu * np.pi * np.sin(np.pi * myg.x2d) / (a + np.cos(np.pi * myg.x2d))
 
     v[:, :] = 0
 

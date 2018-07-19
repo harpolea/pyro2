@@ -120,9 +120,7 @@ class Simulation(NullSimulation):
 
     def evolve(self):
         """
-        Evolve the linear burgers equation through one timestep.  We only
-        consider the "density" variable in the CellCenterData2d object that
-        is part of the Simulation.
+        Evolve the inviscid Burgers equation through one timestep.
         """
 
         dtdx = self.dt / self.cc_data.grid.dx
