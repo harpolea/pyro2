@@ -75,8 +75,8 @@ class Simulation(NullSimulation):
 
         myg = self.cc_data.grid
 
-        flux_x, flux_y = flx.unsplit_fluxes(
-            self.cc_data, self.rp, self.dt, "density")
+        # flux_x, flux_y = flx.unsplit_fluxes(
+        #     self.cc_data, self.rp, self.dt, "density")
 
         """
         do the differencing for the fluxes now.  Here, we use slices so we
@@ -95,9 +95,32 @@ class Simulation(NullSimulation):
 
         # print(f'kappa = {kappa}')
 
-        dens.v()[:, :] = dens.v() - \
-            self.dt / (kappa.v() * myg.cart.dx) * (flux_x.ip(1) - flux_x.v()) - \
-            self.dt / (kappa.v() * myg.cart.dy) * (flux_y.jp(1) - flux_y.v())
+        if self.n % 2 == 0:
+            flux_x = flx.split_fluxes(self.cc_data, self.rp, self.dt, 0, "density")
+
+            dens.v()[:, :] = dens.v() - \
+                self.dt / (kappa.v() * myg.cart.dx) * (flux_x.ip(1) - flux_x.v())
+
+            flux_y = flx.split_fluxes(self.cc_data, self.rp, self.dt, 1, "density")
+
+            dens.v()[:, :] = dens.v() - \
+                self.dt / (kappa.v() * myg.cart.dy) * (flux_y.jp(1) - flux_y.v())
+        else:
+            flux_y = flx.split_fluxes(self.cc_data, self.rp, self.dt, 1, "density")
+
+            dens.v()[:, :] = dens.v() - \
+                self.dt / (kappa.v() * myg.cart.dy) * (flux_y.jp(1) - flux_y.v())
+
+            flux_x = flx.split_fluxes(self.cc_data, self.rp, self.dt, 0, "density")
+
+            dens.v()[:, :] = dens.v() - \
+                self.dt / (kappa.v() * myg.cart.dx) * (flux_x.ip(1) - flux_x.v())
+
+
+
+        # dens.v()[:, :] = dens.v() - \
+        #     self.dt / (kappa.v() * myg.cart.dx) * (flux_x.ip(1) - flux_x.v()) - \
+        #     self.dt / (kappa.v() * myg.cart.dy) * (flux_y.jp(1) - flux_y.v())
 
         # increment the time
         self.cc_data.t += self.dt
@@ -107,7 +130,10 @@ class Simulation(NullSimulation):
         """
         Do runtime visualization.
         """
+        # plt.figure(num=1, figsize=(8, 2), dpi=100, facecolor='w')
         plt.clf()
+        fig = plt.gcf()
+        fig.set_size_inches(12,4)
 
         dens = self.cc_data.get_var("density")
 
