@@ -6,7 +6,7 @@ from mpl_toolkits.axes_grid1 import AxesGrid
 import math
 
 
-def setup_axes(myg, num):
+def setup_axes(myg, num, share_all=True, force_cols=True):
     """ create a grid of axes whose layout depends on the aspect ratio of the
     domain """
 
@@ -21,7 +21,7 @@ def setup_axes(myg, num):
         # we want num rows:
         axes = AxesGrid(f, 111,
                         nrows_ncols=(num, 1),
-                        share_all=True,
+                        share_all=share_all,
                         cbar_mode="each",
                         cbar_location="top",
                         cbar_pad="10%",
@@ -30,11 +30,11 @@ def setup_axes(myg, num):
                         add_all=True, label_mode="L")
         cbar_title = True
 
-    elif L_y > 2*L_x:
+    elif L_y > 2*L_x or force_cols:
         # we want num columns:  rho  |U|  p  e
         axes = AxesGrid(f, 111,
                         nrows_ncols=(1, num),
-                        share_all=True,
+                        share_all=share_all,
                         cbar_mode="each",
                         cbar_location="right",
                         cbar_pad="10%",
@@ -49,7 +49,7 @@ def setup_axes(myg, num):
 
         axes = AxesGrid(f, 111,
                         nrows_ncols=(nx, ny),
-                        share_all=True,
+                        share_all=share_all,
                         cbar_mode="each",
                         cbar_location="right",
                         cbar_pad="2%",

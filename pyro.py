@@ -183,6 +183,7 @@ def parse_and_run():
     valid_solvers = ["advection",
                      "advection_rk",
                      "advection_fv4",
+                     "advection_mapped",
                      "advection_weno",
                      "compressible",
                      "compressible_rk",
