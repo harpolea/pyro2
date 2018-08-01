@@ -12,7 +12,7 @@ init_tstep_factor = 1.0
 cfl = 0.8
 
 [io]
-basename = sine_
+basename = diag_
 dt_out = 0.2
 
 [mesh]
@@ -24,9 +24,10 @@ ymax = 1.0
 xlboundary = outflow
 xrboundary = outflow
 
-ylboundary = periodic
-yrboundary = periodic
+ylboundary = outflow
+yrboundary = outflow
 
 
 [burgers]
 limiter = 2
+visc = 0.01    ; viscosity

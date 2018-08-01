@@ -66,7 +66,7 @@ class Simulation(burgers.Simulation):
 
         for n in range(self.ivars.nvar):
             A.v(n=n)[:, :] = dtdx * (
-                flux_x.ip(1, n=n) - flux_x.v(n=n)) - \
+                flux_x.ip(1, n=n) - flux_x.v(n=n)) + \
                 dtdy * (flux_y.jp(1, n=n) - flux_y.v(n=n))
 
         # solve diffusion equation with the advective source

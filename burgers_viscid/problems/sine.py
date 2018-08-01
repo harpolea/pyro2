@@ -20,18 +20,37 @@ def init_data(my_data, rp):
     u = my_data.get_var("xvel")
     v = my_data.get_var("yvel")
 
-    xmin = my_data.grid.xmin
-    xmax = my_data.grid.xmax
+    direction = rp.get_param("sine.direction")
 
-    x_third = (xmin + xmax) / 3
+    if direction == "x":
 
-    u[:, :] = 1
+        xmin = my_data.grid.xmin
+        xmax = my_data.grid.xmax
 
-    mask = (my_data.grid.x2d > x_third) & (my_data.grid.x2d < 2 * x_third)
-    u[mask] = 1 + \
-        0.5 * np.sin(6 * np.pi * (my_data.grid.x2d[mask] - 1 / 3))
+        x_third = (xmin + xmax) / 3
 
-    v[:, :] = 0
+        u[:, :] = 1
+
+        mask = (my_data.grid.x2d > x_third) & (my_data.grid.x2d < 2 * x_third)
+        u[mask] = 1 + \
+            0.5 * np.sin(6 * np.pi * (my_data.grid.x2d[mask] - 1 / 3))
+
+        v[:, :] = 0
+
+    else:
+
+        ymin = my_data.grid.ymin
+        ymax = my_data.grid.ymax
+
+        y_third = (ymin + ymax) / 3
+
+        v[:, :] = 1
+
+        mask = (my_data.grid.y2d > y_third) & (my_data.grid.y2d < 2 * y_third)
+        v[mask] = 1 + \
+            0.5 * np.sin(6 * np.pi * (my_data.grid.y2d[mask] - 1 / 3))
+
+        u[:, :] = 0
 
 
 def finalize():

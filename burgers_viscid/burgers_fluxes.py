@@ -152,20 +152,18 @@ def unsplit_fluxes(my_data, rp, ivars, dt):
                 else:
                     q_y[i, j, ivars.iu] = u[i, j]
 
-    F_xt = u[:, :, np.newaxis] * q_x
-    F_yt = v[:, :, np.newaxis] * q_y
-
     F_x = myg.scratch_array(nvar=ivars.nvar)
     F_y = myg.scratch_array(nvar=ivars.nvar)
 
-    dtdx2 = 0.5 * dt / myg.dx
-    dtdy2 = 0.5 * dt / myg.dy
-
-    for n in range(ivars.nvar):
-        q_x.v(buf=1, n=n)[:, :] -= 0.5 * dtdy2 * (
-            F_yt.jp(1, buf=1, n=n) - F_yt.jp(-1, buf=1, n=n))
-        q_y.v(buf=1, n=n)[:, :] -= 0.5 * dtdx2 * (
-            F_xt.ip(1, buf=1, n=n) - F_xt.ip(-1, buf=1, n=n))
+    # dtdx2 = 0.5 * dt / myg.dx
+    # dtdy2 = 0.5 * dt / myg.dy
+    #
+    # for n in range(ivars.nvar):
+    #     q_x.v(buf=1, n=n)[:, :] -= dtdy2 * v.v(buf=1) * (
+    #         q_y.jp(1, buf=1, n=n) - q_y.v(buf=1, n=n))
+    #
+    #     q_y.v(buf=1, n=n)[:, :] -= dtdx2 * u.v(buf=1) * (
+    #         q_x.ip(1, buf=1, n=n) - q_x.v(buf=1, n=n))
 
     for n in range(ivars.nvar):
         F_x.v(buf=1, n=n)[:, :] = 0.5 * q_x.v(buf=1, n=n)**2
