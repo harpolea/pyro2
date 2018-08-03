@@ -6,6 +6,61 @@ void states_c(int idir, int qx, int qy, int ng,
               double dt, int irho, int iu, int iv, int ip, int ix, int nvar, int nspec, double gamma,
               double *qv, double *dqv, double *q_l, double *q_r) {
 
+	// predict the cell-centered state to the edges in one-dimension
+	// using the reconstructed, limited slopes.
+	//
+	// We follow the convection here that V_l[i] is the left state at the
+	// i-1/2 interface and V_l[i+1] is the left state at the i+1/2
+	// interface.
+	//
+	//
+	// We need the left and right eigenvectors and the eigenvalues for
+	// the system projected along the x-direction
+	//
+	// Taking our state vector as Q = (rho, u, v, p)^T, the eigenvalues
+	// are u - c, u, u + c.
+	//
+	// We look at the equations of hydrodynamics in a split fashion --
+	// i.e., we only consider one dimension at a time.
+	//
+	// Considering advection in the x-direction, the Jacobian matrix for
+	// the primitive variable formulation of the Euler equations
+	// projected in the x-direction is:
+	//
+	//        / u   r   0   0 \
+	//        | 0   u   0  1/r |
+	//    A = | 0   0   u   0  |
+	//        \ 0  rc^2 0   u  /
+	//
+	// The right eigenvectors are
+	//
+	//        /  1  \        / 1 \        / 0 \        /  1  \
+	//        |-c/r |        | 0 |        | 0 |        | c/r |
+	//   r1 = |  0  |   r2 = | 0 |   r3 = | 1 |   r4 = |  0  |
+	//        \ c^2 /        \ 0 /        \ 0 /        \ c^2 /
+	//
+	// In particular, we see from r3 that the transverse velocity (v in
+	// this case) is simply advected at a speed u in the x-direction.
+	//
+	// The left eigenvectors are
+	//
+	//    l1 =     ( 0,  -r/(2c),  0, 1/(2c^2) )
+	//    l2 =     ( 1,     0,     0,  -1/c^2  )
+	//    l3 =     ( 0,     0,     1,     0    )
+	//    l4 =     ( 0,   r/(2c),  0, 1/(2c^2) )
+	//
+	// The fluxes are going to be defined on the left edge of the
+	// computational zones
+	//
+	//           |             |             |             |
+	//           |             |             |             |
+	//          -+------+------+------+------+------+------+--
+	//           |     i-1     |      i      |     i+1     |
+	//                        ^ ^           ^
+	//                    q_l,i q_r,i  q_l,i+1
+	//
+	// q_r,i and q_l,i+1 are computed using the information in zone i,j.
+
 	double dq[nvar];
 	double q[nvar];
 	double lvec[nvar*nvar];
@@ -91,8 +146,8 @@ void states_c(int idir, int qx, int qy, int ng,
 				double l3[4] = { 0.0, 0.0, 0.5*q[irho]/cs,  0.5/(cs*cs)  };
 
 				double r0[4] = {1.0, 0.0, -cs/q[irho], cs*cs };
-				double r1[4] = {1.0, 0.0, 0.0,       0.0 };
-				double r2[4] = {0.0, 1.0, 0.0,       0.0 };
+				double r1[4] = {1.0, 0.0, 0.0,        0.0 };
+				double r2[4] = {0.0, 1.0, 0.0,        0.0 };
 				double r3[4] = {1.0, 0.0, cs/q[irho],  cs*cs };
 
 				for (int n = 0; n < 4; n++) {

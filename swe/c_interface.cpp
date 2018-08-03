@@ -31,15 +31,15 @@ void states_c(int idir, int qx, int qy, int ng,
    the primitive variable formulation of the Euler equations
    projected in the x-direction is:
 
-   / u   0   0 \
- | g   u   0 |
+       / u   0   0 \
+       | g   u   0 |
    A = \ 0   0   u /
 
    The right eigenvectors are
 
-   /  h  \       /  0  \      /  h  \
+        /  h  \       /  0  \      /  h  \
    r1 = | -c  |  r2 = |  0  | r3 = |  c  |
- \  0  /       \  1  /      \  0  /
+        \  0  /       \  1  /      \  0  /
 
    The left eigenvectors are
 
@@ -50,10 +50,10 @@ void states_c(int idir, int qx, int qy, int ng,
    The fluxes are going to be defined on the left edge of the
    computational zones
 
- |             |             |             |
- |             |             |             |
+      |             |             |             |
+      |             |             |             |
      -+------+------+------+------+------+------+--
- |     i-1     |      i      |     i+1     |
+      |     i-1     |      i      |     i+1     |
                    ^ ^           ^
                q_l,i q_r,i  q_l,i+1
 
@@ -175,7 +175,6 @@ void states_c(int idir, int qx, int qy, int ng,
 					lvec[n*nvar+n] = 1.0;
 					rvec[n*nvar+n] = 1.0;
 				}
-
 			}
 
 			// define the reference states
@@ -234,10 +233,8 @@ void states_c(int idir, int qx, int qy, int ng,
 				}
 
 			}
-
 		}
 	}
-
 }
 
 
@@ -497,7 +494,32 @@ void riemann_HLLC_c(int idir, int qx, int qy, int ng,
 				un_r    = U_r[idx+iymom]/h_r;
 				ut_r    = U_r[idx+ixmom]/h_r;
 			}
-
+	// Solve riemann shock tube problem for a general equation of
+	// state using the method of Colella, Glaz, and Ferguson.  See
+	// Almgren et al. 2010 (the CASTRO paper) for details.
+	//
+	// The Riemann problem for the Euler's equation produces 4 regions,
+	// separated by the three characteristics (u - cs, u, u + cs) {
+	//
+	//
+	//        u - cs    t    u      u + cs
+	//                 ^   .       /
+	//             *L  |   . *R   /
+	//                 |  .     /
+	//                 |  .    /
+	//         L       | .   /    R
+	//                 | .  /
+	//                 |. /
+	//                 |./
+	//        ----------+----------------> x
+	//
+	// We care about the solution on the axis.  The basic idea is to use
+	// estimates of the wave speeds to figure out which region we are in,
+	// and: use jump conditions to evaluate the state there.
+	//
+	// Only density jumps across the u characteristic.  All primitive
+	// variables jump across the other two.  Special attention is needed
+	// if a rarefaction spans the axis.
 			// compute the sound speeds
 			c_l = fmax(smallc, sqrt(g*h_l));
 			c_r = fmax(smallc, sqrt(g*h_r));
@@ -639,15 +661,15 @@ void consFlux(int idir, double g, int ih, int ixmom,
               int iymom, int ihX, int nvar, int nspec,
               double *U_state, double *F)  {
 
-/*
+    /*
 
    Calculate the conserved flux for the shallow water equations. In the
    x-direction, this is given by
 
-    /      hu       \
+       /      hu       \
    F = | hu^2 + gh^2/2 |
- \      huv      /
- */
+       \      huv      /
+    */
 
 	double u = U_state[ixmom]/U_state[ih];
 	double v = U_state[iymom]/U_state[ih];

@@ -71,6 +71,7 @@ void states_c(int qx, int qy, int ng, double dx,
 	double v_yl[qx*qy];
 	double v_yr[qx*qy];
 
+	// initialize
 	for (int i = 0; i < qx*qy; i++) {
 		u_xl[i] = 0;
 		u_xr[i] = 0;
@@ -180,7 +181,6 @@ void get_interface_states(int qx, int qy, int ng,
 		}
 	}
 
-
 	// now get the normal advective velocities on the interfaces by solving
 	// the Riemann problem.
 	riemann(qx, qy, ng, u_xl, u_xr, uhat_adv);
@@ -199,7 +199,6 @@ void get_interface_states(int qx, int qy, int ng,
 
 	// at this point, these states are the `hat' states -- they only
 	// considered the normal to the interface portion of the predictor.
-
 
 	// add the transverse flux differences to the preliminary interface states
 	for (int i = ilo-2; i < ihi+2; i++) {
@@ -242,7 +241,6 @@ void get_interface_states(int qx, int qy, int ng,
 
 		}
 	}
-
 }
 
 
@@ -305,7 +303,6 @@ void riemann(int qx, int qy, int ng, double *q_l, double *q_r, double *s) {
 
 		}
 	}
-
 }
 
 //xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
