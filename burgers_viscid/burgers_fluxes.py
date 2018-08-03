@@ -155,15 +155,15 @@ def unsplit_fluxes(my_data, rp, ivars, dt):
     F_x = myg.scratch_array(nvar=ivars.nvar)
     F_y = myg.scratch_array(nvar=ivars.nvar)
 
-    # dtdx2 = 0.5 * dt / myg.dx
-    # dtdy2 = 0.5 * dt / myg.dy
-    #
-    # for n in range(ivars.nvar):
-    #     q_x.v(buf=1, n=n)[:, :] -= dtdy2 * v.v(buf=1) * (
-    #         q_y.jp(1, buf=1, n=n) - q_y.v(buf=1, n=n))
-    #
-    #     q_y.v(buf=1, n=n)[:, :] -= dtdx2 * u.v(buf=1) * (
-    #         q_x.ip(1, buf=1, n=n) - q_x.v(buf=1, n=n))
+    dtdx2 = 0.5 * dt / myg.dx
+    dtdy2 = 0.5 * dt / myg.dy
+
+    for n in range(ivars.nvar):
+        q_x.v(buf=1, n=n)[:, :] -= dtdy2 * v.v(buf=1) * (
+            q_y.jp(1, buf=1, n=n) - q_y.v(buf=1, n=n))
+
+        q_y.v(buf=1, n=n)[:, :] -= dtdx2 * u.v(buf=1) * (
+            q_x.ip(1, buf=1, n=n) - q_x.v(buf=1, n=n))
 
     for n in range(ivars.nvar):
         F_x.v(buf=1, n=n)[:, :] = 0.5 * q_x.v(buf=1, n=n)**2
@@ -199,11 +199,11 @@ def viscous_flux(u, v, myg, nu, ivars):
     flux = myg.scratch_array(nvar=ivars.nvar)
 
     # x-dir
-    flux.v(n=ivars.iu)[:, :] = nu * (
+    flux.v(n=ivars.iu)[:, :] = 0.5 * nu * (
         u.ip(1) - 2 * u.v() + u.ip(-1)) / myg.dx**2
 
     # y-dir
-    flux.v(n=ivars.iv)[:, :] = nu * (
+    flux.v(n=ivars.iv)[:, :] = 0.5 * nu * (
         v.jp(1) - 2 * v.v() + v.jp(-1)) / myg.dy**2
 
     return flux
