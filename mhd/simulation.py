@@ -20,6 +20,7 @@ class Variables(object):
     a container class for easy access to the different mhd
     variable by an integer key
     """
+
     def __init__(self, myd):
         self.nvar = len(myd.names)
 
@@ -28,26 +29,30 @@ class Variables(object):
         self.idens = myd.names.index("density")
         self.ixmom = myd.names.index("x-momentum")
         self.iymom = myd.names.index("y-momentum")
+        self.ibx = myd.names.index("x-magnetic_field")
+        self.iby = myd.names.index("y-magnetic_field")
         self.iener = myd.names.index("energy")
 
         # if there are any additional variable, we treat them as
         # passively advected scalars
-        self.naux = self.nvar - 4
+        self.naux = self.nvar - 6
         if self.naux > 0:
-            self.irhox = 4
+            self.irhox = 6
         else:
             self.irhox = -1
 
         # primitive variables
-        self.nq = 4 + self.naux
+        self.nq = 6 + self.naux
 
         self.irho = 0
         self.iu = 1
         self.iv = 2
-        self.ip = 3
+        self.ibx_p = 3
+        self.iby_p = 4
+        self.ip = 5
 
         if self.naux > 0:
-            self.ix = 4   # advected scalar
+            self.ix = 6  # advected scalar
         else:
             self.ix = -1
 
@@ -58,19 +63,22 @@ def cons_to_prim(U, gamma, ivars, myg):
     q = myg.scratch_array(nvar=ivars.nq)
 
     q[:, :, ivars.irho] = U[:, :, ivars.idens]
-    q[:, :, ivars.iu] = U[:, :, ivars.ixmom]/U[:, :, ivars.idens]
-    q[:, :, ivars.iv] = U[:, :, ivars.iymom]/U[:, :, ivars.idens]
+    q[:, :, ivars.iu] = U[:, :, ivars.ixmom] / U[:, :, ivars.idens]
+    q[:, :, ivars.iv] = U[:, :, ivars.iymom] / U[:, :, ivars.idens]
+    q[:, :, ivars.ibx_p] = U[:, :, ivars.ibx]
+    q[:, :, ivars.iby_p] = U[:, :, ivars.iby]
 
     e = (U[:, :, ivars.iener] -
-         0.5*q[:, :, ivars.irho]*(q[:, :, ivars.iu]**2 +
-                                  q[:, :, ivars.iv]**2))/q[:, :, ivars.irho]
+         0.5 * (q[:, :, ivars.irho] * (q[:, :, ivars.iu]**2 +
+                                       q[:, :, ivars.iv]**2) -
+                q[:, :, ivars.ibx_p]**2 + q[:, :, ivars.iby_p]**2)) / q[:, :, ivars.irho]
 
     q[:, :, ivars.ip] = eos.pres(gamma, q[:, :, ivars.irho], e)
 
     if ivars.naux > 0:
-        for nq, nu in zip(range(ivars.ix, ivars.ix+ivars.naux),
-                          range(ivars.irhox, ivars.irhox+ivars.naux)):
-            q[:, :, nq] = U[:, :, nu]/q[:, :, ivars.irho]
+        for nq, nu in zip(range(ivars.ix, ivars.ix + ivars.naux),
+                          range(ivars.irhox, ivars.irhox + ivars.naux)):
+            q[:, :, nq] = U[:, :, nu] / q[:, :, ivars.irho]
 
     return q
 
@@ -81,18 +89,21 @@ def prim_to_cons(q, gamma, ivars, myg):
     U = myg.scratch_array(nvar=ivars.nvar)
 
     U[:, :, ivars.idens] = q[:, :, ivars.irho]
-    U[:, :, ivars.ixmom] = q[:, :, ivars.iu]*U[:, :, ivars.idens]
-    U[:, :, ivars.iymom] = q[:, :, ivars.iv]*U[:, :, ivars.idens]
+    U[:, :, ivars.ixmom] = q[:, :, ivars.iu] * U[:, :, ivars.idens]
+    U[:, :, ivars.iymom] = q[:, :, ivars.iv] * U[:, :, ivars.idens]
+    U[:, :, ivars.ibx] = q[:, :, ivars.ibx_p]
+    U[:, :, ivars.iby] = q[:, :, ivars.iby_p]
 
     rhoe = eos.rhoe(gamma, q[:, :, ivars.ip])
 
-    U[:, :, ivars.iener] = rhoe + 0.5*q[:, :, ivars.irho]*(q[:, :, ivars.iu]**2 +
-                                                           q[:, :, ivars.iv]**2)
+    U[:, :, ivars.iener] = rhoe + 0.5 * (q[:, :, ivars.irho] * (q[:, :, ivars.iu]**2 +
+                                                                q[:, :, ivars.iv]**2) +
+                                         q[:, :, ivars.ibx_p]**2 + q[:, :, ivars.iby_p]**2)
 
     if ivars.naux > 0:
-        for nq, nu in zip(range(ivars.ix, ivars.ix+ivars.naux),
-                          range(ivars.irhox, ivars.irhox+ivars.naux)):
-            U[:, :, nu] = q[:, :, nq]*q[:, :, ivars.irho]
+        for nq, nu in zip(range(ivars.ix, ivars.ix + ivars.naux),
+                          range(ivars.irhox, ivars.irhox + ivars.naux)):
+            U[:, :, nu] = q[:, :, nq] * q[:, :, ivars.irho]
 
     return U
 
@@ -113,7 +124,8 @@ class Simulation(NullSimulation):
 
         # define solver specific boundary condition routines
         bnd.define_bc("hse", BC.user, is_solid=False)
-        bnd.define_bc("ramp", BC.user, is_solid=False)  # for double mach reflection problem
+        # for double mach reflection problem
+        bnd.define_bc("ramp", BC.user, is_solid=False)
 
         bc, bc_xodd, bc_yodd = bc_setup(self.rp)
 
@@ -126,6 +138,8 @@ class Simulation(NullSimulation):
         my_data.register_var("energy", bc)
         my_data.register_var("x-momentum", bc_xodd)
         my_data.register_var("y-momentum", bc_yodd)
+        my_data.register_var("x-magnetic_field", bc_xodd)
+        my_data.register_var("y-magnetic_field", bc_yodd)
 
         # any extras?
         if extra_vars is not None:
@@ -182,10 +196,10 @@ class Simulation(NullSimulation):
         u, v, cs = self.cc_data.get_var(["velocity", "soundspeed"])
 
         # the timestep is min(dx/(|u| + cs), dy/(|v| + cs))
-        xtmp = self.cc_data.grid.dx/(abs(u) + cs)
-        ytmp = self.cc_data.grid.dy/(abs(v) + cs)
+        xtmp = self.cc_data.grid.dx / (abs(u) + cs)
+        ytmp = self.cc_data.grid.dy / (abs(v) + cs)
 
-        self.dt = cfl*float(min(xtmp.min(), ytmp.min()))
+        self.dt = cfl * float(min(xtmp.min(), ytmp.min()))
 
     def evolve(self):
         """
@@ -211,19 +225,19 @@ class Simulation(NullSimulation):
         old_ymom = ymom.copy()
 
         # conservative update
-        dtdx = self.dt/myg.dx
-        dtdy = self.dt/myg.dy
+        dtdx = self.dt / myg.dx
+        dtdy = self.dt / myg.dy
 
         for n in range(self.ivars.nvar):
             var = self.cc_data.get_var_by_index(n)
 
             var.v()[:, :] += \
-                dtdx*(Flux_x.v(n=n) - Flux_x.ip(1, n=n)) + \
-                dtdy*(Flux_y.v(n=n) - Flux_y.jp(1, n=n))
+                dtdx * (Flux_x.v(n=n) - Flux_x.ip(1, n=n)) + \
+                dtdy * (Flux_y.v(n=n) - Flux_y.jp(1, n=n))
 
         # gravitational source terms
-        ymom[:, :] += 0.5*self.dt*(dens[:, :] + old_dens[:, :])*grav
-        ener[:, :] += 0.5*self.dt*(ymom[:, :] + old_ymom[:, :])*grav
+        ymom[:, :] += 0.5 * self.dt * (dens[:, :] + old_dens[:, :]) * grav
+        ener[:, :] += 0.5 * self.dt * (ymom[:, :] + old_ymom[:, :]) * grav
 
         if self.particles is not None:
             self.particles.update_particles(self.dt)
@@ -257,7 +271,7 @@ class Simulation(NullSimulation):
         u = q[:, :, ivars.iu]
         v = q[:, :, ivars.iv]
         p = q[:, :, ivars.ip]
-        e = eos.rhoe(gamma, p)/rho
+        e = eos.rhoe(gamma, p) / rho
 
         magvel = np.sqrt(u**2 + v**2)
 
@@ -280,14 +294,14 @@ class Simulation(NullSimulation):
             ax.set_ylabel("y")
 
             # needed for PDF rendering
-            cb = axes.cbar_axes[n].colorbar(img)
-            cb.solids.set_rasterized(True)
-            cb.solids.set_edgecolor("face")
-
-            if cbar_title:
-                cb.ax.set_title(field_names[n])
-            else:
-                ax.set_title(field_names[n])
+            # cb = axes.cbar_axes[n].colorbar(img)
+            # cb.solids.set_rasterized(True)
+            # cb.solids.set_edgecolor("face")
+            #
+            # if cbar_title:
+            #     cb.ax.set_title(field_names[n])
+            # else:
+            ax.set_title(field_names[n])
 
         if self.particles is not None:
             ax = axes[0]
@@ -297,7 +311,7 @@ class Simulation(NullSimulation):
 
             # plot particles
             ax.scatter(particle_positions[:, 0],
-                particle_positions[:, 1], s=5, c=colors, alpha=0.8, cmap="Greys")
+                       particle_positions[:, 1], s=5, c=colors, alpha=0.8, cmap="Greys")
             ax.set_xlim([myg.xmin, myg.xmax])
             ax.set_ylim([myg.ymin, myg.ymax])
 

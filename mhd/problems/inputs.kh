@@ -5,7 +5,7 @@ splitting = unsplit
 
 
 [compressible]
-limiter = 2
+limiter = 0
 cvisc = 0.1
 
 
