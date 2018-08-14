@@ -41,13 +41,13 @@ def pres(gamma, dens, eint):
     nx, ny = np.shape(dens)
     for i in range(nx):
         for j in range(ny):
-            s.rho = dens[i,j]
-            s.e = eint[i,j]
+            s.rho = dens[i, j]
+            s.e = eint[i, j]
             s.gam1 = gamma
 
             eos(eos_input_re, s)
 
-            p[i,j] = s.p
+            p[i, j] = s.p
 
     return p
 
@@ -80,12 +80,12 @@ def dens(gamma, pres, eint):
     nx, ny = np.shape(dens)
     for i in range(nx):
         for j in range(ny):
-            s.p = pres[i,j]
-            s.e = eint[i,j]
+            s.p = pres[i, j]
+            s.e = eint[i, j]
 
             eos(eos_input_pe, s)
 
-            dens[i,j] = s.rho
+            dens[i, j] = s.rho
 
     return dens
 
@@ -107,5 +107,5 @@ def rhoe(gamma, pres):
        The internal energy density, rho e
 
     """
-    rhoe = pres/(gamma - 1.0)
+    rhoe = pres / (gamma - 1.0)
     return rhoe

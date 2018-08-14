@@ -1,0 +1,2 @@
+eos: eos_mod
+	python $(PYRO_HOME)/util/rename_imports.py compressible eos/*.py

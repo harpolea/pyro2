@@ -33,3 +33,4 @@ F90EXE_sources += $(MICROPHYSICS_HOME)/util/python/AMReX_error_mod.F90
 F90EXE_sources += $(MICROPHYSICS_HOME)/util/python/AMReX_ParallelDescriptor_F.F90
 
 include $(MICROPHYSICS_HOME)/util/python/Make.here
+include Make.compressible
