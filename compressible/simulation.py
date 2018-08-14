@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import compressible.BC as BC
-import compressible.eos as eos
+import compressible.eos_wrapper as eos
 import compressible.derives as derives
 import compressible.unsplit_fluxes as flx
 import mesh.boundary as bnd

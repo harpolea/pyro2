@@ -10,7 +10,7 @@ we'll do a special case for them
 
 """
 
-import compressible.eos as eos
+import compressible.eos_wrapper as eos
 from util import msg
 
 import math
