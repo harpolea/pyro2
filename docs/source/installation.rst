@@ -1,7 +1,7 @@
 Setting up pyro
 ===============
 
-You can clone pyro from github: `http://github.com/zingale/pyro2 <http://github.com/zingale/pyro2>`_
+You can clone pyro from github: `http://github.com/python-hydro/pyro2 <http://github.com/python-hydro/pyro2>`_
 
 .. note::
 
@@ -36,7 +36,7 @@ The following steps are needed before running pyro:
    ./mk.sh
 
 * define the environment variable ``PYRO_HOME`` to point to
-  the ``pyro2/`` directory (only needed for regression testing)
+  the ``pyro2/`` directory
 
 .. code-block:: none
 
