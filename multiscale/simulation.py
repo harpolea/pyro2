@@ -58,8 +58,10 @@ class Simulation(NullSimulation):
         # self-contained object stored in output files to make plots.
         # store grav because we'll need that in some BCs
         swe_data.set_aux("g", self.rp.get_param("swe.grav"))
+        swe_data.set_aux("rhobar", self.rp.get_param("swe.rhobar"))
         comp_data.set_aux("gamma", self.rp.get_param("eos.gamma"))
         comp_data.set_aux("grav", self.rp.get_param("compressible.grav"))
+        comp_data.set_aux("z", self.rp.get_param("compressible.z"))
 
         swe_data.create()
         comp_data.create()
@@ -95,11 +97,80 @@ class Simulation(NullSimulation):
         # initial conditions for the problem
         problem = importlib.import_module("{}.problems.{}".format(
             self.solver_name, self.problem_name))
-        problem.init_data(self.swe_data, self.comp_data, self.rp)
+        problem.init_data(self.swe_data, self.comp_data,
+                          self.aux_data, self.rp)
 
         if self.verbose > 0:
             print(swe_data)
             print(comp_data)
+
+    def swe_to_comp(self):
+        """
+        Calculate ghost data in swe then convert to compressible
+        """
+        mask = self.aux_data.get_var("multiscale_mask").astype(bool)
+
+        swg = self.swe_data.grid
+        cog = self.comp_data.grid
+
+        swd = self.swe_data.data
+        cod = self.comp_data.data
+
+        cvars = self.ivars_comp
+        svars = self.ivars_swe
+
+        g = self.swe_data.get_aux("g")
+        rhobar = self.swe_data.get_aux("rhobar")
+        z = self.comp_data.get_aux("z")
+
+        # TODO: check using primitives here
+
+        # x-dir
+
+        for j in range(swg.ny):
+            for i in range(swg.nx):
+                if i < swg.nx-1 and not mask[i, j] and mask[i + 1, j]:
+                    dir = 1
+                elif i > 0 and mask[i - 1, j] and not mask[i, j]:
+                    dir = -1
+                else:
+                    continue
+
+                qc = cod[i + dir, j, :]
+                qs = swd[i, j, :]
+
+                C_SWE = (qc[cvars.idens] * (dir * qc[cvars.iu] - qs[svars.iu]) -
+                         (qc[cvars.ip] - rhobar * (qs[svars.ih] - g * z))) / (rhobar + qc[cvars.idens])
+
+                swd[i + dir, j, :] = qc[:]
+                swd[i + dir, j, svars.ih] -= C_SWE
+                swd[i + dir, j, svars.iu] += C_SWE
+
+        # y-dir
+        for j in range(swg.ny):
+            for i in range(swg.nx):
+                if j < swg.ny-1 and (not mask[i, j]) and mask[i, j + 1]:
+                    dir = 1
+                elif j > 0 and mask[i, j - 1] and not mask[i, j]:
+                    dir = -1
+                else:
+                    continue
+
+                qc = cod[i, j + dir, :]
+                qs = swd[i, j, :]
+
+                C_SWE = (qc[cvars.idens] * (dir * qc[cvars.iv] - qs[svars.iv]) -
+                         (qc[cvars.ip] - rhobar * (qs[svars.ih] - g * z))) / (rhobar + qc[cvars.idens])
+
+                swd[i, j + dir, :] = qc[:]
+                swd[i, j + dir, svars.ih] -= C_SWE
+                swd[i, j + dir, svars.iv] += C_SWE
+
+    def comp_to_swe(self):
+        """
+        Calculate ghost data in compressible then convert to swe
+        """
+        mask = self.aux_data.get_var("multiscale_mask").astype(bool)
 
     def method_compute_timestep(self):
         """
@@ -116,9 +187,6 @@ class Simulation(NullSimulation):
         # get the variables we need
         u, v, cs = self.swe_data.get_var(["velocity", "soundspeed"])
         U, V, CS = self.comp_data.get_var(["velocity", "soundspeed"])
-
-        print(f"swe cs = {cs}, comp cs = {CS}")
-
         u = np.maximum(u, U)
         v = np.maximum(v, V)
         cs = np.maximum(cs, CS)
@@ -183,19 +251,19 @@ class Simulation(NullSimulation):
 
         # we do this even though ivars is in self, so this works when
         # we are plotting from a file
-        ivars = swe.Variables(self.swe_data)
+        ivars = comp.Variables(self.comp_data)
 
-        q = swe.cons_to_prim(self.swe_data.data, self.rp,
-                             ivars, self.swe_data.grid)
+        q = comp.cons_to_prim(self.comp_data.data, self.rp,
+                              ivars, self.comp_data.grid)
 
-        h = q[:, :, ivars.ih]
+        h = q[:, :, ivars.idens]
         u = q[:, :, ivars.iu]
         v = q[:, :, ivars.iv]
         fuel = q[:, :, ivars.ix]
 
         magvel = np.sqrt(u**2 + v**2)
 
-        myg = self.swe_data.grid
+        myg = self.comp_data.grid
 
         vort = myg.scratch_array()
 

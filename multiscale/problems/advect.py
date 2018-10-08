@@ -6,7 +6,7 @@ import numpy as np
 from util import msg
 
 
-def init_data(swe_data, comp_data, rp):
+def init_data(swe_data, comp_data, aux_data, rp):
     """ initialize a smooth advection problem for testing convergence """
 
     msg.bold("initializing the advect problem...")
@@ -36,21 +36,20 @@ def init_data(swe_data, comp_data, rp):
     ymin = rp.get_param("mesh.ymin")
     ymax = rp.get_param("mesh.ymax")
 
-    xctr = 0.5*(xmin + xmax)
-    yctr = 0.5*(ymin + ymax)
+    xctr = 0.5 * (xmin + xmax)
+    yctr = 0.5 * (ymin + ymax)
 
     # this is identical to the advection/smooth problem
-    h[:, :] = 1.0 + np.exp(-60.0*((swe_data.grid.x2d-xctr)**2 +
-                                    (swe_data.grid.y2d-yctr)**2))
+    h[:, :] = 1.0 + np.exp(-60.0 * ((swe_data.grid.x2d - xctr)**2 +
+                                    (swe_data.grid.y2d - yctr)**2))
 
     # velocity is diagonal
     u = 1.0
     v = 1.0
-    xmom[:, :] = h[:, :]*u
-    ymom[:, :] = h[:, :]*v
+    xmom[:, :] = h[:, :] * u
+    ymom[:, :] = h[:, :] * v
 
     X[:, :] = h**2 / np.max(h)
-
 
     # compressible initial data
 
@@ -75,22 +74,28 @@ def init_data(swe_data, comp_data, rp):
     ymin = rp.get_param("mesh.ymin")
     ymax = rp.get_param("mesh.ymax")
 
-    xctr = 0.5*(xmin + xmax)
-    yctr = 0.5*(ymin + ymax)
+    xctr = 0.5 * (xmin + xmax)
+    yctr = 0.5 * (ymin + ymax)
 
     # this is identical to the advection/smooth problem
-    dens[:, :] = 1.0 + np.exp(-60.0*((comp_data.grid.x2d-xctr)**2 +
-                                    (comp_data.grid.y2d-yctr)**2))
+    dens[:, :] = 1.0 + np.exp(-60.0 * ((comp_data.grid.x2d - xctr)**2 +
+                                       (comp_data.grid.y2d - yctr)**2))
 
     # velocity is diagonal
     u = 1.0
     v = 1.0
-    xmom[:, :] = dens[:, :]*u
-    ymom[:, :] = dens[:, :]*v
+    xmom[:, :] = dens[:, :] * u
+    ymom[:, :] = dens[:, :] * v
 
     # pressure is constant
     p = 1.0
-    ener[:, :] = p/(gamma - 1.0) + 0.5*(xmom[:, :]**2 + ymom[:, :]**2)/dens[:, :]
+    ener[:, :] = p / (gamma - 1.0) + 0.5 * (xmom[:, :]
+                                            ** 2 + ymom[:, :]**2) / dens[:, :]
+
+    # mask
+    mask = aux_data.get_var("multiscale_mask")
+    mask[:, :] = True
+    mask[swe_data.grid.x2d < xctr] = False
 
 
 def finalize():

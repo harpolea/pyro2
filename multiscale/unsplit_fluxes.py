@@ -164,16 +164,16 @@ def unsplit_fluxes(lib, my_data, my_aux, rp, solid, tc, dt):
     myg = my_data.grid
     ivars = lib.Variables(my_data)
 
-    #=========================================================================
+    # =========================================================================
     # compute the primitive variables
-    #=========================================================================
+    # =========================================================================
     # Q = (h, u, v, {X})
 
     q = lib.cons_to_prim(my_data.data, rp, ivars, myg)
 
-    #=========================================================================
+    # =========================================================================
     # compute the flattening coefficients
-    #=========================================================================
+    # =========================================================================
 
     # there is a single flattening coefficient (xi) for all directions
     use_flattening = rp.get_param("multiscale.use_flattening")
@@ -196,14 +196,14 @@ def unsplit_fluxes(lib, my_data, my_aux, rp, solid, tc, dt):
     ldy = myg.scratch_array(nvar=ivars.nvar)
 
     for n in range(ivars.nvar):
-        ldx[:, :, n] = xi*reconstruction.limit(q[:, :, n], myg, 1, limiter)
-        ldy[:, :, n] = xi*reconstruction.limit(q[:, :, n], myg, 2, limiter)
+        ldx[:, :, n] = xi * reconstruction.limit(q[:, :, n], myg, 1, limiter)
+        ldy[:, :, n] = xi * reconstruction.limit(q[:, :, n], myg, 2, limiter)
 
     tm_limit.end()
 
-    #=========================================================================
+    # =========================================================================
     # x-direction
-    #=========================================================================
+    # =========================================================================
 
     # left and right primitive variable states
     tm_states = tc.timer("interfaceStates")
@@ -217,9 +217,9 @@ def unsplit_fluxes(lib, my_data, my_aux, rp, solid, tc, dt):
     U_xl = lib.prim_to_cons(V_l, rp, ivars, myg)
     U_xr = lib.prim_to_cons(V_r, rp, ivars, myg)
 
-    #=========================================================================
+    # =========================================================================
     # y-direction
-    #=========================================================================
+    # =========================================================================
 
     # left and right primitive variable states
     tm_states.begin()
@@ -232,15 +232,15 @@ def unsplit_fluxes(lib, my_data, my_aux, rp, solid, tc, dt):
     U_yl = lib.prim_to_cons(V_l, rp, ivars, myg)
     U_yr = lib.prim_to_cons(V_r, rp, ivars, myg)
 
-    #=========================================================================
+    # =========================================================================
     # apply source terms
-    #=========================================================================
+    # =========================================================================
 
     lib.apply_sources(rp, my_data, my_aux, dt, ivars, U_xl, U_xr, U_yl, U_yr)
 
-    #=========================================================================
+    # =========================================================================
     # compute transverse fluxes
-    #=========================================================================
+    # =========================================================================
     tm_riem = tc.timer("riemann")
     tm_riem.begin()
 
@@ -249,9 +249,9 @@ def unsplit_fluxes(lib, my_data, my_aux, rp, solid, tc, dt):
 
     tm_riem.end()
 
-    #=========================================================================
+    # =========================================================================
     # construct the interface values of U now
-    #=========================================================================
+    # =========================================================================
 
     """
     finally, we can construct the state perpendicular to the interface
@@ -299,8 +299,8 @@ def unsplit_fluxes(lib, my_data, my_aux, rp, solid, tc, dt):
     tm_transverse = tc.timer("transverse flux addition")
     tm_transverse.begin()
 
-    dtdx = dt/myg.dx
-    dtdy = dt/myg.dy
+    dtdx = dt / myg.dx
+    dtdy = dt / myg.dy
 
     b = (2, 1)
 
@@ -308,25 +308,27 @@ def unsplit_fluxes(lib, my_data, my_aux, rp, solid, tc, dt):
 
         # U_xl[i,j,:] = U_xl[i,j,:] - 0.5*dt/dy * (F_y[i-1,j+1,:] - F_y[i-1,j,:])
         U_xl.v(buf=b, n=n)[:, :] += \
-            - 0.5*dtdy*(F_y.ip_jp(-1, 1, buf=b, n=n) - F_y.ip(-1, buf=b, n=n))
+            - 0.5 * dtdy * (F_y.ip_jp(-1, 1, buf=b, n=n) -
+                            F_y.ip(-1, buf=b, n=n))
 
         # U_xr[i,j,:] = U_xr[i,j,:] - 0.5*dt/dy * (F_y[i,j+1,:] - F_y[i,j,:])
         U_xr.v(buf=b, n=n)[:, :] += \
-            - 0.5*dtdy*(F_y.jp(1, buf=b, n=n) - F_y.v(buf=b, n=n))
+            - 0.5 * dtdy * (F_y.jp(1, buf=b, n=n) - F_y.v(buf=b, n=n))
 
         # U_yl[i,j,:] = U_yl[i,j,:] - 0.5*dt/dx * (F_x[i+1,j-1,:] - F_x[i,j-1,:])
         U_yl.v(buf=b, n=n)[:, :] += \
-            - 0.5*dtdx*(F_x.ip_jp(1, -1, buf=b, n=n) - F_x.jp(-1, buf=b, n=n))
+            - 0.5 * dtdx * (F_x.ip_jp(1, -1, buf=b, n=n) -
+                            F_x.jp(-1, buf=b, n=n))
 
         # U_yr[i,j,:] = U_yr[i,j,:] - 0.5*dt/dx * (F_x[i+1,j,:] - F_x[i,j,:])
         U_yr.v(buf=b, n=n)[:, :] += \
-            - 0.5*dtdx*(F_x.ip(1, buf=b, n=n) - F_x.v(buf=b, n=n))
+            - 0.5 * dtdx * (F_x.ip(1, buf=b, n=n) - F_x.v(buf=b, n=n))
 
     tm_transverse.end()
 
-    #=========================================================================
+    # =========================================================================
     # construct the fluxes normal to the interfaces
-    #=========================================================================
+    # =========================================================================
 
     # up until now, F_x and F_y stored the transverse fluxes, now we
     # overwrite with the fluxes normal to the interfaces
@@ -338,9 +340,9 @@ def unsplit_fluxes(lib, my_data, my_aux, rp, solid, tc, dt):
 
     tm_riem.end()
 
-    #=========================================================================
+    # =========================================================================
     # apply artificial viscosity
-    #=========================================================================
+    # =========================================================================
 
     lib.artificial_viscosity(my_data, myg, rp, ivars, q, F_x, F_y)
 
