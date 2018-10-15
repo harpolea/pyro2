@@ -4,6 +4,7 @@ import importlib
 
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import AxesGrid
 
 import mesh.boundary as bnd
 from simulation_null import NullSimulation, grid_setup, bc_setup
@@ -57,11 +58,17 @@ class Simulation(NullSimulation):
         # so we can have a
         # self-contained object stored in output files to make plots.
         # store grav because we'll need that in some BCs
-        swe_data.set_aux("g", self.rp.get_param("swe.grav"))
+        swe_data.set_aux("g", self.rp.get_param("multiscale.grav"))
         swe_data.set_aux("rhobar", self.rp.get_param("swe.rhobar"))
         comp_data.set_aux("gamma", self.rp.get_param("eos.gamma"))
-        comp_data.set_aux("grav", self.rp.get_param("compressible.grav"))
+        comp_data.set_aux("grav", self.rp.get_param("multiscale.grav"))
         comp_data.set_aux("z", self.rp.get_param("compressible.z"))
+
+        boundary_loc = self.rp.get_param("multiscale.boundary_loc")
+        boundary_loc = int(self.rp.get_param("mesh.nx") * boundary_loc)
+
+        swe_data.set_aux("boundary_loc", boundary_loc)
+        comp_data.set_aux("boundary_loc", boundary_loc)
 
         swe_data.create()
         comp_data.create()
@@ -83,7 +90,6 @@ class Simulation(NullSimulation):
         aux_data = self.data_class(my_grid)
         aux_data.register_var("ymom_src", bc_yodd)
         aux_data.register_var("E_src", bc)
-        aux_data.register_var("multiscale_mask", bc)
         aux_data.create()
         self.aux_data = aux_data
 
@@ -108,7 +114,6 @@ class Simulation(NullSimulation):
         """
         Calculate ghost data in swe then convert to compressible
         """
-        mask = self.aux_data.get_var("multiscale_mask").astype(bool)
 
         swg = self.swe_data.grid
         cog = self.comp_data.grid
@@ -119,58 +124,97 @@ class Simulation(NullSimulation):
         cvars = self.ivars_comp
         svars = self.ivars_swe
 
+        sq = swe.cons_to_prim(swd, self.rp, svars, swg)
+        cq = comp.cons_to_prim(cod, self.rp, cvars, cog)
+
         g = self.swe_data.get_aux("g")
         rhobar = self.swe_data.get_aux("rhobar")
         z = self.comp_data.get_aux("z")
 
-        # TODO: check using primitives here
-
         # x-dir
+        i = self.swe_data.get_aux("boundary_loc")
 
         for j in range(swg.ny):
-            for i in range(swg.nx):
-                if i < swg.nx-1 and not mask[i, j] and mask[i + 1, j]:
-                    dir = 1
-                elif i > 0 and mask[i - 1, j] and not mask[i, j]:
-                    dir = -1
-                else:
-                    continue
 
-                qc = cod[i + dir, j, :]
-                qs = swd[i, j, :]
+            qc = cq[i + 1, j, :]
+            qs = sq[i, j, :]
 
-                C_SWE = (qc[cvars.idens] * (dir * qc[cvars.iu] - qs[svars.iu]) -
-                         (qc[cvars.ip] - rhobar * (qs[svars.ih] - g * z))) / (rhobar + qc[cvars.idens])
+            C_SWE = (qc[cvars.irho] * (qc[cvars.iu] - qs[svars.iu]) -
+                     (qc[cvars.ip] - rhobar * g * (qs[svars.ih] - z))) / (rhobar + qc[cvars.irho])
 
-                swd[i + dir, j, :] = qc[:]
-                swd[i + dir, j, svars.ih] -= C_SWE
-                swd[i + dir, j, svars.iu] += C_SWE
+            q_ghost = qs[:]
+            q_ghost[svars.ih] -= C_SWE
+            q_ghost[svars.iu] += C_SWE * qs[svars.iu]
 
-        # y-dir
-        for j in range(swg.ny):
-            for i in range(swg.nx):
-                if j < swg.ny-1 and (not mask[i, j]) and mask[i, j + 1]:
-                    dir = 1
-                elif j > 0 and mask[i, j - 1] and not mask[i, j]:
-                    dir = -1
-                else:
-                    continue
+            swd[i + 1, j, :] = swe.prim_to_cons_vec(q_ghost, self.rp, svars)
 
-                qc = cod[i, j + dir, :]
-                qs = swd[i, j, :]
-
-                C_SWE = (qc[cvars.idens] * (dir * qc[cvars.iv] - qs[svars.iv]) -
-                         (qc[cvars.ip] - rhobar * (qs[svars.ih] - g * z))) / (rhobar + qc[cvars.idens])
-
-                swd[i, j + dir, :] = qc[:]
-                swd[i, j + dir, svars.ih] -= C_SWE
-                swd[i, j + dir, svars.iv] += C_SWE
+        # we need to make sure enough of the ghost cells have been updated, so we'll just copy
+        # the column that has been found
+        for g in range(1, swg.ng):
+            swd[i + 1 + g, :, :] = swd[i + 1, :, :]
 
     def comp_to_swe(self):
         """
         Calculate ghost data in compressible then convert to swe
         """
-        mask = self.aux_data.get_var("multiscale_mask").astype(bool)
+
+        swg = self.swe_data.grid
+        cog = self.comp_data.grid
+
+        swd = self.swe_data.data
+        cod = self.comp_data.data
+
+        cs = self.comp_data.get_var("soundspeed")
+
+        cvars = self.ivars_comp
+        svars = self.ivars_swe
+
+        sq = swe.cons_to_prim(swd, self.rp, svars, swg)
+        cq = comp.cons_to_prim(cod, self.rp, cvars, cog)
+
+        g = self.swe_data.get_aux("g")
+        rhobar = self.swe_data.get_aux("rhobar")
+        z = self.comp_data.get_aux("z")
+
+        # x-dir
+        i = self.swe_data.get_aux("boundary_loc")
+
+        for j in range(swg.ny):
+
+            qc = cq[i + 1, j, :]
+            qs = sq[i, j, :]
+
+            C_SWE = (qc[cvars.irho] * (qc[cvars.iu] - qs[svars.iu]) -
+                     (qc[cvars.ip] - rhobar * g * (qs[svars.ih] - z))) / (rhobar + qc[cvars.irho])
+
+            C_Euler = qc[cvars.irho] / cs[i + 1, j]**2 * \
+                ((qc[cvars.iu] - qs[cvars.iu]) - C_SWE)
+
+            q_ghost = qc[:]
+            q_ghost[cvars.ip] -= C_Euler * cs[i + 1, j]**2
+            q_ghost[cvars.irho] -= C_Euler
+            q_ghost[cvars.iu] -= C_Euler * \
+                cs[i + 1, j] / qc[cvars.irho]
+
+            cod[i, j, :] = comp.prim_to_cons_vec(q_ghost, self.rp, cvars)
+
+        # we need to make sure enough of the ghost cells have been updated, so we'll just copy
+        # the column that has been found
+        for g in range(1, cog.ng):
+            cod[i - g, :, :] = cod[i, :, :]
+
+    def fix_ghosts(self):
+
+        # first average swe in vertical direction
+        vertical_average = np.average(self.swe_data.data, 1)
+        self.swe_data.data[:, :, :] = vertical_average[:, np.newaxis, :]
+
+        self.swe_to_comp()
+        self.comp_to_swe()
+
+        # average again
+        vertical_average = np.average(self.swe_data.data, 1)
+        self.swe_data.data[:, :, :] = vertical_average[:, np.newaxis, :]
 
     def method_compute_timestep(self):
         """
@@ -185,10 +229,9 @@ class Simulation(NullSimulation):
         cfl = self.rp.get_param("driver.cfl")
 
         # get the variables we need
-        u, v, cs = self.swe_data.get_var(["velocity", "soundspeed"])
-        U, V, CS = self.comp_data.get_var(["velocity", "soundspeed"])
+        u, cs = self.swe_data.get_var(["velocity", "soundspeed"])
+        U, v, CS = self.comp_data.get_var(["velocity", "soundspeed"])
         u = np.maximum(u, U)
-        v = np.maximum(v, V)
         cs = np.maximum(cs, CS)
 
         # the timestep is min(dx/(|u| + cs), dy/(|v| + cs))
@@ -232,6 +275,8 @@ class Simulation(NullSimulation):
             # fill boundary conditions
             data.fill_BC_all()
 
+        self.fix_ghosts()
+
         if self.particles is not None:
             self.particles.update_particles(self.dt)
 
@@ -251,64 +296,108 @@ class Simulation(NullSimulation):
 
         # we do this even though ivars is in self, so this works when
         # we are plotting from a file
-        ivars = comp.Variables(self.comp_data)
+        svars = swe.Variables(self.swe_data)
+        cvars = comp.Variables(self.comp_data)
 
-        q = comp.cons_to_prim(self.comp_data.data, self.rp,
-                              ivars, self.comp_data.grid)
+        qs = swe.cons_to_prim(self.swe_data.data, self.rp,
+                             svars, self.swe_data.grid)
 
-        h = q[:, :, ivars.idens]
-        u = q[:, :, ivars.iu]
-        v = q[:, :, ivars.iv]
-        fuel = q[:, :, ivars.ix]
+        qc = comp.cons_to_prim(self.comp_data.data, self.rp,
+                          cvars, self.comp_data.grid)
 
-        magvel = np.sqrt(u**2 + v**2)
+        i = self.swe_data.get_aux("boundary_loc")
+
+        h = qs[:, :, svars.ih]
+        u = qs[:, :, svars.iu]
+        v = qs[:, :, svars.iu]
+        fuel = qs[:, :, svars.ix]
+
+        dens = qc[:,:,cvars.idens]
+        uc = qc[:,:,cvars.iu]
+        vc = qc[:,:,cvars.iv]
+        p = qc[:,:,cvars.ip]
+
+        # magvel = np.sqrt(u**2 + v**2)
 
         myg = self.comp_data.grid
 
-        vort = myg.scratch_array()
+        # vort = myg.scratch_array()
+        #
+        # dv = 0.5 * (v.ip(1) - v.ip(-1)) / myg.dx
+        # du = 0.5 * (u.jp(1) - u.jp(-1)) / myg.dy
 
-        dv = 0.5 * (v.ip(1) - v.ip(-1)) / myg.dx
-        du = 0.5 * (u.jp(1) - u.jp(-1)) / myg.dy
+        # vort.v()[:, :] = dv - du
 
-        vort.v()[:, :] = dv - du
+        swe_fields = [h, u, v, fuel]
+        swe_field_names = [r"$h$", r"$u$", r"$v$", r"$X$"]
 
-        fields = [h, magvel, fuel, vort]
-        field_names = [r"$h$", r"$|U|$", r"$X$", r"$\nabla\times U$"]
+        comp_fields = [dens, uc, vc, p]
+        comp_field_names = [r"$\rho$", r"$u$", r"$v$", r"$p$"]
 
-        _, axes, cbar_title = plot_tools.setup_axes(myg, len(fields))
+        f = plt.figure(1)
+        f.set_size_inches(12,8)
+        axes = AxesGrid(f, 111,
+                        nrows_ncols=(4, 2),
+                        share_all=True,
+                        cbar_mode="each",
+                        cbar_location="top",
+                        cbar_pad="10%",
+                        cbar_size="25%",
+                        axes_pad=(0, 0.85),
+                        add_all=True, label_mode="L")
+        cbar_title = True
 
-        for n, ax in enumerate(axes):
-            v = fields[n]
+        # _, axes, cbar_title = plot_tools.setup_axes(myg, len(fields))
 
-            img = ax.imshow(np.transpose(v.v()),
+        for n in range(4):
+            ax_swe = axes[2*n]
+            ax_comp = axes[2*n+1]
+            swe_v = swe_fields[n]
+            comp_v = comp_fields[n]
+
+            img = ax_swe.imshow(np.transpose(swe_v[:i, :].v()),
                             interpolation="nearest", origin="lower",
-                            extent=[myg.xmin, myg.xmax, myg.ymin, myg.ymax],
+                            extent=[myg.xmin, myg.xmax/2, myg.ymin, myg.ymax],
                             cmap=self.cm)
 
-            ax.set_xlabel("x")
-            ax.set_ylabel("y")
+            ax_swe.set_xlabel("x")
+            ax_swe.set_ylabel("y")
 
             # needed for PDF rendering
-            cb = axes.cbar_axes[n].colorbar(img)
+            cb = axes.cbar_axes[2*n].colorbar(img)
             cb.solids.set_rasterized(True)
             cb.solids.set_edgecolor("face")
 
             if cbar_title:
-                cb.ax.set_title(field_names[n])
+                cb.ax.set_title(swe_field_names[n], pad=25)
             else:
-                ax.set_title(field_names[n])
+                ax_swe.set_title(swe_field_names[n])
 
-        if self.particles is not None:
-            ax = axes[0]
-            particle_positions = self.particles.get_positions()
-            # dye particles
-            colors = self.particles.get_init_positions()[:, 0]
+            img2 = ax_comp.imshow(np.transpose(comp_v[i:, :].v()),
+                            interpolation="nearest", origin="lower",
+                            extent=[myg.xmin, myg.xmax/2, myg.ymin, myg.ymax],
+                            cmap=self.cm)
 
-            # plot particles
-            ax.scatter(particle_positions[:, 0],
-                       particle_positions[:, 1], s=5, c=colors, alpha=0.8, cmap="Greys")
-            ax.set_xlim([myg.xmin, myg.xmax])
-            ax.set_ylim([myg.ymin, myg.ymax])
+            ax_comp.set_xlabel("x")
+            ax_comp.set_ylabel("y")
+
+            # needed for PDF rendering
+            cb_c = axes.cbar_axes[2*n+1].colorbar(img2)
+            cb_c.solids.set_rasterized(True)
+            cb_c.solids.set_edgecolor("face")
+
+            if cbar_title:
+                cb_c.ax.set_title(comp_field_names[n], pad=25)
+            else:
+                ax_comp.set_title(comp_field_names[n])
+
+            smin, smax = cb.get_clim()
+            cmin, cmax = cb_c.get_clim()
+
+            if n == 2 or n == 3:
+                cb.set_clim(min(smin, cmin), max(smax, cmax))
+                cb_c.set_clim(min(smin, cmin), max(smax, cmax))
+
 
         plt.figtext(0.05, 0.0125, "t = {:10.5g}".format(self.cc_data.t))
 

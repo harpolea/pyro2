@@ -150,7 +150,7 @@ class Pyro(object):
         self.sim.write("{}{:04d}".format(basename, self.sim.n))
 
         if self.dovis:
-            plt.figure(num=1, figsize=(8, 6), dpi=100, facecolor='w')
+            plt.figure(num=1, figsize=(15, 6), dpi=100, facecolor='w')
             self.sim.dovis()
 
         while not self.sim.finished():

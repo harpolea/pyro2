@@ -5,7 +5,7 @@ tmax = 1.0
 [swe]
 limiter = 0
 cvisc = 0.1
-grav = 0.001
+grav = 1
 
 
 [io]
@@ -34,7 +34,7 @@ gamma = 1.4
 [compressible]
 limiter = 0
 cvisc = 0.1
-grav = 0.0003
+grav = 1
 
 [multiscale]
 use_flattening = 0

@@ -9,9 +9,9 @@ cvisc = 0.1               ; artifical viscosity coefficient
 
 limiter = 2               ; limiter (0 = none, 1 = 2nd order, 2 = 4th order)
 
-grav = 1.0                ; gravitational acceleration (in y-direction)
-
 riemann = HLLC            ; HLLC or Roe
+
+rhobar = 1;
 
 
 [particles]
@@ -26,9 +26,11 @@ gamma = 1.4
 [compressible]
 limiter = 0
 cvisc = 0.1
-grav = 0.0003
 riemann = HLLC
+z = 1
 
 [multiscale]
 use_flattening = 0
 limiter = 2
+grav = 1
+boundary_loc = 0.5

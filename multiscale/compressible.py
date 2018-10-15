@@ -92,6 +92,29 @@ def prim_to_cons(q, rp, ivars, myg):
 
     return U
 
+def prim_to_cons_vec(q, rp, ivars):
+    """ convert an input vector of primitive variables to conserved variables """
+
+    gamma = rp.get_param("eos.gamma")
+
+    U = np.zeros(ivars.nvar)
+
+    U[ivars.idens] = q[ivars.irho]
+    U[ivars.ixmom] = q[ivars.iu] * U[ivars.idens]
+    U[ivars.iymom] = q[ivars.iv] * U[ivars.idens]
+
+    rhoe = eos.rhoe(gamma, q[ivars.ip])
+
+    U[ivars.iener] = rhoe + 0.5 * q[ivars.irho] * (q[ivars.iu]**2 +
+                                                               q[ivars.iv]**2)
+
+    if ivars.naux > 0:
+        for nq, nu in zip(range(ivars.ix, ivars.ix + ivars.naux),
+                          range(ivars.irhox, ivars.irhox + ivars.naux)):
+            U[nu] = q[nq] * q[ivars.irho]
+
+    return U
+
 
 def derive_primitives(myd, varnames):
     """
@@ -190,7 +213,7 @@ def apply_sources(rp, my_data, my_aux, dt, ivars, U_xl, U_xr, U_yl, U_yr):
 
     dens = my_data.get_var("density")
     ymom = my_data.get_var("y-momentum")
-    grav = rp.get_param("compressible.grav")
+    grav = rp.get_param("multiscale.grav")
 
     ymom_src = my_aux.get_var("ymom_src")
     ymom_src.v()[:, :] = dens.v() * grav
